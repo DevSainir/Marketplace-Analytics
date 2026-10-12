@@ -53,7 +53,14 @@ describe('InvitePanel — the grant that travels with the link', () => {
     const payload = await submit(wrapper)
 
     expect(payload.accessLevel).toBe('read_write')
-    expect(payload.modules).toEqual(['monitoring', 'finreports', 'ab_tests', 'advertising'])
+    expect(payload.modules).toEqual([
+      'monitoring',
+      'summary',
+      'finreports',
+      'ab_tests',
+      'heatmap',
+      'advertising',
+    ])
   })
 
   it('sends no email as null rather than an empty string', async () => {

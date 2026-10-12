@@ -105,35 +105,28 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
-@pytest.mark.parametrize("withheld", ["monitoring", "finreports"])
-async def test_a_manager_needs_both_grants_to_see_the_summary(
+async def test_a_manager_without_the_summary_grant_is_refused(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     login_as: Callable[..., None],
-    withheld: str,
 ) -> None:
-    """Either grant missing is a 403 — the page shows data from both modules.
+    """Every other grant held, «Мониторинг» and P&L among them — still a 403.
 
-    Revenue, margin and withholdings are «Отчёты»; orders, buyout and
-    advertising are «Мониторинг». A manager granted one of the two would
-    otherwise be shown the other one's figures here, which is exactly the
-    access their owner chose not to give.
+    The page is its own grant since 2026-10-12; holding both of the sections
+    its figures come from no longer opens it.
     """
-    login_as(
-        role=EffectiveRole.MANAGER,
-        modules=tuple(m for m in ALL_MODULES if m != withheld),
-    )
+    login_as(role=EffectiveRole.MANAGER, modules=tuple(m for m in ALL_MODULES if m != "summary"))
 
     response = await client.get("/api/v1/summary", headers=headers)
 
     assert response.status_code == 403
 
 
-async def test_a_manager_granted_both_reaches_it(
+async def test_the_summary_grant_alone_opens_it(
     client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
 ) -> None:
-    """The other half of the rule: both grants are enough, nothing else is asked."""
-    login_as(role=EffectiveRole.MANAGER, modules=ALL_MODULES)
+    """The other half: «Сводка» with nothing else is enough, money included."""
+    login_as(role=EffectiveRole.MANAGER, modules=("summary",))
 
     response = await client.get("/api/v1/summary", headers=headers)
 

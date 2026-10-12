@@ -146,17 +146,30 @@ export function splitBy(items, cut, how) {
 }
 
 /**
+ * The pages that carry the group filter — the backend's `GROUP_MODULES`.
+ * Groups are a control on these pages, not a page of their own, so holding any
+ * one of them is what lets a caller read the groups (`require_groups`).
+ */
+export const GROUP_MODULES = ['summary', 'finreports', 'heatmap', 'advertising']
+
+/** Whether the caller may read the groups at all — see `GROUP_MODULES`. */
+export function useGroupsReadable() {
+  const members = useMembersStore()
+  return computed(() => GROUP_MODULES.some((key) => members.canReach(key)))
+}
+
+/**
  * What a page cutting by «Группы» needs: the list, loaded when the cut is
- * chosen, and whether the caller may have it at all. A caller who may not
- * (no monitoring grant — see `GroupsFilter`) is put back on «Артикулы»
- * rather than shown a cut that can only say «Без группы».
+ * chosen, and whether the caller may have it at all. A caller who may not is
+ * put back on «Артикулы» rather than shown a cut that can only say «Без группы».
+ * Every page with the cut is one of `GROUP_MODULES`, so that is a safety net
+ * for a page added later outside the list, not a case that happens today.
  *
  * @param {import('vue').Ref<string>} cut The page's cut.
  */
 export function useGroupCut(cut) {
   const store = useGroupsStore()
-  const members = useMembersStore()
-  const readable = computed(() => members.canReach('monitoring'))
+  const readable = useGroupsReadable()
   watch(
     [cut, readable],
     ([value, ok]) => {

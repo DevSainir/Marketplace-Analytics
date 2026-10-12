@@ -7,10 +7,6 @@ export const advertisingRoutes = [
     path: '/advertising',
     name: 'advertising',
     component: () => import('@/modules/advertising/views/AdvertisingView.vue'),
-    meta: {
-      title: 'Реклама',
-      requiresAuth: true,
-      modules: ['advertising'],
-    },
+    meta: { title: 'Реклама', requiresAuth: true, module: 'advertising' },
   },
 ]

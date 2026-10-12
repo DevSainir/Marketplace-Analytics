@@ -55,25 +55,37 @@ describe('AppHeaderNext auth zone', () => {
 /** The nav labels the header actually renders. */
 const labels = (wrapper) => wrapper.findAll('nav a').map((link) => link.text())
 
-describe('a page built from two module grants', () => {
-  it('is advertised only when both are granted', () => {
+describe('each page is a grant of its own', () => {
+  it('advertises «Сводка» on its own grant alone', () => {
+    const wrapper = mountHeader({ isAuthenticated: true, authResolved: true, modules: ['summary'] })
+
+    expect(labels(wrapper)).toEqual(['Главная', 'Сводка'])
+  })
+
+  it('no longer opens «Сводка» on «Мониторинг» and P&L together', () => {
     const wrapper = mountHeader({
       isAuthenticated: true,
       authResolved: true,
       modules: ['monitoring', 'finreports'],
     })
 
-    expect(labels(wrapper)).toContain('Сводка')
+    expect(labels(wrapper)).not.toContain('Сводка')
   })
 
-  it('stays hidden when one of the two is withheld', () => {
+  it('advertises «Тепловая карта» on its own grant alone', () => {
+    const wrapper = mountHeader({ isAuthenticated: true, authResolved: true, modules: ['heatmap'] })
+
+    expect(labels(wrapper)).toEqual(['Главная', 'Тепловая карта'])
+  })
+
+  it('no longer opens «Тепловая карта» on «Мониторинг»', () => {
     const wrapper = mountHeader({
       isAuthenticated: true,
       authResolved: true,
       modules: ['monitoring'],
     })
 
-    expect(labels(wrapper)).not.toContain('Сводка')
+    expect(labels(wrapper)).not.toContain('Тепловая карта')
   })
 })
 

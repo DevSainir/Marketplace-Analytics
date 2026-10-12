@@ -24,8 +24,8 @@ const props = defineProps({
   // Whether the viewer is one of us. Governs the links to surfaces built for a
   // single seller — see `require_internal` on the API side.
   internalFeatures: { type: Boolean, default: false },
-  // Which sections this account may reach. A link to one it cannot is not a
-  // shortcut, it is an invitation to a locked door.
+  // Which sections this account may reach — one grant per link below. A link
+  // to one it cannot is not a shortcut, it is an invitation to a locked door.
   modules: { type: Array, default: () => [] },
 })
 
@@ -34,16 +34,10 @@ const emit = defineEmits(['logout', 'select-workspace'])
 const NAV = [
   { to: '/', label: 'Главная', exact: true },
   { to: '/monitoring', label: 'Мониторинг', module: 'monitoring' },
-  // Both grants, like the route and the API behind it: the page shows
-  // «Отчёты» money next to «Мониторинг» demand, so one grant alone must
-  // not advertise it.
-  { to: '/summary', label: 'Сводка', modules: ['monitoring', 'finreports'] },
+  { to: '/summary', label: 'Сводка', module: 'summary' },
   { to: '/finreports', label: 'P&L', module: 'finreports' },
   { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests' },
-  // Monitoring's page; its money metrics alone also need P&L.
-  { to: '/heatmap', label: 'Тепловая карта', module: 'monitoring' },
-  // Its own grant, like its route and API: the page shows sales, so an owner
-  // decides about it directly rather than through «Мониторинг».
+  { to: '/heatmap', label: 'Тепловая карта', module: 'heatmap' },
   { to: '/advertising', label: 'Реклама', module: 'advertising' },
 ]
 
@@ -54,8 +48,7 @@ const visibleNav = computed(() =>
   NAV.filter(
     (link) =>
       (!link.internal || props.internalFeatures) &&
-      (!link.module || props.modules.includes(link.module)) &&
-      (link.modules ?? []).every((key) => props.modules.includes(key)),
+      (!link.module || props.modules.includes(link.module)),
   ),
 )
 

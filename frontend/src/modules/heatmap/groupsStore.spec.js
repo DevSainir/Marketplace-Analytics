@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { UNGROUPED, UNNAMED, splitBy } from '@/modules/heatmap/groupsStore'
+import { UNGROUPED, UNNAMED, splitBy, useGroupsReadable } from '@/modules/heatmap/groupsStore'
+
+/** The grants the fake members store answers with; set per test. */
+let granted = []
+vi.mock('@/modules/profile', () => ({
+  useMembersStore: () => ({ canReach: (key) => granted.includes(key) }),
+}))
 
 const ITEMS = [
   { id: 1, subject: 'Брюки', brand: 'X' },
@@ -39,5 +45,25 @@ describe('splitBy', () => {
       ['Хиты', [1]],
       [UNGROUPED, [3]],
     ])
+  })
+})
+
+describe('useGroupsReadable — who may read the groups', () => {
+  it('lets in a manager holding P&L alone — the filter is on that page too', () => {
+    granted = ['finreports']
+
+    expect(useGroupsReadable().value).toBe(true)
+  })
+
+  it('lets in a manager holding «Сводка» alone', () => {
+    granted = ['summary']
+
+    expect(useGroupsReadable().value).toBe(true)
+  })
+
+  it('keeps out a manager with no page that carries groups', () => {
+    granted = ['monitoring', 'ab_tests']
+
+    expect(useGroupsReadable().value).toBe(false)
   })
 })

@@ -21,6 +21,7 @@ from src.modules.organizations.models.access import ActivationCode, Invitation
 from src.modules.organizations.models.audit import AuditEvent, AuditLogEntry
 from src.modules.organizations.models.organization import (
     ALL_MODULES,
+    GROUP_MODULES,
     AccessLevel,
     MemberRole,
     Membership,
@@ -35,6 +36,7 @@ from src.modules.organizations.models.subscription import (
 __all__ = [
     "ALL_MODULES",
     "DEFAULT_SUBSCRIPTION_DAYS",
+    "GROUP_MODULES",
     "AccessLevel",
     "ActivationCode",
     "AuditEvent",

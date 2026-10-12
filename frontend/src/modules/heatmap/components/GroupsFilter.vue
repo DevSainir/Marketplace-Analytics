@@ -9,9 +9,9 @@
  * page's menu at once. The choice — which groups narrow THIS page — is the
  * page's own `v-model`.
  *
- * Shown only to a caller the server lets read groups — they sit behind the
- * monitoring grant, so a P&L-only manager would get a menu that is always
- * empty. «Добавить» and ✎ only for one who may write: a read-only manager or a
+ * Shown only to a caller the server lets read groups — anybody holding one of
+ * the pages that carry this filter (`GROUP_MODULES`), which every page
+ * rendering it is. «Добавить» and ✎ only for one who may write: a read-only manager or a
  * guest in another company's кабинет is refused by the server anyway.
  *
  * `cards` is what the editor offers; the heatmap passes its catalogue (ranked
@@ -22,7 +22,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { extractErrorMessage } from '@/core/api/axios'
 import FilterMenu from '@/core/components/FilterMenu.vue'
 import GroupDialog from '@/modules/heatmap/components/GroupDialog.vue'
-import { useGroupsStore } from '@/modules/heatmap/groupsStore'
+import { useGroupsReadable, useGroupsStore } from '@/modules/heatmap/groupsStore'
 import { useMembersStore, useWorkspaceStore } from '@/modules/profile'
 
 const props = defineProps({
@@ -35,7 +35,7 @@ const emit = defineEmits(['update:modelValue'])
 const store = useGroupsStore()
 const members = useMembersStore()
 const workspaces = useWorkspaceStore()
-const readable = computed(() => members.canReach('monitoring'))
+const readable = useGroupsReadable()
 const writable = computed(() => members.canWrite && !workspaces.currentWorkspace?.is_guest)
 const menu = ref(null)
 const dialogOpen = ref(false)

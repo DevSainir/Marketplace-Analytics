@@ -43,13 +43,16 @@ from src.modules.organizations.deps import (
     require_ab_tests,
     require_advertising,
     require_finreports,
+    require_groups,
+    require_heatmap,
     require_internal,
     require_member,
     require_monitoring,
     require_owner,
+    require_summary,
     require_writer,
 )
-from src.modules.organizations.models import ALL_MODULES, AuditEvent, ModuleKey
+from src.modules.organizations.models import ALL_MODULES, GROUP_MODULES, AuditEvent, ModuleKey
 from src.modules.organizations.services import (
     WRITING_ROLES,
     AccessLevel,
@@ -67,6 +70,7 @@ from src.modules.organizations.services import (
 
 __all__ = [
     "ALL_MODULES",
+    "GROUP_MODULES",
     "WRITING_ROLES",
     "AbTestsAccess",
     "AccessLevel",
@@ -93,10 +97,13 @@ __all__ = [
     "require_ab_tests",
     "require_advertising",
     "require_finreports",
+    "require_groups",
+    "require_heatmap",
     "require_internal",
     "require_member",
     "require_monitoring",
     "require_owner",
+    "require_summary",
     "require_writer",
     "resolve_access",
     "subscription_state",

@@ -8,7 +8,6 @@ are bounded before anything reaches a query.
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
@@ -16,21 +15,16 @@ from typing import Any
 import httpx
 import pytest
 
-from src.core.exceptions import NotFoundError
 from src.core.timeutils import moscow_today
-from src.modules.heatmap.deps import get_group_service, get_heatmap_service
+from src.modules.heatmap.deps import get_heatmap_service
 from src.modules.heatmap.routers.heatmap import DEFAULT_WINDOW_DAYS, MAX_WINDOW_DAYS
 from src.modules.heatmap.schemas import (
     HeatmapCatalogResponse,
     HeatmapResponse,
     HeatmapRow,
-    SkuGroupList,
-    SkuGroupRead,
-    SkuGroupWrite,
 )
 from src.modules.organizations.contract import (
     ALL_MODULES,
-    AccessLevel,
     EffectiveRole,
     SubscriptionState,
 )
@@ -74,42 +68,10 @@ class _StubHeatmapService:
         return HeatmapCatalogResponse(items=[], subjects=[])
 
 
-class _StubGroupService:
-    """Records group writes; knows one group id."""
-
-    def __init__(self) -> None:
-        """Start with one known group."""
-        self.known = uuid.uuid4()
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def list_groups(self, **kwargs: Any) -> SkuGroupList:
-        """Record the list."""
-        self.calls.append(("list", kwargs))
-        return SkuGroupList(items=[])
-
-    async def create(self, _session: Any, **kwargs: Any) -> SkuGroupRead:
-        """Record the create and echo the group."""
-        self.calls.append(("create", kwargs))
-        payload: SkuGroupWrite = kwargs["payload"]
-        return SkuGroupRead(id=uuid.uuid4(), name=payload.name, nm_ids=payload.nm_ids)
-
-    async def delete(self, **kwargs: Any) -> None:
-        """Delete the known group; anything else is missing."""
-        self.calls.append(("delete", kwargs))
-        if kwargs["group_id"] != self.known:
-            raise NotFoundError("Группа не найдена.")
-
-
 @pytest.fixture
 def heatmap() -> _StubHeatmapService:
     """The stub read service the routes are wired to."""
     return _StubHeatmapService()
-
-
-@pytest.fixture
-def groups() -> _StubGroupService:
-    """The stub group service the routes are wired to."""
-    return _StubGroupService()
 
 
 @pytest.fixture(autouse=True)
@@ -118,13 +80,11 @@ def _wire(
     user_repo: FakeUserRepository,
     workspace_repo: FakeWorkspaceRepository,
     heatmap: _StubHeatmapService,
-    groups: _StubGroupService,
 ) -> None:
-    """Wire identity, tenancy and both stubbed services."""
+    """Wire identity, tenancy and the stubbed read service."""
     override(get_user_repo, user_repo)
     override(get_workspace_repo, workspace_repo)
     override(get_heatmap_service, heatmap)
-    override(get_group_service, groups)
 
 
 @pytest.fixture
@@ -180,44 +140,40 @@ async def test_a_lapsed_subscription_cannot_reach_the_heatmap(
     assert heatmap.calls == []
 
 
-async def test_monitoring_is_needed_for_the_page(
-    client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
+async def test_the_heatmap_grant_is_needed_for_the_page(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    login_as: Callable[..., None],
+    heatmap: _StubHeatmapService,
 ) -> None:
-    """The grid is monitoring's funnel and advertising — without that grant, nothing."""
-    login_as(
-        role=EffectiveRole.MANAGER,
-        modules=tuple(m for m in ALL_MODULES if m != "monitoring"),
-    )
+    """Every other grant held, «Тепловая карта» withheld — nothing."""
+    login_as(role=EffectiveRole.MANAGER, modules=tuple(m for m in ALL_MODULES if m != "heatmap"))
 
     response = await client.get("/api/v1/heatmap", headers=headers)
 
     assert response.status_code == 403
+    assert heatmap.calls == []
 
 
 @pytest.mark.parametrize(
-    ("metric", "metric2", "status"),
-    [("orders", None, 200), ("revenue", None, 403), ("orders", "profit", 403)],
+    ("metric", "metric2"), [("orders", None), ("revenue", None), ("orders", "profit")]
 )
-async def test_money_needs_the_pnl_grant_too(
+async def test_the_heatmap_grant_alone_opens_every_metric(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     login_as: Callable[..., None],
     heatmap: _StubHeatmapService,
     metric: str,
     metric2: str | None,
-    status: int,
 ) -> None:
-    """A manager with monitoring alone gets the page, never the settlement's money."""
-    login_as(
-        role=EffectiveRole.MANAGER,
-        modules=tuple(m for m in ALL_MODULES if m != "finreports"),
-    )
+    """The page's grant opens the page, money included — P&L is no longer asked for too."""
+    login_as(role=EffectiveRole.MANAGER, modules=("heatmap",))
     params = {"metric": metric, **({"metric2": metric2} if metric2 else {})}
 
     response = await client.get("/api/v1/heatmap", params=params, headers=headers)
 
-    assert response.status_code == status
-    assert len(heatmap.calls) == (1 if status == 200 else 0)
+    assert response.status_code == 200
+    assert len(heatmap.calls) == 1
 
 
 async def test_the_grid_is_scoped_to_the_active_workspace(
@@ -312,63 +268,3 @@ async def test_the_same_metric_twice_is_one_metric(
     )
 
     assert heatmap.calls[0]["query"].metric2 is None
-
-
-async def test_a_read_only_manager_cannot_create_a_group(
-    client: httpx.AsyncClient,
-    headers: dict[str, str],
-    login_as: Callable[..., None],
-    groups: _StubGroupService,
-) -> None:
-    """A group changes what everyone in the кабинет sees in the filter — it is a write."""
-    login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY)
-
-    response = await client.post(
-        "/api/v1/heatmap/groups",
-        json={"name": "Двойки", "nm_ids": [1]},
-        headers=headers,
-    )
-
-    assert response.status_code == 403
-    assert groups.calls == []
-
-
-async def test_a_writer_creates_a_group_in_the_active_workspace(
-    client: httpx.AsyncClient,
-    headers: dict[str, str],
-    groups: _StubGroupService,
-    workspace: Workspace,
-) -> None:
-    """The кабинет comes from the header; the body cannot name one."""
-    response = await client.post(
-        "/api/v1/heatmap/groups",
-        json={"name": "  Двойки  ", "nm_ids": [1, 2]},
-        headers=headers,
-    )
-
-    assert response.status_code == 201
-    kind, call = groups.calls[0]
-    assert kind == "create"
-    assert call["workspace_id"] == workspace.id
-    assert call["payload"].name == "Двойки"
-
-
-async def test_a_blank_group_name_is_refused(
-    client: httpx.AsyncClient, headers: dict[str, str], groups: _StubGroupService
-) -> None:
-    """A group the filter would list as an empty line is not a group."""
-    response = await client.post(
-        "/api/v1/heatmap/groups", json={"name": "   ", "nm_ids": [1]}, headers=headers
-    )
-
-    assert response.status_code == 422
-    assert groups.calls == []
-
-
-async def test_deleting_an_unknown_group_is_a_404(
-    client: httpx.AsyncClient, headers: dict[str, str]
-) -> None:
-    """A group of another кабинет is missing, not forbidden — a guessed id confirms nothing."""
-    response = await client.delete(f"/api/v1/heatmap/groups/{uuid.uuid4()}", headers=headers)
-
-    assert response.status_code == 404

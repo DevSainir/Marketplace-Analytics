@@ -80,7 +80,7 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
         ("DELETE", "/api/v1/heatmap/norms/123/orders"),
     ],
 )
-async def test_norms_need_the_monitoring_grant(
+async def test_norms_need_the_heatmap_grant(
     client: httpx.AsyncClient,
     headers: dict[str, str],
     login_as: Callable[..., None],
@@ -88,8 +88,8 @@ async def test_norms_need_the_monitoring_grant(
     method: str,
     path: str,
 ) -> None:
-    """The norms belong to the page, so a manager without monitoring reaches none of them."""
-    login_as(role=EffectiveRole.MANAGER, modules=tuple(m for m in ALL_MODULES if m != "monitoring"))
+    """The norms belong to the page, so a manager without its grant reaches none of them."""
+    login_as(role=EffectiveRole.MANAGER, modules=tuple(m for m in ALL_MODULES if m != "heatmap"))
     response = await client.request(method, path, json={"value": 1}, headers=headers)
 
     assert response.status_code == 403

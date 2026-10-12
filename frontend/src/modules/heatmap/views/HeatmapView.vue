@@ -17,7 +17,7 @@ import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
 import { useHistoryKeys } from '@/core/utils/historyKeys'
-import { BackfillNotice, useMembersStore } from '@/modules/profile'
+import { BackfillNotice } from '@/modules/profile'
 
 import HeatmapControls from '@/modules/heatmap/components/HeatmapControls.vue'
 import HeatmapDayList from '@/modules/heatmap/components/HeatmapDayList.vue'
@@ -27,27 +27,11 @@ import HeatmapPager from '@/modules/heatmap/components/HeatmapPager.vue'
 import HeatmapTable from '@/modules/heatmap/components/HeatmapTable.vue'
 import '@/modules/heatmap/components/styles/heatmap.css'
 import { useGroupsStore } from '@/modules/heatmap/groupsStore'
-import { metricOf } from '@/modules/heatmap/metrics'
 import { useHeatmapNormsStore } from '@/modules/heatmap/normsStore'
 import { useHeatmapStore } from '@/modules/heatmap/store'
 
 const store = useHeatmapStore()
 const norms = useHeatmapNormsStore()
-const members = useMembersStore()
-
-/** The settlement's money needs P&L on top of monitoring — see the API's check. */
-const finance = computed(() => members.canReach('finreports'))
-
-// A remembered money metric must not survive into a session without P&L.
-watch(
-  finance,
-  (allowed) => {
-    if (allowed) return
-    if (metricOf(store.metric)?.settled) store.metric = 'orders'
-    if (metricOf(store.metric2)?.settled) store.metric2 = null
-  },
-  { immediate: true },
-)
 
 /** The painted metric's norm per article, while norms are typed by hand. */
 const normOf = computed(() =>
@@ -138,7 +122,6 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
         :group-by="store.groupBy"
         v-model:mode="store.mode"
         v-model:norm-mode="norms.mode"
-        :finance="finance"
         @swap="store.swapMetrics"
       />
 

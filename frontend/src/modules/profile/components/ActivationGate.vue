@@ -60,21 +60,13 @@ const needsActivation = computed(
 
 // Belonging, but not granted this section. Used to be no blur at all — a
 // narrowed manager saw the page and watched every request on it answer 403.
-//
-// `meta.modules` (plural) is for a page built from two sections at once:
-// «Сводка» shows «Отчёты» money beside «Мониторинг» demand, and a manager
-// granted one of the two must not be shown the other one's figures here. Every
-// key listed has to be granted, which is what its API asks for as well.
-const requiredModules = computed(
-  () => route.meta.modules ?? (route.meta.module ? [route.meta.module] : []),
-)
-
+// One grant per page (`meta.module`), the same one its API asks for.
 const blockedByModule = computed(
   () =>
     !isEscapeHatch.value &&
-    requiredModules.value.length > 0 &&
+    Boolean(route.meta.module) &&
     members.hasOrganization &&
-    !requiredModules.value.every((key) => members.canReach(key)),
+    !members.canReach(route.meta.module),
 )
 
 const allowed = computed(() => !paywalled.value && !needsActivation.value && !blockedByModule.value)

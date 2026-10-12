@@ -3,9 +3,10 @@
 Reads take the tenant from ``X-Workspace-Id``. Writes take ``WritingAccess`` as
 well: a group is shared by everyone in the кабинет and changes what their
 filter lists, so a read-only manager — or a guest reading another company's
-кабинет — must not be able to make or remove one. The module grants on the
-router are not enough on their own for that: they say which sections the
-caller may open, not whether they may change anything in them.
+кабинет — must not be able to make or remove one. The grant on the router
+(``require_groups``: any page that carries the group filter) is not enough on
+its own for that: it says which pages the caller may open, not whether they
+may change anything in them.
 """
 
 from __future__ import annotations

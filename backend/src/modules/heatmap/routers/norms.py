@@ -1,6 +1,6 @@
 """HTTP routes for the heatmap's hand-set norms («Норма: ручной ввод»).
 
-Behind the heatmap's own monitoring grant, like the rest of the page. They
+Behind the «Тепловая карта» grant, like the rest of the page. They
 were ours only (``require_internal``) while tried out at /labs/heatmap, and
 opened to every subscriber on 2026-10-01.
 

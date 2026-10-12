@@ -3,6 +3,11 @@
 Pass-through: the window is resolved and bounded here, everything else is the
 service's. Workspace-scoped through ``X-Workspace-Id`` — this is a seller's
 orders, advertising and profit, so it may never resolve without a tenant.
+
+Two routers, because the two routes answer to different grants: the grid is
+«Тепловая карта» (:data:`router`), the catalogue is what the group editor picks
+articles from on every page that has groups (:data:`catalog_router`). The
+guards are attached where :mod:`src.modules.heatmap.routers` includes them.
 """
 
 from __future__ import annotations
@@ -15,7 +20,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import Field, StringConstraints
 
 from src.core.deps import DbSession
-from src.core.exceptions import PermissionDeniedError, ValidationError
+from src.core.exceptions import ValidationError
 from src.core.timeutils import moscow_today
 from src.modules.heatmap.deps import HeatmapServiceDep
 from src.modules.heatmap.schemas import (
@@ -26,8 +31,6 @@ from src.modules.heatmap.schemas import (
     Period,
 )
 from src.modules.heatmap.services import HeatmapQuery
-from src.modules.heatmap.services.metrics import METRIC_SOURCES
-from src.modules.organizations.contract import ModuleKey, MonitoringAccess
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 #: Default window when the caller names no dates: the thirty days ending
@@ -43,6 +46,7 @@ DEFAULT_WINDOW_DAYS = 30
 MAX_WINDOW_DAYS = 366
 
 router = APIRouter()
+catalog_router = APIRouter()
 
 Subject = Annotated[str, StringConstraints(max_length=128)]
 PositiveNm = Annotated[int, Field(ge=1)]
@@ -73,12 +77,11 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     responses={
         200: {"description": "Тепловая карта за период."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет раздела «Мониторинг», или финансовая метрика без раздела P&L."},
+        403: {"description": "Нет раздела «Тепловая карта»."},
         422: {"description": "Период инвертирован или длиннее допустимого."},
     },
 )
 async def get_heatmap(
-    access: MonitoringAccess,
     service: HeatmapServiceDep,
     workspace_id: CurrentWorkspaceId,
     session: DbSession,
@@ -100,18 +103,11 @@ async def get_heatmap(
     caller sends decides what is written; the tenant is bound by
     :data:`CurrentWorkspaceId` exactly as for the read.
 
-    The monitoring grant is on the aggregating router
-    (:mod:`src.modules.heatmap.routers`); a finance metric also needs P&L,
-    checked here because only this route reads the settlement.
+    The «Тепловая карта» grant is attached where the router is included
+    (:mod:`src.modules.heatmap.routers`), and it opens every metric: the money
+    ones stopped asking for P&L as well on 2026-10-12, when each page became a
+    grant of its own.
     """
-    reads_money = any("finance" in METRIC_SOURCES[m] for m in (metric, metric2) if m)
-    if reads_money and not access.can_reach(ModuleKey.FINREPORTS):
-        # The page is monitoring's; the settlement's money is P&L's, and a
-        # manager the owner did not grant P&L must not read it here instead.
-        raise PermissionDeniedError(
-            "Выручка, продажи и прибыль доступны с разделом P&L. "
-            "Доступ выдаёт владелец организации."
-        )
     start, end = _resolve_window(date_from, date_to)
     query = HeatmapQuery(
         date_from=start,
@@ -127,14 +123,14 @@ async def get_heatmap(
     return await service.build(session, workspace_id=workspace_id, query=query)
 
 
-@router.get(
+@catalog_router.get(
     "/heatmap/catalog",
     response_model=HeatmapCatalogResponse,
     status_code=status.HTTP_200_OK,
     responses={
         200: {"description": "Каталог кабинета для фильтров."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет раздела «Мониторинг»."},
+        403: {"description": "Нет ни одного раздела с группами."},
     },
 )
 async def get_catalog(

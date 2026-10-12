@@ -89,12 +89,16 @@ class AccessLevel(enum.StrEnum):
 class ModuleKey(enum.StrEnum):
     """The product surfaces a manager can be granted or denied.
 
-    Deliberately coarser than the navigation. «Сводка» is not here, and for the
-    opposite reason to the page it replaced: it draws BOTH of the surfaces below
-    — the settlement's money and monitoring's demand — so it asks for both
-    grants rather than introducing a third switch that would have to agree with
-    them. Two switches that must always agree are a bug waiting for somebody to
-    set them apart.
+    **One per page of the header**, and a grant opens everything on its page.
+    «Сводка» and «Тепловая карта» used to borrow other pages' grants — the
+    first asked for both «Мониторинг» and P&L, the second for «Мониторинг» and,
+    for its money, P&L — and that is what locked a manager out of pages and
+    groups nobody meant to close. The owner now decides about each page they
+    can see in the header, and the page shows what is on it, money included,
+    exactly as «Реклама» always did.
+
+    Groups are not a page: they are a control on four of them, so their routes
+    open to anybody holding one of those four (:data:`GROUP_MODULES`).
     """
 
     #: Мониторинг — карточки и воронка.
@@ -107,12 +111,26 @@ class ModuleKey(enum.StrEnum):
     #: «Мониторинг»'s, because the page shows sales and ДРР от продаж: an owner
     #: who grants it is deciding about money, not about cards.
     ADVERTISING = "advertising"
+    #: Сводка — the кабинет's revenue and margin beside its orders and ads.
+    SUMMARY = "summary"
+    #: Тепловая карта — every metric by day, the settlement's money included.
+    HEATMAP = "heatmap"
 
 
 #: Everything there is to grant. The default for a new manager and the value
 #: every pre-existing membership was backfilled with, so nobody's access
 #: narrowed on the deploy that introduced the column.
 ALL_MODULES: tuple[str, ...] = tuple(m.value for m in ModuleKey)
+
+#: The pages that carry the group filter. A group is a named list of the
+#: кабинет's own articles, and whoever may open one of these pages may read
+#: and — at the writing level — edit the groups on it.
+GROUP_MODULES: tuple[ModuleKey, ...] = (
+    ModuleKey.SUMMARY,
+    ModuleKey.FINREPORTS,
+    ModuleKey.HEATMAP,
+    ModuleKey.ADVERTISING,
+)
 
 
 class Organization(Base):
@@ -217,7 +235,10 @@ class Membership(Base):
     modules: Mapped[list[str]] = mapped_column(
         JSONB,
         nullable=False,
-        server_default=text("""'["monitoring", "finreports", "ab_tests", "advertising"]'::jsonb"""),
+        server_default=text(
+            """'["monitoring", "finreports", "ab_tests", "advertising", "summary", "heatmap"]'"""
+            "::jsonb"
+        ),
     )
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True

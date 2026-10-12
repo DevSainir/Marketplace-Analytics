@@ -1,17 +1,16 @@
 /**
  * Every grantable surface, in the order the UI lists them.
  *
- * A labs copy of the profile module's `MODULES`: that list is not re-exported
- * from `@/modules/profile`, and the sandbox may not reach past a module's
- * Public API. The KEYS are the contract — they must match the backend's
+ * One per page of the header, in the header's order; a switch opens its whole
+ * page, money included. The KEYS are the contract — they must match the backend's
  * `ModuleKey`; the labels are this page's own.
  */
 export const GRANT_MODULES = [
   { key: 'monitoring', label: 'Мониторинг', hint: 'Карточки и воронка' },
+  { key: 'summary', label: 'Сводка', hint: 'Выручка, маржа, заказы и реклама' },
   { key: 'finreports', label: 'P&L', hint: 'Прибыль, себестоимость, логистика' },
-  // «Сводка» needs BOTH of the above — it shows the P&L's money beside
-  // monitoring's demand — so it is not a switch of its own.
   { key: 'ab_tests', label: 'A/Б-тесты', hint: 'Ротация фото' },
+  { key: 'heatmap', label: 'Тепловая карта', hint: 'Все метрики по дням, с деньгами' },
   { key: 'advertising', label: 'Реклама', hint: 'Расход, ДРР от продаж, бонусы' },
 ]
 
