@@ -396,6 +396,19 @@ describe('patchMetricsMatrix', () => {
     expect(spend.display).toBe('15с')
   })
 
+  it('takes the campaign links from the patched product', () => {
+    // A refresh can bring a day's campaign the first load did not have.
+    const view = buildMetricsMatrix(PRODUCT)
+    const refreshed = structuredClone(PRODUCT)
+    refreshed.matrix_base = {
+      days: [{ day: PRODUCT.matrix.days[0], buckets: { cpc_search: { campaign_id: 77 } } }],
+    }
+
+    expect(patchMetricsMatrix(view, refreshed)).toBe(true)
+
+    expect(view.campaigns.byDay).toEqual({ [PRODUCT.matrix.days[0]]: { cpc: 77 } })
+  })
+
   it('patches in place when the units are unchanged', () => {
     const view = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
 

@@ -658,6 +658,13 @@ export function patchMetricsMatrix(view, product, currencies = {}) {
     }
   }
 
+  // The header's campaign links and the chart's units ride on the view, not
+  // on a cell: a refresh can bring a new day's campaign, and left alone they
+  // keep pointing at whatever the table was first built from.
+  const campaigns = { nmId: product.nm_id, byDay: campaignIdsByDay(product.matrix_base) }
+  if (JSON.stringify(view.campaigns) !== JSON.stringify(campaigns)) view.campaigns = campaigns
+  if (JSON.stringify(view.currencies) !== JSON.stringify(currencies)) view.currencies = currencies
+
   return true
 }
 

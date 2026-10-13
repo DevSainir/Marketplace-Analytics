@@ -548,15 +548,16 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     fetchStockRibbon()
     workingBase.value = detail.matrix_base
     currentMatrix = detail.matrix
-    // Same window (save / refresh) → patch the existing table in place so only
+    // Same SKU and window (save / refresh) → patch the existing table in place so only
     // changed cells re-render; a new SKU or window → rebuild from scratch.
     const days = matrixView.value.days
-    const sameWindow =
+    const sameTable =
+      matrixView.value.campaigns?.nmId === detail.nm_id &&
       days.length > 0 &&
       days.length === (detail.matrix?.days?.length ?? 0) &&
       days.every((day, index) => day.iso === detail.matrix.days[index])
     const currencies = unitsOf(detail)
-    if (!(sameWindow && patchMetricsMatrix(matrixView.value, detail, currencies))) {
+    if (!(sameTable && patchMetricsMatrix(matrixView.value, detail, currencies))) {
       matrixView.value = buildMetricsMatrix(detail, currencies)
     }
     undoStack.value = []

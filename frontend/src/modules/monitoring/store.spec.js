@@ -82,6 +82,35 @@ describe('fetchProductData with a numeric SKU', () => {
   })
 })
 
+describe('the campaign links after switching SKU', () => {
+  /** A detail whose «Единая» group ran campaign `advertId` on 01.07. */
+  function detailWith(nmId, advertId) {
+    return {
+      ...DETAIL,
+      nm_id: nmId,
+      matrix: { days: ['2026-07-01'], buckets: ['total'], rows: [{ key: 'views', values: [1] }] },
+      matrix_base: {
+        days: [{ day: '2026-07-01', buckets: { uni_search: { campaign_id: advertId } } }],
+      },
+    }
+  }
+
+  it('points at the new SKU’s campaign, not the first one opened', async () => {
+    // Same window, different card: the table used to be patched in place and
+    // kept the first card's links, so every link opened one campaign.
+    fetchSkuDetail.mockResolvedValueOnce(detailWith(111, 9001))
+    await store.fetchProductData('111')
+    fetchSkuDetail.mockResolvedValueOnce(detailWith(222, 9002))
+
+    await store.fetchProductData('222')
+
+    expect(store.matrixView.campaigns).toEqual({
+      nmId: 222,
+      byDay: { '2026-07-01': { uni: 9002 } },
+    })
+  })
+})
+
 describe('the unit on the matrix', () => {
   const WITH_MATRIX = {
     ...DETAIL,
