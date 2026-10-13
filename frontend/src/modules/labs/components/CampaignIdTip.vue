@@ -57,7 +57,7 @@ const LABEL = { '': 'Копировать', copied: 'Скопировано', se
     <div
       v-if="tip"
       v-fit-inside="tip.area"
-      class="fixed z-50 flex items-center gap-sm rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card"
+      class="fixed z-50 flex w-max items-center gap-sm whitespace-nowrap rounded-card border border-border-subtle bg-surface px-sm py-xs text-tiny text-primary shadow-card"
       :style="{ left: `${tip.x}px`, top: `${tip.y}px` }"
       @mouseenter="$emit('keep')"
       @mouseleave="$emit('leave')"
