@@ -1,7 +1,10 @@
 """Who a request actually came from, resolved behind the reverse proxy.
 
 nginx is the only ingress — the API port is never published — and it sets
-``X-Real-IP`` from its own ``$remote_addr``. ``proxy_set_header`` *replaces*
+``X-Real-IP`` from its own ``$remote_addr``. (Behind the edge since 2026-10,
+``$remote_addr`` is the address in the edge's PROXY protocol header, not the
+edge's own: ``real_ip_header proxy_protocol`` in nginx.conf, held there by
+``tests/unit/core/test_edge_ingress.py``.) ``proxy_set_header`` *replaces*
 whatever arrived, so a client cannot influence that header. It is therefore the
 one client-address signal on the request that a security control may key on.
 

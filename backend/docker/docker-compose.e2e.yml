@@ -15,12 +15,12 @@
 # the same /api/ reverse proxy, the same security headers. The browser tier is
 # only worth running against something honest.
 #
-# The base file's `443:443` publish and its read-only /etc/letsencrypt mount are
-# left in place deliberately rather than removed. Compose MERGES `ports` and
+# The edge's https publish and nginx's read-only /etc/letsencrypt mount are left
+# in place deliberately rather than removed. Compose MERGES `ports` and
 # `volumes` from an overlay instead of replacing them, and the `!override` tag
 # that would replace them needs Compose >= 2.24 — a floor not worth imposing on
-# contributors. Both leftovers are inert here: nothing listens on 443, and the
-# mounted directory is never read.
+# contributors. Both leftovers are inert here: the edge forwards https to an
+# nginx port nothing listens on, and the mounted directory is never read.
 #
 # Note this is NOT docker-compose.override.yml. Overrides apply automatically,
 # and a production stack that silently downgraded itself to plain HTTP would be
@@ -59,8 +59,17 @@
 # OOM killer. Every service is therefore listed below, including the two that
 # need no image change, so that the total is readable in one place:
 #
-#   frontend 64 + api 320 + api_standby 256 + worker 320 + beat 192
-#   + postgres 256 + redis 64  =  1472m
+#   edge 32 + frontend 16 + frontend_standby 16 + api 320 + api_standby 256
+#   + worker 320 + beat 192 + postgres 256 + redis 64  =  1472m
+#
+# The edge and the second nginx (2026-10) were fitted inside the old total
+# rather than added to it: the one nginx had 64m for a ~6 MB working set.
+# Measured 2026-10-13 (cgroup memory.peak, page cache included, under curl
+# load and at exactly these caps — 300 of 300 requests served, no OOM kill):
+# haproxy 20-26 MB, most of it while starting, settling at ~12; nginx 8-12 MB
+# with four workers (the box has two cores, so fewer). The edge gets the larger share
+# because its peak is at start-up — below it the container is OOM-killed
+# before it ever serves.
 #
 # `restart` is the other half of that lesson. The base file says
 # `unless-stopped`, which is right for a stack that is meant to stay up and
@@ -73,6 +82,13 @@
 # ---------------------------------------------------------------------------
 
 services:
+  # The same HAProxy image as production, untagged by us, so there is no
+  # production tag to protect. Here only so it is capped and cannot restart.
+  edge:
+    restart: "no"
+    mem_limit: 32m
+    cpus: 0.1
+
   frontend:
     image: marketplace-service-frontend:e2e
     restart: "no"
@@ -86,8 +102,19 @@ services:
     # and cannot reach the production release directory even by accident.
     build:
       target: e2e
-    mem_limit: 64m
+    mem_limit: 16m
     cpus: 0.25
+
+  # The twin, on the same `:e2e` image. Without its own entry it would inherit
+  # the base file's `:latest` — production's tag — and the base file's build,
+  # which on this box would overwrite the image production restarts from.
+  frontend_standby:
+    image: marketplace-service-frontend:e2e
+    restart: "no"
+    build:
+      target: e2e
+    mem_limit: 16m
+    cpus: 0.1
 
   # The four Python services share one image each in the base file; both tags
   # are redirected so neither production image can be rebuilt from here.

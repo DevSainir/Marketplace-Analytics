@@ -78,14 +78,17 @@ RUN rm -rf /etc/nginx/conf.d /usr/share/nginx/html
 # Setting it here makes the image independent of that.
 COPY --chmod=0755 docker/entrypoint-release.sh /docker-entrypoint.d/05-point-at-release.sh
 
-EXPOSE 80 443
+EXPOSE 80 443 8081
 
-# Probe the plain-HTTP /healthz endpoint: it returns 200 without redirecting,
-# so the check never chases a 301 into TLS (the cert is for example.com,
-# not localhost). 127.0.0.1, not localhost: busybox wget prefers ::1 while
-# nginx binds IPv4 only, so "localhost" is a guaranteed connection-refused.
+# Probe the health listener on :8081, the one port that does not expect a PROXY
+# protocol header — 80 and 443 do, since the edge (HAProxy) became the way in,
+# and a wget sends none, so probing :80 would fail forever and Docker would
+# call a working nginx unhealthy. The edge checks this same port; the configs
+# (nginx.conf, nginx.ci.conf) both serve it. 127.0.0.1, not localhost: busybox
+# wget prefers ::1 while nginx binds IPv4 only, so "localhost" is a guaranteed
+# connection-refused.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1/healthz || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:8081/healthz || exit 1
 
 # ---------------------------------------------------------------------------
 # Self-contained variant for throwaway end-to-end stacks.

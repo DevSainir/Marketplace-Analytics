@@ -54,6 +54,16 @@ for image in marketplace-service-api marketplace-service-worker; do
   docker tag "${image}:previous" "${image}:latest"
 done
 
+# Both nginx, because the edge sends users to either: one left on the release
+# being rolled back serves it to whoever lands there. `|| true` because a reload
+# that fails leaves the previous config running, which is not worth stopping a
+# rollback over.
+reload_nginx() {
+  for nginx in frontend frontend_standby; do
+    $COMPOSE exec -T "$nginx" nginx -s reload < /dev/null || true
+  done
+}
+
 # The same one-at-a-time rotation the deploy uses, for the same reason: /api/
 # is always served by the other instance.
 for instance in api api_standby; do
@@ -70,7 +80,7 @@ for instance in api api_standby; do
     echo "rollback: ${instance} did not become healthy on the previous image." >&2
     exit 1
   fi
-  $COMPOSE exec -T frontend nginx -s reload < /dev/null || true
+  reload_nginx
 done
 
 # One rename(2), as in the deploy: there is no instant without a `current`.
@@ -78,7 +88,7 @@ if [ -n "$previous_release" ]; then
   ln -sfn "$previous_release" "$RELEASES/.current.rollback"
   python3 -c 'import os, sys; os.replace(sys.argv[1], sys.argv[2])' \
     "$RELEASES/.current.rollback" "$RELEASES/current"
-  $COMPOSE exec -T frontend nginx -s reload < /dev/null || true
+  reload_nginx
   echo "rollback: SPA back on ${previous_release#releases/}"
 else
   echo "rollback: no previous SPA release recorded; the SPA was left as it is."

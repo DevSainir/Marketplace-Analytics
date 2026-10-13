@@ -578,13 +578,14 @@ jobs:
             config --format json)
           resolved=$(printf '%s' "$cfg" | jq -r '.name')
           echo "Compose resolved the project to: ${resolved}"
-          printf '%s' "$cfg" | jq -r '.services.frontend.ports[] | "  frontend publishes \(.published) -> \(.target)"'
+          # The edge holds the public ports since 2026-10; no nginx publishes one.
+          printf '%s' "$cfg" | jq -r '.services.edge.ports[] | "  edge publishes \(.published) -> \(.target)"'
           if [ "$resolved" != "marketplace-e2e" ]; then
             echo "::error::Refusing to start: this would target '${resolved}', not marketplace-e2e." >&2
             exit 1
           fi
-          if printf '%s' "$cfg" | jq -e '.services.frontend.ports[] | select((.published|tostring) == "80")' >/dev/null; then
-            echo "::error::Refusing to start: the e2e frontend would bind port 80, which production serves on." >&2
+          if printf '%s' "$cfg" | jq -e '[.services[] | (.ports // [])[] | select((.published|tostring) == "80" or (.published|tostring) == "443")] | length > 0' >/dev/null; then
+            echo "::error::Refusing to start: the e2e stack would bind port 80 or 443, which production serves on." >&2
             exit 1
           fi
           # The seed target is checked here too, because it is the one thing in

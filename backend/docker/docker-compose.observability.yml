@@ -20,7 +20,8 @@
 #
 # The VPS is 2 vCPU / 3.8 GB with no swap, and it hosts more than this stack.
 # The base topology already commits ~2.4 GB of ceilings (worker 768m, api and
-# api_standby 512m each, postgres 384m, beat 192m, redis 96m, frontend 64m).
+# api_standby 512m each, postgres 384m, beat 192m, redis 96m, frontend and
+# frontend_standby 64m each, edge 64m).
 # This overlay adds 832m:
 #
 #   prometheus 320m · grafana 224m · loki 192m · alloy 96m
@@ -66,7 +67,8 @@
 # it is the bypass around TLS, the security headers and the login throttle, so
 # it must never be allowed to listen on a routable address. The port-443 rule
 # the base topology is built on still holds: 443 is the only port the internet
-# can reach, and everything public arrives through that one nginx.
+# can reach, and everything public arrives through the edge and the nginx
+# behind it.
 #
 # Prometheus, Loki and Alloy publish nothing at all; they talk over the
 # project's internal Docker network. Prometheus reaches `api:8000/metrics` and

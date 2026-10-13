@@ -84,9 +84,13 @@ jobs:
           }
 
           stale=0
-          # Every `image:tag@sha256:...` in either Dockerfile, deduplicated.
+          # Every `image:tag@sha256:...` in either Dockerfile, deduplicated —
+          # and in the base compose file, which since 2026-10 pins the edge
+          # (HAProxy): pulled rather than built, and the first thing every
+          # stranger talks to.
           refs=$(grep -rhoE '[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}' \
-                   backend/docker/Dockerfile frontend/docker/Dockerfile | sort -u)
+                   backend/docker/Dockerfile frontend/docker/Dockerfile \
+                   backend/docker/docker-compose.yml | sort -u)
           if [ -z "$refs" ]; then
             echo "::error::No digest-pinned images found — the grep or the Dockerfiles changed shape."
             exit 1
@@ -160,7 +164,8 @@ jobs:
                 }
                 if ($0 !~ /^[[:space:]]*(#|$)/) mark = 0
               }
-            ' backend/docker/Dockerfile frontend/docker/Dockerfile | sort -u
+            ' backend/docker/Dockerfile frontend/docker/Dockerfile \
+              backend/docker/docker-compose.yml | sort -u
           }
           all=$(classify)
           if [ -z "$all" ]; then

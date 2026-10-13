@@ -12,6 +12,8 @@ holding, and the deploy that caused it reports success. That is strictly worse
 than the 10s default this replaced, because the drain is what stopped the
 requests being retried elsewhere.
 
+For nginx, behind the edge, it is a floor set by the api (see the last test).
+
 For the worker the pair is the grace period and Celery's warm shutdown, and it
 has a ceiling as well as a floor: `.github/workflows/deploy.yml` gives the whole
 job 20 minutes, so a grace sized to cover the longest nightly task would turn
@@ -121,13 +123,19 @@ def test_the_worker_grace_cannot_outlast_the_deploy_that_waits_for_it() -> None:
     assert grace < _DEPLOY_JOB_BUDGET_SECONDS / 2
 
 
-def test_the_single_nginx_is_stopped_quickly() -> None:
-    """The site is down for as long as nginx takes to stop, so it must not linger.
+def test_a_drained_nginx_lets_the_api_finish_what_it_is_proxying() -> None:
+    """nginx must wait at least as long as the api it is proxying a request to.
 
-    nginx alone holds :80/:443. Under Docker's default it waited on idle
-    keep-alive connections for 12 s during the 2026-10-08 recreate, with the
-    whole site unreachable for every one of them.
+    Until 2026-10 this asserted the opposite — at most 3 s — because one nginx
+    held :80/:443 and every second it spent stopping was a second of outage.
+    Since the edge (HAProxy) went in front of two nginx, the deploy drains an
+    nginx before replacing it, so stopping costs the site nothing; what it can
+    still cost is the requests in flight, which the edge cannot move to the
+    twin. A grace shorter than the api's cuts the client off a request the api
+    was explicitly given time to finish.
     """
-    frontend = _services()["frontend"]
+    services = _services()
 
-    assert _grace_seconds(frontend) <= 3
+    nginx = [_grace_seconds(services[name]) for name in ("frontend", "frontend_standby")]
+
+    assert min(nginx) >= _grace_seconds(services["api"])

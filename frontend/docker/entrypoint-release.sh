@@ -3,9 +3,10 @@
 #
 # The served bundle and the config that serves it are NOT in this image — they
 # arrive as a release directory, so that a new SPA build does not change this
-# image and therefore does not force the container to be recreated. Recreating
-# it is a hard stop for the whole site (there is only one nginx and it holds
-# :443), which is the outage this whole arrangement exists to remove: the
+# image and therefore does not force the container to be recreated. While there
+# was one nginx and it held :443, recreating it was a hard stop for the whole
+# site; the edge and a second nginx have since made it survivable, but a reload
+# is still cheaper than a rotation, and this is why it is usually enough: the
 # deploy installs a new release beside the old one, flips a symlink and sends
 # `nginx -s reload`, and no connection is dropped.
 #

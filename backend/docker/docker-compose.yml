@@ -1,13 +1,15 @@
 # ---------------------------------------------------------------------------
-# Base multi-container topology: nginx SPA (frontend, the single entry point)
-# + FastAPI (api) + Celery (worker) + PostgreSQL + Redis. The api and worker
+# Base multi-container topology: the edge (HAProxy, the single entry point) +
+# two nginx serving the SPA (frontend, frontend_standby) + FastAPI (api pair)
+# + Celery (worker) + PostgreSQL + Redis. The api and worker
 # are two `--target`s of ONE Dockerfile (docker/Dockerfile) — same code, same
 # resolved dependencies, different entrypoint — sharing the source tree and the
 # environment file.
 #
-# Security posture: this base file publishes ONE host port — frontend:80.
-# The api, Postgres and Redis are reachable only on the internal Docker
-# network; nginx reverse-proxies /api/ to the api container. Redis requires a
+# Security posture: this base file publishes ONE service — the edge, on 80
+# and 443. nginx, the api, Postgres and Redis are reachable only on the
+# internal Docker network; nginx reverse-proxies /api/ to the api container.
+# Redis requires a
 # password — an open Redis is remote code execution via the Celery broker.
 #
 # HOW TO RUN IT. From the repository root:
@@ -33,15 +35,17 @@
 # server.
 #
 # Production (VPS): the override file does not exist there, so the same
-# `make up` runs the closed topology with nothing but port 80 exposed.
+# `make up` runs the closed topology with nothing but the edge's 80 and 443
+# exposed.
 #
 # RESOURCE CEILINGS. Every service caps its memory and CPU because the VPS
 # (2 vCPU / 3.8 GB, no swap) hosts more than this stack. Without a cap the
 # kernel's OOM killer picks a victim by score, and the victim is as likely to
 # be a co-tenant's database as the process that actually ran away. The numbers
 # are measured steady-state usage rounded up with headroom — worker 355 MB,
-# api 110 MB, postgres 196 MB, beat 110 MB, redis 6 MB, frontend 6 MB — and
-# sum to ~2.4 GB of ceiling against ~800 MB of real use. They are ceilings,
+# api 110 MB, postgres 196 MB, beat 110 MB, redis 6 MB, each nginx 6 MB, the
+# edge ~12 MB (measured locally, 2026-10-13) — and sum to ~2.5 GB of ceiling
+# against ~800 MB of real use. They are ceilings,
 # not reservations: nothing is set aside, so deliberate over-subscription of
 # the 2 CPUs is fine and intended.
 #
@@ -287,10 +291,50 @@ services:
   api_standby:
     <<: *api
 
-  # Single entry point: nginx serves the built SPA and reverse-proxies /api/
-  # to the api container over the internal Docker network (see
-  # ../frontend/docker/nginx.conf). Only port published in the base topology.
-  frontend:
+  # THE EDGE: the only service that publishes a port. HAProxy in TCP mode,
+  # forwarding :80/:443 to one of the two nginx below so that either can be
+  # replaced while the other serves — see docker/edge/haproxy.cfg for why, and
+  # the deploy's «THE NGINX ROTATION» for how. TLS is still nginx's.
+  edge:
+    # Pinned by digest: this is what every stranger talks to. Scanned with the
+    # Dockerfiles' base images by .github/workflows/base-image-freshness.yml.
+    image: haproxy:3.2.25-alpine@sha256:5d97434a423c2533cfeb42874d45cf6d69a840b60334582dfbfd5008e94c80be
+    restart: unless-stopped
+    logging: *logging
+    # ~35 MB at the config's maxconn; a few MB at real traffic.
+    mem_limit: 64m
+    cpus: 0.5
+    # Internet-facing, so it keeps nothing it could use if subverted: no
+    # capabilities (it listens on 8080/8443 inside, so it needs none), no
+    # writable filesystem, no privilege gain. Same posture as the analyst
+    # gateway, which runs the same software.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Parameterised ONLY so a throwaway stack can coexist with this one on the
+    # same host — the defaults are the production values, so nothing changes
+    # here unless something deliberately sets them. Compose MERGES `ports` from
+    # an overlay rather than replacing them, so an overlay cannot move these;
+    # the variable is the only way for the e2e stack to avoid binding the port
+    # production is already serving on.
+    ports:
+      - "${FRONTEND_HTTP_PORT:-80}:8080"
+      - "${FRONTEND_HTTPS_PORT:-443}:8443"
+    volumes:
+      # The DIRECTORY, not the file. `git pull` replaces a file by writing a
+      # new inode, and a single-file bind mount stays on the old one — so a
+      # reload after a pull would quietly load the previous config. That is
+      # exactly how the Prometheus alert rules went stale once.
+      - ./docker/edge:/usr/local/etc/haproxy:ro
+
+  # nginx: serves the built SPA, terminates TLS and reverse-proxies /api/ to
+  # the api pair over the internal Docker network (see
+  # ../frontend/docker/nginx.conf). Publishes nothing: the edge reaches it on
+  # the network, with the client's address in a PROXY protocol header.
+  frontend: &frontend
     build:
       context: ../frontend
       dockerfile: docker/Dockerfile
@@ -304,24 +348,15 @@ services:
     logging: *logging
     mem_limit: 64m
     cpus: 0.5
-    # SHORT on purpose, the opposite of the api's. This nginx is the only thing
-    # holding :80/:443, so every second it spends stopping is a second the whole
-    # site is down — a recreate on 2026-10-08 took 12 s to stop it under
-    # Docker's 10 s default, waiting on idle keep-alive connections. Nothing
-    # worth waiting for is in flight: a proxied request that is cut fails over
-    # nowhere either way, since the site is down until the new nginx is up. An
-    # ordinary deploy never stops it (it reloads); see BACKLOG for removing
-    # the gap altogether.
-    stop_grace_period: 2s
-    # Parameterised ONLY so a throwaway stack can coexist with this one on the
-    # same host — the defaults are the production values, so nothing changes
-    # here unless something deliberately sets them. Compose MERGES `ports` from
-    # an overlay rather than replacing them, so an overlay cannot move these;
-    # the variable is the only way for the e2e stack to avoid binding the port
-    # production is already serving on.
-    ports:
-      - "${FRONTEND_HTTP_PORT:-80}:80"
-      - "${FRONTEND_HTTPS_PORT:-443}:443"
+    # As long as the api's, and for the api's reason. The deploy takes an nginx
+    # out of the edge's rotation before replacing it, so no new connection
+    # reaches it — but the requests already in flight have nowhere else to go:
+    # the edge cannot move an established connection to the twin. This is how
+    # long they get to finish (an upload, a slow report) before being cut, and
+    # it costs the deploy time, not the site. It was 2 s while this nginx was
+    # the only one and every second of stopping was a second of outage.
+    stop_grace_period: 30s
+    image: marketplace-service-frontend:latest
     depends_on:
       # Both members must be up before nginx starts: its upstream block resolves
       # every member's name at load time, and an unresolvable one is a hard
@@ -357,6 +392,13 @@ services:
       # `standalone` and would have failed against an nginx already holding
       # port 80. Read-only: nginx serves these files, certbot writes them.
       - /var/www/certbot:/var/www/certbot:ro
+
+  # nginx's twin: the edge's backup, serving everything while `frontend` is
+  # out of rotation. The same image, release and certificates — it is merged
+  # from the definition above so the two cannot drift apart, as `api_standby`
+  # is from `api`.
+  frontend_standby:
+    <<: *frontend
 
   worker:
     build:

@@ -26,28 +26,36 @@
 # there is no window in which the site is down.
 set -euo pipefail
 
-CONTAINER=marketplace-service-frontend-1
+# Both nginx behind the edge. A renewed certificate that reaches one of them
+# leaves the other presenting the old one until it expires — and from then on
+# half of all connections fail TLS.
+CONTAINERS="marketplace-service-frontend-1 marketplace-service-frontend_standby-1"
 
 if ! command -v docker >/dev/null; then
   echo "[tls-hook] docker not on PATH; cannot reload nginx." >&2
   exit 1
 fi
 
-# The stack being down is not an error worth failing a renewal over: whenever it
-# comes back up, nginx reads the current certificate from the mount anyway. This
-# is the ONE case that is genuinely fine, so it is the one case that exits 0.
-if [ -z "$(docker ps -q -f "name=^${CONTAINER}$" 2>/dev/null)" ]; then
-  echo "[tls-hook] ${CONTAINER} is not running; it will read the new certificate when it starts."
-  exit 0
-fi
+failed=0
+for container in $CONTAINERS; do
+  # A stopped nginx is not an error worth failing a renewal over: whenever it
+  # comes back up, it reads the current certificate from the mount anyway. This
+  # is the ONE case that is genuinely fine, so it is the one case skipped.
+  if [ -z "$(docker ps -q -f "name=^${container}$" 2>/dev/null)" ]; then
+    echo "[tls-hook] ${container} is not running; it will read the new certificate when it starts."
+    continue
+  fi
 
-# Validate before reloading. A reload against a broken config leaves the OLD
-# workers running, so the site survives — but it also means the reload silently
-# did nothing, which is the failure this hook exists to prevent.
-if ! docker exec "$CONTAINER" nginx -t; then
-  echo "[tls-hook] nginx config test FAILED; refusing to reload. Certificate renewed but NOT served." >&2
-  exit 1
-fi
+  # Validate before reloading. A reload against a broken config leaves the OLD
+  # workers running, so the site survives — but it also means the reload
+  # silently did nothing, which is the failure this hook exists to prevent.
+  if ! docker exec "$container" nginx -t; then
+    echo "[tls-hook] ${container}: nginx config test FAILED; refusing to reload. Certificate renewed but NOT served." >&2
+    failed=1
+    continue
+  fi
 
-docker exec "$CONTAINER" nginx -s reload
-echo "[tls-hook] nginx reloaded; now serving the renewed certificate."
+  docker exec "$container" nginx -s reload
+  echo "[tls-hook] ${container} reloaded; now serving the renewed certificate."
+done
+exit "$failed"
