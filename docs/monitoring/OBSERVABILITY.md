@@ -183,7 +183,7 @@ installed, `docker logs` stops working, and a log pipeline whose failure mode is
 
 | endpoint | served by | what it means |
 |---|---|---|
-| `/healthz` on **port 80** | nginx itself | the frontend container's own Docker HEALTHCHECK. Static `ok`. |
+| `/healthz` on **port 8081** | nginx itself | each nginx's Docker HEALTHCHECK, and the edge's (HAProxy) check of where to route. Static `ok`. The one nginx listener without PROXY protocol, since neither checker sends it; not published. |
 | `/health` | the API | **liveness**. Static. Docker restarts a container that fails it — which is exactly why it must not touch a database. |
 | `/healthz` on **443** | the API, via nginx | **readiness**. Pings Postgres and Redis; 200 or 503. What Better Stack polls. |
 
@@ -206,8 +206,9 @@ easiest place to put it back without noticing. It runs both checks concurrently
 under a 2 s budget each, so the worst case is the largest timeout rather than
 their sum.
 
-`nginx.ci.conf` deliberately keeps a *static* `/healthz`: it is the frontend
-container's healthcheck target there and CI's up-check, and making it depend on
+`nginx.ci.conf` deliberately keeps a *static* `/healthz` on its public port: it is
+CI's up-check (the container's own healthcheck moved to :8081 with production's),
+and making it depend on
 Postgres would turn a slow database start into an e2e run that times out. The
 divergence is commented in the file so nobody "fixes" it.
 
