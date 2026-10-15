@@ -484,6 +484,10 @@ services:
       # RAM-backed and capped: these are a few hundred KB of mmap'd floats,
       # and the cap means a runaway cannot eat into the harvest's 768m.
       - /tmp/prometheus-multiproc:size=32m,mode=1777
+      # The healthcheck's count of consecutive failures
+      # (`docker/worker_healthcheck.sh`). A tmpfs so the count starts at zero
+      # in every container — the restart it triggers must not inherit it.
+      - /tmp/healthcheck:size=64k,mode=1777
     depends_on:
       migrate:
         condition: service_completed_successfully

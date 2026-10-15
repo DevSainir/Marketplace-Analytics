@@ -11,7 +11,6 @@ day is 0.00007/s against an alert threshold of 0.05.
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 from typing import Any
@@ -233,57 +232,6 @@ def test_a_platform_that_cannot_report_memory_records_nothing(
     _record_task_outcome(task_id="t-3", task=task, state="SUCCESS")
 
     assert _observed(CELERY_TASK_PEAK_MEMORY, task.name) == before
-
-
-def test_a_process_that_imports_the_app_sweeps_its_gauge_files_on_the_way_out(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The healthcheck was filling a 32 MB tmpfs at ~23 MB a day.
-
-    `celery inspect ping` runs every 30 s and imports the application; an
-    unlabelled gauge creates its mmap file when the metric object is built, and
-    nothing removed it, because `worker_process_shutdown` never fires for a
-    process that is not a prefork child. Measured on prod 2026-09-17: 240 files
-    belonging to 120 processes that no longer existed, after 62 minutes of
-    uptime.
-
-    A full mount is worse than a stale gauge — the next process cannot create
-    its files at all, and that includes the replacement child whose recycling
-    keeps the worker under its memory cap.
-    """
-    monkeypatch.setattr(celery_runtime.settings, "prometheus_multiproc_dir", str(tmp_path))
-    monkeypatch.setenv("PROMETHEUS_MULTIPROC_DIR", str(tmp_path))
-    mine = tmp_path / f"gauge_livesum_{os.getpid()}.db"
-    mine.write_text("")
-    someone_else = tmp_path / "gauge_livesum_999999.db"
-    someone_else.write_text("")
-
-    celery_runtime._sweep_own_metric_files()
-
-    assert not mine.exists()
-    assert someone_else.exists(), "a sweep may only retire the files of the process running it"
-
-
-def test_preparing_the_metrics_directory_arms_the_sweep(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The sweep has to be armed by importing the app, not by remembering it.
-
-    `celery inspect ping` is not our code and has no shutdown hook to attach to;
-    neither does a one-off script or the migrate container. The one thing they
-    all do is import the application, so that is where the hook belongs — and a
-    sweep that works but is never registered is exactly the shape of the leak it
-    was written for.
-    """
-    registered: list[Any] = []
-    monkeypatch.setattr(
-        celery_runtime.atexit, "register", lambda hook: registered.append(hook) or hook
-    )
-    monkeypatch.setattr(celery_runtime.settings, "prometheus_multiproc_dir", str(tmp_path))
-
-    celery_runtime.prepare_multiprocess_dir()
-
-    assert celery_runtime._sweep_own_metric_files in registered
 
 
 def test_a_task_records_the_floor_it_started_from_before_it_can_die(

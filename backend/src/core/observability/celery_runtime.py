@@ -41,7 +41,6 @@ forever as though the process were still live).
 
 from __future__ import annotations
 
-import atexit
 import contextlib
 import os
 import time
@@ -436,35 +435,6 @@ def prepare_multiprocess_dir() -> None:
     # prometheus_client reads this from the environment, not from an argument,
     # so it has to be exported rather than passed.
     os.environ["PROMETHEUS_MULTIPROC_DIR"] = str(path)
-    atexit.register(_sweep_own_metric_files)
-
-
-def _sweep_own_metric_files() -> None:
-    """Retire this process's live-gauge files as it exits, whatever it was.
-
-    **Gauges only — and that is why this did not fix what it was written for.**
-    Measured on prod 2026-09-17: the healthcheck's ``celery inspect ping`` runs
-    every 30 s, imports the app, and left two files per run in the 32 MB
-    metrics tmpfs. This hook retires the *gauge* files, but
-    ``mark_process_dead`` deliberately keeps ``counter_*`` and ``histogram_*``
-    (a dead child's counts must stay in the sum), so the ping went on leaving
-    two of those instead. The mount filled on 2026-10-15 and every process that
-    touched a metric died with SIGBUS. The ping now runs with the directory
-    unset (the ``HEALTHCHECK`` in ``docker/Dockerfile``), so it writes nothing.
-
-    Still worth having for every other importer — a one-off script through
-    ``docker exec``, a shell — whose gauges would otherwise read as a live
-    process for ever. Prefork children are covered twice over —
-    :func:`_mark_process_dead` already fires on their shutdown signal — and
-    that is harmless: the sweep globs, so the second pass finds nothing.
-    """
-    if not settings.multiprocess_metrics_enabled:
-        return
-    # Silenced, and deliberately: this runs while the interpreter is tearing
-    # down, where an exception is printed to a stderr nobody is reading and can
-    # mask the exit code that IS read — the healthcheck's.
-    with contextlib.suppress(Exception):
-        multiprocess.mark_process_dead(os.getpid())  # type: ignore[no-untyped-call]
 
 
 @worker_process_shutdown.connect  # type: ignore[untyped-decorator]

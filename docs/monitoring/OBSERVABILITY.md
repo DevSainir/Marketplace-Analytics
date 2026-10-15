@@ -391,6 +391,23 @@ so it counts in memory), and `MetricsDirCollector` publishes
 from `statvfs`, so the next leak is a warning at 70% rather than an outage.
 `WorkerKilled`'s text now says to read the signal first: 9 is memory, 7 is this.
 
+Two rules came out of it, both enforced by tests rather than by remembering:
+
+* **A process that is not a prefork child leaves no metric file behind.**
+  Importing `src.core.observability.metrics` arms an exit hook
+  (`metrics/lifecycle.py`) that deletes every `*_<pid>.db` of that process, so
+  a new script, shell or entry point cannot leak however it is started. Children
+  are exempt — their counters are the harvest's — by pid, not by luck.
+  `test_worker_metrics_dir.py` runs each entry point in a fresh interpreter, and
+  fails if a metric is ever defined outside the `metrics` package, where nothing
+  would arm the hook.
+* **A worker that keeps failing its healthcheck restarts itself.** Docker never
+  restarts an `unhealthy` container, which is why the outage lasted three hours.
+  `docker/worker_healthcheck.sh` counts failures in a row on its own tmpfs and
+  sends PID 1 SIGTERM (warm shutdown) at six — three minutes — and SIGQUIT at
+  twelve; the restart policy does the rest, and the restart empties both tmpfs
+  mounts. `test_worker_healthcheck.py` runs that script against a stand-in.
+
 **`PostgresCrashRecovered`** — added 2026-09-29, after three OOM kills inside
 the postgres container in five days (09-24, 09-28, 09-29 — the last one
 mid-backup) had left no trace in Prometheus. None could: the postmaster survives

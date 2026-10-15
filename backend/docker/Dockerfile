@@ -135,20 +135,11 @@ FROM base AS worker
 RUN useradd --create-home --uid 10002 celeryuser
 USER celeryuser
 
-# Liveness via Celery's own ping to the broker-connected worker.
-#
-# `PROMETHEUS_MULTIPROC_DIR=` is the fix for an outage, not tidiness. The ping
-# imports the application, and in multiprocess mode every import leaves a
-# `counter_<pid>.db` and a `histogram_<pid>.db` in the worker's 32 MB metrics
-# tmpfs — files `mark_process_dead` never removes, because only gauges are
-# per-live-process. Two files every 30 s filled the mount in ~40 h, and on
-# 2026-10-15 at 04:01 MSK every process that then touched a metric died with
-# SIGBUS: each task, and this ping too, for three hours until a restart. An
-# empty value is normalised to absent (`src/core/observability/__init__.py`), so
-# the ping counts in memory and writes nothing — it never had a counter worth
-# keeping.
+# Liveness via Celery's own ping, and a restart when it keeps failing: Docker
+# never restarts an `unhealthy` container by itself. The script says why, and
+# why it runs the ping with the metrics directory unset (the 2026-10-15 outage).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD PROMETHEUS_MULTIPROC_DIR= celery -A src.core.celery_app.celery_app inspect ping || exit 1
+    CMD sh /app/docker/worker_healthcheck.sh
 
 # `--concurrency=2`, not 4, and `--max-tasks-per-child` on top. Both are memory
 # decisions rather than throughput ones, and both were bought with an OOM.

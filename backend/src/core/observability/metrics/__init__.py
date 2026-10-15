@@ -47,7 +47,13 @@ why it is shaped the way it is.
 
 from __future__ import annotations
 
-from src.core.observability.metrics.celery import (
+# First, before any metric object exists: the import that creates this
+# process's metric files is the one that promises to remove them (`lifecycle`).
+from src.core.observability.metrics.lifecycle import arm_exit_sweep
+
+arm_exit_sweep()
+
+from src.core.observability.metrics.celery import (  # noqa: E402 — after the arm, above
     CELERY_QUEUE_LENGTH,
     CELERY_TASK_DURATION,
     CELERY_TASK_MEMORY_GROWTH,
@@ -56,7 +62,7 @@ from src.core.observability.metrics.celery import (
     CELERY_TASKS,
     CELERY_WORKER_LOST,
 )
-from src.core.observability.metrics.harvest import (
+from src.core.observability.metrics.harvest import (  # noqa: E402
     BACKFILL_LANE_FAILURES,
     BACKFILL_LANE_RESTARTS,
     BACKFILL_LANES_STALLED,
@@ -68,7 +74,7 @@ from src.core.observability.metrics.harvest import (
     SETTLEMENT_PAYOUT_DIVERGENCE,
     SETTLEMENT_UPLOAD_DIVERGENCES,
 )
-from src.core.observability.metrics.infrastructure import (
+from src.core.observability.metrics.infrastructure import (  # noqa: E402
     APP_INFO,
     DEPENDENCY_PROBE_DURATION,
     DEPENDENCY_UP,
@@ -78,12 +84,12 @@ from src.core.observability.metrics.infrastructure import (
     POSTGRES_STATS_RESET,
     set_app_info,
 )
-from src.core.observability.metrics.security import (
+from src.core.observability.metrics.security import (  # noqa: E402
     SECURITY_AUTH_FAILURES,
     SECURITY_DEGRADED_CONTROLS,
     SECURITY_RLS_VIOLATIONS,
 )
-from src.core.observability.metrics.wildberries import (
+from src.core.observability.metrics.wildberries import (  # noqa: E402
     WB_API_DURATION,
     WB_API_REQUESTS,
     WB_RATE_LIMIT_BLOCK,
