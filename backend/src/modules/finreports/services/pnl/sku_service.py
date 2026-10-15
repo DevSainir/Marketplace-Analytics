@@ -315,7 +315,7 @@ class SkuReportService:
         if uncosted:
             notes.append(
                 f"Без себестоимости {len(uncosted)} SKU с продажами. "
-                "Заполните в разделе «Себестоимость»."
+                "Укажите её прямо в таблице ниже или в разделе «Себестоимость»."
             )
 
         notes.extend(_span_note("Заказы", "истории воронки", funnel_span, date_from, date_to))

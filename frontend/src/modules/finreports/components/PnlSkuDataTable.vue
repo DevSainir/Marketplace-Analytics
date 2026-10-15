@@ -58,9 +58,11 @@ const props = defineProps({
   rowsPerPage: { type: Number, default: 50 },
   /** «Артикул», or «Предмет» / «Бренд» / «Группа» when the rows are sums. */
   firstHeader: { type: String, default: 'Артикул' },
+  /** Whether an uncosted article's mark offers to enter its cost. */
+  canEnterCost: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['toggle-exclusion', 'load-sizes'])
+const emit = defineEmits(['toggle-exclusion', 'load-sizes', 'enter-cost'])
 
 const { expanded, toggle } = useExpandedSkus(
   (nmId) => emit('load-sizes', nmId),
@@ -135,7 +137,14 @@ function toggleReasons(anchor, row, cell) {
             :class="data.isError ? 'text-status-negative' : 'text-muted'"
             >{{ data.text }}</span
           >
-          <PnlSkuRowIdentity v-else :row="data" :open="data.isOpen" @toggle="toggle(data.nmId)" />
+          <PnlSkuRowIdentity
+            v-else
+            :row="data"
+            :open="data.isOpen"
+            :can-enter-cost="canEnterCost"
+            @toggle="toggle(data.nmId)"
+            @cost="emit('enter-cost', data)"
+          />
         </template>
       </Column>
       <Column

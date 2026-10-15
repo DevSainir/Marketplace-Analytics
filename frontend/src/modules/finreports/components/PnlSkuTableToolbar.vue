@@ -36,6 +36,9 @@ const props = defineProps({
   groupsReadable: { type: Boolean, default: true },
   pageSize: { type: Number, default: 50 },
   pageSizes: { type: Array, default: () => [] },
+  /** Articles that sold with no cost; 0 hides «Без себестоимости» (the balance never shows it). */
+  uncosted: { type: Number, default: 0 },
+  uncostedOnly: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -45,12 +48,19 @@ const emit = defineEmits([
   'update:groupIds',
   'update:cut',
   'update:pageSize',
+  'update:uncostedOnly',
 ])
 
 const options = (values) => values.map((value) => ({ value, label: value }))
 
 const filtering = computed(() =>
-  Boolean(props.query || props.subject.length || props.brand.length || props.groupIds.length),
+  Boolean(
+    props.query ||
+    props.subject.length ||
+    props.brand.length ||
+    props.groupIds.length ||
+    props.uncostedOnly,
+  ),
 )
 
 function clear() {
@@ -58,6 +68,7 @@ function clear() {
   emit('update:subject', [])
   emit('update:brand', [])
   emit('update:groupIds', [])
+  emit('update:uncostedOnly', false)
 }
 </script>
 
@@ -87,6 +98,17 @@ function clear() {
       @update:model-value="emit('update:brand', $event)"
     />
     <GroupsFilter :model-value="groupIds" @update:model-value="emit('update:groupIds', $event)" />
+    <button
+      v-if="uncosted || uncostedOnly"
+      type="button"
+      class="ui-chip"
+      :class="uncostedOnly && 'is-on'"
+      :aria-pressed="uncostedOnly"
+      data-testid="uncosted-filter"
+      @click="emit('update:uncostedOnly', !uncostedOnly)"
+    >
+      Без себестоимости · {{ uncosted }}
+    </button>
     <button v-if="filtering" type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="clear">
       Сбросить фильтр
     </button>

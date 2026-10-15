@@ -19,10 +19,14 @@
  * - «Себестоимость» — the seller's own cost of the sold units; flags how many
  *   SKUs still have no cost, because the profit is understated by exactly them,
  *   and says «Заполнить →» / «Изменить →» — it is the way into the cost editor.
+ *   With gaps it is two actions, not one link: «Показать их» narrows the table
+ *   below to exactly those SKUs (`show-uncosted`), where each can be costed in
+ *   place, and «Заполнить →» still opens the editor for the Excel route.
  * - «Итого к оплате» — what actually reaches the bank account after every
  *   withholding, minus any marked SKUs (WB's own name for this total).
  */
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import KpiTile from '@/core/components/KpiTile.vue'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
@@ -33,6 +37,10 @@ const props = defineProps({
   dashboard: { type: Object, required: true },
   currency: { type: String, default: '' },
 })
+
+const emit = defineEmits(['show-uncosted'])
+
+const COST_EDITOR = { name: 'finreports-cost-prices' }
 
 const base = usePriceBase()
 
@@ -75,9 +83,11 @@ const cards = computed(() => {
       label: 'Себестоимость',
       value: money(d.cogs),
       sub: d.uncosted_count > 0 ? `без себестоимости: ${d.uncosted_count} SKU` : 'все SKU покрыты',
-      to: { name: 'finreports-cost-prices' },
       // The editor's only entrance since «Себестоимость» left the page header.
-      action: d.uncosted_count > 0 ? 'Заполнить →' : 'Изменить →',
+      // With gaps the tile carries two actions (below), so it is not a link.
+      to: d.uncosted_count > 0 ? null : COST_EDITOR,
+      action: d.uncosted_count > 0 ? '' : 'Изменить →',
+      gaps: d.uncosted_count > 0,
       warn: d.uncosted_count > 0,
     },
     {
@@ -111,6 +121,18 @@ const cards = computed(() => {
       :hint="card.hint ?? ''"
       :to="card.to ?? null"
       :action="card.action ?? ''"
-    />
+    >
+      <div v-if="card.gaps" class="mt-sm flex flex-wrap gap-x-md gap-y-xs text-tiny font-medium">
+        <button
+          type="button"
+          class="text-action hover:underline"
+          data-testid="show-uncosted"
+          @click="emit('show-uncosted')"
+        >
+          Показать их ↓
+        </button>
+        <RouterLink :to="COST_EDITOR" class="text-action hover:underline">Заполнить →</RouterLink>
+      </div>
+    </KpiTile>
   </section>
 </template>

@@ -12,9 +12,15 @@
  * and the filters are purely local over the already-loaded rows (like
  * monitoring's SkuSearchSelect); they never re-fetch and never change the
  * dashboard, which reflects the persisted exclusion marks.
+ *
+ * It also owns the one «Себестоимость» dialog both projections open from an
+ * uncosted article — one dialog, so the table and the cards cannot disagree
+ * on how a cost is entered. Without `saveCost` (a read-only member) the rows
+ * are still marked, but nothing offers to write.
  */
-import { computed, ref, toRefs, watchEffect } from 'vue'
+import { computed, ref, toRefs, watch, watchEffect } from 'vue'
 
+import PnlCostDialog from '@/modules/finreports/components/PnlCostDialog.vue'
 import PnlSkuCards from '@/modules/finreports/components/PnlSkuCards.vue'
 import PnlSkuDataTable from '@/modules/finreports/components/PnlSkuDataTable.vue'
 import PnlSkuTableToolbar from '@/modules/finreports/components/PnlSkuTableToolbar.vue'
@@ -33,7 +39,14 @@ const props = defineProps({
   baseDashboard: { type: Object, default: null },
   /** @type {object} `nm_id -> {loading, error, data}` — the opened size tables. */
   sizes: { type: Object, default: () => ({}) },
+  /** The payout's currency — what a cost typed here is stated in. */
+  currency: { type: String, default: '' },
+  /** @type {Function|null} Writes one article's cost; `null` = this member may not. */
+  saveCost: { type: Function, default: null },
 })
+
+/** «Без себестоимости» — a model, because the dashboard's counter turns it on too. */
+const uncostedOnly = defineModel('uncostedOnly', { type: Boolean, default: false })
 
 const emit = defineEmits(['toggle-exclusion', 'dashboard-change', 'load-sizes'])
 
@@ -43,6 +56,7 @@ const { rows, unallocated } = toRefs(props)
 // component under the size limit).
 const {
   query,
+  uncostedCount,
   subjectFilter,
   brandFilter,
   groupFilter,
@@ -54,7 +68,16 @@ const {
   tableRows,
   filtered,
   isFiltering,
-} = usePnlSkuRows(rows, unallocated, usePriceBase())
+} = usePnlSkuRows(rows, unallocated, usePriceBase(), uncostedOnly)
+
+// The last cost filled in empties the filtered list; going back to every
+// article says «done» better than an empty table that reads «нет продаж».
+watch(uncostedCount, (count) => {
+  if (!count) uncostedOnly.value = false
+})
+
+/** The article whose cost the dialog asks for. */
+const costFor = ref(null)
 
 // Tell the parent to swap the dashboard to a «по фильтру» subtotal while a
 // filter/search is active, and back to the backend one when it clears. Summing
@@ -102,6 +125,8 @@ function setPageSize(value) {
       v-model:brand="brandFilter"
       v-model:group-ids="groupFilter"
       v-model:cut="cut"
+      v-model:uncosted-only="uncostedOnly"
+      :uncosted="uncostedCount"
       :groups-readable="groupsReadable"
       :page-size="rowsPerPage"
       :page-sizes="PAGE_SIZES"
@@ -119,8 +144,10 @@ function setPageSize(value) {
         :rows="tableRows"
         :totals="totals"
         :sizes="sizes"
+        :can-enter-cost="!!saveCost"
         @toggle-exclusion="emit('toggle-exclusion', $event)"
         @load-sizes="emit('load-sizes', $event)"
+        @enter-cost="costFor = $event"
       />
 
       <PnlSkuDataTable
@@ -131,9 +158,18 @@ function setPageSize(value) {
         :sizes="sizes"
         :rows-per-page="rowsPerPage"
         :first-header="FIRST_HEADERS[cut]"
+        :can-enter-cost="!!saveCost"
         @toggle-exclusion="emit('toggle-exclusion', $event)"
         @load-sizes="emit('load-sizes', $event)"
+        @enter-cost="costFor = $event"
       />
     </div>
+    <PnlCostDialog
+      v-if="saveCost"
+      :row="costFor"
+      :currency="currency"
+      :save="saveCost"
+      @close="costFor = null"
+    />
   </div>
 </template>

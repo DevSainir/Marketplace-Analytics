@@ -39,6 +39,18 @@ export function perSale(logistics, sold) {
   return logistics === null || !Number(sold) ? null : logistics / Number(sold)
 }
 
+/**
+ * An article that sold in the window with no cost on file — the same rule the
+ * backend's «без себестоимости: N SKU» counter applies, so the marked rows and
+ * the counter always agree. Its profit is unknown, not zero, and the «Итого»
+ * above it is overstated by exactly its cost; that is why it is marked.
+ *
+ * @param {object} r A backend `PnlSkuRow`.
+ */
+export function isUncosted(r) {
+  return (r.cost_price === null || r.cost_price === undefined) && r.sold_units > 0
+}
+
 export function toRow(r, isBucket = false, base = 'seller') {
   const seller = num(r.revenue_seller_price)
   const paid = num(r.revenue_paid)
@@ -51,6 +63,8 @@ export function toRow(r, isBucket = false, base = 'seller') {
     // Which price the shares below are taken at — the colour bounds differ.
     priceBase: base,
     saName: formatSku(r.sa_name),
+    // As WB stores it — what a cost saved from this row is filed under.
+    vendorCode: r.sa_name ?? '',
     // Null on the account-level bucket and on any SKU the monitoring catalogue
     // has not harvested yet; `SkuThumb` renders its own placeholder for both.
     photoUrl: r.photo_url ?? null,
@@ -82,6 +96,7 @@ export function toRow(r, isBucket = false, base = 'seller') {
     penalties: num(r.penalties_total),
     penaltyReasons: (r.penalties ?? []).map((p) => ({ reason: p.reason, amount: num(p.amount) })),
     cogs: num(r.cogs),
+    uncosted: !isBucket && isUncosted(r),
     advertising,
     advertisingPct: drrShare(advertising, sales),
     // Positive magnitude, exactly as the API sends it. Rendering is what
@@ -101,8 +116,11 @@ export function toRow(r, isBucket = false, base = 'seller') {
  * @param {import('vue').Ref<Array>} rows Reactive `PnlSkuRow[]`.
  * @param {import('vue').Ref<object|null>} unallocated The account-level bucket.
  * @param {() => string} [base] The chosen price base — see `priceBase.js`.
+ * @param {import('vue').Ref<boolean>} [uncostedOnly] «Без себестоимости» — only
+ *   the articles {@link isUncosted} picks. A ref the caller may own, because the
+ *   dashboard's counter switches it on from outside the table.
  */
-export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
+export function usePnlSkuRows(rows, unallocated, base = () => 'seller', uncostedOnly = ref(false)) {
   const query = ref('')
   const { subjectFilter, brandFilter, groupFilter, active, apply } = useSkuFilters()
   const cut = ref('sku')
@@ -115,13 +133,17 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
   const subjects = computed(() => distinct('subject_name'))
   const brands = computed(() => distinct('brand_name'))
 
-  const isFiltering = computed(() => !!query.value.trim() || active.value)
+  const isFiltering = computed(() => !!query.value.trim() || active.value || uncostedOnly.value)
+
+  /** How many articles the «Без себестоимости» filter would leave, over the whole window. */
+  const uncostedCount = computed(() => rows.value.filter(isUncosted).length)
 
   /** The raw `PnlSkuRow`s (no bucket) matching the search + Тип/Бренд filters. */
   const filtered = computed(() => {
     const needle = query.value.trim().toLowerCase()
     let list = rows.value
     list = apply(list)
+    if (uncostedOnly.value) list = list.filter(isUncosted)
     if (needle) {
       list = list.filter((r) =>
         [r.sa_name, String(r.nm_id), r.subject_name, r.brand_name].some((field) =>
@@ -153,6 +175,8 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller') {
 
   return {
     query,
+    uncostedOnly,
+    uncostedCount,
     subjectFilter,
     brandFilter,
     groupFilter,
@@ -240,7 +264,7 @@ export function subsetDashboard(rows, base = null) {
     logistics,
     logistics_pct: sales ? (logistics / sales) * 100 : null,
     cogs: sum((r) => r.cogs),
-    uncosted_count: included.filter((r) => r.cost_price === null && r.sold_units > 0).length,
+    uncosted_count: included.filter(isUncosted).length,
     payout_net: sum((r) => r.payout_net),
     // Account-level, not per-SKU — carried from the backend dashboard as-is.
     other_deductions: base ? n(base.other_deductions) : 0,

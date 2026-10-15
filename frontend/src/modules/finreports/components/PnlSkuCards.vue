@@ -37,9 +37,11 @@ const props = defineProps({
   totals: { type: Object, default: null },
   /** @type {object} nm_id -> size drill-down state, from the store. */
   sizes: { type: Object, default: () => ({}) },
+  /** Whether an uncosted article offers to enter its cost. */
+  canEnterCost: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['toggle-exclusion', 'load-sizes'])
+const emit = defineEmits(['toggle-exclusion', 'load-sizes', 'enter-cost'])
 
 const sortKey = ref('profit')
 const descending = ref(true)
@@ -138,7 +140,10 @@ const { money } = formatters
             </span>
             <span class="record-sub">
               {{ row.isBucket ? 'на весь счёт' : row.isGroup ? `артикулов: ${row.n}` : row.nmId }}
-              <template v-if="row.subject"> · {{ row.subject }}</template>
+              <!-- The mark takes the subject's place: the line truncates, and
+                   after the subject the mark was the part that got cut. -->
+              <span v-if="row.uncosted" class="ui-badge is-warn ml-xs">нет себестоимости</span>
+              <template v-else-if="row.subject"> · {{ row.subject }}</template>
             </span>
           </span>
 
@@ -176,6 +181,14 @@ const { money } = formatters
             <span class="record-label">К перечислению</span>
             <span class="record-value">{{ money(row.payout) }}</span>
           </div>
+          <button
+            v-if="row.uncosted && canEnterCost"
+            type="button"
+            class="ui-btn ui-btn--sm w-full"
+            @click="emit('enter-cost', row)"
+          >
+            Указать себестоимость
+          </button>
           <div v-if="row.penalties" class="record-row">
             <span class="record-label">Штрафы</span>
             <span class="record-value record-value--negative">{{ money(row.penalties) }}</span>

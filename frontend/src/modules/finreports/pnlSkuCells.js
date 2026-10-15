@@ -116,7 +116,9 @@ export const COLUMNS = [
     field: 'cogs',
     header: 'Себестоимость',
     num: true,
-    art: (r, money) => ({ text: money(r.cogs) }),
+    // «нет», not «—»: the cost is not unknown to WB, it is missing from us.
+    art: (r, money) =>
+      r.uncosted ? { text: 'нет', cls: 'text-status-warning' } : { text: money(r.cogs) },
   },
   {
     field: 'advertising',

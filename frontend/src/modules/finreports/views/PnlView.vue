@@ -21,6 +21,7 @@ import ReportFreshnessLine from '@/modules/finreports/components/ReportFreshness
 import { providePnlCurrencies } from '@/modules/finreports/pnlFormat'
 import { providePriceBase } from '@/modules/finreports/priceBase'
 import { useFinReportsStore } from '@/modules/finreports/store'
+import { useCostEntry } from '@/modules/finreports/useCostEntry'
 import { useReportUpload } from '@/modules/finreports/useReportUpload'
 
 import { useMembersStore } from '@/modules/profile'
@@ -77,6 +78,18 @@ const notes = computed(() => store.report?.notes ?? [])
 const currency = computed(() => store.report?.currency ?? '')
 // Every figure on the page, advertising included, in the payout's currency.
 providePnlCurrencies(computed(() => ({ settlement: currency.value })))
+
+// An uncosted article's cost, typed in the table — only for whoever may write.
+const { save: saveCost } = useCostEntry(store)
+
+// «Без себестоимости» over the table; the dashboard's counter turns it on and
+// brings the table into view, so the counter leads to the very SKUs it counts.
+const uncostedOnly = ref(false)
+const skuSection = ref(null)
+function showUncosted() {
+  uncostedOnly.value = true
+  skuSection.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+}
 
 /** The harvested weeks have been asked for — until then «no reports» would be a guess. */
 const weeksAsked = ref(Boolean(store.weeks.length))
@@ -195,13 +208,14 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         <PnlDashboardCards
           :dashboard="dashboard"
           :currency="currency"
+          @show-uncosted="showUncosted"
         />
 
         <ul v-if="notes.length" class="mt-md space-y-xs">
           <li v-for="note in notes" :key="note" class="text-tiny text-muted">⚠ {{ note }}</li>
         </ul>
 
-        <div class="mt-lg">
+        <div ref="skuSection" class="mt-lg scroll-mt-md">
           <h2 class="mb-xs text-h3 font-semibold text-primary">По артикулам</h2>
           <p class="mb-sm max-w-4xl text-tiny text-muted">
             Продажи, возвраты и удержания — по датам расчёта WB.
@@ -210,7 +224,10 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
             :rows="rows"
             :unallocated="unallocated"
             :base-dashboard="store.report?.dashboard ?? null"
+            v-model:uncosted-only="uncostedOnly"
             :sizes="store.sizes"
+            :currency="currency"
+            :save-cost="members.canWrite ? saveCost : null"
             @toggle-exclusion="store.toggleExclusion($event.nmId, $event.excluded)"
             @dashboard-change="filteredDashboard = $event"
             @load-sizes="store.loadSizes($event)"

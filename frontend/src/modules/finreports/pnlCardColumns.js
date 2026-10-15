@@ -51,7 +51,11 @@ export const DETAILS = [
     subTone: (r) => toneClass('logisticsPct', r.logisticsPct, r.priceBase),
   },
   { label: 'Логистика на 1 выкуп', get: (r, f) => f.money(r.logisticsPerSale) },
-  { label: 'Себестоимость', get: (r, f) => f.money(r.cogs) },
+  {
+    label: 'Себестоимость',
+    get: (r, f) => (r.uncosted ? 'нет' : f.money(r.cogs)),
+    tone: (r) => (r.uncosted ? 'text-status-warning' : ''),
+  },
   { label: 'Реклама', get: (r, f) => f.money(r.advertising) },
   {
     label: 'ДРР от продаж',
