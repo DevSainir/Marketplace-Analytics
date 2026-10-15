@@ -127,6 +127,10 @@ services:
     mem_limit: 320m
     cpus: 0.5
     user: "65534:65534"  # nobody. It only ever writes its own volume.
+    # The Telegram relay is in the host's network, not this one; docker0 is
+    # where its metrics listener is bound.
+    extra_hosts:
+      - "telegram-relay:host-gateway"
     volumes:
       - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./docker/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -164,24 +168,18 @@ services:
     mem_limit: 64m
     cpus: 0.25
     user: "65534:65534"
-    # Telegram pinned to an address that answers over IPv4. api.telegram.org
-    # resolves to 149.154.166.110, and from this box that address has been
-    # unreachable over IPv4 since about 2026-09-12: the route dies after the
-    # Cogent transit (130.117.x), 100 % loss. The host itself still gets through
-    # over IPv6, but Docker's networks here are IPv4-only, so this container
-    # delivered 3 alerts out of 213 attempts in ten days (HARDENING P2.12).
-    # 149.154.167.220 is another of Telegram's own API front ends and serves
-    # the same certificate, so TLS is still verified against api.telegram.org.
-    #
-    # A pin can go stale the same way. That is what the Watchdog heartbeat is
-    # for: a failed Telegram delivery stops it, and Better Stack — outside this
-    # box — says so. When that happens, find a working address with
-    #   for ip in <candidates>; do curl -4 -s -m 6 -o /dev/null -w "$ip %{http_code}\n" \
-    #     --resolve api.telegram.org:443:$ip https://api.telegram.org; done
-    # and change it here; or give this container IPv6, which is the real fix and
-    # a host network change (P2.12).
+    # Telegram goes through the relay below, not straight out. The name is
+    # pinned to the host (docker0), where `telegram-relay` listens, and the
+    # rendered config's `api_url` carries the relay's port; TLS still runs end
+    # to end and is verified against api.telegram.org. Straight out, this
+    # container has IPv4 only and one address that answers two connects in
+    # three — and before 2026-09-30 an address that had answered nothing for
+    # two weeks (HARDENING P2.12). docker/telegram-relay/haproxy.cfg has the
+    # measurements.
     extra_hosts:
-      - "api.telegram.org:149.154.167.220"
+      - "api.telegram.org:host-gateway"
+    depends_on:
+      - telegram-relay
     volumes:
       # The RENDERED config, not the template — it carries the Telegram bot
       # token and is gitignored. `make obs-up` renders it first; starting this
@@ -198,6 +196,35 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # The road to Telegram: a TCP relay in the HOST's network, so it has the
+  # host's IPv6 as well as IPv4, retrying a dropped connect within two seconds
+  # on the other family. Why, and the numbers behind it, are in its config.
+  # Owner's decision on 2026-10-15, over an IPv4-only relay inside
+  # Alertmanager's own namespace that would open nothing on the host: that one
+  # goes silent the day Telegram's one working IPv4 address goes the way of
+  # 149.154.166.110, and this one does not.
+  telegram-relay:
+    # The edge's image and digest: one HAProxy to keep patched, already scanned
+    # by base-image-freshness.yml.
+    image: haproxy:3.2.25-alpine@sha256:5d97434a423c2533cfeb42874d45cf6d69a840b60334582dfbfd5008e94c80be
+    restart: unless-stopped
+    logging: *obs_logging
+    # Host networking is the point (IPv6), and the reason the listeners bind
+    # docker0's address rather than a wildcard — see the config's header.
+    network_mode: host
+    mem_limit: 32m
+    cpus: 0.1
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # The DIRECTORY, for the edge's reason: a single-file mount keeps the old
+      # inode after `git pull`, so a reload would load the previous config.
+      - ./docker/telegram-relay:/usr/local/etc/haproxy:ro
 
   grafana:
     image: grafana/grafana:11.5.1

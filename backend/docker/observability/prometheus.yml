@@ -84,3 +84,12 @@ scrape_configs:
   - job_name: alertmanager
     static_configs:
       - targets: ["alertmanager:9093"]
+
+  # The relay's view of the road to Telegram: how many of its two roads (IPv6,
+  # IPv4) pass their health check. `Watchdog` requires at least one, so a dead
+  # road is noticed every ten seconds rather than by the first alert that fails
+  # to go out. The relay lives in the host's network, on docker0; the name
+  # resolves through Prometheus's `extra_hosts`.
+  - job_name: telegram-relay
+    static_configs:
+      - targets: ["telegram-relay:7405"]

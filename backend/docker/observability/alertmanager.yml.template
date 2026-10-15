@@ -49,16 +49,15 @@ route:
   routes:
     # The heartbeat, FIRST so it never reaches Telegram. `Watchdog` fires all
     # the time while the alert path is healthy (alerts.yml, group `meta`), and
-    # every five minutes it is re-sent to an external monitor. When the
-    # heartbeat stops — this box down, Prometheus or Alertmanager down, or a
-    # Telegram delivery failing — the monitor says so from outside, over a
-    # channel that does not go through here. On 2026-09-29 we learned that
-    # Telegram had been unreachable for two weeks, from a customer.
+    # it goes nowhere: the API's /healthz/alerts asks this Alertmanager whether
+    # it is active, and UptimeRobot polls that from outside the box. When the
+    # rule stops — this box down, Prometheus or Alertmanager down, a Telegram
+    # delivery failing, or the relay out of roads — the page answers
+    # `alerts-down` and the owner's phone says so, over a channel that does not
+    # go through here. On 2026-09-29 we learned that Telegram had been
+    # unreachable for two weeks, from a customer.
     - matchers: ["alertname = Watchdog"]
-      receiver: heartbeat
-      group_wait: 0s
-      group_interval: 1m
-      repeat_interval: 5m
+      receiver: watchdog
 
     # `severity: page` alerts skip the grouping delay. The difference between
     # `page` and `warn` in alerts.yml is whether somebody should stop what they
@@ -76,23 +75,20 @@ route:
       repeat_interval: 1h
 
 receivers:
-  # Better Stack heartbeat URL from ALERT_HEARTBEAT_URL in backend/.env. Without
-  # it the renderer drops the webhook between the markers and says so loudly;
-  # the receiver stays, empty, so `Watchdog` goes nowhere rather than to
-  # Telegram every few hours.
-  - name: heartbeat
-    # heartbeat-webhook-begin
-    webhook_configs:
-      - url: "__HEARTBEAT_URL__"
-        # A resolution means the heartbeat should STOP; sending one would be
-        # one more ping to a monitor that is waiting for silence.
-        send_resolved: false
-    # heartbeat-webhook-end
+  # Deliberately empty. `Watchdog` must exist in Alertmanager — that is what
+  # /healthz/alerts reads — and must reach no one.
+  - name: watchdog
 
   - name: telegram
     telegram_configs:
       - bot_token: "__TELEGRAM_BOT_TOKEN__"
         chat_id: __TELEGRAM_CHAT_ID__
+        # Through the relay (docker/telegram-relay/haproxy.cfg). The host part
+        # stays api.telegram.org — compose pins that name to docker0, where
+        # the relay listens — so TLS is still verified against Telegram's own
+        # certificate; only the port says "relay". Telegram ignores the port
+        # in the Host header (checked 2026-10-15).
+        api_url: "https://api.telegram.org:7443"
         # HTML rather than Markdown: an alert's description can contain
         # underscores and asterisks (metric names, label values), and Telegram's
         # Markdown parser REJECTS the whole message when they do not pair up.

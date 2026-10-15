@@ -221,18 +221,18 @@ logs: ## Follow the logs of every service
 # Telegram bot token, so it is generated from backend/.env rather than committed.
 # Starting the stack without it leaves the file absent and Alertmanager in a
 # restart loop — which is the loud failure. See the template's header.
-obs-up: ## Start Prometheus + Alertmanager + Grafana + Loki + Alloy alongside a running stack
+obs-up: ## Start Prometheus + Alertmanager + its Telegram relay + Grafana + Loki + Alloy alongside a running stack
 	backend/scripts/observability/render_alertmanager_config.sh
-	$(COMPOSE_OBS) up -d prometheus alertmanager grafana loki alloy
+	$(COMPOSE_OBS) up -d prometheus alertmanager telegram-relay grafana loki alloy
 
 obs-down: ## Stop the observability stack, keeping its volumes (and the service up)
-	$(COMPOSE_OBS) stop prometheus alertmanager grafana loki alloy
+	$(COMPOSE_OBS) stop prometheus alertmanager telegram-relay grafana loki alloy
 
 obs-ps: ## Status of the observability services
-	$(COMPOSE_OBS) ps prometheus alertmanager grafana loki alloy
+	$(COMPOSE_OBS) ps prometheus alertmanager telegram-relay grafana loki alloy
 
 obs-logs: ## Follow the observability services' logs
-	$(COMPOSE_OBS) logs -f prometheus alertmanager grafana loki alloy
+	$(COMPOSE_OBS) logs -f prometheus alertmanager telegram-relay grafana loki alloy
 
 # --------------------------------------------------------------------------- #
 # The analyst gateway: the one way an outside analyst's SSH tunnel reaches

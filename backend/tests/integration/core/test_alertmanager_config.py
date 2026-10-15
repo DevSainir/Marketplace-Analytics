@@ -1,11 +1,10 @@
-"""The rendered Alertmanager config: the heartbeat goes out, and never to Telegram.
+"""The rendered Alertmanager config: Watchdog reaches no one, Telegram goes via the relay.
 
-`Watchdog` fires all the time by design. Routed anywhere but the heartbeat
-receiver it would be a Telegram message every few hours saying nothing is
-wrong — the kind of noise that gets a chat muted, which is how the real page
-goes unread. And the heartbeat URL is the one piece of this file an operator
-types by hand, so the renderer's handling of it is checked here with the
-characters a URL actually contains.
+`Watchdog` fires all the time by design. Routed to Telegram it would be a
+message every few hours saying nothing is wrong — the kind of noise that gets a
+chat muted, which is how the real page goes unread. It must still EXIST in
+Alertmanager, because /healthz/alerts reads it there, so it goes to a receiver
+with nothing in it.
 
 Integration tier for the same reason as the deploy script tests: it forks a
 real bash and awk, and needs nothing else.
@@ -24,7 +23,6 @@ import yaml
 BACKEND = Path(__file__).resolve().parents[3]
 RENDERER = BACKEND / "scripts" / "observability" / "render_alertmanager_config.sh"
 TEMPLATE = BACKEND / "docker" / "observability" / "alertmanager.yml.template"
-HEARTBEAT = "https://uptime.example.test/api/v1/heartbeat/abc?source=am&x=1"
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
 
@@ -54,32 +52,26 @@ def _receiver(config: dict[str, Any], name: str) -> dict[str, Any]:
     return next(r for r in config["receivers"] if r["name"] == name)
 
 
-def test_the_heartbeat_url_arrives_intact_and_watchdog_goes_only_there(tmp_path: Path) -> None:
-    result, config = _render(tmp_path, _TELEGRAM + f"ALERT_HEARTBEAT_URL={HEARTBEAT}\n")
+def test_watchdog_is_routed_first_to_a_receiver_that_sends_nothing(tmp_path: Path) -> None:
+    """First, and not continued: no later route may hand the heartbeat to Telegram."""
+    result, config = _render(tmp_path, _TELEGRAM)
 
     assert result.returncode == 0, result.stderr
     first = config["route"]["routes"][0]
     assert first["matchers"] == ["alertname = Watchdog"]
-    assert first["receiver"] == "heartbeat"
     assert not first.get("continue", False)
-    webhook = _receiver(config, "heartbeat")["webhook_configs"][0]
-    assert webhook["url"] == HEARTBEAT
-    assert webhook["send_resolved"] is False
+    receiver = _receiver(config, first["receiver"])
+    assert set(receiver) == {"name"}, f"the Watchdog receiver integrates with {sorted(receiver)}"
 
 
-def test_without_a_heartbeat_url_it_renders_says_so_and_still_keeps_watchdog_off_telegram(
-    tmp_path: Path,
-) -> None:
-    result, config = _render(tmp_path, _TELEGRAM)
+def test_the_bot_token_and_chat_arrive_intact(tmp_path: Path) -> None:
+    """A token carries `:` and a chat id is negative — both break a naive sed."""
+    result, config = _render(
+        tmp_path, "ALERT_TELEGRAM_BOT_TOKEN=123:a-b_C\nALERT_TELEGRAM_CHAT_ID=-1001\n"
+    )
 
     assert result.returncode == 0, result.stderr
-    assert "ALERT_HEARTBEAT_URL is not set" in result.stderr
-    assert "webhook_configs" not in _receiver(config, "heartbeat")
-    assert config["route"]["routes"][0]["receiver"] == "heartbeat"
-
-
-def test_a_heartbeat_url_that_is_not_https_is_refused(tmp_path: Path) -> None:
-    result, _ = _render(tmp_path, _TELEGRAM + "ALERT_HEARTBEAT_URL=http://plain.test/beat\n")
-
-    assert result.returncode != 0
-    assert "https://" in result.stderr
+    telegram = _receiver(config, "telegram")["telegram_configs"][0]
+    assert telegram["bot_token"] == "123:a-b_C"
+    assert telegram["chat_id"] == -1001
+    assert "123:a-b_C" not in result.stdout + result.stderr

@@ -13,15 +13,18 @@
 groups:
   # -------------------------------------------------------------------------
   # The alert path itself. `Watchdog` is the one rule meant to be firing: it
-  # holds while Alertmanager is scraped and has not failed a Telegram delivery
-  # in the last half hour, and alertmanager.yml sends it — every five minutes,
-  # and only there — to an external heartbeat monitor. So the heartbeat stops
-  # when anything on the path stops: the box, Prometheus, Alertmanager, or the
-  # last hop to Telegram. Silence is the signal, and it is read from outside.
+  # holds while Alertmanager is scraped, has not failed a Telegram delivery in
+  # the last half hour, and the Telegram relay has at least one road that
+  # passes its health check. It is sent nowhere. The API's `/healthz/alerts`
+  # asks Alertmanager whether it is active, and UptimeRobot polls that from
+  # outside the box — so the answer turns red when anything on the path stops:
+  # the box, Prometheus, Alertmanager, the relay, or the last hop to Telegram.
+  # Silence is the signal, and it is read from outside.
   #
-  # The gap left: a Telegram outage while nothing else is firing is found at
-  # the first page that fails, not before — nothing here sends a message just
-  # to test the road.
+  # The relay's health check is what closed the old gap. Before it, a Telegram
+  # outage while nothing else was firing was found at the first page that
+  # failed; the road is now tried every ten seconds whether or not anything is
+  # waiting to go down it.
   # -------------------------------------------------------------------------
   - name: meta
     rules:
@@ -29,17 +32,38 @@ groups:
         expr: |
           sum(increase(alertmanager_notifications_failed_total{integration="telegram"}[30m])) == 0
           and on() max(up{job="alertmanager"}) == 1
+          and on() max(haproxy_backend_active_servers{job="telegram-relay",proxy="telegram"}) > 0
         for: 1m
         labels:
           severity: heartbeat
         annotations:
           summary: "Алерты доходят: пульс для внешней проверки."
           description: >-
-            Это правило горит всегда и уходит только во внешний монитор. Если
-            монитор сообщил, что пульса нет, значит алерты не доходят. Проверьте
-            `docker exec marketplace-observability-alertmanager-1 wget -qO-
-            localhost:9093/metrics | grep notifications_failed` и
-            HARDENING P2.12.
+            Это правило горит всегда и никуда не отправляется. Его читает
+            /healthz/alerts, а ту страницу проверяет UptimeRobot. Если UptimeRobot
+            сообщил, что страница не отвечает «alerts-ok», значит алерты не
+            доходят. Проверьте `docker exec marketplace-observability-alertmanager-1
+            wget -qO- localhost:9093/metrics | grep notifications_failed`, логи
+            `marketplace-observability-telegram-relay-1` и HARDENING P2.12.
+
+      - alert: TelegramRoadDown
+        expr: max(haproxy_backend_active_servers{job="telegram-relay",proxy="telegram"}) < 2
+        # Six hours, because the roads flap: at one dropped connect in three,
+        # a road fails five health checks in a row several times a day and is
+        # back ten seconds later. A road that stays down this long is the
+        # 149.154.166.110 story again — an address that has stopped answering.
+        for: 6h
+        labels:
+          severity: warn
+        annotations:
+          summary: "Одна из двух дорог до Telegram не работает шесть часов."
+          description: >-
+            Алерты пока доходят по второй дороге, но запаса больше нет. Посмотрите
+            логи `marketplace-observability-telegram-relay-1`: какой сервер (ipv6
+            или ipv4) в состоянии DOWN. Если адрес Telegram перестал отвечать,
+            найдите рабочий (curl --resolve api.telegram.org:443:<ip>
+            https://api.telegram.org/bot0:x/getMe, ответ 401 значит дорога есть)
+            и замените его в backend/docker/telegram-relay/haproxy.cfg.
 
   # -------------------------------------------------------------------------
   - name: availability
