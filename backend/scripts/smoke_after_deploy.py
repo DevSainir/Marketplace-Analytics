@@ -1,4 +1,4 @@
-"""Open «Демо»'s busiest SKU cards on the code that was just deployed.
+"""Open «Демо»'s main pages on the code that was just deployed.
 
 The deploy's own health checks prove the containers are up and nginx answers
 200 — and on 2026-09-29 both were true for three hours while every SKU card
@@ -6,10 +6,25 @@ answered 500. `/health` touches no tenant data, and the failure lived in how a
 real row from before a migration was turned into a response. The only probe that
 sees that class of bug is one that reads real rows through the real service.
 
-So this does, and only for the one кабинет a diagnostic may read: the session is
+So this does, for each main page, with what the SPA asks for when the page first
+opens, and serialises every answer the way a response is (``scripts/smoke/``):
+
+* «Мониторинг» — the SKU list, and the three busiest SKU cards;
+* P&L — the period list, the per-SKU report for the default week, the stock balance;
+* «Тепловая карта» — the grid and its catalogue, for the default thirty days;
+* «A/Б-тесты» — the list, and the newest test.
+
+Only for the one кабинет a diagnostic may read: the session is
 `diagnostic_session()` — read-only at the transaction level and pinned to
-«Демо» by row-level security — so the cards picked below are that кабинет's
-and nobody else's. It prints counts and status, never figures.
+«Демо» by row-level security — so the rows below are that кабинет's and
+nobody else's. It prints counts and status, never figures.
+
+Read-only is enforced, not intended, which decides two things. A page whose read
+would write is not opened: the P&L report over a stale settlement rollup is
+reported as **skipped**, by name, on stdout — not passed, and not failed, since a
+stale rollup is the ordinary state after a harvest. And each page runs under its
+own savepoint, so a page that breaks the transaction does not take every page
+after it down too and hide which one it was.
 
 Run by the deploy inside the freshly rotated api container. Any non-zero exit
 fails the deploy before worker and beat are updated; it does NOT roll back —
@@ -22,36 +37,18 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import uuid
-from datetime import timedelta
-
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
 
 from src.core.diagnostics import diagnostic_session, diagnostic_workspace
-from src.core.timeutils import moscow_today
-from src.modules.monitoring.models import ProductCard, SalesFunnelDaily
-from src.modules.monitoring.repos import (
-    AdvertisingRepository,
-    AdvertisingSearchRepository,
-    AdvertisingWriteOffRepository,
-    CampaignRepository,
-    FunnelRepository,
-    MatrixOverrideRepository,
-    PinnedSkuRepository,
-    PriceRepository,
-    ProductCardRepository,
-    ProductSizeRepository,
-    SaleRepository,
-    SkuDayActionRepository,
-    SkuDayCommentRepository,
-    StockRepository,
-)
-from src.modules.monitoring.services import AnalyticsService
 
-#: Cards opened per deploy. The busiest ones, because a card with history is the
-#: one that carries rows from before whatever the last migration changed.
-CARDS = 3
+if not __package__:
+    # The deploy runs this by PATH (`python /app/scripts/smoke_after_deploy.py`),
+    # and that puts scripts/ itself on the import path rather than the backend
+    # root, so `scripts.smoke` would not resolve and every deploy would fail on
+    # a ModuleNotFoundError. This is the root `python -m` from /app would add.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.smoke import SmokeReport, smoke
 
 #: The whole probe must finish well inside the deploy job's own timeout.
 TIMEOUT_SECONDS = 120
@@ -60,77 +57,26 @@ EXIT_BROKEN = 1
 EXIT_CANNOT_CHECK = 3
 
 
-def _service(session: AsyncSession) -> AnalyticsService:
-    """The read service exactly as a request gets it (monitoring/deps)."""
-    return AnalyticsService(
-        funnel_repo=FunnelRepository(session),
-        advertising_repo=AdvertisingRepository(session),
-        advertising_search_repo=AdvertisingSearchRepository(session),
-        advertising_write_off_repo=AdvertisingWriteOffRepository(session),
-        stock_repo=StockRepository(session),
-        campaign_repo=CampaignRepository(session),
-        product_card_repo=ProductCardRepository(session),
-        product_size_repo=ProductSizeRepository(session),
-        matrix_override_repo=MatrixOverrideRepository(session),
-        price_repo=PriceRepository(session),
-        sale_repo=SaleRepository(session),
-        pinned_sku_repo=PinnedSkuRepository(session),
-        day_comment_repo=SkuDayCommentRepository(session),
-        day_action_repo=SkuDayActionRepository(session),
-    )
-
-
-async def busiest_cards(session: AsyncSession, *, limit: int = CARDS) -> list[int]:
-    """The cards with the most orders in the last 30 days, busiest first.
-
-    Through ``product_card``, which row-level security covers — the funnel table
-    carries no workspace, so selecting from it alone would reach every кабинет.
-    """
-    since = moscow_today() - timedelta(days=30)
-    rows = await session.execute(
-        select(ProductCard.nm_id)
-        .join(SalesFunnelDaily, SalesFunnelDaily.nm_id == ProductCard.nm_id)
-        .where(SalesFunnelDaily.stat_date >= since)
-        .group_by(ProductCard.nm_id)
-        .order_by(func.sum(SalesFunnelDaily.order_count).desc(), ProductCard.nm_id)
-        .limit(limit)
-    )
-    return list(rows.scalars())
-
-
-async def smoke(session: AsyncSession, *, workspace_id: uuid.UUID) -> tuple[list[int], list[str]]:
-    """Render the monitoring list and the busiest cards; collect what failed.
-
-    Returns:
-        ``(cards_opened, failures)`` — a failure is ``"<what>: <exception>"``.
-    """
-    service = _service(session)
-    failures: list[str] = []
-    try:
-        (await service.get_summary(workspace_id=workspace_id, limit=20)).model_dump_json()
-    except Exception as exc:  # every failure is the finding
-        failures.append(f"summary: {type(exc).__name__}: {exc}")
-    cards = await busiest_cards(session)
-    for nm_id in cards:
-        try:
-            (await service.get_detail(nm_id=nm_id)).model_dump_json()
-        except Exception as exc:  # every failure is the finding
-            failures.append(f"card {nm_id}: {type(exc).__name__}: {exc}")
-    return cards, failures
+def verdict(report: SmokeReport) -> int:
+    """Print what the probe found and turn it into the exit code the deploy reads."""
+    for skipped in report.skipped:
+        print(f"smoke: skipped {skipped}")
+    if report.failures:
+        for failure in report.failures:
+            print(f"smoke: FAILED {failure}", file=sys.stderr)
+        return EXIT_BROKEN
+    if not report.cards:
+        print("smoke: no cards with recent orders to open; nothing was checked", file=sys.stderr)
+        return EXIT_CANNOT_CHECK
+    rows = ", ".join(f"{page} {count}" for page, count in report.rendered.items())
+    print(f"smoke: ok — rendered (rows): {rows}")
+    return 0
 
 
 async def _run() -> int:
     async with diagnostic_session() as session:
-        cards, failures = await smoke(session, workspace_id=diagnostic_workspace())
-    if failures:
-        for failure in failures:
-            print(f"smoke: FAILED {failure}", file=sys.stderr)
-        return EXIT_BROKEN
-    if not cards:
-        print("smoke: no cards with recent orders to open; nothing was checked", file=sys.stderr)
-        return EXIT_CANNOT_CHECK
-    print(f"smoke: ok — monitoring list and {len(cards)} cards rendered")
-    return 0
+        report = await smoke(session, workspace_id=diagnostic_workspace())
+    return verdict(report)
 
 
 def main() -> int:
