@@ -16,7 +16,8 @@ describe('isoLocalDate', () => {
 describe('isoDaysAgo', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 6, 8, 23, 30))
+    // 20:30 UTC is 23:30 in Moscow — still the 8th there.
+    vi.setSystemTime(new Date('2026-07-08T20:30:00Z'))
   })
 
   afterEach(() => {
@@ -27,6 +28,12 @@ describe('isoDaysAgo', () => {
     expect(isoDaysAgo(0)).toBe('2026-07-08')
     expect(isoDaysAgo(6)).toBe('2026-07-02')
     expect(isoDaysAgo(8)).toBe('2026-06-30')
+  })
+
+  it('counts from the Moscow day, not the browser’s', () => {
+    // 21:30 UTC: 00:30 on the 9th in Moscow, whatever the browser's zone says.
+    vi.setSystemTime(new Date('2026-07-08T21:30:00Z'))
+    expect(isoDaysAgo(0)).toBe('2026-07-09')
   })
 })
 

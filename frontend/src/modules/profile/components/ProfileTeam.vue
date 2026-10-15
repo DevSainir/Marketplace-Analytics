@@ -14,6 +14,7 @@
 import DataState from '@/core/components/DataState.vue'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
 import { levelLabel, moduleLabel } from '@/modules/profile/components/grantModules'
+import { formatMoscowDate } from '@/core/utils/moscow'
 
 defineProps({
   /** The team is still being read — until then «no managers» would be a guess. */
@@ -29,7 +30,7 @@ const emit = defineEmits(['edit', 'remove', 'invite'])
 const removal = useConfirmClick()
 
 function joined(iso) {
-  return new Date(iso).toLocaleDateString('ru-RU')
+  return formatMoscowDate(iso)
 }
 </script>
 

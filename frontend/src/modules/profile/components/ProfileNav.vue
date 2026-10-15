@@ -17,6 +17,7 @@
  */
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { formatMoscow } from '@/core/utils/moscow'
 
 const props = defineProps({
   email: { type: String, default: '' },
@@ -36,10 +37,7 @@ const SUBSCRIPTION_TONE = {
 /** «до 14 сентября» — no year: a term that ends this decade does not need one. */
 const until = computed(() =>
   props.subscription
-    ? new Date(props.subscription.expires_at).toLocaleDateString('ru-RU', {
-        day: 'numeric',
-        month: 'long',
-      })
+    ? formatMoscow(props.subscription.expires_at, { day: 'numeric', month: 'long' })
     : '',
 )
 

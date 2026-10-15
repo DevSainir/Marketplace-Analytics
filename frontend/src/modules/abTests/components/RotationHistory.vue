@@ -21,6 +21,7 @@
 import { computed } from 'vue'
 
 import { formatNumber, formatPercent } from '@/core/utils/format'
+import { formatMoscow } from '@/core/utils/moscow'
 
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
@@ -48,16 +49,13 @@ function title(row) {
  * this table and that one an unexplained few hours apart.
  */
 function moment(iso) {
-  if (!iso) return '—'
-  const formatted = new Date(iso).toLocaleString('ru-RU', {
-    timeZone: 'Europe/Moscow',
+  return formatMoscow(iso, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
-  return `${formatted} МСК`
 }
 
 /** A live turn has no length yet, and inventing one would age on the screen. */

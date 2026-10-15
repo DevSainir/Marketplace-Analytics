@@ -17,6 +17,7 @@
 import { computed } from 'vue'
 
 import InfoHint from '@/core/components/InfoHint.vue'
+import { formatMoscow } from '@/core/utils/moscow'
 
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
@@ -65,15 +66,9 @@ const activeLabel = computed(() => {
   return active.value.is_original ? 'Главное' : `Вариант ${active.value.position}`
 })
 
+/** «14 окт., 10:47 МСК». */
 function moment(value) {
-  const parsed = Date.parse(value ?? '')
-  if (Number.isNaN(parsed)) return '—'
-  return new Date(parsed).toLocaleString('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatMoscow(value, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 /** `Хч Ym`, or minutes alone under an hour — a test may run for days. */

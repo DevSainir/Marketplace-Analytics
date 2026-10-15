@@ -16,6 +16,7 @@
  * it would be worse than no log.
  */
 import { levelLabel, moduleLabel } from '@/modules/profile/components/grantModules'
+import { formatMoscow } from '@/core/utils/moscow'
 
 /** Headline per event. Anything missing falls through to the raw name. */
 export const EVENT_LABELS = {
@@ -78,9 +79,9 @@ export function eventLabel(event) {
   return EVENT_LABELS[event] ?? event
 }
 
-/** «14 сентября 2026, 17:42» — a full stamp, for the detail view. */
+/** «14 сентября 2026, 17:42 МСК» — a full stamp, for the detail view. */
 export function fullMoment(iso) {
-  return new Date(iso).toLocaleString('ru-RU', {
+  return formatMoscow(iso, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -91,7 +92,7 @@ export function fullMoment(iso) {
 
 /** «14 сентября 2026» — a day, for a subscription's end. */
 function dayLabel(iso) {
-  return new Date(iso).toLocaleDateString('ru-RU', {
+  return formatMoscow(iso, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -110,9 +111,9 @@ function actorLabel(entry, meta) {
   return 'система'
 }
 
-/** «14.09, 17:42» — the compact stamp the list column carries. */
+/** «14.09, 17:42 МСК» — the compact stamp the list column carries. */
 export function shortMoment(iso) {
-  return new Date(iso).toLocaleString('ru-RU', {
+  return formatMoscow(iso, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',

@@ -27,9 +27,11 @@
  *   to the 30th reads as a contradiction unless the line also says «ежедневные
  *   — по 30 сен». Folding those days INTO the weekly period would claim a
  *   settlement document WB has not issued.
- * * **Timezones.** `checked_at` is a UTC *instant* and is read off a local
- *   `Date`. A report's period is a calendar date and never goes through `Date`.
+ * * **Timezones.** `checked_at` is a UTC *instant* and is read on the Moscow
+ *   calendar (`core/utils/moscow.js`). A report's period is a calendar date and never goes through `Date`.
  */
+
+import { moscowIsoDate } from '@/core/utils/moscow'
 
 /** Genitive short month names, WB's own shape in «10–16 авг». */
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
@@ -95,15 +97,14 @@ export function formatPeriod(report) {
 }
 
 /**
- * The local calendar day of an instant, «28 сен» — when the last check ran.
+ * The Moscow calendar day of an instant, «28 сен» — when the last check ran.
  *
  * @param {string} iso UTC instant.
  * @returns {string} The day, or `''` when it is not an instant.
  */
 export function formatCheckDay(iso) {
-  const at = new Date(iso)
-  if (Number.isNaN(at.getTime())) return ''
-  return `${at.getDate()} ${MONTHS[at.getMonth()]}`
+  const day = moscowIsoDate(iso)
+  return day ? dayMonth(day) : ''
 }
 
 /**
@@ -118,10 +119,9 @@ function nextDay(iso) {
   return next.toISOString().slice(0, 10)
 }
 
-/** Today in the reader's own calendar, as `YYYY-MM-DD`. */
+/** Today on the Moscow calendar, as `YYYY-MM-DD` — the service's one clock. */
 function localToday(now) {
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  return moscowIsoDate(now)
 }
 
 /**

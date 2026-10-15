@@ -137,14 +137,15 @@ export function presetRange(days, end = '') {
 }
 
 /**
- * "Today" as the calendar sees it.
+ * "Today" as the calendar sees it — the Moscow day, like the rest of the service.
  *
  * Module-level, so it is fixed at import: every consumer must agree on which
  * day is today, and a picker that disagreed with its own disabled-day rule
  * between two renders would let a user select a future day.
  */
-export const TODAY = new Date()
-export const TODAY_ISO = isoLocalDate(TODAY)
+export const TODAY_ISO = isoDaysAgo(0)
+/** The same Moscow day as a local-midnight Date, for the month grid. */
+export const TODAY = new Date(`${TODAY_ISO}T00:00:00`)
 
 /**
  * The days a picker lets the user click, as an inclusive `{lo, hi}` pair.

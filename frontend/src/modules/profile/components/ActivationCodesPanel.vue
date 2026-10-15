@@ -14,6 +14,7 @@ import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import { createActivationCode } from '@/modules/profile/api'
+import { formatMoscowDate } from '@/core/utils/moscow'
 
 const DEFAULT_DAYS = 14
 
@@ -44,10 +45,7 @@ const summary = computed(() => {
   if (!key) return []
   return [
     ['Пользование', `${key.subscription_days} дн.`],
-    [
-      'Ключ действует',
-      key.expires_at ? `до ${new Date(key.expires_at).toLocaleDateString('ru-RU')}` : 'бессрочно',
-    ],
+    ['Ключ действует', key.expires_at ? `до ${formatMoscowDate(key.expires_at)}` : 'бессрочно'],
     ['Кабинеты', describe(key.max_workspaces, 'шт.')],
     ['Менеджеры', describe(key.max_managers, 'чел.')],
   ]

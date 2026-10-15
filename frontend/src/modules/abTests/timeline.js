@@ -25,6 +25,8 @@
  *   the stop for a stopped test and the clock only for a live one.
  */
 
+import { formatMoscow } from '@/core/utils/moscow'
+
 /** Smallest share of the track one turn may occupy, in percent. */
 const MIN_SEGMENT_PERCENT = 1.5
 
@@ -204,11 +206,9 @@ export function trackSize(turns) {
  */
 export function formatStamp(ms) {
   if (ms === null || ms === undefined) return { date: '—', time: '' }
-  const at = new Date(ms)
-  const zone = { timeZone: 'Europe/Moscow' }
   return {
-    date: at.toLocaleString('ru-RU', { ...zone, day: '2-digit', month: '2-digit' }),
-    time: `${at.toLocaleString('ru-RU', { ...zone, hour: '2-digit', minute: '2-digit' })} МСК`,
+    date: formatMoscow(ms, { day: '2-digit', month: '2-digit' }),
+    time: formatMoscow(ms, { hour: '2-digit', minute: '2-digit' }),
   }
 }
 

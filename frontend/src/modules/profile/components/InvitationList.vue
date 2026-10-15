@@ -17,6 +17,7 @@ import { computed } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
+import { formatMoscowDate } from '@/core/utils/moscow'
 
 const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/organizations/invitations */
@@ -52,7 +53,7 @@ const visible = computed(() => props.invitations.filter((invite) => invite.statu
 function expiry(invitation) {
   const ms = new Date(invitation.expires_at).getTime() - Date.now()
   if (invitation.status !== 'pending' || ms <= 0) {
-    return new Date(invitation.expires_at).toLocaleDateString('ru-RU')
+    return formatMoscowDate(invitation.expires_at)
   }
   const hours = Math.round(ms / 3600000)
   if (hours < 1) return `${Math.max(1, Math.round(ms / 60000))} мин`
@@ -87,9 +88,7 @@ function expiry(invitation) {
       <div v-for="invite in visible" :key="invite.id" class="pf-grid__row" role="row">
         <span class="pf-cell pf-cell--who" role="cell">
           <span class="pf-who__mail">{{ invite.email || 'Ссылка без адреса' }}</span>
-          <span class="pf-who__meta">
-            выдано {{ new Date(invite.created_at).toLocaleDateString('ru-RU') }}
-          </span>
+          <span class="pf-who__meta"> выдано {{ formatMoscowDate(invite.created_at) }} </span>
         </span>
 
         <span class="pf-cell" role="cell">

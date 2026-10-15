@@ -18,6 +18,7 @@ import { RouterLink } from 'vue-router'
 import { statusLabel, statusTone } from '@/modules/abTests/store'
 import { formatSku } from '@/core/utils/format'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
+import { formatMoscowDate } from '@/core/utils/moscow'
 
 defineProps({
   /** Tests as the store holds them. */
@@ -35,7 +36,7 @@ const removal = useConfirmClick()
 const onDelete = (id) => removal.press(id, () => emit('delete', id))
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleDateString('ru-RU') : '—'
+  return formatMoscowDate(value)
 }
 </script>
 

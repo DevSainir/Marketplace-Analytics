@@ -1,5 +1,7 @@
 /** Date helpers for the API's ISO (YYYY-MM-DD) query params. */
 
+import { moscowIsoDate } from '@/core/utils/moscow'
+
 /**
  * Format a Date as YYYY-MM-DD in the **local** timezone.
  *
@@ -13,11 +15,16 @@ export function isoLocalDate(date) {
   return `${year}-${month}-${day}`
 }
 
-/** Local YYYY-MM-DD for `days` days ago (0 = today). */
+/**
+ * YYYY-MM-DD for `days` days ago (0 = today), today being the **Moscow** day.
+ *
+ * The service runs on Moscow time (`core/utils/moscow.js`): a seller in Бишкек
+ * at 01:00 is still on yesterday in WB's cabinet, and so are we. The step back
+ * is calendar arithmetic, so no zone can move it.
+ */
 export function isoDaysAgo(days) {
-  const date = new Date()
-  date.setDate(date.getDate() - days)
-  return isoLocalDate(date)
+  const [year, month, day] = moscowIsoDate().split('-').map(Number)
+  return isoLocalDate(new Date(year, month - 1, day - days))
 }
 
 /**

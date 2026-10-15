@@ -38,6 +38,7 @@ import { statusLabel as labelOf, statusTone } from '@/modules/abTests'
 import { campaignKindLabel } from '@/modules/abTests/campaignKinds'
 import SummaryFacts from '@/modules/abTests/components/SummaryFacts.vue'
 import SummaryMetricTile from '@/modules/abTests/components/SummaryMetricTile.vue'
+import { formatMoscow } from '@/core/utils/moscow'
 
 const props = defineProps({
   /** The open test, as the detail endpoint returns it. */
@@ -137,15 +138,9 @@ function money(value) {
   return formatMoney(value, props.currency)
 }
 
+/** «14 окт., 10:47 МСК». */
 function moment(value) {
-  const parsed = Date.parse(value ?? '')
-  if (Number.isNaN(parsed)) return '—'
-  return new Date(parsed).toLocaleString('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatMoscow(value, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 </script>
 

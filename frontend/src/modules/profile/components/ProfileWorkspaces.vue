@@ -11,6 +11,7 @@
 import { ref } from 'vue'
 
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
+import { formatMoscowDate } from '@/core/utils/moscow'
 
 defineProps({
   workspaces: { type: Array, default: () => [] },
@@ -111,7 +112,7 @@ const removal = useConfirmClick()
         </span>
 
         <span class="pf-cell pf-who__meta" role="cell">
-          {{ new Date(ws.created_at).toLocaleDateString('ru-RU') }}
+          {{ formatMoscowDate(ws.created_at) }}
         </span>
 
         <span class="pf-cell pf-cell--act" role="cell">

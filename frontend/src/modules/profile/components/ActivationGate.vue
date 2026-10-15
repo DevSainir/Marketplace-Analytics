@@ -38,6 +38,7 @@ import { RouterLink, useRoute } from 'vue-router'
 
 import ActivationKeyForm from '@/modules/profile/components/ActivationKeyForm.vue'
 import { useMembersStore } from '@/modules/profile/membersStore'
+import { formatMoscow } from '@/core/utils/moscow'
 
 const members = useMembersStore()
 const route = useRoute()
@@ -75,10 +76,7 @@ const allowed = computed(() => !paywalled.value && !needsActivation.value && !bl
 const lapsedOn = computed(() => {
   const iso = members.subscription?.expires_at
   if (!iso) return ''
-  const parsed = new Date(iso)
-  return Number.isNaN(parsed.getTime())
-    ? ''
-    : parsed.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  return formatMoscow(iso, { day: 'numeric', month: 'long', year: 'numeric' }, '')
 })
 </script>
 

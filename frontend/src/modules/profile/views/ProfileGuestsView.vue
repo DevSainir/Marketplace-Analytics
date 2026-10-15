@@ -22,6 +22,7 @@ import {
   revokeGuest,
 } from '@/modules/profile/api'
 import { useMembersStore } from '@/modules/profile/membersStore'
+import { formatMoscow } from '@/core/utils/moscow'
 
 const members = useMembersStore()
 const isDev = computed(() => members.role === 'dev')
@@ -93,7 +94,7 @@ async function revoke(grantId) {
 }
 
 function grantedOn(iso) {
-  return new Date(iso).toLocaleDateString('ru-RU', {
+  return formatMoscow(iso, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',

@@ -18,6 +18,7 @@ import { computed } from 'vue'
 
 import DataState from '@/core/components/DataState.vue'
 import { confirmLabel, useConfirmClick } from '@/core/utils/confirmClick'
+import { formatMoscowDate } from '@/core/utils/moscow'
 
 const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/auth/sessions */
@@ -80,7 +81,7 @@ function lastSeen(iso) {
   const days = Math.round(hours / 24)
   if (days === 1) return 'вчера'
   if (days < 7) return `${days} дн назад`
-  return new Date(iso).toLocaleDateString('ru-RU')
+  return formatMoscowDate(iso)
 }
 
 const current = computed(() => props.sessions.find((session) => session.is_current) ?? null)
@@ -103,7 +104,7 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
             <span class="pf-session__title">{{ describe(current.user_agent).title }}</span>
             <span class="pf-session__meta">
               {{ current.ip_address || 'адрес не записан' }} · вход
-              {{ new Date(current.started_at).toLocaleDateString('ru-RU') }}
+              {{ formatMoscowDate(current.started_at) }}
             </span>
           </span>
           <span class="ui-badge is-on">сейчас здесь</span>
