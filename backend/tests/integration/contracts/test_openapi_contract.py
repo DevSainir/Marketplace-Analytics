@@ -177,6 +177,13 @@ def test_every_protected_route_declares_a_security_scheme(openapi: dict[str, Any
         # host or a DSN (see `src.core.observability.health`, and P0.3 for why
         # that last part is spelled out rather than assumed).
         "/healthz",
+        # Whether alerts reach Telegram (register P2.12) — polled by the same
+        # external checker, for the same reason: a silent pager is the one
+        # failure nothing that sends alerts can report. Nothing to protect
+        # either: it asks Alertmanager one question about our own plumbing,
+        # answers one word, and reuses the answer for 15 s so a flood never
+        # reaches Alertmanager (`src.core.observability.alert_path`).
+        "/healthz/alerts",
         "/api/v1/auth/login",
         "/api/v1/auth/register",
         "/api/v1/auth/refresh",
