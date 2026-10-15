@@ -28,9 +28,10 @@ a flag that can disagree with one.
         └──►│ Alloy │──►│  Loki   │   14d retention
             └───────┘   └─────────┘
 
-  Prometheus ──► Alertmanager ──► Telegram   (page: immediate · warn: grouped)
+  Prometheus ──► Alertmanager ──► telegram-relay ──► Telegram   (IPv6 + IPv4, host network)
   Sentry  ◄──── api + worker, errors only, scrubbed before sending
-  Better Stack ────► https://…/healthz   (Postgres + Redis, 200 or 503)
+  UptimeRobot ────► https://…/healthz          (Postgres + Redis, 200 or 503)
+  UptimeRobot ────► https://…/healthz/alerts   (is Watchdog firing: alerts-ok / alerts-down)
 ```
 
 Two commands, and the separation between them is deliberate:
@@ -179,13 +180,14 @@ installed, `docker logs` stops working, and a log pipeline whose failure mode is
 
 ---
 
-## The three health endpoints, which are not interchangeable
+## The health endpoints, which are not interchangeable
 
 | endpoint | served by | what it means |
 |---|---|---|
 | `/healthz` on **port 8081** | nginx itself | each nginx's Docker HEALTHCHECK, and the edge's (HAProxy) check of where to route. Static `ok`. The one nginx listener without PROXY protocol, since neither checker sends it; not published. |
 | `/health` | the API | **liveness**. Static. Docker restarts a container that fails it — which is exactly why it must not touch a database. |
-| `/healthz` on **443** | the API, via nginx | **readiness**. Pings Postgres and Redis; 200 or 503. What Better Stack polls. |
+| `/healthz` on **443** | the API, via nginx | **readiness**. Pings Postgres and Redis; 200 or 503. What UptimeRobot polls. |
+| `/healthz/alerts` on **443** | the API, via nginx | **whether alerts get out**. Asks Alertmanager if `Watchdog` is active; 200 `alerts-ok` or 503 `alerts-down`. UptimeRobot watches it as a keyword monitor on `alerts-ok`. See «Delivery». |
 
 Conflating the last two is the tempting mistake and it is a bad one: a liveness
 probe that fails because Postgres is down would have Docker restart every
@@ -193,7 +195,7 @@ healthy API process in the middle of a database outage.
 
 **The scrape runs the same probe, and that is not redundancy.** `dependency_up`
 used to be written only by `/healthz`, which made the `DependencyDown` alert
-(`dependency_up == 0`) quietly conditional on Better Stack existing and polling:
+(`dependency_up == 0`) quietly conditional on UptimeRobot existing and polling:
 with nobody polling, the series is absent after a restart, and an alert with no
 series never fires. The rule read as covering Postgres and Redis while covering
 nothing, and the dashboard was green either way. Prometheus now drives the probe
@@ -546,6 +548,52 @@ indistinguishable from no alert. Set `ALERT_TELEGRAM_BOT_TOKEN` /
 `ALERT_TELEGRAM_CHAT_ID` in `backend/.env` to split monitoring onto its own bot;
 left empty it falls back to `BACKUP_ALERT_TELEGRAM_*`.
 
+**The road to Telegram goes through a relay, and that is not optional.** This
+box is in Russia and reaches Telegram badly — Telegram specifically. Measured on
+2026-10-15 over an hour, a fresh TCP connection to `api.telegram.org` failed
+about one time in three over IPv4 (149.154.167.220) and about one in ten over
+IPv6, while GitHub, Cloudflare and Yandex answered every round; the other IPv4
+address DNS gives, 149.154.166.110, has not answered since 2026-09-12. The
+failures are dropped SYNs, per connection, and the two families mostly fail at
+different moments. Alertmanager's container has IPv4 only (Docker's networks
+here have no IPv6, and turning it on costs the host its RA-learnt route —
+HARDENING P2.12), and on its own it makes one slow attempt and backs off.
+
+So `telegram-relay` — HAProxy in TCP mode, in the **host's** network — sits in
+between. It has both families, gives each connect two seconds, and retries up to
+six times alternating between them; at the measured rates seven failures in a
+row is about one in ten thousand. TLS runs end to end: Alertmanager still
+connects to `api.telegram.org` (pinned to docker0 by `extra_hosts`) and checks
+Telegram's certificate; only the port in `api_url` (7443) says "relay". The
+relay listens on docker0's address, not a wildcard — the host's INPUT chain
+accepts everything — and forwards to Telegram's two addresses and nowhere else.
+`tests/unit/core/test_telegram_relay_wiring.py` pins all of that across the four
+files it lives in. Owner's decision, 2026-10-15, over an IPv4-only relay inside
+Alertmanager's own namespace that would have opened nothing on the host: that
+one goes silent the day the one working IPv4 address goes the way of the other.
+
+The relay health-checks both roads every ten seconds, and Prometheus scrapes it
+(`telegram-relay` job). `TelegramRoadDown` (warn) fires when one road has been
+down for six hours — the shape of an address that stopped answering.
+
+**Who notices when alerts stop getting out.** Nothing that sends alerts can
+report that alerts stopped, so the witness is outside the box. `Watchdog`
+(`alerts.yml`, group `meta`) fires for as long as Alertmanager is scraped, no
+Telegram delivery has failed in 30 minutes, and the relay has at least one road
+up. It is routed to a receiver with nothing in it. The API's `/healthz/alerts`
+asks Alertmanager whether it is active (`src/core/observability/alert_path.py`,
+answer cached 15 s so a flood costs Alertmanager nothing), and UptimeRobot polls
+that page as a keyword monitor on `alerts-ok` — the same app that already pushes
+to the owner's phone when `/healthz` fails. Box down, Prometheus or Alertmanager
+down, the relay down or out of roads, a delivery failing: each one turns the
+page to `alerts-down` within a few minutes.
+
+This replaced a push heartbeat (`ALERT_HEARTBEAT_URL`, a Better Stack heartbeat
+monitor) that was never connected: UptimeRobot's heartbeat monitors are paid,
+its keyword monitors are not, and pulling needs no account-specific URL in
+`backend/.env`. Telegram stays the only channel for the alerts themselves —
+the owner's choice, 2026-10-15.
+
 `severity: page` skips the grouping delay (`group_wait: 0s`, repeat hourly);
 `severity: warn` groups for 30 s and repeats every four hours. An inhibit rule
 stops `ApiDown` firing alongside `BothApiInstancesDown` — the specific fact
@@ -611,7 +659,7 @@ unsatisfiable batch on first start).
 ## Cost on the box
 
 The VPS is 2 vCPU / 3.8 GB with no swap, and it hosts more than this stack. The
-base topology already commits ~2.4 GB of ceilings. This adds **896m**:
+base topology already commits ~2.4 GB of ceilings. This adds **928m**:
 
 | | ceiling |
 |---|---|
@@ -620,6 +668,7 @@ base topology already commits ~2.4 GB of ceilings. This adds **896m**:
 | loki | 192m |
 | alloy | 96m |
 | alertmanager | 64m |
+| telegram-relay | 32m |
 
 That is ~3.3 GB of *ceiling* against 3.8 GB. Ceilings are not reservations —
 nothing is set aside, measured steady state for the five is roughly 250–350 MB
@@ -656,8 +705,10 @@ Loki costs nothing here.
 | `src/core/observability/rls_watch.py` | counting tenancy refusals at the engine |
 | `src/core/observability/sentry.py` | error reporting for both runtimes |
 | `src/core/observability/health.py` | the readiness checks |
+| `src/core/observability/alert_path.py` | `/healthz/alerts`: is `Watchdog` active in Alertmanager |
 | `src/core/logging.py` | the structlog pipeline |
 | `src/core/logcontext.py` | trace/request/actor/tenant/workspace binding |
 | `docker/observability/` | Prometheus, alerts, Alertmanager, Loki, Alloy, Grafana provisioning |
+| `docker/telegram-relay/haproxy.cfg` | the relay to Telegram, and the measurements behind it |
 | `scripts/observability/render_alertmanager_config.sh` | renders the Alertmanager config from `.env` |
 | `docker/docker-compose.observability.yml` | the overlay |
