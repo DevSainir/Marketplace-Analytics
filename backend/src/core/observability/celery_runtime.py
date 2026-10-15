@@ -372,18 +372,18 @@ def build_worker_registry() -> CollectorRegistry:
     if not settings.multiprocess_metrics_enabled:
         from prometheus_client import REGISTRY
 
-        _register_cgroup_memory(REGISTRY)
+        _register_worker_collectors(REGISTRY)
         return REGISTRY
     registry = CollectorRegistry()
     multiprocess.MultiProcessCollector(registry)  # type: ignore[no-untyped-call]
-    _register_cgroup_memory(registry)
+    _register_worker_collectors(registry)
     return registry
 
 
-def _register_cgroup_memory(registry: CollectorRegistry) -> None:
-    """Add the container's memory reading to a worker registry.
+def _register_worker_collectors(registry: CollectorRegistry) -> None:
+    """Add the container's memory and metrics-tmpfs readings to a worker registry.
 
-    Registered as a collector instead of living in
+    Registered as collectors instead of living in
     :func:`~src.core.observability.collectors.refresh_sampled_metrics` because
     the worker has no exposition route to call it from: its exporter is
     ``prometheus_client``'s own HTTP server, which renders the registry and
@@ -394,14 +394,13 @@ def _register_cgroup_memory(registry: CollectorRegistry) -> None:
     (a single-process worker, a test) the registry is the shared default one and
     a second call would otherwise raise where the first had already succeeded.
     """
-    # Imported here rather than at module scope, following `collectors` own
-    # handling of the reverse edge: that module imports this package's metrics,
-    # and keeping this one local leaves the import graph of a worker's startup
-    # path as thin as it was.
-    from src.core.observability.collectors import CgroupMemoryCollector
+    # Imported here rather than at module scope: `collectors` imports this
+    # package's metrics, and a local import keeps the worker's startup path thin.
+    from src.core.observability.collectors import CgroupMemoryCollector, MetricsDirCollector
 
-    with contextlib.suppress(ValueError):
-        registry.register(CgroupMemoryCollector())
+    for collector in (CgroupMemoryCollector(), MetricsDirCollector()):
+        with contextlib.suppress(ValueError):
+            registry.register(collector)
 
 
 def prepare_multiprocess_dir() -> None:
@@ -443,30 +442,21 @@ def prepare_multiprocess_dir() -> None:
 def _sweep_own_metric_files() -> None:
     """Retire this process's live-gauge files as it exits, whatever it was.
 
-    **The container's healthcheck was filling the metrics tmpfs.** Measured on
-    prod 2026-09-17: 244 files after 62 minutes of uptime, of which 240 belonged
-    to 120 processes that no longer existed. ``HEALTHCHECK`` runs
-    ``celery inspect ping`` every 30 s; that imports the application, and an
-    UNLABELLED gauge creates its mmap file the moment the metric object is
-    constructed — so every ping left two files behind and swept none. At ~4 KB
-    of tmpfs each that is ~23 MB a day against a 32 MB mount: full in about 33
-    hours. Nothing had noticed because a push to `main` restarts the worker, and
-    pushes have been more frequent than that.
+    **Gauges only — and that is why this did not fix what it was written for.**
+    Measured on prod 2026-09-17: the healthcheck's ``celery inspect ping`` runs
+    every 30 s, imports the app, and left two files per run in the 32 MB
+    metrics tmpfs. This hook retires the *gauge* files, but
+    ``mark_process_dead`` deliberately keeps ``counter_*`` and ``histogram_*``
+    (a dead child's counts must stay in the sum), so the ping went on leaving
+    two of those instead. The mount filled on 2026-10-15 and every process that
+    touched a metric died with SIGBUS. The ping now runs with the directory
+    unset (the ``HEALTHCHECK`` in ``docker/Dockerfile``), so it writes nothing.
 
-    A full mount is worse than a lost gauge. The next process to start cannot
-    create its files at all — which includes a prefork child being replaced, so
-    the recycling that keeps the worker under its memory cap would be the thing
-    that could not happen.
-
-    Registered here rather than fixed in the healthcheck command, because the
-    healthcheck is only the process that does this most often. A one-off script
-    run through ``docker exec``, the migrate container, a shell — every import
-    of the app leaves the same two files. The hook makes "sweep after yourself"
-    a property of importing the app rather than of remembering.
-
-    Prefork children are covered twice over — :func:`_mark_process_dead` already
-    fires on their shutdown signal — and that is harmless: the sweep globs, so
-    the second pass finds nothing.
+    Still worth having for every other importer — a one-off script through
+    ``docker exec``, a shell — whose gauges would otherwise read as a live
+    process for ever. Prefork children are covered twice over —
+    :func:`_mark_process_dead` already fires on their shutdown signal — and
+    that is harmless: the sweep globs, so the second pass finds nothing.
     """
     if not settings.multiprocess_metrics_enabled:
         return

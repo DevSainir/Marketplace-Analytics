@@ -372,14 +372,19 @@ groups:
         annotations:
           summary: "Задача {{ $labels.task_name }} оборвалась вместе с процессом воркера."
           description: >-
-            Процесс убит снаружи — почти всегда это ядро за перерасход
-            памяти. Задача не переигрывается: сообщение подтверждено, и всё,
-            что она не успела сделать, просто не сделано до следующего тика.
-            Смотрите `celery_worker_memory_bytes` за тот же час и
-            `dmesg -T | grep -i "killed process"` на хосте. Если это память,
-            виноват не последний кусок, а дно: ребёнок Celery накапливает
-            свой максимум RSS, поэтому та же работа проходит на свежем
-            воркере и падает через несколько часов.
+            Процесс убит снаружи. Задача не переигрывается: сообщение
+            подтверждено, и всё, что она не успела сделать, просто не сделано
+            до следующего тика. Сначала узнайте сигнал:
+            `docker logs marketplace-service-worker-1 | grep "exited with"`.
+            signal 9 (SIGKILL) — это ядро за перерасход памяти: смотрите
+            `celery_worker_memory_bytes` за тот же час и
+            `dmesg -T | grep -i "killed process"`. Виноват не последний кусок,
+            а дно: ребёнок Celery копит свой максимум RSS, поэтому та же работа
+            проходит на свежем воркере и падает через несколько часов.
+            signal 7 (SIGBUS) — это переполнена папка метрик
+            `/tmp/prometheus-multiproc` (tmpfs 32 МБ). Тогда падает каждая
+            задача, пока воркер не перезапустят; см. алерт
+            WorkerMetricsDirFilling.
 
       # The approach, so the kill above stops being the first news. 85% of the
       # ceiling with a fresh pool sitting at ~35% (267 MB of 768 MiB, measured
@@ -403,6 +408,29 @@ groups:
             высоко цифра означает либо одну задачу, которой честно нужно
             столько, либо родителя, который растёт сам — второе он делать не
             должен.
+
+      # The multiprocess-metrics tmpfs, which fails harder than memory does: a
+      # write past its last page is SIGBUS, so the first process to hit it and
+      # every one after dies before its task starts. On 2026-10-15 it filled at
+      # 04:01 MSK and the worker ran nothing for three hours. Steady state is a
+      # few hundred KB; 70% is far from normal and leaves hours, not minutes.
+      - alert: WorkerMetricsDirFilling
+        expr: |
+          celery_worker_metrics_dir_bytes / celery_worker_metrics_dir_size_bytes > 0.7
+        for: 10m
+        labels:
+          severity: warn
+        annotations:
+          summary: "Папка метрик воркера заполнена на {{ $value | humanizePercentage }}."
+          description: >-
+            Когда она дойдёт до 100 %, каждая задача будет падать с SIGBUS
+            до перезапуска воркера. Обычно там несколько сотен КБ. Посмотрите,
+            чьи файлы копятся:
+            `docker exec marketplace-service-worker-1 ls /tmp/prometheus-multiproc`.
+            Много `counter_<pid>`/`histogram_<pid>` от разных pid значит, что
+            какой-то процесс импортирует приложение с включённым режимом
+            multiprocess и уходит. Так было с проверкой здоровья до 15.10.
+            Срочно: `docker restart marketplace-service-worker-1` очищает папку.
 
   # -------------------------------------------------------------------------
       - alert: SettlementHistoryHasGaps

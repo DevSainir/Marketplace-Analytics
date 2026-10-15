@@ -377,6 +377,20 @@ so the work is not retried. Note the ratio's shape: a cgroup with no limit
 publishes no ceiling at all rather than a zero, which leaves the alert's
 expression undefined instead of confidently wrong.
 
+**`WorkerMetricsDirFilling`** — added on 2026-10-15, after `WorkerKilled` fired
+for three hours about something that was not memory. The worker's counters live
+in mmap files on a 32 MB tmpfs (`/tmp/prometheus-multiproc`), and a write past
+its last page is **SIGBUS**: every task, and the healthcheck, died on start from
+04:01 MSK until the worker was restarted. What filled it was the healthcheck
+itself — `celery inspect ping` imports the app, and each import in multiprocess
+mode left a `counter_<pid>.db` and a `histogram_<pid>.db` that
+`mark_process_dead` keeps by design; the 2026-09-17 sweep only ever removed
+gauges. The ping now runs with `PROMETHEUS_MULTIPROC_DIR=` (empty means absent,
+so it counts in memory), and `MetricsDirCollector` publishes
+`celery_worker_metrics_dir_bytes` against `celery_worker_metrics_dir_size_bytes`
+from `statvfs`, so the next leak is a warning at 70% rather than an outage.
+`WorkerKilled`'s text now says to read the signal first: 9 is memory, 7 is this.
+
 **`PostgresCrashRecovered`** — added 2026-09-29, after three OOM kills inside
 the postgres container in five days (09-24, 09-28, 09-29 — the last one
 mid-backup) had left no trace in Prometheus. None could: the postmaster survives

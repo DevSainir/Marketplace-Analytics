@@ -23,6 +23,7 @@ turns into a monitoring outage at exactly the moment monitoring is needed.
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Awaitable, Iterator
 from pathlib import Path
 from typing import Final, cast
@@ -31,6 +32,7 @@ from prometheus_client.core import GaugeMetricFamily
 from sqlalchemy import text
 from sqlalchemy.pool import QueuePool
 
+from src.core.config import settings
 from src.core.database import engine
 from src.core.degradation import (
     CONTROL_AUTH_RATE_LIMIT,
@@ -145,6 +147,49 @@ class CgroupMemoryCollector:
             )
             ceiling.add_metric([], limit)
             yield ceiling
+
+
+#: The pair :class:`MetricsDirCollector` publishes, named for the same reason
+#: as the cgroup pair above: `alerts.yml` divides one by the other.
+METRICS_DIR_USED_SERIES: Final[str] = "celery_worker_metrics_dir_bytes"
+METRICS_DIR_SIZE_SERIES: Final[str] = "celery_worker_metrics_dir_size_bytes"
+
+
+class MetricsDirCollector:
+    """Publishes how full the worker's multiprocess-metrics tmpfs is, per scrape.
+
+    **A full mount kills the worker outright.** Every process that writes a
+    metric extends an mmap'd file there; on a tmpfs with no pages left the
+    kernel answers that write with SIGBUS, not with an error Python can catch.
+    On 2026-10-15 it filled at 04:01 MSK and every task died on start for three
+    hours — reported only as `WorkerKilled`, whose text pointed at memory.
+
+    Read from ``statvfs`` rather than by summing the files: a file's length is
+    the mmap's reservation, the filesystem's count is what is actually charged,
+    and only the second one is what runs out.
+    """
+
+    def collect(self) -> Iterator[GaugeMetricFamily]:
+        """Yield the bytes used and the mount's size, or nothing outside the worker."""
+        directory = settings.prometheus_multiproc_dir.strip()
+        if not directory:
+            return
+        try:
+            stats = os.statvfs(directory)
+        except OSError:
+            return
+        used = GaugeMetricFamily(
+            METRICS_DIR_USED_SERIES,
+            "Bytes used on the filesystem holding the worker's multiprocess metric files.",
+        )
+        used.add_metric([], (stats.f_blocks - stats.f_bfree) * stats.f_frsize)
+        yield used
+        size = GaugeMetricFamily(
+            METRICS_DIR_SIZE_SERIES,
+            "Size of that filesystem; a write past it kills the writing process with SIGBUS.",
+        )
+        size.add_metric([], stats.f_blocks * stats.f_frsize)
+        yield size
 
 
 def sample_pool() -> None:
