@@ -92,6 +92,27 @@ describe('articles with no cost price in the P&L', () => {
     wrapper.unmount()
   })
 
+  it('leaves the dashboard cards on the whole window under «Без себестоимости»', async () => {
+    const wrapper = mountTable()
+
+    await wrapper.find('[data-testid="uncosted-filter"]').trigger('click')
+
+    // `null` is «show the backend dashboard»: the filter is a to-do list over
+    // the table, and the cards must not turn into one article's figures.
+    expect(wrapper.emitted('dashboard-change').at(-1)).toEqual([null])
+    wrapper.unmount()
+  })
+
+  it('still sums the cards over a search, without the uncosted filter narrowing them', async () => {
+    const wrapper = mountTable({ uncostedOnly: true })
+
+    await wrapper.find('input[type="search"]').setValue('брюки')
+
+    const [subset] = wrapper.emitted('dashboard-change').at(-1)
+    expect(subset.sold_units).toBe(20)
+    wrapper.unmount()
+  })
+
   it('offers no such filter when every article has a cost', () => {
     const wrapper = mountTable({ rows: [COSTED] })
 

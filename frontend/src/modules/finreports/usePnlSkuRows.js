@@ -133,17 +133,27 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller', uncosted
   const subjects = computed(() => distinct('subject_name'))
   const brands = computed(() => distinct('brand_name'))
 
-  const isFiltering = computed(() => !!query.value.trim() || active.value || uncostedOnly.value)
+  /** Search or a Тип/Бренд/Группа filter — what narrows the dashboard too. */
+  const isScoping = computed(() => !!query.value.trim() || active.value)
+  /** Anything that narrows the table, «Без себестоимости» included. */
+  const isFiltering = computed(() => isScoping.value || uncostedOnly.value)
 
   /** How many articles the «Без себестоимости» filter would leave, over the whole window. */
   const uncostedCount = computed(() => rows.value.filter(isUncosted).length)
 
-  /** The raw `PnlSkuRow`s (no bucket) matching the search + Тип/Бренд filters. */
-  const filtered = computed(() => {
+  /**
+   * The raw `PnlSkuRow`s (no bucket) matching the search + Тип/Бренд filters —
+   * the selection the dashboard cards are summed over.
+   *
+   * «Без себестоимости» is left out of it on purpose: it is a to-do list over
+   * the table, not a question about the business. Summing the cards over it
+   * turned «Себестоимость» into 0 and «Продажи» into one article's — the whole
+   * top of the page changed under a button that only meant «show me what to fill».
+   */
+  const scoped = computed(() => {
     const needle = query.value.trim().toLowerCase()
     let list = rows.value
     list = apply(list)
-    if (uncostedOnly.value) list = list.filter(isUncosted)
     if (needle) {
       list = list.filter((r) =>
         [r.sa_name, String(r.nm_id), r.subject_name, r.brand_name].some((field) =>
@@ -153,6 +163,11 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller', uncosted
     }
     return list
   })
+
+  /** What the table shows: {@link scoped}, narrowed by «Без себестоимости» when it is on. */
+  const filtered = computed(() =>
+    uncostedOnly.value ? scoped.value.filter(isUncosted) : scoped.value,
+  )
 
   /** One row per article, plus the account-level bucket — what «Итого» sums. */
   const articleRows = computed(() => {
@@ -187,7 +202,9 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller', uncosted
     articleRows,
     tableRows,
     filtered,
+    scoped,
     isFiltering,
+    isScoping,
   }
 }
 

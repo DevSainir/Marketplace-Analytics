@@ -53,14 +53,11 @@ const emit = defineEmits([
 
 const options = (values) => values.map((value) => ({ value, label: value }))
 
+// «Без себестоимости» is left out: the chip switches itself off, and a «Сбросить
+// фильтр» appearing beside it pushed the row onto a second line and the table
+// down under the reader's cursor. The reset still clears it with the rest.
 const filtering = computed(() =>
-  Boolean(
-    props.query ||
-    props.subject.length ||
-    props.brand.length ||
-    props.groupIds.length ||
-    props.uncostedOnly,
-  ),
+  Boolean(props.query || props.subject.length || props.brand.length || props.groupIds.length),
 )
 
 function clear() {
@@ -115,22 +112,26 @@ function clear() {
     <!-- Page size belongs to the DataTable's paginator; the phone card list
          grows with its own «Показать ещё», so this control would do nothing
          there and reads as broken. -->
-    <GroupingChips
-      class="ml-auto phone:ml-0"
-      :model-value="cut"
-      :groups="groupsReadable"
-      @update:model-value="emit('update:cut', $event)"
-    />
-    <div v-if="pageSizes.length" class="hidden items-center gap-sm sm:flex">
-      <label class="text-tiny text-muted" for="sku-page-size">Строк на странице:</label>
-      <select
-        id="sku-page-size"
-        :value="pageSize"
-        class="ui-select ui-select--sm"
-        @change="emit('update:pageSize', Number($event.target.value))"
-      >
-        <option v-for="size in pageSizes" :key="size" :value="size">{{ size }}</option>
-      </select>
+    <!-- One block, so when the row runs out of room (a filter adds «Сбросить
+         фильтр») the cut and the page size wrap together and stay at the right,
+         instead of «Строк на странице» dropping alone under the search. -->
+    <div class="ml-auto flex flex-wrap items-center gap-sm phone:ml-0">
+      <GroupingChips
+        :model-value="cut"
+        :groups="groupsReadable"
+        @update:model-value="emit('update:cut', $event)"
+      />
+      <div v-if="pageSizes.length" class="hidden items-center gap-sm sm:flex">
+        <label class="text-tiny text-muted" for="sku-page-size">Строк на странице:</label>
+        <select
+          id="sku-page-size"
+          :value="pageSize"
+          class="ui-select ui-select--sm"
+          @change="emit('update:pageSize', Number($event.target.value))"
+        >
+          <option v-for="size in pageSizes" :key="size" :value="size">{{ size }}</option>
+        </select>
+      </div>
     </div>
   </div>
 </template>

@@ -66,8 +66,8 @@ const {
   brands,
   articleRows,
   tableRows,
-  filtered,
-  isFiltering,
+  scoped,
+  isScoping,
 } = usePnlSkuRows(rows, unallocated, usePriceBase(), uncostedOnly)
 
 // The last cost filled in empties the filtered list; going back to every
@@ -80,12 +80,13 @@ watch(uncostedCount, (count) => {
 const costFor = ref(null)
 
 // Tell the parent to swap the dashboard to a «по фильтру» subtotal while a
-// filter/search is active, and back to the backend one when it clears. Summing
+// filter/search is active — «Без себестоимости» is not one, see `scoped` — and
+// back to the backend one when it clears. Summing
 // the visible rows is instant, so the search needs no debounce.
 watchEffect(() => {
   emit(
     'dashboard-change',
-    isFiltering.value ? subsetDashboard(filtered.value, props.baseDashboard) : null,
+    isScoping.value ? subsetDashboard(scoped.value, props.baseDashboard) : null,
   )
 })
 
