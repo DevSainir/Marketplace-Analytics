@@ -8,7 +8,7 @@ outage, turning one problem into two.
 
 This is the other kind. ``/healthz`` is a *readiness* probe: it asks whether
 this process can do its job right now, which means asking its two backing
-stores. Better Stack polls it from outside the network, so it is also the thing
+stores. UptimeRobot polls it from outside the network, so it is also the thing
 that notices the box is unreachable — the failure mode no internal check can
 observe, because a check that cannot run reports nothing rather than reporting
 down.
@@ -17,7 +17,7 @@ Three rules this file exists to keep
 ------------------------------------
 **A probe must never hang.** Every check runs under a timeout well below the
 external checker's own, so a wedged dependency produces a fast "down" instead
-of a request that occupies a worker until Better Stack gives up. A health
+of a request that occupies a worker until UptimeRobot gives up. A health
 endpoint that stalls is one that consumes the capacity it was meant to
 measure — and it stalls exactly when the system is already struggling.
 
@@ -51,9 +51,9 @@ from src.core.redis import get_redis
 logger = get_logger(__name__)
 
 #: Per-dependency budget. Two seconds is chosen against the *checker's*
-#: timeout, not against normal latency: Better Stack's default is 30 s, both
-#: probes run concurrently, and this leaves the endpoint answering in single
-#: digits even when everything it asks is dead. Normal is under 5 ms, so a
+#: timeout, not against normal latency: an uptime checker waits tens of
+#: seconds, both probes run concurrently, and this leaves the endpoint
+#: answering in single digits even when everything it asks is dead. Normal is under 5 ms, so a
 #: probe anywhere near this ceiling is already a finding.
 _PROBE_TIMEOUT_SECONDS: Final[float] = 2.0
 

@@ -82,6 +82,9 @@ def test_only_the_integration_layer_builds_http_clients_for_wb() -> None:
         # The basket CDN — public, unauthenticated, and carrying none of the
         # headers, tokens or gating a WB API client exists to apply.
         pathlib.Path("modules/ab_tests/tasks/passes.py"),
+        # Our own Alertmanager, on the internal Docker network — the question
+        # behind /healthz/alerts. Never WB, and at most once per cache window.
+        pathlib.Path("core/observability/alert_path.py"),
     }
     offenders = [
         str(path.relative_to(SRC))

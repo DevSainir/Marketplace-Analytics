@@ -23,7 +23,8 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from src.core.observability import health
+from src.core.observability import alert_path, health
+from src.core.observability.alert_path import AlertPathProbe
 from src.core.observability.metrics import DEPENDENCY_UP
 from tests.component.conftest import CapturingHandler
 
@@ -76,7 +77,7 @@ async def test_a_failing_probe_discloses_nothing_about_the_infrastructure(
 ) -> None:
     """The exception goes to the logs; the response gets a status and a number.
 
-    This is a PUBLIC endpoint — Better Stack polls it from outside the network,
+    This is a PUBLIC endpoint — UptimeRobot polls it from outside the network,
     so anyone can. A driver error here names a host, a role, a database and
     sometimes a DSN with credentials in it, and P0.3 exists because upstream
     error text used to reach clients on the ordinary error path.
@@ -109,7 +110,7 @@ async def test_the_probes_are_kept_out_of_the_request_log(
 ) -> None:
     """Polled forever by machines, so logging them would drown the log.
 
-    Between Docker's healthcheck, Better Stack and Prometheus, these three
+    Between Docker's healthcheck, UptimeRobot and Prometheus, these three
     paths are hit continuously and by nothing that is a user. A request log
     that includes them is mostly a record of the monitoring watching the
     service.
@@ -117,6 +118,7 @@ async def test_the_probes_are_kept_out_of_the_request_log(
     # Act
     await client.get("/health")
     await client.get("/healthz")
+    await client.get("/healthz/alerts")
     await client.get("/metrics")
 
     # Assert
@@ -223,3 +225,74 @@ async def test_the_exposition_is_absent_from_the_public_schema(app: FastAPI) -> 
     # The readiness probe IS advertised: an uptime checker is a legitimate
     # client of it, and there is nothing about it to withhold.
     assert "/healthz" in schema["paths"]
+
+
+def _alertmanager_answering(
+    monkeypatch: pytest.MonkeyPatch, reply: httpx.Response | Exception
+) -> None:
+    """Point the route's probe at a fake Alertmanager that answers ``reply``."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    probe = AlertPathProbe("http://alertmanager:9093", transport=httpx.MockTransport(handle))
+    monkeypatch.setattr(alert_path, "_probe", probe)
+
+
+_WATCHDOG = {"labels": {"alertname": "Watchdog"}, "status": {"state": "active"}}
+
+
+async def test_alert_path_says_ok_while_watchdog_fires(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UptimeRobot's keyword monitor looks for exactly ``alerts-ok`` in a 200."""
+    # Arrange
+    _alertmanager_answering(monkeypatch, httpx.Response(200, json=[_WATCHDOG]))
+
+    # Act
+    response = await client.get("/healthz/alerts")
+
+    # Assert
+    assert response.status_code == 200
+    assert "alerts-ok" in response.text
+
+
+async def test_alert_path_answers_503_when_watchdog_is_gone(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No heartbeat in Alertmanager: an alert raised now would reach nobody."""
+    # Arrange
+    _alertmanager_answering(monkeypatch, httpx.Response(200, json=[]))
+
+    # Act
+    response = await client.get("/healthz/alerts")
+
+    # Assert
+    assert response.status_code == 503
+    assert "alerts-ok" not in response.text
+    assert response.json() == {"status": "alerts-down"}
+
+
+async def test_a_failing_alert_path_check_discloses_nothing(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Public, like ``/healthz``: the reason goes to the log, never to the caller.
+
+    The exception names an internal host and port; the response must carry the
+    one word and nothing an outsider could map the network with.
+    """
+    # Arrange
+    _alertmanager_answering(
+        monkeypatch, httpx.ConnectError("[Errno -2] Name or service not known: alertmanager:9093")
+    )
+
+    # Act
+    response = await client.get("/healthz/alerts")
+
+    # Assert
+    assert response.status_code == 503
+    assert response.json() == {"status": "alerts-down"}
+    assert "alertmanager" not in response.text
+    assert "9093" not in response.text

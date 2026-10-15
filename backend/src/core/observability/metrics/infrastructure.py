@@ -48,7 +48,7 @@ POSTGRES_POOL_OVERFLOW: Final[Gauge] = Gauge(
 
 #: 1 when a dependency answered its health probe, 0 when it did not.
 #: `dependency` is `postgres` or `redis`. This is the same fact `/healthz`
-#: returns to Better Stack, exported so the two agree — an external checker
+#: returns to UptimeRobot, exported so the two agree — an external checker
 #: that says "down" while the internal gauge says "up" is a network problem,
 #: and being able to tell those apart is most of the first minute of an
 #: incident.

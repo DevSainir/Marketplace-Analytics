@@ -26,7 +26,11 @@ from src.core.disconnect import CancelOnDisconnect
 from src.core.exceptions import AppError
 from src.core.logcontext import bind_request, new_request_id, reset_context
 from src.core.logging import adopt_uvicorn_loggers, configure_logging, get_logger
-from src.core.observability.instrument import instrument_app, register_observability_routes
+from src.core.observability.instrument import (
+    ALERT_PATH_ROUTE,
+    instrument_app,
+    register_observability_routes,
+)
 from src.core.observability.metrics import set_app_info
 from src.core.observability.sentry import configure_sentry
 from src.core.redis import close_redis
@@ -148,9 +152,11 @@ if settings.cors_enabled:
 
 #: Paths whose requests are neither logged nor counted. Kept beside the
 #: middleware that skips them and mirrored by `_EXCLUDED` in
-#: `src.core.observability.instrument`, which excludes the same three from the
+#: `src.core.observability.instrument`, which excludes the same four from the
 #: HTTP metrics for the same reason.
-_UNLOGGED_PATHS: frozenset[str] = frozenset({"/health", "/healthz", settings.metrics_path})
+_UNLOGGED_PATHS: frozenset[str] = frozenset(
+    {"/health", "/healthz", ALERT_PATH_ROUTE, settings.metrics_path}
+)
 
 
 @app.middleware("http")
@@ -379,7 +385,8 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": settings.app_name}
 
 
-# `/healthz` (readiness: Postgres + Redis) and `/metrics` (Prometheus). Mounted
+# `/healthz` (readiness: Postgres + Redis), `/healthz/alerts` (do alerts reach
+# Telegram) and `/metrics` (Prometheus). Mounted
 # here rather than in `main` so this file keeps one subject; see
 # `src.core.observability.instrument` for why the exposition is guarded and why
 # it is not `Instrumentator.expose()`.

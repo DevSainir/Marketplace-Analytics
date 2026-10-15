@@ -321,7 +321,7 @@ async def probe_dependencies() -> None:
     the API and nothing had asked it for its readiness since.
 
     Driving it from the scrape makes the alert self-sufficient: Prometheus asks
-    every 15 s whether these are reachable, whether or not Better Stack is
+    every 15 s whether these are reachable, whether or not UptimeRobot is
     configured, and the two now answer the same question independently rather
     than one depending on the other.
 

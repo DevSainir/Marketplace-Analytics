@@ -53,6 +53,15 @@ class ObservabilitySettings(BaseSettings):
     #: process, and every test).
     prometheus_multiproc_dir: str = Field(default="")
 
+    # --- The alert path ---
+    #: Where `/healthz/alerts` asks whether the `Watchdog` heartbeat is firing.
+    #: The service name on the shared Docker network: the monitoring stack is a
+    #: separate compose project that joins the application's network, so the
+    #: API resolves it without anything being published. Absent (the stack is
+    #: not running, as on a laptop) reads as "alerts are not getting out",
+    #: which is the truth.
+    alertmanager_url: str = Field(default="http://alertmanager:9093")
+
     # --- Sentry ---
     sentry_dsn: str = Field(default="")
     #: Fraction of transactions traced. Tracing is the expensive half of

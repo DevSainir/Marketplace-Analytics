@@ -1,4 +1,4 @@
-"""The API's side of observability: HTTP metrics, ``/metrics`` and ``/healthz``.
+"""The API's side of observability: HTTP metrics, ``/metrics`` and the health routes.
 
 Kept out of ``main.py`` because that file is already at the size where the next
 addition costs more than it adds, and because these three things are one
@@ -43,17 +43,21 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.core.config import settings
 from src.core.logging import get_logger
+from src.core.observability.alert_path import alerts_getting_out
 from src.core.observability.collectors import refresh_sampled_metrics
 from src.core.observability.health import check_health
 
 logger = get_logger(__name__)
 
-#: Routes kept out of the HTTP metrics. All three are polled on a schedule by
-#: something that is not a user — Docker's healthcheck, Better Stack, and
+#: Where the alert-path check is mounted, next to the readiness probe.
+ALERT_PATH_ROUTE: Final[str] = "/healthz/alerts"
+
+#: Routes kept out of the HTTP metrics. All four are polled on a schedule by
+#: something that is not a user — Docker's healthcheck, the uptime checker, and
 #: Prometheus itself — so including them would bury the traffic that matters
 #: under traffic that is constant by construction, and make the request-rate
 #: graph a picture of the monitoring rather than of the service.
-_EXCLUDED: Final[list[str]] = ["/health", "/healthz", "/metrics"]
+_EXCLUDED: Final[list[str]] = ["/health", "/healthz", ALERT_PATH_ROUTE, "/metrics"]
 
 
 def instrument_app(app: FastAPI) -> None:
@@ -107,7 +111,7 @@ def _token_accepted(request: Request) -> bool:
 
 
 def register_observability_routes(app: FastAPI) -> None:
-    """Mount ``/metrics`` and ``/healthz``.
+    """Mount ``/metrics``, ``/healthz`` and ``/healthz/alerts``.
 
     Args:
         app: The FastAPI application.
@@ -144,6 +148,33 @@ def register_observability_routes(app: FastAPI) -> None:
             content=report.as_payload(),
         )
 
+    @app.get(
+        ALERT_PATH_ROUTE,
+        tags=["System"],
+        summary="Whether alerts reach Telegram",
+        responses={
+            200: {"description": "The Watchdog heartbeat is firing: alerts are getting out."},
+            503: {"description": "It is not: an alert raised now would reach nobody."},
+        },
+    )
+    async def healthz_alerts() -> Response:
+        """Report whether the alert path works, for a checker outside the box.
+
+        No guard, and on purpose: the caller is an uptime checker with no
+        session, the answer is one word about our own plumbing, and it touches
+        no tenant data. A flood reaches Alertmanager at most once per cache
+        window — :mod:`src.core.observability.alert_path` has the reasoning.
+
+        Returns:
+            200 ``alerts-ok`` or 503 ``alerts-down``. Never the reason, which
+            goes to the log.
+        """
+        if await alerts_getting_out():
+            return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "alerts-ok"})
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"status": "alerts-down"}
+        )
+
     if not settings.metrics_enabled:
         return
 
@@ -177,4 +208,4 @@ def register_observability_routes(app: FastAPI) -> None:
         return Response(content=generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
-__all__ = ["instrument_app", "register_observability_routes"]
+__all__ = ["ALERT_PATH_ROUTE", "instrument_app", "register_observability_routes"]

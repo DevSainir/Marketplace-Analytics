@@ -177,7 +177,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "The same probe /healthz reports to Better Stack, refreshed by the scrape itself so it exists whether or not anything external is polling. min across instances: down anywhere is down.",
+      "description": "The same probe /healthz reports to UptimeRobot, refreshed by the scrape itself so it exists whether or not anything external is polling. min across instances: down anywhere is down.",
       "gridPos": {
         "x": 0,
         "y": 9,
