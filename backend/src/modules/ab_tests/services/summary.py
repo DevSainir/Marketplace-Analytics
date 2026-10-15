@@ -18,9 +18,11 @@ it.
 
 Two clocks, and they are deliberately not the same number:
 
-* **Измерено** — the arithmetic sum of the intervals that carry the counts.
-  This is the exposure the CTR is divided over; it is what «за столько-то»
-  honestly means.
+* **Измерено** — the length of the union of the intervals that carry the
+  counts. This is the exposure the CTR is divided over; it is what «за
+  столько-то» honestly means. A union, not a sum: every interval is stored once
+  per advertising campaign, so with two campaigns serving the same hour that
+  hour has two rows, and summing them reported a 20-hour test as «1 д 17 ч».
 * **Прошло** — wall clock from the first install to the finish (or to now).
 
 They differ by every stretch the test was not accruing: a hand pause, a campaign
@@ -40,6 +42,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable, Sequence
+from datetime import datetime
 
 from src.modules.ab_tests.models import AbTestVariant, VariantStatWindow
 from src.modules.ab_tests.schemas import AbTestSummary
@@ -77,7 +80,7 @@ def build_summary(
     totals = totals_from_windows([window_counts(row) for row in counted])
     ratios = conversions(totals)
 
-    measured_seconds = sum((row.window_end - row.window_start).total_seconds() for row in counted)
+    measured_seconds = _covered_seconds((row.window_start, row.window_end) for row in counted)
 
     earned: set[uuid.UUID] = {row.variant_id for row in counted if row.views}
 
@@ -98,6 +101,28 @@ def build_summary(
         variants_measured=len(earned),
         variants_total=len(variants),
     )
+
+
+def _covered_seconds(intervals: Iterable[tuple[datetime, datetime]]) -> float:
+    """Length of the union of `intervals` — time covered, each moment once.
+
+    Rows of different campaigns share one polling interval exactly, and rows of
+    consecutive polls touch end to start; merging handles both, and any partial
+    overlap besides.
+    """
+    total = 0.0
+    run_start: datetime | None = None
+    run_end: datetime | None = None
+    for start, end in sorted(intervals):
+        if run_end is None or start > run_end:
+            if run_start is not None and run_end is not None:
+                total += (run_end - run_start).total_seconds()
+            run_start, run_end = start, end
+        elif end > run_end:
+            run_end = end
+    if run_start is not None and run_end is not None:
+        total += (run_end - run_start).total_seconds()
+    return total
 
 
 __all__ = ["build_summary"]

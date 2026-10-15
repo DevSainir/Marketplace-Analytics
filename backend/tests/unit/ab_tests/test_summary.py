@@ -166,6 +166,28 @@ def test_measured_time_counts_the_windows_not_the_wall_clock() -> None:
     assert summary.last_window_at == START + timedelta(minutes=60)
 
 
+def test_an_hour_served_by_two_campaigns_is_measured_once() -> None:
+    """Two campaigns over the same windows measure the windows, not twice them.
+
+    Each interval is stored once per campaign. Summing the rows reported a
+    20-hour test with two campaigns as «1 д 17 ч»; the time a photo was on the
+    card does not grow with the number of campaigns showing it.
+    """
+    (only,) = _variants(1)
+    windows = [
+        _five_minutes(only.id, index, views=10) for index in range(3) for _campaign in range(2)
+    ]
+
+    summary = build_summary(
+        variants=[only],  # type: ignore[arg-type]
+        windows=windows,  # type: ignore[arg-type]
+        rounds_completed=1,
+    )
+
+    assert summary.measured_minutes == 15
+    assert summary.views == 60
+
+
 def test_a_test_with_nothing_measured_reports_no_ratios() -> None:
     """Zero counts give `None` ratios, never 0 %.
 
