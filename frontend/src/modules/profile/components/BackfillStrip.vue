@@ -44,7 +44,10 @@ async function poll() {
     active.value = status.active
   } catch {
     // A failed poll is not worth a banner: the backfill runs server-side
-    // whatever this panel reads, and the next tick re-asks.
+    // whatever this panel reads, and the next tick re-asks. A refusal is no
+    // exception: a 403 here hid the strip from every manager for five weeks
+    // (fixed 2026-10-17), and what found it was the API's per-route metrics,
+    // not a browser console nobody reads. The guard is pinned server-side.
     return
   } finally {
     loaded.value = true

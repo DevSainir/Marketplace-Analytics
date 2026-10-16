@@ -11,7 +11,9 @@
  *
  * Polls while anything it names is still moving and goes quiet for good once
  * it all is done. A failed read is silent: this is a footnote, and a footnote
- * that fails must not shout over the page.
+ * that fails must not shout over the page. That includes a refusal — see the
+ * note in `BackfillStrip` on the 403 that hid this from managers until
+ * 2026-10-17, and why the API's metrics rather than a console caught it.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
