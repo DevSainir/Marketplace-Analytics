@@ -56,6 +56,10 @@ that mechanism, and put new project guidance in the relevant skill rather than h
 priority. A task the user asks to be recorded goes there, not into a session chip or the
 chat; a finished one is deleted from it.
 
+`docs/JOURNAL.md` is the record of finished work, one row per task, and the source of a
+filterable page. A task leaves the backlog and gets its journal row in the same commit;
+the rest of the rule is in the `git-workflow` skill.
+
 `docs/security/BACKUP_KEYS.md` explains the backup key scheme — why the archives are
 encrypted to two `age` recipients, which of the three keys lives where, and the one
 property the move away from a symmetric passphrase gave up. Read it before touching
