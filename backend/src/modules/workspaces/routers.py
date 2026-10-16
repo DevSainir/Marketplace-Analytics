@@ -5,6 +5,8 @@ who may do what:
 
 * **listing** needs only membership — a manager has to be able to switch between
   the workspaces they work in;
+* **reading the history backfill** needs only membership too, through the
+  member-level path binder rather than the owner-only one;
 * **creating, deleting and managing WB tokens** need ``owner``. These change
   what the company IS and what it costs, and a WB token is the credential to a
   seller's live account;
@@ -37,6 +39,7 @@ from src.modules.workspaces.backfill import read_progress
 from src.modules.workspaces.bootstrap import enqueue_catalogue_bootstrap, newly_reachable
 from src.modules.workspaces.deps import (
     CurrentWorkspaceId,
+    MemberPathWorkspaceId,
     PathWorkspaceId,
     WorkspaceGuestRepoDep,
     WorkspaceServiceDep,
@@ -284,11 +287,12 @@ async def set_tokens(
     responses={
         200: {"description": "Per-lane progress of this workspace's history backfill."},
         401: {"description": "Missing or invalid access token."},
+        403: {"description": "No organisation, or its subscription has lapsed."},
         404: {"description": "No such workspace in this organisation."},
     },
 )
 async def get_backfill_status(
-    workspace_id: PathWorkspaceId,
+    workspace_id: MemberPathWorkspaceId,
     access: MemberAccess,
     session: DbSession,
 ) -> BackfillStatusResponse:
@@ -298,7 +302,11 @@ async def get_backfill_status(
     the answer to «почему тут пусто», and a manager who cannot see it is left
     with a blank product page and no explanation. It exposes only counters and
     a Russian status line — no token, no WB response, nothing tenant-specific
-    beyond the workspace the caller was already proved to belong to.
+    beyond the workspace the caller was already proved to belong to. A head may
+    read it in a кабинет granted to them, for the same reason.
+
+    ``MemberPathWorkspaceId``, not ``PathWorkspaceId``: the latter is owner-only,
+    and until 2026-10-17 it refused every manager here despite this guard.
 
     Returns an empty lane list for a workspace that has never been backfilled,
     rather than 404: "nothing is running" is the honest answer for every

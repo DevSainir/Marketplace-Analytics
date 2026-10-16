@@ -228,7 +228,7 @@ async def read_progress(session: AsyncSession, workspace_id: uuid.UUID) -> Backf
     """Return every lane of one workspace, in display order.
 
     Reads through the caller's own session so it inherits the tenancy context
-    the route's ``PathWorkspaceId`` bound — this is a tenant-facing read, not a
+    the route's ``MemberPathWorkspaceId`` bound — a tenant-facing read, not a
     task-side one.
 
     Args:

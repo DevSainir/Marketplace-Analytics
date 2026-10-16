@@ -24,11 +24,16 @@ from typing import Any, NamedTuple
 
 from fastapi.routing import APIRoute, iter_route_contexts
 
-from src.modules.workspaces.deps import get_current_workspace_id, get_path_workspace_id
+from src.modules.workspaces.deps import (
+    get_current_workspace_id,
+    get_member_path_workspace_id,
+    get_path_workspace_id,
+)
 
-#: Either of these validates the workspace against the caller's organisation and
-#: then binds it to the transaction. There is no third way to bind one.
-_BINDERS = {get_current_workspace_id, get_path_workspace_id}
+#: Each of these validates the workspace against the caller's organisation and
+#: then binds it to the transaction: the header, the owner's path and a member's
+#: path. There is no fourth way to bind one.
+_BINDERS = {get_current_workspace_id, get_path_workspace_id, get_member_path_workspace_id}
 
 #: Modules owning at least one table in the policy list, plus `summary`, which
 #: owns none but reads finreports' and monitoring's covered tables through their
@@ -126,7 +131,7 @@ def test_every_route_touching_a_covered_module_binds_a_tenant() -> None:
     # Assert
     assert unbound == [], (
         "these routes would raise once row-level security is applied — resolve their "
-        f"workspace through CurrentWorkspaceId or PathWorkspaceId: {unbound}"
+        f"workspace through CurrentWorkspaceId or a path binder: {unbound}"
     )
 
 

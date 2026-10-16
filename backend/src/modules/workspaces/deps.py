@@ -153,6 +153,32 @@ async def get_current_workspace_id(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Некорректный идентификатор кабинета.",
         ) from exc
+    return await _enter_as_member(
+        workspace_id,
+        access=access,
+        workspace_repo=workspace_repo,
+        guest_repo=guest_repo,
+        session=session,
+        method=request.method,
+    )
+
+
+async def _enter_as_member(
+    workspace_id: uuid.UUID,
+    *,
+    access: MemberAccess,
+    workspace_repo: WorkspaceRepository,
+    guest_repo: WorkspaceGuestRepository,
+    session: DbSession,
+    method: str,
+) -> uuid.UUID:
+    """Prove a member may enter this workspace, then bind it as the tenant.
+
+    The one membership rule, shared by the header binder and the member-level
+    path binder so the two cannot drift apart: the caller's own organisation,
+    or a head's grant and then only to read. Its reasoning — 404 for anyone
+    else, binding only after the check — is on :func:`get_current_workspace_id`.
+    """
     workspace = await workspace_repo.get_by_id(workspace_id)
     if workspace is None:
         raise HTTPException(
@@ -171,7 +197,7 @@ async def get_current_workspace_id(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Кабинет не найден.",
             )
-        if request.method not in _GUEST_METHODS:
+        if method not in _GUEST_METHODS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Этот кабинет открыт вам только для просмотра.",
@@ -238,9 +264,62 @@ async def get_path_workspace_id(
     return workspace_id
 
 
+async def get_member_path_workspace_id(
+    workspace_id: uuid.UUID,
+    access: MemberAccess,
+    workspace_repo: WorkspaceRepoDep,
+    guest_repo: WorkspaceGuestRepoDep,
+    session: DbSession,
+    request: Request,
+) -> uuid.UUID:
+    """Validate a path workspace for any member, and bind it as the tenant.
+
+    :func:`get_path_workspace_id` is owner-only, and a read route that took it
+    refused every manager. `GET /{workspace_id}/backfill` did exactly that from
+    2026-09-10 to 2026-10-17: its own guard said ``MemberAccess``, the binder
+    said ``OwnerAccess``, the stricter one won, and managers got a blank product
+    page instead of the «почему тут пусто» strip — 60 to 70 refusals a week.
+
+    The rule is the header binder's, not a looser one: the caller's own
+    organisation, or a head's grant on another company's кабинет and then only
+    to read. A workspace that is neither is 404, as for one that does not exist.
+    The owner-only path routes keep :data:`PathWorkspaceId`, which is what still
+    stands between a manager and a WB token.
+
+    Args:
+        workspace_id: The path parameter, named to match the route's own.
+        access: Member-level access — the organisation to check against, and
+            whether the caller is a head who may hold a grant.
+        workspace_repo: Workspace repository bound to the request session.
+        guest_repo: The heads' grants, consulted only for a foreign workspace.
+        session: The request's session, so the tenant can be bound to it.
+        request: The request, for its verb — a guest may only read.
+
+    Returns:
+        The validated workspace id.
+
+    Raises:
+        HTTPException: ``404`` when the workspace does not exist or is neither
+            the caller's nor granted to them; ``403`` when a head tries to
+            change something in a кабинет granted to them to read.
+    """
+    return await _enter_as_member(
+        workspace_id,
+        access=access,
+        workspace_repo=workspace_repo,
+        guest_repo=guest_repo,
+        session=session,
+        method=request.method,
+    )
+
+
 #: A path-addressed workspace, validated against the caller's organisation and
-#: bound as the transaction's tenant.
+#: bound as the transaction's tenant. Owner-only.
 PathWorkspaceId = Annotated[uuid.UUID, Depends(get_path_workspace_id)]
+
+#: A path-addressed workspace any member may read: the caller's own, or one a
+#: dev granted to them as a head. For read routes that are not administration.
+MemberPathWorkspaceId = Annotated[uuid.UUID, Depends(get_member_path_workspace_id)]
 
 
 #: Injectable, validated active-workspace id for tenant-scoped routes.
