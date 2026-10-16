@@ -121,6 +121,19 @@ back: `frontend/tests/integration/naming.spec.js` scans every `.vue`/`.js` a use
 and `backend/tests/unit/core/test_messages_are_russian.py` scans the exception messages the
 API hands to a client. Add a new banned word to both.
 
+## Few words, and those carry the meaning
+
+The owner's rule (2026-10-17): **no explanatory text on the page itself, or almost none.**
+A state the user has to understand — data late, WB refusing, a number estimated, a figure
+missing — is shown by an icon, a colour, a badge or a dedicated block, and the explanation
+lives behind it in a tooltip or a popover. A sentence added to the page to explain
+something is the wrong answer even when the sentence is right.
+
+The words that do appear are laconic: the most meaning in the fewest words. «WB ещё не
+отдал вчера», not «К сожалению, Wildberries пока не предоставил данные за вчерашний день».
+No apologies, no "please", no restating what the icon already says. A user should get the
+problem at a glance and the detail in one hover.
+
 ## Type
 
 | Role | Classes |
