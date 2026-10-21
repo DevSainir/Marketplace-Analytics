@@ -127,7 +127,9 @@ async def test_a_workspace_without_a_settlement_token_certifies_nothing(
     """No «Финансы» token is not the same as a covered span, and must not read
     as one — a seller we cannot ask for is short a P&L, not up to date."""
     windows_that()
-    tokenless = WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="NEVA", internal_features=False)
+    tokenless = WorkspaceTokenBundle(
+        workspace_id=uuid.uuid4(), name="NEVA", internal_features=False
+    )
 
     walk = await walk_settlement_reports(
         tokens=tokenless, reports=REPORTS, build_ingestion=object()
