@@ -1,4 +1,4 @@
-<title>Журнал выполненных задач</title>
+<title>Journal of finished work</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
@@ -104,11 +104,11 @@ tr:last-child td { border-bottom: 0; }
 code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; border-radius: 4px; }
 .area { white-space: nowrap; }
 .pill { display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.pill.фича { color: var(--t-feature); background: var(--t-feature-bg); }
-.pill.улучшение { color: var(--t-improve); background: var(--t-improve-bg); }
-.pill.баг { color: var(--t-bug); background: var(--t-bug-bg); }
-.pill.инфраструктура { color: var(--t-infra); background: var(--t-infra-bg); }
-.pill.документация { color: var(--t-docs); background: var(--t-docs-bg); }
+.pill.feature { color: var(--t-feature); background: var(--t-feature-bg); }
+.pill.improvement { color: var(--t-improve); background: var(--t-improve-bg); }
+.pill.bug { color: var(--t-bug); background: var(--t-bug-bg); }
+.pill.infrastructure { color: var(--t-infra); background: var(--t-infra-bg); }
+.pill.docs { color: var(--t-docs); background: var(--t-docs-bg); }
 .size { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: 600; font-size: 13px; }
 .pips { display: inline-flex; gap: 2px; align-items: flex-end; }
 .pips i { width: 4px; border-radius: 1px; background: var(--line); }
@@ -143,55 +143,55 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
 
 <div class="page">
   <header>
-    <h1>Журнал выполненных задач</h1>
+    <h1>Journal of finished work</h1>
     <p id="meta"></p>
   </header>
 
-  <section class="card controls" aria-label="Фильтры">
+  <section class="card controls" aria-label="Filters">
     <div class="row">
-      <span class="label">Период</span>
-      <div class="seg" id="periods" role="group" aria-label="Период"></div>
+      <span class="label">Period</span>
+      <div class="seg" id="periods" role="group" aria-label="Period"></div>
       <span class="range">
-        <label for="from">с</label><input type="date" id="from">
-        <label for="to">по</label><input type="date" id="to">
+        <label for="from">from</label><input type="date" id="from">
+        <label for="to">to</label><input type="date" id="to">
       </span>
     </div>
-    <div class="row"><span class="label">Область</span><div class="row" id="areas"></div></div>
-    <div class="row"><span class="label">Тип</span><div class="row" id="types"></div></div>
+    <div class="row"><span class="label">Area</span><div class="row" id="areas"></div></div>
+    <div class="row"><span class="label">Type</span><div class="row" id="types"></div></div>
     <div class="row">
-      <span class="label">Объём</span><div class="row" id="sizes"></div>
-      <input class="search" id="q" type="search" placeholder="Поиск по задачам и коммитам" aria-label="Поиск">
-      <button class="link" id="reset" type="button">Сбросить всё</button>
+      <span class="label">Size</span><div class="row" id="sizes"></div>
+      <input class="search" id="q" type="search" placeholder="Search tasks and commits" aria-label="Search">
+      <button class="link" id="reset" type="button">Reset all</button>
     </div>
   </section>
 
-  <section class="card weeks" aria-label="Задачи по неделям">
-    <div class="head"><strong>По неделям</strong><span>нажмите на неделю, чтобы показать только её</span></div>
+  <section class="card weeks" aria-label="Tasks by week">
+    <div class="head"><strong>By week</strong><span>click a week to show only that week</span></div>
     <div class="strip-wrap" id="stripWrap"><div class="strip" id="strip"></div></div>
   </section>
 
   <div class="summary">
     <div><b id="count"></b><span class="sizes" id="sizeSum"></span></div>
-    <button class="btn" id="copy" type="button">Скопировать списком</button>
+    <button class="btn" id="copy" type="button">Copy as a list</button>
   </div>
   <section class="card copybox" id="copybox" hidden>
-    <label for="copytext">Выделите текст и скопируйте</label>
+    <label for="copytext">Select the text and copy it</label>
     <textarea id="copytext" readonly></textarea>
   </section>
 
   <section class="card list">
     <table>
       <thead><tr>
-        <th data-key="date"><button type="button">Дата<span class="arrow"></span></button></th>
-        <th>Задача</th>
-        <th data-key="area"><button type="button">Область<span class="arrow"></span></button></th>
-        <th data-key="type"><button type="button">Тип<span class="arrow"></span></button></th>
-        <th data-key="size"><button type="button">Объём<span class="arrow"></span></button></th>
-        <th>Коммиты</th>
+        <th data-key="date"><button type="button">Date<span class="arrow"></span></button></th>
+        <th>Task</th>
+        <th data-key="area"><button type="button">Area<span class="arrow"></span></button></th>
+        <th data-key="type"><button type="button">Type<span class="arrow"></span></button></th>
+        <th data-key="size"><button type="button">Size<span class="arrow"></span></button></th>
+        <th>Commits</th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
-    <div class="empty" id="empty" hidden>Ничего не нашлось. <button class="link" type="button" id="reset2">Сбросить фильтры</button></div>
+    <div class="empty" id="empty" hidden>Nothing found. <button class="link" type="button" id="reset2">Reset filters</button></div>
   </section>
 </div>
 
@@ -202,15 +202,15 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
   const ROWS = DATA.rows.map((r, i) => ({ ...r, i, d: parseDate(r.date) }));
   const DAY = 86400000;
   const PERIODS = [
-    { key: 'week', label: 'Неделя', days: 7, hint: 'последние 7 дней' },
-    { key: 'month', label: 'Месяц', days: 30, hint: 'последние 30 дней' },
-    { key: 'quarter', label: 'Квартал', days: 91, hint: 'последние 3 месяца' },
-    { key: 'all', label: 'Всё время', days: null, hint: 'с начала проекта' },
+    { key: 'week', label: 'Week', days: 7, hint: 'the last 7 days' },
+    { key: 'month', label: 'Month', days: 30, hint: 'the last 30 days' },
+    { key: 'quarter', label: 'Quarter', days: 91, hint: 'the last 3 months' },
+    { key: 'all', label: 'All time', days: null, hint: 'since the project began' },
   ];
   const AREA_SLUGS = {
-    'monitoring': 'Мониторинг', 'pnl': 'P&L', 'ads': 'Реклама', 'ab': 'A/Б', 'summary': 'Сводка',
-    'heatmap': 'Тепловая карта', 'ui': 'Интерфейс', 'access': 'Доступы', 'infra': 'Инфраструктура',
-    'security': 'Безопасность', 'process': 'Процесс',
+    'monitoring': 'Monitoring', 'pnl': 'P&L', 'ads': 'Advertising', 'ab': 'A/B tests', 'summary': 'Summary',
+    'heatmap': 'Heatmap', 'ui': 'UI', 'access': 'Access', 'infra': 'Infrastructure',
+    'security': 'Security', 'process': 'Process',
   };
   const SIZE_RANK = Object.fromEntries(DATA.sizes.map((s, i) => [s, i]));
   const TYPE_RANK = Object.fromEntries(DATA.types.map((t, i) => [t, i]));
@@ -221,11 +221,11 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
 
   function parseDate(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
   function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-  function ru(d, year = true) { const s = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`; return year ? `${s}.${d.getFullYear()}` : s; }
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmt(d, year = true) { const s = `${d.getDate()} ${MONTHS[d.getMonth()]}`; return year ? `${s} ${d.getFullYear()}` : s; }
   function today() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
   function monday(d) { const x = new Date(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
-  function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
-  function tasks(n) { return `${n} ${plural(n, 'задача', 'задачи', 'задач')}`; }
+  function tasks(n) { return `${n} ${n === 1 ? 'task' : 'tasks'}`; }
   function el(tag, attrs = {}, ...kids) {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); }
@@ -299,9 +299,9 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
       const on = a && b && iso(a) === iso(w.start) && iso(b) === iso(w.end);
       return el('button', {
         class: 'wk', type: 'button', 'aria-pressed': String(!!on),
-        title: `${ru(w.start)} – ${ru(w.end)}: ${tasks(w.n)}`,
+        title: `${fmt(w.start)} – ${fmt(w.end)}: ${tasks(w.n)}`,
         onclick: () => { if (on) { state.from = state.to = null; state.period = 'all'; } else { state.from = w.start; state.to = w.end; } render(); },
-      }, el('span', { class: 'c' }, w.n ? String(w.n) : ''), el('span', { class: 'b', style: `height:${Math.round((w.n / max) * 58)}px` }), el('span', { class: 'd' }, ru(w.start, false)));
+      }, el('span', { class: 'c' }, w.n ? String(w.n) : ''), el('span', { class: 'b', style: `height:${Math.round((w.n / max) * 58)}px` }), el('span', { class: 'd' }, fmt(w.start, false)));
     }));
   }
 
@@ -313,19 +313,19 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
 
   function sizeCell(s) {
     const n = SIZE_RANK[s] + 1;
-    return el('span', { class: 'size', title: { S: 'несколько часов', M: 'день-два', L: 'неделя или крупная фича' }[s] },
+    return el('span', { class: 'size', title: { S: 'a few hours', M: 'a day or two', L: 'a week or a large feature' }[s] },
       el('span', { class: 'pips', 'aria-hidden': 'true' }, ...[1, 2, 3].map((i) => el('i', { class: i <= n ? 'on' : '' }))), s);
   }
   function commitsCell(r) {
     const open = state.open.has(r.i), shown = open ? r.commits : r.commits.slice(0, 3);
     const box = el('div', { class: 'commits' }, ...shown.map((c) => el('a', { href: `${DATA.repo}/commit/${c}`, target: '_blank', rel: 'noopener' }, c)));
-    if (r.commits.length > 3) box.append(el('button', { class: 'more', type: 'button', onclick: () => { open ? state.open.delete(r.i) : state.open.add(r.i); render(); } }, open ? 'свернуть' : `ещё ${r.commits.length - 3}`));
+    if (r.commits.length > 3) box.append(el('button', { class: 'more', type: 'button', onclick: () => { open ? state.open.delete(r.i) : state.open.add(r.i); render(); } }, open ? 'collapse' : `${r.commits.length - 3} more`));
     return box;
   }
 
   function renderRows(rows) {
     $('rows').replaceChildren(...sorted(rows).map((r) => el('tr', {},
-      el('td', { class: 'date c-date' }, ru(r.d)),
+      el('td', { class: 'date c-date' }, fmt(r.d)),
       el('td', { class: 'c-task' }, el('div', { class: 'title' }, richText(r.title)), el('div', { class: 'why' }, richText(r.why))),
       el('td', { class: 'area c-area' }, r.area),
       el('td', { class: 'c-type' }, el('span', { class: `pill ${r.type}` }, r.type)),
@@ -343,12 +343,12 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
 
   function periodLabel() {
     const [a, b] = range();
-    if (!a && !b) return 'за всё время';
-    if (state.from || state.to) return `${a ? `с ${ru(a)} ` : ''}${b ? `по ${ru(b)}` : ''}`.trim();
-    return `за ${PERIODS.find((p) => p.key === state.period).hint}`;
+    if (!a && !b) return 'over all time';
+    if (state.from || state.to) return `${a ? `from ${fmt(a)} ` : ''}${b ? `to ${fmt(b)}` : ''}`.trim();
+    return `over ${PERIODS.find((p) => p.key === state.period).hint}`;
   }
   function filterLabel() {
-    return [...state.areas, ...state.types, ...[...state.sizes].map((s) => `объём ${s}`), state.q && `«${state.q}»`].filter(Boolean).join(', ');
+    return [...state.areas, ...state.types, ...[...state.sizes].map((s) => `size ${s}`), state.q && `«${state.q}»`].filter(Boolean).join(', ');
   }
 
   function render() {
@@ -367,19 +367,19 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
 
   function copyText() {
     const rows = sorted(visible());
-    const lines = [`Сделано ${periodLabel()}: ${tasks(rows.length)}${filterLabel() ? ` (${filterLabel()})` : ''}`];
+    const lines = [`Done ${periodLabel()}: ${tasks(rows.length)}${filterLabel() ? ` (${filterLabel()})` : ''}`];
     for (const area of DATA.areas) {
       const group = rows.filter((r) => r.area === area).sort((x, y) => y.d - x.d);
       if (!group.length) continue;
       lines.push('', area);
-      for (const r of group) lines.push(`• ${r.title.replaceAll('`', '')} — ${r.why.replaceAll('`', '')} (${ru(r.d, false)})`);
+      for (const r of group) lines.push(`• ${r.title.replaceAll('`', '')} — ${r.why.replaceAll('`', '')} (${fmt(r.d, false)})`);
     }
     return lines.join('\n');
   }
 
   $('copy').addEventListener('click', () => {
     const text = copyText();
-    const done = () => { $('copy').textContent = 'Скопировано'; setTimeout(() => { $('copy').textContent = 'Скопировать списком'; }, 1800); };
+    const done = () => { $('copy').textContent = 'Copied'; setTimeout(() => { $('copy').textContent = 'Copy as a list'; }, 1800); };
     const fallback = () => { $('copytext').value = text; $('copybox').hidden = false; $('copytext').focus(); $('copytext').select(); };
     try { navigator.clipboard.writeText(text).then(done, fallback); } catch { fallback(); }
   });
@@ -403,7 +403,7 @@ code { font: 12.5px var(--mono); background: var(--canvas); padding: 1px 4px; bo
 
   const total = ROWS.length;
   const firstDay = ROWS.length ? ROWS.reduce((a, r) => (r.d < a ? r.d : a), ROWS[0].d) : null;
-  $('meta').textContent = `${tasks(total)}${firstDay ? ` с ${ru(firstDay)}` : ''} · собрано из docs/JOURNAL.md ${ru(parseDate(DATA.generated))}`;
+  $('meta').textContent = `${tasks(total)}${firstDay ? ` since ${fmt(firstDay)}` : ''} · built from docs/JOURNAL.md on ${fmt(parseDate(DATA.generated))}`;
   render();
   const wrap = $('stripWrap'); wrap.scrollLeft = wrap.scrollWidth;
 })();

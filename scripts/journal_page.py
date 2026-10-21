@@ -4,9 +4,9 @@
     python3 scripts/journal_page.py --check
     python3 scripts/journal_page.py --out <path>/journal.html
 
-The page is one HTML file (scripts/journal_page.html) with the rows embedded
-as JSON. It is published as a claude.ai Artifact whose link sits at the top
-of the journal; the page is only ever rebuilt from the file, never edited.
+The page is one HTML file built from the template scripts/journal_page.html,
+with the rows embedded as JSON. It is only ever rebuilt from the journal,
+never edited by hand.
 
 Standard library only, so it runs without the backend's environment.
 """
@@ -14,6 +14,7 @@ Standard library only, so it runs without the backend's environment.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import json
 import re
@@ -27,23 +28,23 @@ TEMPLATE = Path(__file__).with_suffix(".html")
 PLACEHOLDER = "__JOURNAL_DATA__"
 REPO_URL = "https://github.com/DevSainir/Marketplace-Analytic-Service"
 
-HEADER = ("Дата", "Задача", "Область", "Тип", "Объём", "Зачем", "Коммиты")
+HEADER = ("Date", "Task", "Area", "Type", "Size", "Why", "Commits")
 AREAS = (
-    "Мониторинг",
+    "Monitoring",
     "P&L",
-    "Реклама",
-    "A/Б",
-    "Сводка",
-    "Тепловая карта",
-    "Интерфейс",
-    "Доступы",
-    "Инфраструктура",
-    "Безопасность",
-    "Процесс",
+    "Advertising",
+    "A/B tests",
+    "Summary",
+    "Heatmap",
+    "UI",
+    "Access",
+    "Infrastructure",
+    "Security",
+    "Process",
 )
-TYPES = ("фича", "улучшение", "баг", "инфраструктура", "документация")
+TYPES = ("feature", "improvement", "bug", "infrastructure", "docs")
 SIZES = ("S", "M", "L")
-DATE = re.compile(r"^(\d{2})\.(\d{2})\.(\d{4})$")
+DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 COMMIT = re.compile(r"^`([0-9a-f]{7,40})`$")
 UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
 
@@ -57,7 +58,11 @@ def parse(text: str) -> tuple[list[dict[str, object]], list[str]]:
     """Return the rows and every problem found, each with its line number."""
     lines = text.splitlines()
     start = next(
-        (i for i, line in enumerate(lines) if line.startswith("|") and tuple(split_row(line)) == HEADER),
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.startswith("|") and tuple(split_row(line)) == HEADER
+        ),
         None,
     )
     if start is None:
@@ -80,12 +85,10 @@ def parse(text: str) -> tuple[list[dict[str, object]], list[str]]:
         match = DATE.match(date_s)
         date: dt.date | None = None
         if match:
-            try:
-                date = dt.date(int(match[3]), int(match[2]), int(match[1]))
-            except ValueError:
-                pass
+            with contextlib.suppress(ValueError):
+                date = dt.date(int(match[1]), int(match[2]), int(match[3]))
         if date is None:
-            problems.append(f"date {date_s!r} is not ДД.ММ.ГГГГ")
+            problems.append(f"date {date_s!r} is not YYYY-MM-DD")
         elif previous is not None and date > previous:
             problems.append(f"{date_s} is newer than the row above; new rows go on top")
         if not title:
@@ -97,7 +100,7 @@ def parse(text: str) -> tuple[list[dict[str, object]], list[str]]:
         if size not in SIZES:
             problems.append(f"size {size!r} is not S, M or L")
         if not why:
-            problems.append("empty «Зачем»")
+            problems.append("empty Why")
 
         commits: list[str] = []
         for token in commits_s.split():
@@ -110,8 +113,8 @@ def parse(text: str) -> tuple[list[dict[str, object]], list[str]]:
                 problems.append(f"commit {sha} is already on line {seen[sha]}")
             seen[sha] = number
             commits.append(sha)
-        if not commits:
-            problems.append("no commits")
+        # An empty Commits cell is allowed: a few reconstructed rows describe work whose
+        # commits only touched files that are not part of this repository.
 
         errors.extend(f"line {number}: {problem}" for problem in problems)
         if date is not None:
@@ -137,8 +140,8 @@ def unreachable_commits(shas: list[str]) -> list[str]:
     as dangling objects, so a row written before it would still resolve.
     """
     try:
-        result = subprocess.run(
-            ["git", "-C", str(ROOT), "rev-list", "HEAD"],
+        result = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            ["git", "-C", str(ROOT), "rev-list", "HEAD"],  # noqa: S607 - git from PATH
             capture_output=True,
             text=True,
             check=True,
@@ -146,7 +149,9 @@ def unreachable_commits(shas: list[str]) -> list[str]:
     except (OSError, subprocess.CalledProcessError):
         return []
     history = result.stdout.split()
-    prefixes = {length: {full[:length] for full in history} for length in {len(sha) for sha in shas}}
+    prefixes = {
+        length: {full[:length] for full in history} for length in {len(sha) for sha in shas}
+    }
     return [sha for sha in shas if sha not in prefixes[len(sha)]]
 
 
