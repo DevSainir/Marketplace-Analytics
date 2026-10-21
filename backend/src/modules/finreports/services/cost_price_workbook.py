@@ -7,9 +7,9 @@ table shows — with one column left for the seller to fill: **«Себесто�
 1 ед.»**. They edit it offline and upload the same file back, where only that
 column (matched to a SKU by **«Артикул WB»** = ``nm_id``) is read.
 
-the one sheet needs is set up locally rather than borrowed from
-this path for a header fill and a money format. Reading the file back is a
-separate concern and lives in :mod:`.cost_upload_parser` (a different library on
+Written with ``xlsxwriter``; the formatting the one sheet needs (a header fill
+and a money format) is set up locally. Reading the file back is a separate
+concern and lives in :mod:`.cost_upload_parser` (a different library on
 purpose, so a bug shared by writer and reader cannot hide a broken column).
 
 The two identity columns are deliberate and named to match the UI:
@@ -34,7 +34,7 @@ from src.modules.finreports.schemas.sku_report import PnlSkuReportResponse, PnlS
 
 SHEET_TITLE = "P&L по артикулам"
 
-#: Header fill — the deep blue the claim workbooks use, kept in step by eye.
+#: Header fill — a deep blue.
 _HEADER_BG = "#1F3864"
 
 #: The editable column's exact header. The parser matches «себестоимость» + «ед»,

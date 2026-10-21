@@ -11,7 +11,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import Base
@@ -52,46 +51,3 @@ class BaseRepository:
             conflict_columns=conflict_columns,
             update_columns=update_columns,
         )
-
-    async def checksum(
-        self,
-        *columns: Any,
-        where: Sequence[Any] = (),
-        source: type[Base] | None = None,
-    ) -> tuple[int, int]:
-        """Return ``(row count, order-independent checksum)`` for a row set.
-
-        Computed **entirely in PostgreSQL**: the aggregate returns two numbers,
-        so nothing is hydrated into Python. That is the whole point — the claim
-        package's cache needs to know whether its inputs changed, and building
-        83 443 row objects to answer that took 5.5 s while this answers it in
-        ~0.2 s (measured on production data).
-
-        ``hashtext`` is applied per row over the concatenated significant
-        columns, so the result moves if any one of them moves — including an
-        in-place restatement, which a ``max(created_at)`` watermark cannot see
-        (the harvest upserts value columns only, and these tables have no
-        ``updated_at``). Summing makes it order-independent; ``count`` is
-        carried alongside so that additions and removals that happen to offset
-        in the sum still change the pair.
-
-        Args:
-            *columns: The value columns whose change must invalidate. Cast and
-                concatenated in the given order.
-            where: Predicate applied to the row set.
-            source: The table to read, when it is not this repository's own.
-
-        Returns:
-            ``(count, checksum)``. ``(0, 0)`` for an empty set.
-        """
-        parts: list[Any] = []
-        for column in columns:
-            parts.extend([sa.func.coalesce(sa.cast(column, sa.Text), ""), sa.literal(":")])
-        digest = sa.func.coalesce(
-            sa.func.sum(sa.cast(sa.func.hashtext(sa.func.concat(*parts)), sa.BigInteger)), 0
-        )
-        stmt = sa.select(sa.func.count(), digest).select_from(source or self.model)
-        if where:
-            stmt = stmt.where(*where)
-        count, checksum = (await self._session.execute(stmt)).one()
-        return int(count), int(checksum)

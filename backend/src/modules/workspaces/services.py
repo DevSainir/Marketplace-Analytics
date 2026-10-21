@@ -14,11 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.core.logging import get_logger
 from src.core.security import decrypt_secret, encrypt_secret
-from src.modules.organizations.contract import (
-    is_internal_organization,
-    load_harvestable_organization_ids,
-    load_primary_organization_id,
-)
+from src.modules.organizations.contract import load_harvestable_organization_ids
 from src.modules.workspaces.models import CATEGORY_KINDS, TokenKind, Workspace
 from src.modules.workspaces.repos import WorkspaceRepository, WorkspaceTokenRepository
 from src.modules.workspaces.schemas import (
@@ -34,9 +30,7 @@ logger = get_logger(__name__)
 _CATEGORY_SLUGS: frozenset[str] = frozenset(kind.value for kind in CATEGORY_KINDS)
 
 
-def _resolve_bundle(
-    workspace: Workspace, tokens: dict[str, str], *, internal_features: bool = False
-) -> WorkspaceTokenBundle:
+def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTokenBundle:
     """Resolve stored token kinds into the per-surface tokens the harvest needs.
 
     A primary workspace stores a token per category, so each surface uses its
@@ -50,9 +44,6 @@ def _resolve_bundle(
             keeps the mapping's intent explicit and future-proofs per-mode
             resolution).
         tokens: Decrypted ``{kind slug: token}`` for that workspace.
-        internal_features: Whether the owning organisation is the primary one.
-            Resolved by the caller, which has the session this pure function
-            deliberately does not.
 
     Returns:
         A bundle whose fields are the resolved tokens (empty string = none).
@@ -69,7 +60,6 @@ def _resolve_bundle(
     return WorkspaceTokenBundle(
         workspace_id=workspace.id,
         name=workspace.name,
-        internal_features=internal_features,
         # NOT `pick(CONTENT, ANALYTICS)`. That fallback rested on the belief
         # that WB's analytics scope also serves the Content API; measured on
         # 2026-09-05 it does not, and WB says so in as many words —
@@ -312,28 +302,7 @@ async def load_workspace_token_bundle(
         return None
     rows = await WorkspaceTokenRepository(session).list_for_workspace(workspace_id)
     tokens = {row.kind: decrypt_secret(row.token_encrypted) for row in rows}
-    return _resolve_bundle(
-        workspace,
-        tokens,
-        internal_features=await is_internal_organization(session, workspace.organization_id),
-    )
-
-
-async def load_workspace_name(session: AsyncSession, workspace_id: uuid.UUID) -> str:
-    """Return a workspace's display name (empty string when it does not exist).
-
-    Exposed through ``contract.py`` for modules that need the tenant's legal
-    Deliberately does not touch tokens, so no decryption happens.
-
-    Args:
-        session: An open async session (caller owns the transaction).
-        workspace_id: The workspace to resolve.
-
-    Returns:
-        The workspace name, or ``""`` when the workspace is unknown.
-    """
-    workspace = await WorkspaceRepository(session).get_by_id(workspace_id)
-    return workspace.name if workspace is not None else ""
+    return _resolve_bundle(workspace, tokens)
 
 
 async def load_workspace_token_bundles(session: AsyncSession) -> list[WorkspaceTokenBundle]:
@@ -376,17 +345,12 @@ async def load_workspace_token_bundles(session: AsyncSession) -> list[WorkspaceT
         by_workspace.setdefault(row.workspace_id, {})[row.kind] = decrypt_secret(
             row.token_encrypted
         )
-    # Two questions for the whole fan-out rather than two per workspace: at most
-    # one organisation carries the primary flag, and subscriptions are one row
-    # per company, so both answers are sets compared in memory.
-    primary_id = await load_primary_organization_id(session)
+    # One question for the whole fan-out rather than one per workspace:
+    # subscriptions are one row per company, so the answer is a set compared in
+    # memory.
     harvestable = await load_harvestable_organization_ids(session)
     bundles = [
-        _resolve_bundle(
-            ws,
-            by_workspace.get(ws.id, {}),
-            internal_features=primary_id is not None and ws.organization_id == primary_id,
-        )
+        _resolve_bundle(ws, by_workspace.get(ws.id, {}))
         for ws in workspaces
         if ws.organization_id in harvestable
     ]

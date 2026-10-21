@@ -21,7 +21,6 @@ from src.core.config.ab_tests import AbTestsSettings
 from src.core.config.app import AppSettings
 from src.core.config.datastore import DataStoreSettings
 from src.core.config.email import EmailSettings
-from src.core.config.finreports import FinreportsSettings
 from src.core.config.guide import GuideSettings
 from src.core.config.observability import ObservabilitySettings
 from src.core.config.security import PLACEHOLDER_SECRETS, SecuritySettings
@@ -36,7 +35,6 @@ class Settings(
     EmailSettings,
     WildberriesSettings,
     StorefrontSettings,
-    FinreportsSettings,
     GuideSettings,
     AbTestsSettings,
     ObservabilitySettings,

@@ -11,10 +11,11 @@ that worker process a connection whose transport belongs to a loop that no
 longer exists. The next task dies on its first query with ``got Future attached
 to a different loop``, having done nothing.
 
-MSK) leaks, ``monitoring.harvest_all`` (06:00 MSK) is the one that crashes — so a
+The blame lands on the wrong task. If a nightly finreports task (05:00 MSK)
+leaks, ``monitoring.harvest_all`` (06:00 MSK) is the one that crashes — so a
 whole day harvests zero rows while the task at fault is recorded as a success.
 The victim's own ``dispose()`` in its ``finally`` then scrubs the pool, so the
-07:00 task runs fine, and the damage looks like a random nightly flake rather
+07:00 task runs fine, and the failure looks like a random nightly flake rather
 than a deterministic ordering bug.
 
 Five of the six tasks had hand-rolled the ``try/finally: await
@@ -85,6 +86,7 @@ def test_the_sweep_actually_finds_the_tasks() -> None:
 
     assert len(names) >= 6, f"expected the known task set, found {names}"
     assert any("harvest_all" in name for name in names)
+    assert any("harvest_finance" in name for name in names)
 
 
 @pytest.mark.parametrize(

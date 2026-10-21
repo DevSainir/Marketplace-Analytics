@@ -95,71 +95,7 @@ REPORT_UPDATE = [
     "wb_bank_payment_sum",
 ]
 
-    "box_delivery_base",
-    "box_delivery_liter",
-    "box_delivery_coef_pct",
-    "box_storage_base",
-    "box_storage_liter",
-    "box_storage_coef_pct",
-    "geo_name",
-    "dt_till_max",
-]
-
-BASELINE_UPDATE = [
-    "vendor_code",
-    "length_cm",
-    "width_cm",
-    "height_cm",
-    "weight_brutto_kg",
-    "volume_l",
-    "workspace_id",
-    "document_proof_id",
-]
-
-BILLED_UPDATE = [
-    "nm_id",
-    "barcode",
-    "volume_l",
-    "warehouse_coef",
-    "calc_type",
-    "warehouse_price",
-]
-
-PENALTY_UPDATE = [
-    "subject_name",
-    "prc_over",
-    "length_sup",
-    "width_sup",
-    "height_sup",
-    "volume_sup",
-    "length",
-    "width",
-    "height",
-    "volume",
-    "penalty_amount",
-    "reversal_amount",
-    "photo_url",
-    "is_valid",
-    "is_valid_dt",
-    "workspace_id",
-]
-
-MEASUREMENT_UPDATE = [
-    "subject_name",
-    "length_cm",
-    "width_cm",
-    "height_cm",
-    "volume_l",
-    "measured_at",
-    "photo_url",
-    "workspace_id",
-]
-
 __all__ = [
-    "BASELINE_UPDATE",
-    "BILLED_UPDATE",
-    "MEASUREMENT_UPDATE",
-    "PENALTY_UPDATE",
     "REPORT_UPDATE",
     "TXN_UPDATE",
 ]

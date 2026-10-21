@@ -1,9 +1,8 @@
-"""Where one workspace's harvest becomes durable: the watermark, then the rows.
+"""Where one workspace's harvest becomes durable: the settlement watermark.
 
-Two writes, each in its own transaction and each with a reason for being
-separate. The watermark records how far the settlement walk got and is written
-the moment the walk ends, because the walk has already committed its pages; the
-row commit is the all-or-nothing one the read phase feeds.
+The watermark records how far the settlement walk got and is written the moment
+the walk ends, in a transaction of its own, because the walk has already
+committed its pages.
 
 The settlement pages themselves are committed by
 :mod:`src.modules.finreports.tasks.settlement`, a week at a time — a settlement
@@ -21,7 +20,6 @@ from src.modules.finreports.repos import (
     FinancialReportRepository,
     SettlementWatermarkRepository,
 )
-from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.spans import settlement_frontier
 
 
@@ -62,34 +60,4 @@ async def advance_watermark(*, workspace_id: uuid.UUID, completed_through: date)
         await session.commit()
 
 
-async def persist_sources(
-) -> dict[str, int]:
-    """Write every non-settlement source in one transaction.
-
-    All of it or none of it: the four ingests share a session and a single
-    commit, so a failure part-way through leaves no half-harvested day behind.
-
-    Args:
-        sources: What the read phase produced.
-        workspace_id: The tenant being written for.
-        on_date: Snapshot day for the baseline (Moscow time).
-
-    Returns:
-        ``penalties``, ``measurements``.
-    """
-    async with AsyncSessionLocal() as session:
-        ingestion = build_ingestion(session)
-        counts = {
-            "baselines": await ingestion.ingest_baselines(
-                sources.cards, workspace_id=workspace_id, snapshot_date=on_date
-            ),
-                sources.penalties, workspace_id=workspace_id
-            ),
-                sources.measurements, workspace_id=workspace_id
-            ),
-        }
-        await session.commit()
-    return counts
-
-
-__all__ = ["advance_watermark", "persist_sources"]
+__all__ = ["advance_watermark"]

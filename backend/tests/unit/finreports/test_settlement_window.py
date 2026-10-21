@@ -3,7 +3,8 @@
 WB dates every settlement row by the **Moscow** calendar day. The service runs
 on a UTC host, so a window whose open end is filled from the server's own
 ``date.today()`` is one day short for the three hours between 00:00 and 03:00
-caller asks for without explicit dates.
+MSK — quietly dropping the most recent settlement day from every total a caller
+asks for without explicit dates.
 
 These tests pin the window against the Moscow clock, and against the operating
 clock too: those two disagree for a *different* three hours (21:00-24:00 MSK),
@@ -64,8 +65,10 @@ def test_the_window_covers_four_whole_weeks() -> None:
 
 
 def test_the_resolver_uses_the_same_timezone_object_as_the_harvest() -> None:
+    """The window and the harvest must agree on which day "today" is.
 
-    against any other zone could ask for a day no tariff was snapshotted for.
+    The harvest counts its days with ``moscow_today()``; a window resolved
+    against any other zone could ask for a day the harvest has not reached.
     """
     assert str(MOSCOW_TZ) == "Europe/Moscow"
     assert resolve_window(None, None)[1] == moscow_today()

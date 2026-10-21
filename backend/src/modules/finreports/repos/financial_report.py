@@ -335,7 +335,8 @@ class FinancialReportRepository(BaseRepository):
     async def list_periods(self, *, workspace_id: uuid.UUID) -> list[tuple[int, date, date]]:
         """Return each harvested report's ``(report_id, date_from, date_to)``.
 
-        can be scoped to, and the list the SPA's period picker is built from.
+        Ordered newest-first — the natural list of "weeks", and the list the
+        SPA's period picker is built from.
 
         **A half-known period is served, not dropped.** WB leaves the stated
         period blank on the occasional row, and the header takes

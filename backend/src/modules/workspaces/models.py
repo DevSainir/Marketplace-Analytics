@@ -214,8 +214,9 @@ class Workspace(Base):
     )
     # Unique ACROSS tenants, not per tenant. Two companies may legitimately want
     # the same workspace name, and this will have to become a per-organisation
-    # constraint the first time they do — but a workspace name is also what the
-    # refusing rather than a limitation worth removing.
+    # constraint the first time they do — but a workspace name is also how a
+    # seller is told apart in logs and exports, so today a collision is a signal
+    # worth refusing rather than a limitation worth removing.
     name: Mapped[str] = mapped_column(String(256), unique=True, nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     search_clusters_enabled: Mapped[bool] = mapped_column(

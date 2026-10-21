@@ -65,7 +65,8 @@ export function setUnauthorizedHandler(handler) {
 // build at a remote backend.
 const baseURL = import.meta.env.VITE_API_URL || '/api'
 
-// summary fans out over a settlement window and legitimately takes seconds.
+// Default budget for DATA requests. Generous on purpose: the finreports P&L
+// aggregates a whole settlement window and legitimately takes seconds.
 const DATA_TIMEOUT_MS = 15_000
 
 /**

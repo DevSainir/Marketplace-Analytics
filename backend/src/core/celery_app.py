@@ -96,7 +96,7 @@ celery_app.conf.update(
 #   00:00 01:00 02:00  finance tick (yesterday's daily report)   ≤ 6 min
 #   02:20              reference capture                          ≤ 1 min
 #   03:00              database backup (host cron, not beat)      ≤ 40 min
-#   04:00              finance reconciliation + summary warm-up   ≤ 23 min
+#   04:00              finance reconciliation                     ≤ 8 min
 #   04:30              refresh-token purge                        instant
 #   05:05              monitoring harvest                         ≤ 10 min
 #   05:20              buyout cohorts (after the harvest's rows)  ≤ 35 min → 05:55
@@ -174,11 +174,7 @@ celery_app.conf.beat_schedule = {
         "task": "auth.purge_expired_refresh_tokens",
         "schedule": crontab(hour=4, minute=30),
     },
-    # history, so the series is ours to accumulate). 05:00 MSK, clear of the
-    # 04:00 finance tick and before the monitoring harvest.
-    "daily-finreports-snapshot-tariffs": {
-        "schedule": crontab(hour=5, minute=0),
-    },
+    # finreports: harvest the finance (settlement) report.
     #
     # Scheduled on the hours a report can ARRIVE, and gated: each tick first
     # asks our own tables whether a seller is still owed anything today
@@ -195,7 +191,7 @@ celery_app.conf.beat_schedule = {
     #
     # `harvest_all_workspaces` holds a Redis lock, so two entries firing in the
     # same minute run once. 03:00 belongs to the backup, 04:00 to the
-    # reconciliation, and
+    # reconciliation, and 05:05-05:55 to the monitoring harvest and the cohort
     # refresh, which compete for the same rate-limited surfaces. The by-day tick
     # is daytime work on purpose: it exists for reports WB serves during the day.
     "finreports-harvest-at-night": {
@@ -233,12 +229,13 @@ celery_app.conf.beat_schedule = {
     # was simply short a day.
     #
     # 04:00 MSK, and the night tick gives up that hour above. Not 03:00: that
-    # is the backup's (see the table at the top). Not 05:00-05:55:
-    # refresh, and this pass competes for the same rate-limited surfaces. Since
-    # 2026-09-26 it covers every seller, not one in rotation: per seller it is
-    # one list over the whole history (WB's totals for the archive) plus the
-    # fortnight's re-walk and any archive report short of WB's total, a minute
-    # apart, three sellers at a time.
+    # is the backup's (see the table at the top). Not 05:05-05:55: those belong
+    # to the monitoring harvest and the cohort refresh, and this pass competes
+    # for the same rate-limited surfaces. Since 2026-09-26 it covers every
+    # seller, not one in rotation: per seller it is one list over the whole
+    # history (WB's totals for the archive) plus the fortnight's re-walk and any
+    # archive report short of WB's total, a minute apart, three sellers at a
+    # time.
     "daily-finreports-reconcile": {
         "task": "finreports.harvest_finance",
         "schedule": crontab(hour=4, minute=0),
@@ -257,8 +254,8 @@ celery_app.conf.beat_schedule = {
     # fetching — one list request per workspace screens every queued report, and
     # only a report whose totals moved costs a re-read.
     #
-    # 12:40 MSK: outside the 05:00-05:55 block that belongs to the tariff
-    # snapshot and the monitoring harvest, and clear of the 04:00 reconciliation.
+    # 12:40 MSK: outside the 05:05-05:55 block that belongs to the monitoring
+    # harvest, and clear of the 04:00 reconciliation.
     "daily-finreports-verify-daily-tail": {
         "task": "finreports.verify_daily_tail",
         "schedule": crontab(hour=12, minute=40),
@@ -282,7 +279,7 @@ celery_app.conf.beat_schedule = {
     # rating change can be explained after the fact (monitoring/models/reviews.py).
     # Earns nothing on the day, so it takes an hour nothing else wants: 19:40 MSK
     # is after the last daytime finance tick (18:00, 18:45 on a weekly-report
-    # day), well clear of the 05:00-05:55 block and the 23:30 price top-up, and
+    # day), well clear of the 05:05-05:55 block and the 23:30 price top-up, and
     # the 21:00 header carry is a single UPDATE. Minute 40 keeps it off any
     # minute-0 tick. A large workspace's walk is ~150 paced pages, a few minutes;
     # the storefront reads are one card group every three seconds across the fleet.
@@ -300,8 +297,8 @@ celery_app.conf.beat_schedule = {
     #
     # The window 00:00-03:00 is the quietest one this schedule has: the hourly
     # finance tick fires at minute 0 and finds nothing new on most of those
-    # hours, and the nightly passes (backup 03:00, reconcile 04:00, tariffs
-    # 05:00, harvest 05:05, cohorts 05:20) are all later. Each entry sits away from minute 0
+    # hours, and the nightly passes (backup 03:00, reconcile 04:00, harvest
+    # 05:05, cohorts 05:20) are all later. Each entry sits away from minute 0
     # for the same reason. The service layer also holds ONE lock across both, so
     # an overrun makes the next cadence a no-op rather than a second concurrent
     # walk.

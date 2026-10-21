@@ -82,8 +82,8 @@ class MissingReport(NamedTuple):
             That used to be expressed by passing a different ingest function;
             it is now a property of the work item, so a caller cannot get the
             rows right and the header wrong.
-        date_from: First settlement day the report covers, when known. The
-            the reports' whole span, and ``date_to`` alone is one day of it.
+        date_from: First settlement day the report covers, when known;
+            ``date_to`` alone is one day of the report's span.
     """
 
     report_id: int

@@ -2,6 +2,7 @@
 
 Neutral values imported by both the data-access and service layers (so neither
 depends on the other). The Cyrillic strings are the exact WB-served labels the
+P&L keys off — verified live 2026-07-22 against
 ``reportDetailByPeriod``, and served unchanged by finance-api since the
 2026-09-22 cutover (the phase-2 diff in
 ``docs/finreports/MIGRATION_TO_FINANCE_V1.md``).
@@ -10,7 +11,6 @@ depends on the other). The Cyrillic strings are the exact WB-served labels the
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
 
 # --------------------------------------------------------------------------- #
 # Harvest concurrency
@@ -156,14 +156,6 @@ LOGISTICS_OPER: str = "Логистика"
 
 #: WB ``supplier_oper_name`` for a penalty row.
 PENALTY_OPER: str = "Штраф"
-
-#: itemised, court-grade dimensions charge (understatement of package dimensions).
-
-
-#: FX-invariant), and WB currently sets these uniformly across warehouses
-#: (verified live 2026-07-22: base 46, litre 14).
-DEFAULT_BOX_DELIVERY_BASE: Decimal = Decimal("46")
-DEFAULT_BOX_DELIVERY_LITER: Decimal = Decimal("14")
 
 
 # --------------------------------------------------------------------------- #

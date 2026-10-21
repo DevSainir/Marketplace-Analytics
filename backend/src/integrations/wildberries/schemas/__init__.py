@@ -59,7 +59,6 @@ from src.integrations.wildberries.schemas.finance import (
 from src.integrations.wildberries.schemas.marketplace import WBFbsStockRow, WBFbsWarehouse
 from src.integrations.wildberries.schemas.prices import WBPriceGood, WBPriceSize
 from src.integrations.wildberries.schemas.statistics import WBOrderPrice, WBSaleRecord
-)
 
 __all__ = [
     "WBAdvApp",

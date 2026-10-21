@@ -42,9 +42,10 @@ class GuideRecord(Base):
             WB serves account-wide, because "whose data is this" must be
             answerable from the row rather than from the task that wrote it.
         record_key: The feed's own natural identity for the row (``srid`` for an
-            order, the claim id for a claim, ``<date>|<warehouse>`` for a tariff
-            day). Stable across re-reads, so a repeated window overwrites rather
-            than duplicating — WB restates recent rows and we want the freshest.
+            order, the claim id for a buyer's return claim,
+            ``<date>|<warehouse>`` for a tariff day). Stable across re-reads, so
+            a repeated window overwrites rather than duplicating — WB restates
+            recent rows and we want the freshest.
         recorded_for: The Moscow-time day the row is ABOUT, when the feed says.
             Null where it says nothing (a document, a review). This is the only
             promoted column: every "what did we capture for that period" query

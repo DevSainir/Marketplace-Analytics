@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PnlSection(BaseModel):
@@ -139,3 +139,25 @@ class PnlResponse(BaseModel):
 
 
 PnlSection.model_rebuild()
+
+
+class WeekPeriod(BaseModel):
+    """One WB weekly realization-report period (a selectable "week")."""
+
+    report_id: int
+    date_from: date
+    date_to: date
+
+
+class WeeksResponse(BaseModel):
+    """The list of harvested weekly report periods, newest first."""
+
+    weeks: list[WeekPeriod]
+    provisional_through: date | None = Field(
+        default=None,
+        description=(
+            "Last day the provisional daily reports cover, when it reaches past "
+            "the newest weekly period; null otherwise. The statement shows those "
+            "days, so the period picker must reach them too."
+        ),
+    )

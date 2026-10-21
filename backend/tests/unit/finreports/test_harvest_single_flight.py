@@ -1,9 +1,10 @@
 """The finance harvest refuses to run alongside itself.
 
 The schedule ticks hourly; a tick that finds a new report walks for minutes of
-a lock — otherwise the 10:00 tick would join the 09:00 tick already in flight
-and the two would spend each other's budget on a ~1 req/min surface, which is
-how the storage claim ended up covering 70 of 910 days once before.
+paced requests. Those two facts only coexist because the walk holds a lock —
+otherwise the 10:00 tick would join the 09:00 tick already in flight and the
+two would spend each other's budget on a ~1 req/min surface, and both walks
+would come back short.
 
 The turned-away tick must be *cheap and silent*: no WB call, no DB session, and
 a result whose shape is the same as a real run's so nothing downstream has to

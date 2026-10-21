@@ -2,8 +2,9 @@
 
 ``BaseWBClient`` defaults ``rate_gate`` to :class:`NullRateGate`, which makes an
 unpaced client indistinguishable from a paced one at the call site: it simply
-never waits. Six of them were exempt that way until 2026-09-15 — content,
-and three of those run on every single harvest.
+never waits. Several of them were exempt that way until 2026-09-15 — content,
+prices and ``supplier/sales`` among them — and those three run on every single
+harvest.
 
 That is the shape of the failure this file exists to stop: not one greedy
 endpoint, but a drift of small ones. WB meters per endpoint, so each is
@@ -43,7 +44,7 @@ _NOT_SELLER_API: dict[str, str] = {
 #: on which host the caller points them at — and the test that checks those
 #: callers instead. Until 2026-09-29 such a client was simply skipped below, and
 #: the skip hid a real gap: the guide's tariff captures on the `common` host,
-#: which the daily tariff harvest also uses, ran with no gate at all.
+#: which a harvest also used at the time, ran with no gate at all.
 _GATE_FROM_CALLER: dict[str, str] = {
     "WBReferenceClient": "tests/unit/guide/test_capture_pacing.py",
 }

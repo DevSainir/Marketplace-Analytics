@@ -49,8 +49,8 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #: surface default is sized from.
 #:
 #: **The surface default was the only number here until 2026-09-21, and it was
-#: wrong for four of the five endpoints we call.** Measured that day by
-#: bursting each one on «Демо» and reading WB's own headers:
+#: not right for every endpoint we call.** Measured that day by bursting each
+#: one on «Демо» and reading WB's own headers:
 #:
 #: ===================================== ======= ======= =======
 #: endpoint                              burst   reset   retry
@@ -60,18 +60,14 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #: ===================================== ======= ======= =======
 #:
 #: Only the first matches the default of three tokens refilling every twenty
-#: times** WB's rate, and on this surface an overrun does not come back as a
-#: clean 429 — it comes back as HTTP 500 or a socket held open until the
-#: client's own timeout, which reads like a WB outage rather than like our
-#: mistake.
+#: seconds. On this surface an overrun does not always come back as a clean
+#: 429 — it can come back as HTTP 500 or a socket held open until the client's
+#: own timeout, which reads like a WB outage rather than like our mistake.
 #:
-#: are deliberately absent and keep the default: unmeasured means paced
+#: Endpoints not listed keep the default: unmeasured means paced
 #: conservatively, which is the safe direction.
 ANALYTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     "/api/analytics/v1/stocks-report/wb-warehouses": (1, 20.0),
-    # Burst five, then one a minute — WB's `reset: 300` over a burst of 5.
-    # The harvest asks for one report per workspace per run, so the burst is
-    # never spent; what matters is that a retry cannot fire inside the minute.
 }
 
 
@@ -345,15 +341,16 @@ def advertising_rate_gate(settings: Settings, *, token: str) -> RateGate:
 def catalogue_rate_gate(settings: Settings, *, token: str, surface: str) -> RateGate:
     """Build the pacing gate for one of the «catalogue» surfaces.
 
-    Content, prices and common (tariffs) are one family here because WB meters
-    them identically: all three answered ``x-ratelimit-limit: 5`` on 2026-09-15,
-    and a burst against common-api showed a five-deep bucket refilling one token
-    per second. They stay SEPARATE keys — ``surface`` is part of the Redis key —
-    because they are separate budgets at WB; only the size is shared.
+    Content, prices and common (the guide's tariff captures) are one family here
+    because WB meters them identically: all three answered
+    ``x-ratelimit-limit: 5`` on 2026-09-15, and a burst against common-api showed
+    a five-deep bucket refilling one token per second. They stay SEPARATE keys —
+    ``surface`` is part of the Redis key — because they are separate budgets at
+    WB; only the size is shared.
 
     None of the three was paced at all before that date. ``BaseWBClient``
     defaults its gate to :class:`NullRateGate`, so a client that never passed one
-    was exempt without anything saying so, and the three of them run on every
+    was exempt without anything saying so, and content and prices run on every
     harvest.
 
     Args:

@@ -193,18 +193,23 @@ groups:
       # `finreports.finance` does not work that way, and reading it as though
       # it did is what produced eight pages and seven repeats between the 13th
       # and 14th of September 2026 with nothing wrong. It ran 21 times a day
-      # then (`crontab(hour="0-2,4,8-23")` plus the 03:00 reconcile); since
-      # 2026-09-23 it is every 15 minutes 07:00-18:45 MSK, hourly outside that
-      # and the 03:00 reconcile (`src/core/celery_app.py`) — against sources
-      # WB publishes on ITS schedule — the settlement report weekly, paid
-      # storage daily, penalties and measurements rarely. Measured over the 24h to
-      # that is correct. So nineteen of those twenty-one runs legitimately
+      # then (`crontab(hour="0-2,4,8-23")` plus the 03:00 reconcile); today it
+      # is gated ticks through the day and the 04:00 reconciliation
+      # (`src/core/celery_app.py`) — against a source WB publishes on ITS
+      # schedule, the settlement report, weekly. On 2026-09-14 the settlement
+      # wrote 0 rows in 24h, and that was correct. So most runs legitimately
       # write nothing, and any six-hour window between publications is red.
       #
       # 26 hours is the same number, and the same reasoning, as
       # `SettlementHistoryHasGaps` below: one full daily cycle plus slack, so
       # the rule cannot fire on a source that is merely waiting for tonight.
-      # have landed.
+      # What keeps the series moving on a day WB publishes nothing is the 04:00
+      # reconciliation: for every seller it re-walks the reports held inside
+      # `RECONCILE_LOOKBACK_DAYS` and re-writes their rows, so one pass a day
+      # writes rows whenever any seller has a report from the last fortnight.
+      # The duration half keeps a fleet with nothing to walk quiet rather than
+      # red — `harvest_duration_seconds_count` moves only when a seller had a
+      # report to walk. Walking for 26 hours with no rows at all is a real fault.
       - alert: HarvestProducingNoRows
         expr: |
           (

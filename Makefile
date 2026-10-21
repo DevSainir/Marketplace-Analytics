@@ -109,7 +109,7 @@ test-perf: ## Resource-exhaustion and race probes (pytest)
 test-perf-frontend: ## "App loads forever" probes (Playwright)
 	$(TESTS_NPM) run test:perf:frontend
 
-test-perf-load: ## k6 load/spike/soak/DDoS profiles (needs the k6 binary)
+test-perf-load: ## k6 load/spike/DDoS profiles (needs the k6 binary)
 	k6 run tests/performance/monitoring/summary-load.js
 	k6 run tests/performance/monitoring/matrix-spike.js
 	k6 run tests/performance/users/auth-flood.js

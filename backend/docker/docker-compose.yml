@@ -198,7 +198,8 @@ services:
     image: marketplace-service-api:latest
     restart: unless-stopped
     logging: *logging
-    # whole document in memory before it is written to the cache volume.
+    # Roomier than the 110 MB it idles at: an XLSX export builds the whole
+    # workbook in memory before it is sent.
     mem_limit: 512m
     cpus: 1.5
     # How long Docker waits between SIGTERM and SIGKILL. The default is 10s,
@@ -212,7 +213,7 @@ services:
     # frontend/docker/snippets/api-proxy.conf), so the moment uvicorn closes
     # its listener every new request is refused instantly and fails over to the
     # twin. The drain covers only requests already accepted. A request that
-    # legitimately runs longer than 20s is still cut, and none do: the slowest
+    # legitimately runs longer than 20s is still cut.
     stop_grace_period: 30s
     env_file:
       - .env
@@ -268,14 +269,6 @@ services:
         "--timeout-graceful-shutdown",
         "20",
       ]
-    volumes:
-      # from. A named volume rather than the container filesystem so a deploy
-      # does not throw the cache away — rebuilding one is ~5 s of CPU that also
-      # costs every other request some event-loop time. Entries are pruned to
-      # FINREPORTS_PACKAGE_CACHE_ENTRIES, so this cannot grow without bound.
-      # on purpose: it is an archive of legal documents, so it has to be
-      # visible, backup-able and replaceable without going through Docker, and
-      # WB can purge its CDN copies at any time. Read-only: nothing in the app
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -428,6 +421,7 @@ services:
     # window: +191 / +229 / +226 MB for 20k / 40k / 80k rows — flat, which is
     # the property that makes this ceiling a fact rather than a forecast.
     # 768m clears the ~355 MB steady state plus that peak with room for the
+    # content cards held alongside it.
     mem_limit: 768m
     cpus: 1.5
     # Celery treats SIGTERM as a WARM shutdown: it stops fetching new messages

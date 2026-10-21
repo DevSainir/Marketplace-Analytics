@@ -451,6 +451,7 @@ def test_every_measured_endpoint_is_paced_at_the_rate_wb_published(
 
     Every one of these was wrong in the same way before 2026-09-21: the
     surface's single default stood in for endpoints WB meters separately, and
+    against one of them it permitted nine times WB's rate. The
     reason it went unnoticed for so long is that an analytics overrun does not
     answer 429 — it answers HTTP 500, or holds the socket open until our own
     timeout, which reads like a WB outage rather than like our mistake.

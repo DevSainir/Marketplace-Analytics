@@ -249,8 +249,9 @@ OwnerAccess = Annotated[OrganizationAccess, Depends(require_owner)]
 async def require_internal(access: CurrentAccess) -> OrganizationAccess:
     """Require a caller who is one of us.
 
-    seller, against our own data and our own legal case. Reachable by devs
-    and by members of the primary organisation, by nobody else.
+    For surfaces built for one seller against our own data, such as the labs.
+    Reachable by devs and by members of the primary organisation, by nobody
+    else.
 
     Not built on :data:`MemberAccess`: a dev without an organisation still gets
     through, because these routes are ours rather than a tenant's.

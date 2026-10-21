@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from src.modules.finreports.constants import LOGISTICS_OPER, SALE_OPERS
+from src.modules.finreports.constants import SALE_OPERS
 
 pytestmark = pytest.mark.unit
 
@@ -29,8 +29,3 @@ def test_the_sale_index_covers_every_operation_the_report_counts() -> None:
     indexed = {value.strip().strip("'") for value in predicate.group(1).split(",")}
 
     assert indexed == set(SALE_OPERS)
-
-
-    assert predicate is not None
-
-    assert predicate.group(1) == LOGISTICS_OPER

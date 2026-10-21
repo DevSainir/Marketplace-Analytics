@@ -82,10 +82,6 @@
   @apply text-status-warning;
 }
 
-.record-value--muted {
-  @apply font-normal text-muted;
-}
-
 .record-chevron {
   @apply h-4 w-4 flex-none text-muted transition;
 }

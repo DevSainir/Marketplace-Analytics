@@ -3,7 +3,8 @@
 ``WBReferenceClient`` takes its gate from the caller, so the client-wide pacing
 test cannot build it and used to skip it. That skip hid exactly the drift the
 pacing test exists for: the pallet and return tariffs are captured on the
-ran with no gate at all.
+`common` host, a harvest used that host too at the time, and the captures ran
+with no gate at all.
 
 The shared hosts are derived from the clients package rather than listed, so a
 harvest moving onto a new host is covered without anyone remembering this file.

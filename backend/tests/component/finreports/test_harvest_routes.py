@@ -4,8 +4,8 @@ The button exists because the hourly schedule cannot cover every hour: a report
 WB publishes at 02:00 waits for the 08:00 tick, and a worker that was down for
 its tick waits for the next one. What must never happen is that pressing it
 starts a second harvest on top of a running one — the walk paces itself against
-a ~1 req/min WB surface, and two of them racing is how the storage claim once
-came out covering 70 of 910 days.
+a ~1 req/min WB surface, and two of them racing spend each other's budget
+until both come back short.
 
 So the guard is proved from the transport side here: a click while a harvest is
 in flight enqueues nothing at all. That the *task* also refuses to overlap (the

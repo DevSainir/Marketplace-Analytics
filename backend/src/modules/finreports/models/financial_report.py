@@ -2,8 +2,8 @@
 
 One row per WB ``realizationreport_id``. Groups the settlement rows
 (:class:`~src.modules.finreports.models.logistics_transaction.LogisticsTransaction`)
-and anchors them to the official «Еженедельный отчёт реализации» document
-archived from the Documents API (``archived_document_id`` — the court-grade original).
+and can point at the official «Еженедельный отчёт реализации» document from the
+Documents API (``archived_document_id``, unused for now).
 """
 
 from __future__ import annotations

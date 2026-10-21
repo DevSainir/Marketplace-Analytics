@@ -191,9 +191,10 @@ def _minutes(duration: str) -> int:
 def test_the_finance_harvest_is_judged_over_more_than_a_day() -> None:
     """Six hours of silence is a fault for the nightly sweep and a Tuesday here.
 
-    `finreports.finance` runs 21 times a day against sources WB publishes on
-    runs write nothing and are right to. Any window shorter than a full daily
-    cycle turns that into a page.
+    `finreports.finance` runs many times a day against a source WB publishes on
+    its own schedule — the settlement report, weekly. Most of those runs write
+    nothing and are right to. Any window shorter than a full daily cycle turns
+    that into a page.
     """
     expr = _BY_NAME["HarvestProducingNoRows"]["expr"]
 

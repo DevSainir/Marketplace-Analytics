@@ -106,6 +106,7 @@ def test_a_bare_asyncio_run_poisons_the_pool_for_the_next_task(
     """The negative control: reproduce the 2026-07-27 harvest failure exactly.
 
     Two tasks, each with its own ``asyncio.run``, sharing one pooled engine and
+    no disposal between them — which is what a nightly finreports task
     (05:00 MSK) and ``monitoring.harvest_all`` (06:00 MSK) were. The second dies
     on its first query, having harvested nothing.
 

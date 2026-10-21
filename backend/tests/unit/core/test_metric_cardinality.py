@@ -8,9 +8,10 @@ growth in a process running on a small host beside the customer database.
 There are two ways this codebase can produce one, and they are different
 problems:
 
-task id is a fresh UUID for every report we ask for. Left raw, one nightly
-harvest would add a permanent series per workspace per night — memory that
-grows with our HISTORY rather than with our size.
+**Ids that grow with our history.** Two WB paths interpolate an identifier, and
+a settlement report id is a fresh number for every report we ask for. Left raw,
+every harvest would add a permanent series per report — memory that grows with
+our HISTORY rather than with our size.
 
 **Ids a stranger chooses.** A request to a path with no matching route would
 otherwise be labelled with the raw path. That makes `/metrics` grow by one
@@ -30,7 +31,9 @@ from prometheus_client.metrics import MetricWrapperBase
 
 from src.core.observability import metrics
 from src.integrations.wildberries.clients.analytics import WBAnalyticsClient
+from src.integrations.wildberries.clients.feedbacks import WBStorefrontFeedbacksClient
 from src.integrations.wildberries.clients.finance_reports import WBFinanceReportsClient
+from src.integrations.wildberries.clients.reference import WBReferenceClient
 from src.integrations.wildberries.endpoints import endpoint_label
 
 
@@ -51,10 +54,10 @@ def _defined_metrics() -> dict[str, MetricWrapperBase]:
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
-        # The one that would grow forever: a fresh UUID per report request.
+        # The one that would grow forever: a fresh id per settlement report.
         (
-        ),
-        (
+            "/api/finance/v1/sales-reports/detailed/123456789",
+            "/api/finance/v1/sales-reports/detailed/{id}",
         ),
         # Grows with the customer list rather than without bound, which is
         # slower and just as wrong.
@@ -72,6 +75,7 @@ def test_an_identifier_in_a_wb_path_is_collapsed(path: str, expected: str) -> No
     [
         "/api/v2/nm-report/detail",
         "/api/v1/supplier/sales",
+        "/api/v1/tariffs/pallet",
         "/adv/v2/fullstats",
     ],
 )
@@ -92,9 +96,11 @@ def test_a_route_with_no_identifier_is_left_exactly_alone(path: str) -> None:
     [
         (WBAnalyticsClient, "analytics"),
         (WBFinanceReportsClient, "finance"),
-        # The two whose derived name would be unreadable, so they name
-        # themselves. Pinned because a dashboard and an alert rule are written
-        # against these strings.
+        # Two that name themselves rather than take the derived name. Pinned
+        # because a dashboard and an alert rule are written against these
+        # strings.
+        (WBStorefrontFeedbacksClient, "storefront_feedbacks"),
+        (WBReferenceClient, "reference"),
     ],
 )
 def test_each_wb_surface_reports_under_a_stable_name(client: type, expected: str) -> None:

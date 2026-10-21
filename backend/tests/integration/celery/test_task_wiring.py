@@ -26,11 +26,9 @@ EXPECTED_TASKS: list[str] = [
     "monitoring.carry_day_headers",
     "monitoring.top_up_customer_prices",
     "auth.purge_expired_refresh_tokens",
-    # Enqueued by the harvest, never scheduled — so beat's own check below
-    # cannot see it, and a rename would silently stop the cache being warmed
-    # while everything kept reporting success. It is listed here for exactly
-    # that reason: it is the one finreports task with no schedule behind it.
-    # Also unscheduled: the worker's start hook sends it by name.
+    # Unscheduled — so beat's own check below cannot see it, and a rename would
+    # silently stop the rollup being warmed while everything kept reporting
+    # success: the worker's start hook sends it by name.
     "finreports.warm_settlement_rollups",
     # The history backfill. Its lanes are chains of self-enqueueing ticks, and
     # the watchdog restarts them BY NAME — so a rename that skipped either side
@@ -193,6 +191,7 @@ def test_the_days_a_weekly_report_is_formed_are_asked_every_quarter_hour() -> No
 
 
 def test_the_finance_harvest_leaves_the_monitoring_hours_alone() -> None:
+    """The monitoring harvest's hour and the reconciliation's belong to them.
 
     The finance tick competes with them for the same rate-limited analytics
     surfaces whenever it has a report to walk, so it is the one that yields.
@@ -202,7 +201,6 @@ def test_the_finance_harvest_leaves_the_monitoring_hours_alone() -> None:
     for entry in _finance_ticks().values():
         hours |= set(entry["schedule"].hour)
     reserved = {
-        min(schedule["daily-finreports-snapshot-tariffs"]["schedule"].hour),
         min(schedule["nightly-harvest-all"]["schedule"].hour),
         min(schedule["daily-finreports-reconcile"]["schedule"].hour),
     }

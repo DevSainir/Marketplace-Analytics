@@ -18,10 +18,10 @@ migrations, or a seed dump loaded by ``load_seed.sh``:
    those out of every query — so the catalogue is present in the database and
    invisible to the entire application. The SKU-search journey then finds
    nothing, for a reason no error message would explain.
-   weeks to offer, renders «0 недель» ("0 weeks") with the export button
-   disabled, and its journey fails on a page that is working exactly as
-   designed. The facts are spread over six tables that only mean something
-   together — see
+4. **One week of finreports facts.** The seed dump covers the ``monitoring``
+   schema only, so on a fresh database the P&L has no weeks to offer and its
+   journey fails on a page that is working exactly as designed. The facts are
+   spread over two tables that only mean something together — see
    :func:`_ensure_finreports_week`.
 
 Unlike ``seed_workspace.py`` / ``seed_harvest.py`` this script is **fully
@@ -93,6 +93,7 @@ class SeedReport:
         workspaces: Names of the workspaces present after the run, oldest first.
         cards_claimed: Product cards adopted out of ``workspace_id IS NULL``.
         cards_visible: Cards the primary workspace can see after the run.
+        finreports_week_created: ``True`` when the finreports week was added.
     """
 
     email: str

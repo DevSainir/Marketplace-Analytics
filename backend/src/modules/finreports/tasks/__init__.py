@@ -1,11 +1,10 @@
 """Celery tasks for the ``finreports`` module.
 
-  historical settlement rows price against the tariff that was live then.
-  internal workspace, and deliberately NOT part of it. See the task.
 * ``finreports.warm_settlement_rollups`` — enqueued when a worker starts, so
   a migration that cleared the rollup is rebuilt off the request path.
 * ``finreports.harvest_finance`` — on the hours a report can arrive; pull
-  published an unharvested report for. Scheduled ticks first skip every seller
+  settlement rows for every workspace WB has published an unharvested report
+  for. Scheduled ticks first skip every seller
   our own tables show is owed nothing today (:mod:`.harvest.due`); for the rest
   the gate is :mod:`.freshness`. A tick
   also repairs one workspace the gap survey can see a hole in, so a missing week
@@ -40,7 +39,6 @@ import uuid
 
 from src.core.celery_app import celery_app
 from src.core.tasks import run_task
-from src.core.timeutils import moscow_today
 from src.modules.finreports.tasks.common import _TASK_RETRY_KWARGS
 from src.modules.finreports.tasks.daily_tail import (
     harvest_daily_tail as _harvest_daily_tail,
@@ -56,8 +54,6 @@ from src.modules.finreports.tasks.settlement_upload import (
     process_settlement_upload as _process_settlement_upload,
 )
 from src.modules.finreports.tasks.warmup import warm_every_settlement_rollup
-
-
 
 
 @celery_app.task(name="finreports.harvest_finance", **_TASK_RETRY_KWARGS)  # type: ignore[untyped-decorator]
@@ -149,39 +145,14 @@ def process_settlement_upload(upload_id: str) -> str:
     return run_task(_process_settlement_upload(uuid.UUID(upload_id)))
 
 
-
-    A task of its own since 2026-09-19, and the separation is the point rather
-    than tidiness. It used to be awaited inside `harvest_workspace`, which made
-    "best-effort" a claim the code could not keep: the computation re-prices the
-    115 366 rows in one allocation — ~269 MB, measured on prod — against a
-    768 MiB cgroup whose floor had ratcheted past 550 MB. The kernel killed the
-    child mid-run, and a SIGKILL cannot be caught, swallowed or logged by the
-    caller that meant the work to be optional. It took the harvest's own outcome
-    recording with it and every workspace still queued behind that one. Twenty-
-    one hourly harvests died that way inside twenty-four hours and the P&L went
-    six days stale.
-
-    Nothing waits on this, so nothing needs it to be inline. As its own task it
-    dies alone, and `celery_worker_lost_total` names the warm-up instead of
-    blaming the harvest that had already finished.
-
-    **No retry.** The summary is a cache of an answer the read path can always
-    recompute, and the next hourly harvest enqueues this again — a retry would
-    only spend the same memory sooner.
-
-    Args:
-        workspace_id: Workspace UUID as a string; Celery serializes JSON only.
-        name: The workspace's display name, for the log line.
-    """
-
-
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="finreports.warm_settlement_rollups", soft_time_limit=900, time_limit=960
 )
 def warm_settlement_rollups() -> int:
     """Warm every seller's settlement rollup; enqueued when a worker starts.
 
-    so a failed warm-up costs one slow first view, never a wrong figure.
+    **No retry**: the rollup repairs itself on read, so a failed warm-up costs
+    one slow first view, never a wrong figure.
 
     Returns:
         How many sellers were warmed.

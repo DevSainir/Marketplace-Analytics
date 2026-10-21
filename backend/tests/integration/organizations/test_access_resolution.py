@@ -76,6 +76,7 @@ async def test_a_dev_outranks_their_membership_role(db_session: AsyncSession) ->
 async def test_a_member_of_the_primary_organisation_sees_internal_features(
     db_session: AsyncSession,
 ) -> None:
+    """Our own team reaches the internal-only surfaces through their organisation."""
     worker = await persist_user(db_session, "worker@example.com")
     org = await OrganizationRepository(db_session).create(name="Наша", is_primary=True)
     await MembershipRepository(db_session).create(

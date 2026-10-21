@@ -13,6 +13,7 @@ from datetime import date
 
 import pytest
 
+from src.modules.finreports.services import PeriodService
 
 pytestmark = pytest.mark.unit
 
@@ -39,12 +40,10 @@ class _FakeDaily:
         return self._through
 
 
-    unused = object()
-        transaction_repo=unused,  # type: ignore[arg-type]
-        billed_repo=unused,  # type: ignore[arg-type]
+def _service(daily_through: date | None) -> PeriodService:
+    """A PeriodService over the weekly periods and a daily tail to ``daily_through``."""
+    return PeriodService(
         report_repo=_FakeReports(),  # type: ignore[arg-type]
-        penalty_repo=unused,  # type: ignore[arg-type]
-        measurement_repo=unused,  # type: ignore[arg-type]
         daily_repo=_FakeDaily(daily_through),  # type: ignore[arg-type]
     )
 

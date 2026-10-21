@@ -1,13 +1,10 @@
 # ---------------------------------------------------------------------------
 # The k6 load profiles, on their own schedule and their own runner.
 #
-# WHY THIS IS NOT IN tests.yml. Two reasons, and neither is tidiness:
-#
-#   * `tests` gates the deploy. A red load profile means "the service got
-#     slower", which is worth waking up to and is NOT a reason to stop shipping
-#     — wiring it into the gate would eventually get the gate ignored.
-#   * The soak runs for an hour. Inside `tests` that hour would hang off every
-#     nightly run and off the conclusion `deploy` waits for.
+# WHY THIS IS NOT IN tests.yml. Not tidiness: `tests` gates the deploy. A red
+# load profile means "the service got slower", which is worth waking up to and
+# is NOT a reason to stop shipping — wiring it into the gate would eventually
+# get the gate ignored.
 #
 # WHY NOT ON THE VPS RUNNER. Everything else in this repository moved onto the
 # production box to stop burning hosted minutes. These profiles must not
@@ -17,37 +14,18 @@
 # shared thing available. A step below asserts the runner is a hosted one, so
 # a future `runs-on:` edit fails loudly instead of DDoSing the live API.
 #
-# THE BUDGET, since hosted minutes are what forced all of this. The short
-# profiles are about nine billed minutes a day; the soak adds roughly 65, once
-# a week. That is ~560 minutes a month against a 2000-minute allowance. The
-# knob that breaks it is `soak_minutes`: an hour is affordable weekly and is
-# not affordable nightly.
+# THE BUDGET, since hosted minutes are what forced all of this. The profiles
+# are about nine billed minutes a day — some 270 a month against a 2000-minute
+# allowance.
 # ---------------------------------------------------------------------------
 
 name: load
 
 on:
   schedule:
-    # Short profiles, every day but Sunday.
-    - cron: '0 2 * * 1-6'
-    # Sunday adds the hour-long soak. Kept as a separate cron rather than a
-    # day-of-week test in a script: `github.event.schedule` is the only thing
-    # that tells a scheduled run which trigger started it.
-    - cron: '0 2 * * 0'
+    # Every day.
+    - cron: '0 2 * * *'
   workflow_dispatch:
-    inputs:
-      soak:
-        description: 'Also run the hour-long soak'
-        type: boolean
-        default: false
-      soak_minutes:
-        description: 'Minutes of held load in the soak'
-        type: string
-        default: '60'
-      soak_rps:
-        description: 'Requests per second the soak holds'
-        type: string
-        default: '10'
 
 # Never two at once, and never cancelled half-way: a cancelled run leaves a
 # compose stack behind on the runner, and the teardown step is what removes it.
@@ -74,7 +52,7 @@ jobs:
   k6:
     name: load profiles
     runs-on: ubuntu-latest
-    timeout-minutes: 110
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -166,19 +144,6 @@ jobs:
       - name: Credential-stuffing flood
         working-directory: tests
         run: k6 run performance/users/auth-flood.js
-
-      # The weekly one. An hour of held load, watched once a minute for a trend
-      # rather than for a number — see the header of the profile itself.
-      - name: Soak (weekly)
-        if: github.event.schedule == '0 2 * * 0' || inputs.soak
-        working-directory: tests
-        env:
-          SOAK_MINUTES: ${{ inputs.soak_minutes || '60' }}
-          SOAK_RPS: ${{ inputs.soak_rps || '10' }}
-        run: >-
-          k6 run
-          -e SOAK_MINUTES="${SOAK_MINUTES}"
-          -e SOAK_RPS="${SOAK_RPS}"
 
       - name: Stack logs on failure
         if: failure()

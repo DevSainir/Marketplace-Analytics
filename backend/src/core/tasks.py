@@ -30,6 +30,7 @@ def run_task[T](coro: Coroutine[object, object, T]) -> T:
     task dies on its very first query with ``got Future attached to a different
     loop`` / ``Event loop is closed``, before doing any work.
 
+    That is not hypothetical, on either pool. A nightly finreports task
     (05:00 MSK) leaked an asyncpg connection this way and killed
     ``monitoring.harvest_all`` (06:00 MSK) at its first statement, so 2026-07-27
     harvested nothing at all. And the Redis pool did the quieter version of the

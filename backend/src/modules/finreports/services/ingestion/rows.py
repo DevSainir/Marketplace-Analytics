@@ -11,14 +11,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
 from typing import Any
 
 from src.integrations.wildberries.schemas import WBReportDetailRow
-
-#: Sort key that orders the rows of one penalty group reproducibly. WB publishes
-#: no row identity, so the ordinal has to come from the values themselves.
-_UNIT_ORDER = ("volume_sup", "penalty_amount", "reversal_amount")
 
 
 def as_date(value: date | datetime | None) -> date | None:
@@ -32,39 +27,14 @@ def dedupe(rows: list[dict[str, Any]], *, keys: list[str]) -> list[dict[str, Any
     """Collapse rows sharing the same conflict key, keeping the last.
 
     PostgreSQL's ``INSERT ... ON CONFLICT DO UPDATE`` rejects a batch that
-    carries two rows with the same conflict target, so any source that emits
-    storage unit) must be de-duplicated before the upsert.
+    carries two rows with the same conflict target, so any source that can emit
+    several rows per key (a settlement page repeating an ``rrd_id``) must be
+    de-duplicated before the upsert.
     """
     by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
     for row in rows:
         by_key[tuple(row[k] for k in keys)] = row
     return list(by_key.values())
-
-
-def _sort_value(value: object) -> Decimal:
-    """Order a possibly-``None`` numeric column without comparing mixed types."""
-    return value if isinstance(value, Decimal) else Decimal(-1)
-
-
-def number_units(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Number the rows of each ``(nm_id, dim_id, dt_bonus)`` group.
-
-    WB emits one row per penalised unit with no row identity, so the ordinal is
-    derived from the values: each group is sorted by :data:`_UNIT_ORDER` and
-    numbered from zero. A re-harvest of the same report therefore reproduces the
-    same ordinals, which keeps the upsert idempotent instead of shuffling rows
-    between keys.
-    """
-    groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
-    for row in rows:
-        groups.setdefault((row["nm_id"], row["dim_id"], row["dt_bonus"]), []).append(row)
-    numbered: list[dict[str, Any]] = []
-    for group in groups.values():
-        group.sort(key=lambda r: tuple(_sort_value(r.get(k)) for k in _UNIT_ORDER))
-        for index, row in enumerate(group):
-            row["unit_no"] = index
-            numbered.append(row)
-    return numbered
 
 
 def settlement_row(row: WBReportDetailRow, *, workspace_id: uuid.UUID) -> dict[str, Any]:
@@ -74,9 +44,9 @@ def settlement_row(row: WBReportDetailRow, *, workspace_id: uuid.UUID) -> dict[s
     give it the ``reportDetailByPeriod`` field names this function reads.
 
     Verbatim, field for field — no arithmetic, no classification, no dropping of
-    "uninteresting" operations. Everything the P&L and the claim derive is
-    derived on read, so this mapping staying dumb is what lets both be corrected
-    later without re-harvesting 2.5 years of settlements.
+    "uninteresting" operations. Everything the P&L derives is derived on read,
+    so this mapping staying dumb is what lets it be corrected later without
+    re-harvesting 2.5 years of settlements.
     """
     return {
         "rrd_id": row.rrd_id,
@@ -148,6 +118,5 @@ def settlement_row(row: WBReportDetailRow, *, workspace_id: uuid.UUID) -> dict[s
 __all__ = [
     "as_date",
     "dedupe",
-    "number_units",
     "settlement_row",
 ]

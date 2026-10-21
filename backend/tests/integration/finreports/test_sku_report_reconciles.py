@@ -183,9 +183,10 @@ async def test_account_level_charges_stay_out_of_the_sku_rows(
     # 40 storage + 300 deduction + 5 rebill + the 25 dimensions fine, which the
     # fixture books on nm_id 0 exactly as WB books most fines.
     assert report.unallocated.payout_net == Decimal("-370")
-    # The penalty (25, dimensions) is on nm_id 0 in the fixture, so it is the
+    # The penalty (25, labelling) is on nm_id 0 in the fixture, so it is the
     # bucket's, and its category label survives to the row.
     assert [p.reason for p in report.unallocated.penalties] == [
+        "Штраф за нарушение правил маркировки"
     ]
 
 

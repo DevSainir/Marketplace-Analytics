@@ -20,11 +20,10 @@ import sqlalchemy as sa
 from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.security import SecretDecryptionError, encrypt_secret
+from src.core.security import encrypt_secret
 from src.modules.organizations.models import Organization
 from src.modules.organizations.repos import SubscriptionRepository
 from src.modules.workspaces.contract import (
-    load_workspace_name,
     load_workspace_token_bundle,
     load_workspace_token_bundles,
 )
@@ -239,25 +238,3 @@ async def test_an_unknown_workspace_yields_no_bundle(db_session: AsyncSession) -
     import uuid
 
     assert await load_workspace_token_bundle(db_session, uuid.uuid4()) is None
-
-
-async def test_the_seller_name_lookup_touches_no_tokens(
-    db_session: AsyncSession, secondary: Workspace, settings_override
-) -> None:
-    """Reading the display name must not require a working decryption key.
-
-    key-rotation mistake would block the legal export as well as the harvest.
-    """
-    await WorkspaceTokenRepository(db_session).upsert(
-        workspace_id=secondary.id,
-        kind=TokenKind.UNIFIED.value,
-        token_encrypted=encrypt_secret(WB_TOKEN),
-    )
-    await db_session.flush()
-
-    with settings_override(fernet_secret_key=Fernet.generate_key().decode()):
-        name = await load_workspace_name(db_session, secondary.id)
-
-        assert name == "ООО Второй"
-        with pytest.raises(SecretDecryptionError):
-            await load_workspace_token_bundle(db_session, secondary.id)

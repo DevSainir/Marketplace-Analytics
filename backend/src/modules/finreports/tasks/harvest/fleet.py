@@ -79,12 +79,7 @@ _FLEET_CONCURRENCY = 3
 #: failure is isolated and counted rather than taking the fleet tick down.
 _EMPTY_TOTALS: dict[str, int] = {
     "finance": 0,
-    "baselines": 0,
-    "penalties": 0,
-    "measurements": 0,
-    "storage_windows_failed": 0,
     "finance_windows_failed": 0,
-    "baselines_failed": 0,
     "workspaces_skipped": 0,
     "skipped_locked": 0,
     "daily_tail_reports": 0,
@@ -411,7 +406,7 @@ async def _harvest_one(
                 owed.setdefault(report.report_id, report)
             missing = tuple(sorted(owed.values(), key=lambda report: report.date_to))
         if missing:
-            counts = await harvest_workspace(tokens=bundle, reports=missing, on_date=today)
+            counts = await harvest_workspace(tokens=bundle, reports=missing)
             for key, value in counts.items():
                 totals[key] += value
             # And recorded AGAIN, from what the walk found. The walk asks WB

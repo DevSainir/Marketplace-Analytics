@@ -51,8 +51,8 @@ _WORST_CASE: dict[str, timedelta] = {
     # plus, since 2026-10-02, up to two funnel-gap re-reads per workspace at ~21 s
     # each (`funnel_gaps.MAX_REPAIRS_PER_NIGHT`), ~4 more minutes for six.
     "monitoring.refresh_buyout_cohorts": timedelta(minutes=39),
-    # (885 s worst) — the night is not over until that has finished too.
-    "finreports.harvest_finance": timedelta(minutes=23),
+    # 04:00 reconciliation, 424 s worst.
+    "finreports.harvest_finance": timedelta(minutes=8),
     "auth.purge_expired_refresh_tokens": timedelta(minutes=1),
     "guide.capture_daily": timedelta(minutes=1),
     # Monthly, and the one that walks history windows: allowed the whole

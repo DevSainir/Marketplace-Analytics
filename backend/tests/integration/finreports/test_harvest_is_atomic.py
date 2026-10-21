@@ -35,11 +35,11 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.exceptions import IntegrationError
-from src.modules.finreports.tasks import storage as storage_module
+from src.integrations.wildberries.schemas import WBReportDetailRow
+from src.modules.finreports.models import LogisticsTransaction
 from src.modules.finreports.tasks.harvest import (
     harvest_workspace,
     persistence,
-    sources,
     workspace,
 )
 from src.modules.finreports.tasks.settlement import MissingReport
@@ -53,24 +53,17 @@ _WORKSPACE = uuid.UUID("019f657a-a70c-780a-ac98-f010a1916616")
 _REPORT = 969371539
 _RRD_BASE = 920_000_000_000
 
-#: never waits out `storage._STORAGE_PACE_SECONDS`.
+#: The settlement window the fake report covers.
 _FROM, _TO = date(2026, 7, 13), date(2026, 7, 15)
 
 
 def _tokens() -> WorkspaceTokenBundle:
-    """A workspace with both scopes, so every source in the harvest runs.
-
-    organisation alone, and this test needs a source other than finance in the
-    same transaction to have anything to say about atomicity.
-    """
+    """A workspace with a «Финансы» token, so the settlement walk runs."""
     return WorkspaceTokenBundle(
         workspace_id=_WORKSPACE,
         name="Демо",
         statistics="stat-token",
         finance="a-finance-token",
-        analytics="analytics-token",
-        content="content-token",
-        internal_features=True,
     )
 
 
@@ -163,100 +156,22 @@ class _FakeFinanceClient:
         yield [_settlement(3)]
 
 
-class _FakeStorageClient:
-
-    def __init__(self, _settings: Any, *, token: str) -> None:
-        self.token = token
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        return None
-
-        return [
-                {
-                    "date": date_from.isoformat(),
-                    "warehouse": "Бишкек",
-                    "giId": 5001,
-                    "chrtId": 6001,
-                    "nmId": 902754830,
-                    "volume": "1.4",
-                    "warehousePrice": "0.31",
-                }
-            )
-        ]
-
-
-class _EmptyMeasurementClient:
-    """WB's measurement reports with nothing to report — not what these tests are about."""
-
-    def __init__(self, _settings: Any, *, token: str) -> None:
-        self.token = token
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        return None
-
-    async def fetch_penalties(self, *, date_from: date, date_to: date) -> list[Any]:
-        """No penalised measurements in the window."""
-        return []
-
-        """No measurements in the window."""
-        return []
-
-
-class _EmptyContentClient:
-    """A catalogue with no dimensioned cards."""
-
-    def __init__(self, _settings: Any, *, token: str) -> None:
-        self.token = token
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None:
-        return None
-
-    async def fetch_all_cards(self) -> list[Any]:
-        """No cards."""
-        return []
-
-
 @pytest.fixture
 def wb(
     monkeypatch: pytest.MonkeyPatch, session_factory: async_sessionmaker[AsyncSession]
 ) -> Iterator[type[_FakeFinanceClient]]:
-    """Point the harvest at fake WB clients and the test transaction.
+    """Point the harvest at a fake WB client and the test transaction.
 
-    ``AsyncSessionLocal`` is swapped on `harvest.persistence`, which owns every
-    write outside the settlement walk, for the fixture's factory so the harvest's
-    commit lands in the test's connection (and is rolled back with it) instead
-    of the developer's database. Summary warming is stubbed out: it opens its
-    own session, and it is explicitly best-effort, so it is not part of the
-    property under test.
+    ``AsyncSessionLocal`` is swapped on `harvest.persistence`, which owns the
+    watermark write, for the fixture's factory so the harvest's commits land in
+    the test's connection (and are rolled back with it) instead of the
+    developer's database. Rollup warming is stubbed out: it opens its own
+    session, and it is explicitly best-effort, so it is not part of the property
+    under test.
     """
     monkeypatch.setattr(persistence, "AsyncSessionLocal", session_factory)
-    # The settlement walk keeps its own session and its own client: it commits
-    # a week at a time, outside the transaction the rest of the harvest shares.
-    # Both halves of the settlement package own a session: `page` for the rows
+    # The settlement walk keeps its own sessions and its own client: it commits
+    # a batch at a time. Both halves of the settlement package own a session: `page` for the rows
     # it streams, `reports` for the header it books once one is whole.
     monkeypatch.setattr(settlement_page, "AsyncSessionLocal", session_factory)
     monkeypatch.setattr(settlement_module, "AsyncSessionLocal", session_factory)
@@ -264,19 +179,11 @@ def wb(
     monkeypatch.setattr(
         settlement_module, "finance_reports_rate_gate", lambda *_a, **_kw: _OpenGate()
     )
-    monkeypatch.setattr(sources, "WBContentClient", _EmptyContentClient)
 
     async def no_warming(*, workspace_id: uuid.UUID, name: str) -> None:
         return None
 
     monkeypatch.setattr(workspace, "warm_settlement_rollup", no_warming)
-
-    class _Broker:
-        @staticmethod
-        def send_task(_name: str, **_kwargs: object) -> None:
-            return None
-
-    monkeypatch.setattr(workspace, "celery_app", _Broker)
     _FakeFinanceClient.fail_mid_walk = False
     _FakeFinanceClient.fail_after_first_batch = False
     yield _FakeFinanceClient
@@ -295,28 +202,17 @@ async def _settled_rows(session: AsyncSession) -> int:
     )
 
 
-async def _storage_rows(session: AsyncSession) -> int:
-    """Billed-volume observations, the harvest's other write."""
-    return int(
-        (
-            await session.execute(
-            )
-        ).scalar_one()
-    )
-
-
 async def test_a_completed_harvest_commits_every_page(
     wb: type[_FakeFinanceClient], db_session: AsyncSession
 ) -> None:
     """All three settlement rows land, across the two pages they arrived in."""
     counts = await harvest_workspace(
-        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),)
     )
 
     assert counts["finance"] == 3
     assert counts["finance_windows_failed"] == 0
     assert await _settled_rows(db_session) == 3
-    assert await _storage_rows(db_session) == 1
 
 
 async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
@@ -332,15 +228,12 @@ async def test_a_walk_that_dies_mid_page_leaves_no_settlement_rows(
     wb.fail_mid_walk = True
 
     counts = await harvest_workspace(
-        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),)
     )
 
     assert counts["finance"] == 2
     assert counts["finance_windows_failed"] == 1
     assert await _settled_rows(db_session) == 2
-    # The rest of the harvest still committed — a failed WB source has never
-    # been a reason to throw away the sources that worked.
-    assert await _storage_rows(db_session) == 1
 
 
 async def test_a_request_that_dies_after_a_batch_keeps_that_batch(
@@ -362,7 +255,7 @@ async def test_a_request_that_dies_after_a_batch_keeps_that_batch(
     wb.fail_after_first_batch = True
 
     counts = await harvest_workspace(
-        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+        tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),)
     )
 
     assert counts["finance"] == 1
@@ -391,7 +284,7 @@ async def test_the_walk_inside_the_transaction_retries_less_than_the_default(
     _FakeFinanceClient.__init__ = spy  # type: ignore[method-assign]
     try:
         await harvest_workspace(
-            tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),), on_date=_TO
+            tokens=_tokens(), reports=(MissingReport(report_id=1, date_to=_TO),)
         )
     finally:
         _FakeFinanceClient.__init__ = original  # type: ignore[method-assign]

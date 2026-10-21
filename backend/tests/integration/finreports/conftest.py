@@ -121,6 +121,7 @@ async def seeded(db_session: AsyncSession) -> None:
                 7,
                 "Штраф",
                 penalty=Decimal("25"),
+                bonus_type_name="Штраф за нарушение правил маркировки",
             ),
             _row(
                 8,

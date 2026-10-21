@@ -62,8 +62,6 @@ test-results/
 # k6 summary exports.
 tests/performance/**/*.summary.json
 
-# ---- Local artefacts, never committed ----
-
 # ---- Tooling ----
 .pre-commit-cache/
 # Wheels pip occasionally leaves in the working directory (e.g. when a

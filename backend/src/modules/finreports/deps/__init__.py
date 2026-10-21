@@ -1,19 +1,17 @@
 """Dependency-injection wiring for the ``finreports`` module.
 
 Assembles the repository -> service graph from the global ``DbSession``. The
+presentation layer depends only on the ``*ServiceDep`` aliases; it never sees a
 session or repository (router -> service -> repo -> model).
 """
 
 from __future__ import annotations
 
-import pathlib
 import uuid
-from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
 
-from src.core.config import settings
 from src.core.deps import DbSession
 from src.core.redis import get_redis
 from src.modules.finreports.constants import FRESHNESS_RECORD_TTL_SECONDS
@@ -32,11 +30,10 @@ from src.modules.finreports.services import (
     CostPriceService,
     HarvestControlService,
     IngestionService,
+    PeriodService,
     PnlService,
     SettlementUploadService,
     SkuReportService,
-)
-)
 )
 from src.modules.finreports.services.freshness_record import RedisFreshnessRecordStore
 from src.modules.workspaces.contract import (
@@ -53,12 +50,6 @@ def get_transaction_repo(session: DbSession) -> LogisticsTransactionRepository:
     return LogisticsTransactionRepository(session)
 
 
-
-
-
-
-
-
 def get_report_repo(session: DbSession) -> FinancialReportRepository:
     """Provide a :class:`FinancialReportRepository` for the request."""
     return FinancialReportRepository(session)
@@ -67,10 +58,6 @@ def get_report_repo(session: DbSession) -> FinancialReportRepository:
 def get_daily_repo(session: DbSession) -> DailySettlementRepository:
     """Provide a :class:`DailySettlementRepository` for the request."""
     return DailySettlementRepository(session)
-
-
-
-
 
 
 def get_pnl_repo(session: DbSession) -> PnlRepository:
@@ -105,37 +92,6 @@ BalancePinRepoDep = Annotated[BalancePinRepository, Depends(get_balance_pin_repo
 # --------------------------------------------------------------------------- #
 # Services
 # --------------------------------------------------------------------------- #
-
-    Deliberately NOT ``lru_cache``d, unlike its stateless neighbours: it holds a
-    Redis client, and ``get_redis()`` hands each event loop its own — a cached
-    holder would pin whichever loop built it first
-    (``tests/unit/core/test_no_loop_bound_state_outlives_a_task.py``). Building
-    it costs one small object. A TTL of 0 turns caching off entirely, degrading
-    to a recompute on every call.
-    """
-    if settings.finreports_summary_cache_ttl_seconds <= 0:
-        get_redis(), ttl_seconds=settings.finreports_summary_cache_ttl_seconds
-    )
-
-
-    transaction_repo: TransactionRepoDep,
-    billed_repo: BilledRepoDep,
-    report_repo: ReportRepoDep,
-    penalty_repo: PenaltyRepoDep,
-    measurement_repo: MeasurementRepoDep,
-    daily_repo: DailyRepoDep,
-    session: DbSession,
-        transaction_repo=transaction_repo,
-        billed_repo=billed_repo,
-        report_repo=report_repo,
-        penalty_repo=penalty_repo,
-        measurement_repo=measurement_repo,
-        summary_cache=_summary_cache(),
-        daily_repo=daily_repo,
-        upload_repo=SettlementUploadRepository(session),
-    )
-
-
 def get_pnl_service(
     pnl_repo: PnlRepoDep,
     cost_repo: CostRepoDep,
@@ -167,47 +123,9 @@ def get_sku_report_service(
 def get_ingestion_service(
     transaction_repo: TransactionRepoDep,
     report_repo: ReportRepoDep,
-    baseline_repo: BaselineRepoDep,
-    billed_repo: BilledRepoDep,
-    penalty_repo: PenaltyRepoDep,
-    measurement_repo: MeasurementRepoDep,
 ) -> IngestionService:
     """Compose the write-side :class:`IngestionService` from its repositories."""
-    return IngestionService(
-        transaction_repo=transaction_repo,
-        report_repo=report_repo,
-        baseline_repo=baseline_repo,
-        billed_repo=billed_repo,
-        penalty_repo=penalty_repo,
-        measurement_repo=measurement_repo,
-    )
-
-
-@lru_cache(maxsize=1)
-
-    Cached with ``lru_cache`` because the store is stateless configuration, not
-    per-request state — a new object per request would be pure waste. An empty
-    ``finreports_package_cache_dir`` turns caching off entirely.
-    """
-    configured = settings.finreports_package_cache_dir.strip()
-    if not configured:
-        pathlib.Path(configured), max_entries=settings.finreports_package_cache_entries
-    )
-
-
-    transaction_repo: TransactionRepoDep,
-    billed_repo: BilledRepoDep,
-    report_repo: ReportRepoDep,
-    penalty_repo: PenaltyRepoDep,
-    measurement_repo: MeasurementRepoDep,
-        package_cache=_package_cache(),
-            transaction_repo=transaction_repo,
-            billed_repo=billed_repo,
-            report_repo=report_repo,
-            penalty_repo=penalty_repo,
-            measurement_repo=measurement_repo,
-        ),
-    )
+    return IngestionService(transaction_repo=transaction_repo, report_repo=report_repo)
 
 
 def get_harvest_control_service(
@@ -242,6 +160,15 @@ def get_harvest_control_service(
     )
 
 
+def get_period_service(session: DbSession, report_repo: ReportRepoDep) -> PeriodService:
+    """Compose the :class:`PeriodService` behind the period picker (``/weeks``)."""
+    return PeriodService(
+        report_repo=report_repo,
+        daily_repo=DailySettlementRepository(session),
+        upload_repo=SettlementUploadRepository(session),
+    )
+
+
 def get_settlement_upload_service(session: DbSession) -> SettlementUploadService:
     """Compose the :class:`SettlementUploadService` behind «Загрузить отчёт»."""
     return SettlementUploadService(upload_repo=SettlementUploadRepository(session))
@@ -252,6 +179,7 @@ PnlServiceDep = Annotated[PnlService, Depends(get_pnl_service)]
 SkuReportServiceDep = Annotated[SkuReportService, Depends(get_sku_report_service)]
 CostPriceServiceDep = Annotated[CostPriceService, Depends(get_cost_price_service)]
 BalanceServiceDep = Annotated[BalanceService, Depends(get_balance_service)]
+PeriodServiceDep = Annotated[PeriodService, Depends(get_period_service)]
 HarvestControlServiceDep = Annotated[HarvestControlService, Depends(get_harvest_control_service)]
 SettlementUploadServiceDep = Annotated[
     SettlementUploadService, Depends(get_settlement_upload_service)
@@ -260,13 +188,11 @@ SettlementUploadServiceDep = Annotated[
 __all__ = [
     "BalancePinRepoDep",
     "BalanceServiceDep",
-    "BaselineRepoDep",
-    "BilledRepoDep",
     "CostPriceServiceDep",
     "CostRepoDep",
     "ExclusionRepoDep",
     "IngestionServiceDep",
-    "PenaltyRepoDep",
+    "PeriodServiceDep",
     "PnlRepoDep",
     "PnlServiceDep",
     "ReportRepoDep",

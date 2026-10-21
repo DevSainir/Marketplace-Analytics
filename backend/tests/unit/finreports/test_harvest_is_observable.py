@@ -57,43 +57,15 @@ class _FakeSession:
         return None
 
 
-class _FakeIngestion:
-    """Every ingest reports zero rows — the harvest still ran."""
-
-        return 0
-
-    async def ingest_baselines(self, *_: Any, **__: Any) -> int:
-        return 0
-
-        return 0
-
-        return 0
-
-
-class _ExplodingIngestion(_FakeIngestion):
-    """Fails the way a harvest fails: part-way through, after time has passed."""
-
-    async def ingest_baselines(self, *_: Any, **__: Any) -> int:
-        raise RuntimeError("WB went away mid-walk")
-
-
 @pytest.fixture
 def harvest_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Replace the harvest's database and its summary warm-up with fakes."""
+    """Replace the harvest's database and its rollup warm-up with fakes."""
     monkeypatch.setattr(persistence, "AsyncSessionLocal", _FakeSession)
-    monkeypatch.setattr(persistence, "build_ingestion", lambda _session: _FakeIngestion())
 
     async def _warm(*, workspace_id: uuid.UUID, name: str) -> None:
         return None
 
     monkeypatch.setattr(workspace, "warm_settlement_rollup", _warm)
-
-    class _Broker:
-        @staticmethod
-        def send_task(_name: str, **_kwargs: object) -> None:
-            return None
-
-    monkeypatch.setattr(workspace, "celery_app", _Broker)
 
 
 def _bundle() -> WorkspaceTokenBundle:
@@ -106,7 +78,6 @@ def _bundle() -> WorkspaceTokenBundle:
     return WorkspaceTokenBundle(
         workspace_id=uuid.uuid4(),
         name="Демо",
-        internal_features=False,
     )
 
 
@@ -147,7 +118,6 @@ async def test_a_finance_harvest_records_both_its_rows_and_its_duration(
     await harvest_workspace(
         tokens=_bundle(),
         reports=(MissingReport(report_id=1, date_to=_WINDOW[1]),),
-        on_date=_WINDOW[1],
     )
 
     assert _rows("finance") is not None
@@ -165,14 +135,18 @@ async def test_a_harvest_that_raises_still_records_the_time_it_burned(
     ``pytest.raises`` is half the assertion: a timer that swallowed the error to
     record it would turn every failed harvest into a silent success.
     """
-    monkeypatch.setattr(persistence, "build_ingestion", lambda _session: _ExplodingIngestion())
+
+    async def _exploding_walk(**_kwargs: Any) -> Any:
+        """Fails the way a harvest fails: part-way through, after time has passed."""
+        raise RuntimeError("WB went away mid-walk")
+
+    monkeypatch.setattr(workspace, "walk_settlement_reports", _exploding_walk)
     failed_before = _duration_count("error")
 
     with pytest.raises(RuntimeError, match="went away"):
         await harvest_workspace(
             tokens=_bundle(),
             reports=(MissingReport(report_id=1, date_to=_WINDOW[1]),),
-            on_date=_WINDOW[1],
         )
 
     assert _duration_count("error") == failed_before + 1

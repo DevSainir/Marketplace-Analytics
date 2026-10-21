@@ -97,18 +97,7 @@ COPY . .
 # ------------------------------------------------------------------------- api
 FROM base AS api
 
-RUN useradd --create-home --uid 10001 appuser \
-    # runtime user. Docker seeds a fresh named volume from the image's directory
-    # at that path, ownership included; with no such directory the volume is
-    # created root-owned and the unprivileged process cannot write to it. The
-    # service degrades to rebuilding on every request when that happens — the
-    # download still works, so the only symptom is silently losing the cache.
-    #
-    # Only that directory changes owner, never `/app` — the worker stage below
-    # explains why. Here it also cost time: overlayfs copies every venv file up
-    # on chown, and on the 3.9 GB box that layer took 634 s on 2026-10-05,
-    # pushing the deploy past its 20-minute timeout mid-rotation.
-    && chown -R appuser:appuser /app/.cache
+RUN useradd --create-home --uid 10001 appuser
 USER appuser
 
 EXPOSE 8000
@@ -204,10 +193,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 # connection churn. The measured growth per task says it will be rare:
 # `celery_task_memory_growth_bytes` over 48 h puts `ab_tests.poll_rotations` at
 # 4.3 MB, `refresh_buyout_cohorts` at 2.9 MB and `sweep_stalled_backfills` at
-# 0.3 MB. The one outlier was `harvest_finance` at 369 MB, and that was the
+# 0.3 MB. The one outlier was `harvest_finance` at 369 MB, from a code path it
+# no longer has.
 #
 # Lowering this was NOT the fix for 09-18 and must not be read as one — the fix
-# was not materialising 115 366 rows. This is what stops the next unbudgeted
+# was to stop holding 115 366 rows in one allocation. This is what stops the next unbudgeted
 # allocation meeting a floor that has already eaten two thirds of the box.
 #
 # The difference the limit buys at all: Celery retires a child BETWEEN tasks,

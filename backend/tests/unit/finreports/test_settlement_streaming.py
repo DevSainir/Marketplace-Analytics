@@ -76,15 +76,7 @@ class _RecordingRepo:
 
 def _ingestion(transactions: Any, reports: Any) -> IngestionService:
     """An ingestion service wired to fakes for the two repos this path uses."""
-    unused: Any = None
-    return IngestionService(
-        transaction_repo=transactions,
-        report_repo=reports,
-        baseline_repo=unused,
-        billed_repo=unused,
-        penalty_repo=unused,
-        measurement_repo=unused,
-    )
+    return IngestionService(transaction_repo=transactions, report_repo=reports)
 
 
 async def _pages(*pages: list[dict[str, Any]]) -> AsyncGenerator[list[WBReportDetailRow], None]:

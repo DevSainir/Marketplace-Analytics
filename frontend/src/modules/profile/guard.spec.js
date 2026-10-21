@@ -27,6 +27,7 @@ describe('installInternalGuard', () => {
     return router.beforeEach.mock.calls[0][0]
   }
 
+  const INTERNAL_ROUTE = { path: '/labs/monitoring', meta: { requiresInternal: true } }
 
   it('lets an ordinary route through without asking who the viewer is', async () => {
     const guard = install()

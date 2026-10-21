@@ -1,5 +1,6 @@
 """Pydantic DTOs for the ``finreports`` presentation layer.
 
+Read-only projections the services return to the routers — never a 1:1
 mirror of the ORM rows (the service maps models onto these).
 """
 
@@ -19,10 +20,6 @@ from src.modules.finreports.schemas.cost_price import (
     CostPriceSaveResponse,
 )
 from src.modules.finreports.schemas.currency import SettlementCurrencyResponse
-    LogisticsTxnItem,
-    WeekPeriod,
-    WeeksResponse,
-)
 from src.modules.finreports.schemas.harvest import (
     FreshnessCheckOut,
     HarvestStateResponse,
@@ -35,6 +32,8 @@ from src.modules.finreports.schemas.pnl import (
     PnlSection,
     PnlStatement,
     ReasonShare,
+    WeekPeriod,
+    WeeksResponse,
 )
 from src.modules.finreports.schemas.settlement_upload import SettlementUploadOut
 from src.modules.finreports.schemas.size_report import (
@@ -66,7 +65,6 @@ __all__ = [
     "HarvestStateResponse",
     "HarvestTriggerResponse",
     "LatestReportOut",
-    "LogisticsTxnItem",
     "PnlDashboard",
     "PnlResponse",
     "PnlSection",

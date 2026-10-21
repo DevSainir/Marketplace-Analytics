@@ -21,8 +21,7 @@ from src.integrations.wildberries.schemas.base import RawBase
 class WBCardDimensions(RawBase):
     """A card's declared package dimensions (cm) and gross weight (kg).
 
-    ``finreports`` module prices logistics against. ``is_valid`` is WB's own
-    completeness flag on the dimensions block.
+    ``is_valid`` is WB's own completeness flag on the dimensions block.
     """
 
     length: Decimal | None = None

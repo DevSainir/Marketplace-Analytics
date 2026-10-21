@@ -15,7 +15,6 @@ from src.integrations.wildberries.clients.finance_reports import (
     WBFinanceReportsClient,
 )
 from src.integrations.wildberries.clients.marketplace import WBMarketplaceClient
-)
 from src.integrations.wildberries.clients.prices import WBPricesClient
 from src.integrations.wildberries.clients.statistics import WBStatisticsClient
 

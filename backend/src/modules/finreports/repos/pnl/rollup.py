@@ -232,14 +232,17 @@ class SettlementRollup:
         # repair the same window at the same moment, and the loser of that race
         # must write the same figures rather than raise.
         statement = insert(rollup).from_select(
-            ["workspace_id", "report_id", "rr_dt", "nm_id", "sa_name", *stored], source
+            ["workspace_id", "report_id", "rr_dt", "nm_id", "sa_name", *ROLLUP_COLUMNS], source
         )
         written = cast(
             CursorResult[Any],
             await self._session.execute(
                 statement.on_conflict_do_update(
                     index_elements=["workspace_id", "report_id", "rr_dt", "nm_id"],
-                    set_={name: getattr(statement.excluded, name) for name in (*stored, "sa_name")},
+                    set_={
+                        name: getattr(statement.excluded, name)
+                        for name in (*ROLLUP_COLUMNS, "sa_name")
+                    },
                 )
             ),
         )

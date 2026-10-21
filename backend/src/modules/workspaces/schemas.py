@@ -91,20 +91,10 @@ class WorkspaceTokenBundle(BaseModel):
     workspace's category token, or (for any other workspace) its single
     ``unified`` token. An empty string means no token is available for that
     surface (that source is then skipped like any failed one).
-
-    One field is not a token. ``internal_features`` says whether this workspace
-    belongs to OUR organisation, and it rides along here because the harvest is
-    the one caller that has no request and therefore no
-    ``OrganizationAccess`` to ask. Sources that only feed an internal-only
-    :func:`src.modules.finreports.tasks.harvest.harvest_workspace`.
     """
 
     workspace_id: uuid.UUID
     name: str
-    #: ``True`` when the owning organisation is the primary one. The task-side
-    #: twin of ``OrganizationAccess.sees_internal_features``; both answer "is
-    #: this us", one for a request and one for a harvest.
-    internal_features: bool = False
     content: str = ""
     analytics: str = ""
     advertising: str = ""

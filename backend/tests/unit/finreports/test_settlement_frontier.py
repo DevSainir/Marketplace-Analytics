@@ -265,22 +265,6 @@ class _RecordingWatermarkRepo:
         return day
 
 
-class _FakeIngestion:
-    """Every write the harvest makes outside the settlement walk, ingesting nothing."""
-
-    def __init__(self, _session: object) -> None:
-        pass
-
-        return 0
-
-    async def ingest_baselines(self, _cards: object, **_kwargs: object) -> int:
-        return 0
-
-        return 0
-
-        return 0
-
-
 class _CommittingSession(_FakeSession):
     """A session that also answers the harvest's commit."""
 
@@ -313,7 +297,6 @@ def certified(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(persistence, "SettlementWatermarkRepository", _RecordingWatermarkRepo)
         monkeypatch.setattr(persistence, "FinancialReportRepository", _Coverage)
         monkeypatch.setattr(workspace, "walk_settlement_reports", _walk)
-        monkeypatch.setattr(persistence, "build_ingestion", _FakeIngestion)
 
         await harvest_workspace(
             tokens=WorkspaceTokenBundle(
@@ -323,7 +306,6 @@ def certified(monkeypatch: pytest.MonkeyPatch):
                 finance="a-finance-token",
             ),
             reports=(MissingReport(report_id=1, date_to=MISSED_WEEK[1]),),
-            on_date=TODAY,
         )
         return _RecordingWatermarkRepo.advanced
 

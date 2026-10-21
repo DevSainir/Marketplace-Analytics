@@ -29,11 +29,7 @@ from src.modules.finreports.repos.report_publication import ReportPublicationRep
 from src.modules.finreports.repos.settlement_upload import SettlementUploadRepository
 from src.modules.finreports.repos.settlement_watermark import SettlementWatermarkRepository
 from src.modules.finreports.repos.sku_exclusion import SkuExclusionRepository
-from src.modules.finreports.repos.transaction import (
-    LogisticsTransactionRepository,
-    SkuLogisticsAggregate,
-    SkuRepricingPlan,
-)
+from src.modules.finreports.repos.transaction import LogisticsTransactionRepository
 
 __all__ = [
     "BalancePinRepository",
@@ -54,7 +50,5 @@ __all__ = [
     "SettlementUploadRepository",
     "SettlementWatermarkRepository",
     "SkuExclusionRepository",
-    "SkuLogisticsAggregate",
-    "SkuRepricingPlan",
     "SkuUnits",
 ]

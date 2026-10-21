@@ -35,13 +35,13 @@ from src.modules.finreports.repos import (
     CostPriceRepository,
     DailySettlementRepository,
     FinancialReportRepository,
-    LogisticsTransactionRepository,
     PnlRepository,
     SettlementUploadRepository,
     SkuExclusionRepository,
 )
 from src.modules.finreports.repos.pnl.rollup import SettlementRollup
 from src.modules.finreports.schemas import WeeksResponse
+from src.modules.finreports.services import PeriodService
 from src.modules.monitoring.contract import (
     ad_bonus_coverage,
     ad_bonus_unknown_types,
@@ -78,11 +78,9 @@ def default_window(weeks: WeeksResponse) -> tuple[date, date] | None:
     return max(last - timedelta(days=DEFAULT_DAYS - 1), first), last
 
 
-
-    The period list never reads that cache, and leaving it out keeps the probe
-    off Redis: everything it opens is read from Postgres, inside the gate.
-    """
-        transaction_repo=LogisticsTransactionRepository(session),
+def _weeks_service(session: AsyncSession) -> PeriodService:
+    """``get_period_service``, built on the probe's own session."""
+    return PeriodService(
         report_repo=FinancialReportRepository(session),
         daily_repo=DailySettlementRepository(session),
         upload_repo=SettlementUploadRepository(session),

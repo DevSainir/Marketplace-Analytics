@@ -26,12 +26,11 @@ class WildberriesSettings(BaseSettings):
     wb_content_base_url: str = Field(default="https://content-api.wildberries.ru")
     wb_prices_base_url: str = Field(default="https://discounts-prices-api.wildberries.ru")
     wb_statistics_base_url: str = Field(default="https://statistics-api.wildberries.ru")
+    # Common surface: pallet and return tariffs (captured by the `guide` module).
     wb_common_base_url: str = Field(default="https://common-api.wildberries.ru")
-    # Documents surface: signed weekly-realization / acceptance-act originals
-    # (finreports court-grade evidence archival).
+    # Documents surface: the list of signed documents WB has issued (weekly
+    # realization reports, acceptance acts). Captured by the `guide` module.
     wb_documents_base_url: str = Field(default="https://documents-api.wildberries.ru")
-    # Supplies surface: FBW supply / acceptance context (finreports gi_id join).
-    wb_supplies_base_url: str = Field(default="https://supplies-api.wildberries.ru")
     # Finance surface: seller balance / settlement (finreports currency context).
     wb_finance_base_url: str = Field(default="https://finance-api.wildberries.ru")
     # Marketplace surface: seller-owned (FBS) warehouses and their stock. Needs

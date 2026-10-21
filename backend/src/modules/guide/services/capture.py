@@ -64,7 +64,9 @@ _LOCK_TTL_SECONDS = 120.0
 #: but us — WB's own limits there are 5-10 requests a second and one run makes a
 #: handful. The marketplace host belonged here while FBS supplies were captured;
 #: it left with them, and any future source on that host must put it back.
-#: lives there; tests/unit/guide/test_capture_pacing.py now derives the list.
+#: `common` was added on 2026-09-29, while a harvest still used that host; none
+#: does now, and the gate stays because pacing an unshared host costs nothing.
+#: tests/unit/guide/test_capture_pacing.py derives which hosts must be here.
 _SHARED_GATES: dict[str, Callable[[Settings, str], RateGate]] = {
     "wb_analytics_base_url": lambda s, token: analytics_rate_gate(s, token=token),
     "wb_statistics_base_url": lambda s, token: statistics_rate_gate(s, token=token),

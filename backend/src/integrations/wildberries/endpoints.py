@@ -4,13 +4,14 @@ Lives in its own module because both sides of the WB transport need it and
 neither may import the other: :mod:`~src.integrations.wildberries.clients.base`
 already imports the rate gate, so the gate cannot import back.
 
-**This is a cardinality control, not a formatting helper.** Three WB paths
-interpolate an identifier — ``/api/v3/stocks/{warehouse}`` and the two
-report we ask for. Used raw as a label, one nightly harvest would add a
-permanent Prometheus time series per workspace per night, forever: memory that
-grows with our history rather than with our size, from a code path no user can
-see. Templated, every one of them collapses onto a single series per route,
-which is also the only thing anybody would want to graph.
+**This is a cardinality control, not a formatting helper.** Two WB paths
+interpolate an identifier — ``/api/v3/stocks/{warehouse}`` and the settlement
+detail ``sales-reports/detailed/{id}`` — and a report id is a fresh number for
+every report we ask for. Used raw as a label, every harvest would add a
+permanent Prometheus time series per report, forever: memory that grows with
+our history rather than with our size, from a code path no user can see.
+Templated, every one of them collapses onto a single series per route, which is
+also the only thing anybody would want to graph.
 
 The same reasoning governs the HTTP metrics on the API side, where an
 unmatched path is grouped as ``handler="none"`` rather than labelled with the

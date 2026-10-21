@@ -121,8 +121,6 @@ class _FakeIngestion:
         self._journal.append(f"header:{header.report_id}")
         return True
 
-        return 0
-
 
 @pytest.fixture
 def journal(monkeypatch: pytest.MonkeyPatch) -> list[str]:
