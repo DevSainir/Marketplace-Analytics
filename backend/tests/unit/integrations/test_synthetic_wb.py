@@ -95,7 +95,7 @@ async def test_synthetic_output_is_deterministic() -> None:
 
 
 async def test_synthetic_customer_price_is_below_seller_price() -> None:
-    """The storefront (customer) price sits under the seller price, so СПП is
+    """The storefront (customer) price sits under the seller price, so SPP is
     positive — the derived discount the dashboard shows must be non-negative."""
     nm_id = 101
     async with build_prices_client(_fake(), token="t", nm_ids=[nm_id]) as prices:

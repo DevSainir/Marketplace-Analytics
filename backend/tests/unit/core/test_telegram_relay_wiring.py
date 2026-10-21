@@ -1,7 +1,7 @@
 """The Telegram relay and the four files that have to agree about it.
 
 Alertmanager reaches Telegram through a TCP relay in the host's network
-(``docker/telegram-relay/haproxy.cfg``, HARDENING P2.12). The arrangement lives
+(``docker/telegram-relay/haproxy.cfg``). The arrangement lives
 in four files at once — the relay's config, the Alertmanager template, the
 observability compose file and ``prometheus.yml`` — and every way it can drift
 apart fails silently: a port that differs between the relay and ``api_url`` is
@@ -9,9 +9,9 @@ a Telegram delivery that times out, which is exactly the outage the relay was
 built to end, and the alert about it would be the first one not to arrive.
 
 Two properties here are security rather than wiring. The relay runs with the
-host's network on a box whose INPUT chain accepts everything, so a wildcard
-bind would publish it to the internet; and it must forward to Telegram and
-nowhere else, or it is an open TCP relay sitting on our address.
+host's network, so on a host whose firewall does not filter inbound traffic a
+wildcard bind would publish it to the internet; and it must forward to Telegram
+and nowhere else, or it is an open TCP relay sitting on our address.
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ def test_alertmanager_resolves_telegram_to_the_host_where_the_relay_is() -> None
 
 @pytest.mark.parametrize("section", ["frontend from_alertmanager", "frontend metrics"])
 def test_no_relay_listener_is_reachable_from_the_internet(section: str) -> None:
-    """Host networking plus a wildcard bind would publish the port: INPUT accepts all.
+    """Host networking plus a wildcard bind would publish the port; no firewall is assumed.
 
     docker0's address is reachable from the containers and not from outside, and
     the source check is the second lock for anything that does reach it.

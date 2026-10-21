@@ -127,7 +127,7 @@ def test_cpc_back_solves_spend_holding_clicks() -> None:
 
 
 def test_drr_orders_back_solves_spend() -> None:
-    """ДРР от заказов = spend/(orders x price)*100 → solve spend.
+    """«ДРР от заказов» = spend/(orders x price)*100 → solve spend.
 
     The denominator is the zone's DERIVED revenue — 2 orders x 500 ₽ — so 10%
     of 1 000 ₽ is 100 ₽ of spend.
@@ -205,7 +205,7 @@ def test_traffic_share_unreachable_target_becomes_override() -> None:
 # «Общая» and «Органика»
 # --------------------------------------------------------------------------- #
 def test_total_cart_conversion_solves_funnel_cart_count() -> None:
-    """«Общая» конверсия в корзину = cart/open*100 → solve cart_count."""
+    """«Общая» add-to-cart conversion = cart/open*100 → solve cart_count."""
     base = _edit("total", "cart_conversion", 15)  # 15% of 200 opens = 30 carts
 
     assert base.days[0].funnel is not None
@@ -223,7 +223,7 @@ def test_total_seller_price_edit_recomputes_volumes_and_spp() -> None:
     assert _cell(base, "order_sum", "total") == 10000.0
     # «Выкупы, ₽» is order-date: «Заказы, ₽» 10000 x «Процент выкупа» 50% = 5000.
     assert _cell(base, "buyout_sum", "total") == 5000.0
-    # СПП = (1000 - 350) / 1000 x 100.
+    # SPP = (1000 - 350) / 1000 x 100.
     assert _cell(base, "spp", "total") == 65.0
 
 
@@ -237,7 +237,7 @@ def test_total_customer_price_edit_recomputes_spp() -> None:
 
 
 def test_organic_clicks_solves_open_count_holding_ads() -> None:
-    """«Органика» клики = open - ad_clicks → solve open_count (hold ads)."""
+    """«Органика» clicks = open - ad_clicks → solve open_count (hold ads)."""
     # ad clicks = 3 + 4 + 1 (unclassified) = 8. organic set to 300 → open = 308.
     base = _edit("organic", "clicks", 300)
 
@@ -428,14 +428,14 @@ def test_a_total_below_the_associated_share_shrinks_the_breakdown() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# ДРР divides the numbers shown above it
+# DRR divides the numbers shown above it
 # --------------------------------------------------------------------------- #
 def test_total_spend_override_moves_only_the_drr_rows() -> None:
-    """«Затраты, ₽» in «Общая» is a roll-up: correcting it retargets both ДРР.
+    """«Затраты, ₽» in «Общая» is a roll-up: correcting it retargets both DRR rows.
 
     It has no unique back-distribution across the zones, so it stays a display
     override — but the ratios that divide by it must quote the corrected
-    number. Nothing else moves: not CPC, not the campaign's own ДРР.
+    number. Nothing else moves: not CPC, not the campaign's own DRR.
     """
     base = _edit("total", "spend", 100)
 
@@ -449,7 +449,7 @@ def test_total_spend_override_moves_only_the_drr_rows() -> None:
 
 
 def test_total_buyout_override_moves_only_drr_sales() -> None:
-    """A corrected «Выкупы, ₽» retargets ДРР от продаж and nothing else."""
+    """A corrected «Выкупы, ₽» retargets «ДРР от продаж» and nothing else."""
     base = _edit("total", "buyout_sum", 1000)
 
     assert _cell(base, "buyout_sum", "total") == 1000.0
@@ -461,7 +461,7 @@ def test_total_buyout_override_moves_only_drr_sales() -> None:
 
 
 def test_a_zones_buyout_override_moves_its_campaign_drr() -> None:
-    """The same rule in an ad column: the campaign's ДРР follows its own cells."""
+    """The same rule in an ad column: the campaign's DRR follows its own cells."""
     base = _edit("manual_search", "buyout_sum", 200)
 
     assert _cell(base, "buyout_sum", "manual_search") == 200.0

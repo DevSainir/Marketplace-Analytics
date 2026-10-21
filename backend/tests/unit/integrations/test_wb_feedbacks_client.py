@@ -2,7 +2,7 @@
 
 Two failures here would be silent and costly. A 200 that is not the review
 envelope read as an empty page would tell the walk that every review had
-vanished. And the storefront is addressed per склейка — keyed on its raw path,
+vanished. And the storefront is addressed per merged card group (imtId) — keyed on its raw path,
 every ``imtId`` would get a fresh bucket and the unauthenticated reader would be
 paced by nothing.
 """
@@ -99,7 +99,7 @@ async def test_the_walk_asks_for_one_half_oldest_first() -> None:
 
 
 async def test_every_storefront_read_spends_the_same_bucket() -> None:
-    """Keyed on the per-склейка path, each card would get a bucket of its own."""
+    """Keyed on the per-card-group path, each card would get a bucket of its own."""
     gate = RecordingGate()
     client = WBStorefrontFeedbacksClient(_SETTINGS)
     client._rate_gate = gate

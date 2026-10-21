@@ -1,15 +1,15 @@
 """No operator SQL script sets a password while Postgres is logging it.
 
-Production runs Postgres with `log_statement=ddl` (docker-compose.yml, added
-2026-09-10 for P2.9), and `ALTER ROLE ... PASSWORD` is DDL. A script that sets a
+The stack runs Postgres with `log_statement=ddl` (docker-compose.yml), and
+`ALTER ROLE ... PASSWORD` is DDL. A script that sets a
 role's password with that left on writes the password in clear to the container
 log, and Alloy ships the container log to Loki. Nothing fails and nothing looks
 wrong: the secret simply joins the log store.
 
-`least_privilege_role.sql` was written before the logging was turned on and is
-meant to be re-run after migrations, so every re-run since 2026-09-10 had this
-exposure until the guard was added to it. This reads the files rather than
-trusting the next script's author to know.
+`least_privilege_role.sql` is meant to be re-run after migrations, so a script
+that predates the logging setting carries this exposure on every re-run until it
+is guarded. This reads the files rather than trusting the next script's author
+to know.
 """
 
 from __future__ import annotations

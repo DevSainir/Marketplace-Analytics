@@ -191,8 +191,8 @@ def test_an_hour_served_by_two_campaigns_is_measured_once() -> None:
 def test_a_test_with_nothing_measured_reports_no_ratios() -> None:
     """Zero counts give `None` ratios, never 0 %.
 
-    Same rule the per-photo rows follow: «нечего делить» and «поделили, вышло
-    ноль» are different answers, and a summary that says 0 % CTR of a test that
+    Same rule the per-photo rows follow: "nothing to divide" and "divided, got
+    zero" are different answers, and a summary that says 0 % CTR of a test that
     has not run yet reads as a failed test.
     """
     variants = _variants()

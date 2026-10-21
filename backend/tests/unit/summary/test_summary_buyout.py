@@ -6,7 +6,7 @@ used since it was written, and the difference is not cosmetic: an order still in
 transit belongs to neither half, so the figure does not start near zero and
 climb for three weeks after every cohort.
 
-Measured on «Демо» 2026-09-17, by the age of the ordering week:
+Illustrative figures, by the age of the ordering week:
 
 ===========  =====================  ====================
 week age     answered / orders      buyout %, answered
@@ -67,9 +67,9 @@ def test_a_cohort_nobody_has_answered_yet_is_not_counted() -> None:
 def test_the_freshest_cohorts_are_left_out_of_the_ratio() -> None:
     """Days past the lag are excluded even when they have answered deliveries.
 
-    Inside a fresh cohort the refusals land BEFORE the buyouts: on the live
-    кабинет the current week showed 14 buyouts against 49 refusals — 22.2 % —
-    while the same кабинет settles at 26-30 %. The lag is what keeps a
+    Inside a fresh cohort the refusals land BEFORE the buyouts: in the example
+    the current week shows 14 buyouts against 49 refusals — 22.2 % — while the
+    same workspace settles at 26-30 %. The lag is what keeps a
     half-answered week from being reported as a collapse in buyouts.
     """
     days = [
@@ -85,7 +85,7 @@ def test_a_window_with_no_answered_day_reports_nothing_rather_than_zero() -> Non
 
     This is the page's own default period — the last week — and the service
     answers it from the standing window instead; what must never happen is a
-    zero, which reads as «ничего не выкупают».
+    zero, which reads as "nothing is being bought out".
     """
     days = [_day(date(2026, 9, 15), buyouts=0, decided=None)]
 

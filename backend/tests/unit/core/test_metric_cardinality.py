@@ -3,7 +3,7 @@
 A Prometheus series is one time series per unique label combination, held in
 memory for as long as it is fresh. So a label whose values are not drawn from a
 small closed set is not a monitoring inconvenience — it is unbounded memory
-growth in a process running on a 3.8 GB box beside the customer database.
+growth in a process running on a small host beside the customer database.
 
 There are two ways this codebase can produce one, and they are different
 problems:

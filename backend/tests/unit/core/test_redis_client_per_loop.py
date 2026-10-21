@@ -4,13 +4,13 @@ A Celery worker process runs many tasks, each on its own ``asyncio.run`` loop.
 ``redis.asyncio`` pools are loop-bound in two ways: each pooled socket belongs to
 the loop that opened it, and the pool's own ``asyncio.Lock`` binds itself to the
 first loop that ever has to *wait* on it. Draining the sockets at a task boundary
-(``drain_redis_pool``) fixes the first and leaves the second: once one task made
-two Redis calls at the same instant, every later task in that process that did
-the same died with ``<asyncio.locks.Lock …> is bound to a different event loop``.
+(``drain_redis_pool``) fixes the first and leaves the second: once one task makes
+two Redis calls at the same instant, every later task in that process that does
+the same dies with ``<asyncio.locks.Lock …> is bound to a different event loop``.
 
-That is how «Демо» lost its whole price snapshot for 2026-09-27: the morning
-harvest's ``prices``, ``adverts-v2`` and ``ad-write-offs`` sources reached their
-rate buckets together, in a process an earlier finance tick had already bound.
+That is how a workspace can lose its whole price snapshot for a day: the morning
+harvest's ``prices``, ``adverts-v2`` and ``ad-write-offs`` sources reach their
+rate buckets together, in a process an earlier finance tick has already bound.
 
 So the accessor itself hands every loop its own client. These tests hold that
 without a network — building a client opens no connection — and the live-Redis

@@ -6,9 +6,9 @@ happily, the counters come back zero, and every photo is credited with nothing �
 a test that ran, finished, and measured a card that was being advertised the
 whole time.
 
-Measured on production 2026-09-07: campaign 97455930 served nm 1944299862 259
-impressions while the running test sat at zero, because the campaign was newer
-than the last nightly harvest and discovery read the harvest.
+Seen 2026-09-07: a campaign served the card a few hundred impressions while the
+running test sat at zero, because the campaign was newer than the last nightly
+harvest and discovery read the harvest.
 """
 
 from __future__ import annotations
@@ -109,8 +109,8 @@ def test_a_campaign_that_cannot_deliver_is_left_out(status: int) -> None:
     """Every other status is past tense, or has never started.
 
     A card advertised for a month names a dozen of them, and reading each one
-    put a branch of «0 показов» under every figure of «Итог по тесту» —
-    observed on production 2026-09-19, seven campaigns where two were running.
+    put a branch of «0 показов» under every figure of «Итог по тесту» — seven
+    branches where only two campaigns were running (seen 2026-09-19).
     """
     adverts = [_advert(97455930, NM_TROUSERS, status=status)]
 

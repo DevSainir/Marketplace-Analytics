@@ -20,8 +20,8 @@ pytestmark = pytest.mark.unit
 
 _ENTRY = "evening-snapshot-reviews"
 
-#: Generous for today's fleet: the largest кабинет's walk is ~150 paced pages,
-#: and the storefront reads one склейка every three seconds across all of them.
+#: Generous for today's fleet: the largest workspace's walk is ~150 paced pages,
+#: and the storefront reads one card group every three seconds across all of them.
 _WORST_CASE = timedelta(minutes=45)
 
 

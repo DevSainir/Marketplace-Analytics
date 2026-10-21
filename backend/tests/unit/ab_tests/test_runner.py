@@ -337,7 +337,7 @@ async def test_each_campaign_gets_its_own_window_and_all_of_them_are_named() -> 
 
 
 async def test_a_campaign_that_brought_nothing_this_pass_writes_no_row() -> None:
-    """A row of zeroes would make «эта РК работала в этом круге» true of one that did not."""
+    """A row of zeroes would make "this ad campaign ran in this lap" true of one that did not."""
     first = make_variant(1)
     test = running_test([first, make_variant(2)], active=first)
     windows = FakeWindows()
@@ -372,8 +372,8 @@ async def test_a_photo_coming_round_again_starts_its_budget_from_zero() -> None:
     The rotation is a circle, so every photo comes back. Counting its whole
     lifetime meant a returning photo arrived already over budget: the trigger
     fired on the first pass of every later turn and the rotation collapsed into
-    a photo change every polling period. Observed on production 2026-09-19 —
-    installs five minutes apart, which is the beat interval exactly.
+    a photo change every polling period. Seen 2026-09-19: installs five
+    minutes apart, which is the beat interval exactly.
     """
     first, second = make_variant(1), make_variant(2)
     test = running_test([first, second], active=first)

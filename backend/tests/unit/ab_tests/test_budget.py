@@ -26,7 +26,7 @@ from src.modules.ab_tests.services.budget import (
 NM_TROUSERS = 1944299862
 NM_OTHER = 995716075
 
-#: WB's own status codes, as observed on the live account 2026-09-07.
+#: WB's own status codes, as the v2 campaign listing reports them.
 FINISHED, READY = 7, 4
 
 
@@ -74,8 +74,8 @@ class _FakeBudgets:
 def test_only_campaigns_that_can_still_spend_are_asked(status: int, counts: bool) -> None:
     """A finished campaign's zero is not evidence about this test's budget.
 
-    261 of the account's campaigns were finished on 2026-09-07 and every one
-    reported zero. Counting them would make every test look out of money.
+    An account collects hundreds of finished campaigns, and every one of them
+    reports zero. Counting them would make every test look out of money.
     """
     adverts = [_advert(97455930, NM_TROUSERS, status=status)]
 

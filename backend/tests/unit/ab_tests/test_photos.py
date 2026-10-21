@@ -21,8 +21,7 @@ from src.modules.ab_tests.services.photos import (
     validate_image,
 )
 
-# Vendor codes from the live catalogue, so a reader can find the card these
-# tests are shaped around.
+# Sample vendor codes, so a reader can tell which card each case stands for.
 VENDOR_FLOWER_DRESS = "ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК"
 VENDOR_PLAIN_SUIT = "ДЕТ_КОСТЮМ_ДВОЙКА_ОДНОТОН"
 VENDOR_DENIM_SUIT = "ДЖН_КОСТЮМ_ДЖИНСА"

@@ -1,6 +1,6 @@
-"""Unit tests for the grain of an advertising column: the whole кампания.
+"""Unit tests for the grain of an advertising column: the whole campaign.
 
-An ad column measures a рекламная кампания — its spend, its traffic, its
+An ad column measures an ad campaign — its spend, its traffic, its
 conversions across every card and variant it delivered for. The viewed card's
 own share of it is a separate fact, and only two columns are built from that
 share: «Общая» (the card's whole day) and «Органика» (that day minus the ads).
@@ -27,7 +27,7 @@ from tests.support.matrix_rows import (
 def _two_card_campaign() -> dict[str, list[float | None]]:
     """A shelves campaign promoting two cards; the viewed one is a third of it.
 
-    The campaign spent 3 000 ₽ for 300 Показы, 30 clicks, 15 carts and 8 orders;
+    The campaign spent 3 000 ₽ for 300 impressions, 30 clicks, 15 carts and 8 orders;
     1 000 ₽ / 100 / 10 / 5 / 2 of that was booked on the card being viewed.
     """
     return _matrix(
@@ -79,7 +79,7 @@ def test_the_cards_own_columns_keep_the_cards_own_share() -> None:
     """«Общая» and «Органика» stay the card's — never the campaign's.
 
     «Общая» is this card's day: crediting it with a campaign's whole spend
-    would overstate its ДРР by however much the campaign spent on other cards,
+    would overstate its DRR by however much the campaign spent on other cards,
     and «Органика» (funnel minus ads) would go negative on the counts.
     """
     rows = _two_card_campaign()
@@ -96,12 +96,12 @@ def test_a_siblings_campaign_does_not_claim_a_column_here() -> None:
 
     WB books a campaign's conversions on whichever variant the buyer picked, so
     a card collects orders from campaigns promoting its siblings — with no
-    traffic and no spend of its own (live on 2026-08-18: this card carried 2
-    orders of a campaign that spent 6 483 ₽ advertising another one). Judged by
+    traffic and no spend of its own (for example, 2 orders of a campaign that
+    spent its whole budget advertising another card). Judged by
     the campaign's numbers such a campaign clears every significance test and,
-    ranked by Показы, displaces the campaign that actually runs here.
+    ranked by impressions, displaces the campaign that actually runs here.
 
-    So what a column SHOWS is the whole кампания; what puts it on this page is
+    So what a column SHOWS is the whole campaign; what puts it on this page is
     the card's own delivery.
     """
     rows = _matrix(

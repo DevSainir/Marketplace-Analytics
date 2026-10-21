@@ -15,8 +15,8 @@ requests being retried elsewhere.
 For nginx, behind the edge, it is a floor set by the api (see the last test).
 
 For the worker the pair is the grace period and Celery's warm shutdown, and it
-has a ceiling as well as a floor: `.github/workflows/deploy.yml` gives the whole
-job 20 minutes, so a grace sized to cover the longest nightly task would turn
+has a ceiling as well as a floor: the stop has to fit inside a deploy window of
+about 20 minutes, so a grace sized to cover the longest nightly task would turn
 one badly timed deploy into a failed one.
 """
 
@@ -34,9 +34,9 @@ _COMPOSE = pathlib.Path(__file__).resolve().parents[3] / "docker" / "docker-comp
 #: this, which is the state every one of them was in before 2026-09-10.
 _DOCKER_DEFAULT_GRACE_SECONDS = 10
 
-#: `.github/workflows/deploy.yml` sets `timeout-minutes: 20` on the deploy job,
-#: and the worker is stopped near the end of it, after the build and both api
-#: rotations have already spent their share.
+#: The deploy window the worker's stop has to fit inside, about 20 minutes. The
+#: worker is stopped near the end of it, after the build and both api rotations
+#: have already spent their share.
 _DEPLOY_JOB_BUDGET_SECONDS = 20 * 60
 
 

@@ -40,7 +40,7 @@ def test_total_volumes_and_spp_derive_from_seller_price() -> None:
     # DRR over the derived ₽: spend 7000 / 500000 and / 200000.
     assert _cell(rows, "drr_orders", 0, "total") == 1.4
     assert _cell(rows, "drr_sales", 0, "total") == 3.5
-    # Prices/СПП are «Общая»-only (never on ad buckets or «Органика»).
+    # Prices/SPP are «Общая»-only (never on ad buckets or «Органика»).
     for bucket in ("uni_search", "manual_search", "organic"):
         assert _cell(rows, "seller_price", 0, bucket) is None
         assert _cell(rows, "spp", 0, bucket) is None
@@ -63,7 +63,7 @@ def test_unpriced_day_leaves_volumes_and_spp_empty() -> None:
 def test_price_only_day_shows_prices_but_no_counts() -> None:
     """The CURRENT day: prices are snapshotted at harvest, the funnel lags a day.
 
-    Prices and СПП must render; the count cells (and everything derived from
+    Prices and SPP must render; the count cells (and everything derived from
     them — «Заказы, ₽», «Органика») must stay blank, because zero counts on a
     not-yet-served day are not facts.
     """
@@ -81,7 +81,7 @@ def test_price_only_day_shows_prices_but_no_counts() -> None:
         date_to=DAY2,
     )
 
-    # DAY2: prices/СПП show…
+    # DAY2: prices/SPP show…
     assert _cell(rows, "seller_price", 1, "total") == 110.0
     assert _cell(rows, "customer_price", 1, "total") == 90.0
     assert _cell(rows, "spp", 1, "total") == 18.18  # (110-90)/110 x 100

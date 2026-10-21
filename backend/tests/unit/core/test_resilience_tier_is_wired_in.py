@@ -11,11 +11,9 @@ That is the failure this file refuses: not a red build, but a green one with a
 hole in it. The tier now runs inside `verify`, which has no `if:` at all, and
 the assertions below are about WHERE it runs rather than what it finds.
 
-They deliberately do NOT pin the runner. Moving jobs between the VPS and hosted
-runners is a live question here — hosted minutes ran out, and the tiers are
-expected to move again — so a test that froze `runs-on` would be a test that
-has to be edited every time the plan changes, which is how a test stops being
-read.
+They deliberately do NOT pin the runner. Which runner a job uses is expected to
+change, so a test that froze `runs-on` would be a test that has to be edited
+every time the plan changes, which is how a test stops being read.
 """
 
 from __future__ import annotations

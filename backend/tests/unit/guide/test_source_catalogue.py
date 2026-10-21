@@ -31,7 +31,7 @@ def test_every_source_key_fits_the_column_it_is_stored_in() -> None:
 
 
 def test_every_source_names_a_host_that_settings_actually_has() -> None:
-    """A typo in ``base_url`` would only surface at 02:20 in production."""
+    """A typo in ``base_url`` would only surface at 02:20, when the scheduled run fires."""
     for source in GUIDE_SOURCES:
         assert hasattr(settings, source.base_url), source.key
         assert source.host(settings).startswith("https://"), source.key

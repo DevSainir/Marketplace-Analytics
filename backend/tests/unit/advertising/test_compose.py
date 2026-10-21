@@ -84,7 +84,7 @@ def test_drr_inputs_stop_where_the_settlement_does() -> None:
 
     assert page.totals.spend_settled == Decimal("250")
     # The 187.77 bonus was charged on D2, inside the settled span, so all of it
-    # comes off ДРР's numerator: the seller's own money is spend minus bonus.
+    # comes off DRR's numerator: the seller's own money is spend minus bonus.
     assert page.totals.bonus_settled == Decimal("187.77")
     assert page.totals.sales == Decimal("1500")
     assert [day.sales for day in page.days] == [Decimal("1000"), Decimal("500"), None]
@@ -94,7 +94,7 @@ def test_drr_inputs_stop_where_the_settlement_does() -> None:
 
 
 def test_without_a_settlement_sales_are_unknown_rather_than_zero() -> None:
-    """«Ещё не рассчитано» must not read as «продаж не было» — ДРР would show as infinite."""
+    """Sales not calculated yet must not read as no sales — DRR would show as infinite."""
     page = compose(_facts(), sales=[], settled_to=None, catalog=_cards(), orders=None)
 
     assert page.totals.sales is None

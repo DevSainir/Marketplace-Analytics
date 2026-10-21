@@ -13,7 +13,7 @@ directions, so fixing either one alone moves the failure rather than ending it.
   is told nothing, and certifies the whole of it.
 
 On 2026-09-14 the second one cost the week: watermark 13.09, newest report
-ending 06.09, and report 985672101 (07.09-13.09, formed 14.09) published into a
+ending 06.09, and the 07.09-13.09 report (formed 14.09) was published into a
 window nothing would ever ask about again. Three of five workspaces were short
 the entire week while the hourly gate answered «settled through 13.09 — nothing
 newer can exist yet» to every tick, «Обновить» included. No counter moved and no
@@ -58,7 +58,7 @@ TODAY = date(2026, 9, 14)
 WATERMARK = date(2026, 9, 13)
 #: The last day a report we actually hold covers.
 COVERED = date(2026, 9, 6)
-#: The week WB published on the morning of 09-14, report 985672101.
+#: The week WB published on the morning of 09-14.
 MISSED_WEEK = (date(2026, 9, 7), date(2026, 9, 13))
 CHECKED_AT = datetime(2026, 9, 14, 9, 0, tzinfo=UTC)
 

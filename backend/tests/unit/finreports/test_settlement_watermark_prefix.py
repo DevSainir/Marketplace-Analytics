@@ -9,8 +9,8 @@ That is not hypothetical. On 2026-09-07 the mark was read from
 `max(financial_report.date_to)`, the period WB *states* on the header, which is
 written from the first page that lands. Four of five workspaces held one day of
 the 01.09-06.09 week while the header claimed all six; the gate then probed
-07.09, found nothing, and skipped. «К перечислению» read 12 954 against WB's own
-385 925.6 and nothing raised.
+07.09, found nothing, and skipped. «К перечислению» showed a small fraction of
+WB's own figure and nothing raised.
 
 So these pin the rule that makes it unrepresentable: a walk certifies the
 **unbroken prefix** of windows it completed, and nothing beyond the first one

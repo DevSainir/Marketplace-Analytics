@@ -1,10 +1,10 @@
 """The recipient list is the one part of the backup encryption a machine can check.
 
 Since 2026-09-21 the nightly archive is age-encrypted to two public keys: an
-*online* one whose private half sits in `BACKUP_ENCRYPTION_IDENTITY` on the VPS
-so the Sunday restore rehearsal can still run unattended, and an *offline* one
-whose private half has only ever been in a password manager. The offline key is
-the one that survives losing the box.
+*online* one whose private half sits in `BACKUP_ENCRYPTION_IDENTITY` on the
+server so the Sunday restore rehearsal can still run unattended, and an *offline*
+one whose private half has only ever been in a password manager. The offline key
+is the one that survives losing the server.
 
 Which creates a hole nothing else closes. Gate 5a decrypts the artifact before
 upload — but it can only ever do that with the online key, because the offline
@@ -70,7 +70,7 @@ def test_the_database_archive_has_an_offline_reader() -> None:
     """Two recipients, and the offline one is the key from the password manager.
 
     One recipient would be the old symmetric scheme wearing a new name: lose
-    the box, lose every archive.
+    the server, lose every archive.
     """
     recipients = _recipients("database.txt")
 
@@ -83,7 +83,7 @@ def test_the_database_archive_has_an_offline_reader() -> None:
 
 
 def test_the_secrets_bundle_cannot_be_read_on_the_box() -> None:
-    """One recipient, offline, and none that the VPS holds the private half of.
+    """One recipient, offline, and none that the server holds the private half of.
 
     The bundle carries the Fernet key that unlocks every WB token inside the
     nightly archives. A machine able to decrypt both holds the whole estate,
@@ -155,10 +155,10 @@ def test_pre_age_archives_can_still_be_opened() -> None:
 
 
 def test_housekeeping_sweeps_both_eras() -> None:
-    """A glob matching only one suffix leaks ~100 MB a night onto a 48 GB disk.
+    """A glob matching only one suffix leaks ~100 MB a night onto the host's disk.
 
-    This VPS has gone read-only from a slow disk leak before, taking the site
-    with it, which is why the sweep is asserted rather than eyeballed.
+    A slow disk leak ends with a read-only filesystem and the site down with it,
+    which is why the sweep is asserted rather than eyeballed.
     """
     sweep = re.search(r"ls -1t [^|]*\|", _source("backup.sh"), re.S)
     assert sweep, "the local-artifact sweep has gone"

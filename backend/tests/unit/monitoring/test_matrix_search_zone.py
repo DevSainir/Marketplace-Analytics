@@ -3,7 +3,7 @@
 A WB search campaign also delivers in the catalog zone: the normquery slice is
 the «Поиск» half and the remainder is «Каталог». The split is only as sound as
 its clamping — a slice reported above the campaign's own totals must not
-manufacture negative catalog numbers. Live figures from 13.07.2026.
+manufacture negative catalog numbers. The figures are sample numbers.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from tests.support.matrix_rows import DAY1, _ad_row, _campaign, _cell, _matrix, 
 
 # --------------------------------------------------------------------------- #
 # «Руч. каталог»: WB search campaigns also deliver in the catalog zone —
-# normquery slice = «Поиск», remainder = «Каталог» (live numbers 13.07.2026).
+# normquery slice = «Поиск», remainder = «Каталог» (sample numbers).
 # --------------------------------------------------------------------------- #
 def test_search_campaign_splits_into_search_and_catalog() -> None:
     """A search-only manual campaign splits into «Поиск» + «Каталог» zones."""

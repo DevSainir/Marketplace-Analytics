@@ -1,6 +1,6 @@
 """Unit tests for the associative-conversion breakdown (services/matrix/).
 
-The carts/orders cells show the кампания's own count, associated size/colour
+The carts/orders cells show the campaign's own count, associated size/colour
 variants included; these cover the per-variant decomposition behind the hover.
 The load-bearing property is that a cell's rows SUM to the number the cell
 displays — a breakdown that doesn't add up is worse than none, since the reader
@@ -135,7 +135,7 @@ def test_single_zone_campaign_breaks_down_exactly() -> None:
 def test_split_campaign_with_an_empty_search_zone_stays_exact() -> None:
     """A zone that took none of the extra forces the division — no estimate.
 
-    The live shape: a unified campaign delivers almost entirely on shelves, so
+    The typical shape: a unified campaign delivers almost entirely on shelves, so
     search converts nothing and every associated cart belongs to shelves.
     """
     buckets = _derive(

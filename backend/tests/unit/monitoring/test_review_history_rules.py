@@ -169,7 +169,7 @@ def test_a_storefront_review_we_hold_no_row_for_is_ignored() -> None:
 
 
 def test_a_handful_of_missing_reviews_is_always_believed() -> None:
-    """A small кабинет losing three reviews to a complaint is the case this is for."""
+    """A small workspace losing three reviews to a complaint is the case this is for."""
     assert vanishing_is_believable(missing=3, live=40)
 
 

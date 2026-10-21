@@ -201,8 +201,8 @@ async def test_a_live_holder_keeps_the_lock_past_its_ttl() -> None:
 async def test_a_dead_holder_lets_go_within_one_ttl() -> None:
     """The other half: a killed process must not strand the job.
 
-    This is the case that cost two harvests on 2026-08-11 — an hour of TTL left
-    behind, once by the OOM killer and once by a deploy recreating the worker.
+    This is the case that costs a harvest: an hour of TTL left behind by a
+    holder the OOM killer took, or by a deploy recreating the worker.
     A holder that never renews is exactly a holder that died.
     """
     redis = _ExpiringRedis()

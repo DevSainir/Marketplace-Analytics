@@ -122,7 +122,7 @@ async def test_a_password_already_in_a_public_leak_is_refused() -> None:
 
 @pytest.mark.asyncio
 async def test_reusing_the_same_password_is_refused() -> None:
-    """«Сменил» has to mean something — the same string is not a change."""
+    """A change has to mean something — the same string is not a change."""
     # Arrange
     user = make_user()
     users = FakeUserRepository([user])

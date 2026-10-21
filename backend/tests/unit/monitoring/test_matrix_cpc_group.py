@@ -1,8 +1,8 @@
 """Unit tests for the «CPC» traffic group — pay-per-click campaigns.
 
-WB bills these campaigns per CLICK rather than per 1000 показов, so their
-ставка, their CPM and their «Доля трафика» are not readable against a CPM
-campaign's. They get their own «тип получения трафика» group with the same two
+WB bills these campaigns per CLICK rather than per 1000 impressions, so their
+bid, their CPM and their «Доля трафика» are not readable against a CPM
+campaign's. They get their own traffic-type group with the same two
 display zones, and the classification that puts them there keys off the
 campaign dimension's ``payment_type``, never its bid type.
 """
@@ -16,7 +16,7 @@ def test_a_cpc_campaign_lands_in_the_cpc_group_not_the_bid_type_one() -> None:
     """A CPC campaign's zones are «CPC», never «Единая ставка».
 
     Its bid type still reads ``unified``, which before the CPC group put it in
-    the «Единая ставка» columns — mixing a per-click ставка into a per-показ
+    the «Единая ставка» columns — mixing a per-click bid into a per-impression
     column, where every CPM and «Доля трафика» beside it became unreadable.
     """
     campaigns = {1: _campaign(1, "unified", search=True, shelves=True, payment_type="cpc")}
@@ -35,7 +35,7 @@ def test_the_cpc_columns_carry_their_own_cost_per_click() -> None:
     """Each CPC zone's «CPC, ₽» is that zone's own spend over its own clicks.
 
     The whole point of the group: 900/80 in «Поиск» and 300/20 in «Полки» are
-    two different ставки, and a blended 12 ₽ over the campaign hides which zone
+    two different bids, and a blended 12 ₽ over the campaign hides which zone
     the money went to.
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=True, payment_type="cpc")}
@@ -85,8 +85,8 @@ def test_traffic_share_normalizes_within_the_cpc_group() -> None:
     """Each traffic type sums to 100% on its own — CPC included.
 
     A CPC campaign running beside a CPM one must not dilute the CPM columns'
-    shares (nor be diluted by them): показы bought per click and показы bought
-    per mille are not fractions of one pool.
+    shares (nor be diluted by them): impressions bought per click and
+    impressions bought per mille are not fractions of one pool.
     """
     campaigns = {
         1: _campaign(1, "unified", search=True, shelves=True),
@@ -113,10 +113,10 @@ def test_a_cpc_campaign_delivers_below_the_cpm_floor() -> None:
     """A CPC campaign-day clearing 50 ₽ counts as delivering, not as trickle.
 
     The 200 ₽ floor is calibrated on CPM economics (WB's CPM floor puts it at
-    roughly 700-1300 показы). A pay-per-click campaign buys the same delivery
-    for about a quarter of that, so the CPM floor read a real day as noise: live
-    on 20.08.2026, campaign 97455941 served 646 показы and 74 клика for
-    166.50 ₽ on M-TRX01-BLK, and the «CPC» column stayed blank on that card.
+    roughly 700-1300 impressions). A pay-per-click campaign buys the same delivery
+    for about a quarter of that, so the CPM floor read a real delivering day as
+    noise. Example: a campaign serves 646 impressions and 74 clicks for
+    166.50 ₽ on one card, and the «CPC» column stayed blank on that card.
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False, payment_type="cpc")}
     ad_rows = [_ad_row(1, DAY1, views=1154, clicks=74, spend=166.50, orders=3)]
@@ -131,8 +131,8 @@ def test_a_cpc_campaign_delivers_below_the_cpm_floor() -> None:
 def test_a_cpc_campaign_that_never_delivered_is_still_cut() -> None:
     """The lower floor is not "no floor" — a no-click CPC day is still trickle.
 
-    A paused-but-not-finished CPC campaign trickles a handful of показы for
-    0 ₽ (16 such campaign-day-cards live, all at 0 кликов); those must not
+    A paused-but-not-finished CPC campaign trickles a handful of impressions for
+    0 ₽, always at 0 clicks; those must not
     open a «CPC» column that claims the card had pay-per-click traffic.
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False, payment_type="cpc")}

@@ -2,17 +2,16 @@
 
 Compose passes no `--target` when the service does not set one, and Docker then
 builds the LAST stage in the Dockerfile. That default is silent, and it changes
-meaning whenever someone appends a stage — which is exactly what happened on
-2026-09-10: the frontend Dockerfile gained an `e2e` stage at the bottom, and the
-production `frontend` service, which had never needed a target, began resolving
-to it. The result builds, starts and passes a health check while serving the
-CI config: plain HTTP, no TLS, and a document root pointing into the image
-instead of the release directory the deploy installs.
+meaning whenever someone appends a stage. Append an `e2e` stage to the bottom of
+the frontend Dockerfile, and a production `frontend` service that never named a
+target begins resolving to it. The result builds, starts and passes a health
+check while serving the CI config: plain HTTP, no TLS, and a document root
+pointing into the image instead of the release directory the deploy installs.
 
-Nothing else catches this. The image is tagged the same either way, the guard in
-`deploy.yml` compares a container against the tag it was created from and finds
-them equal, and `nginx -t` is happy because the config is valid — just not the
-one production is meant to run.
+Nothing else catches this. The image is tagged the same either way, a check that
+compares a container against the tag it was created from finds them equal, and
+`nginx -t` is happy because the config is valid — just not the one production is
+meant to run.
 """
 
 from __future__ import annotations

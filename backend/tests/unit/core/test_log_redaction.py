@@ -1,10 +1,10 @@
-"""The redaction contract for logs and Sentry (register P2.2).
+"""The redaction contract for logs and Sentry.
 
 Two sinks retain what this service says about itself, and both are read by more
 people, for longer, than the database is. A WB seller token that reaches Loki
-has been copied out of the column where it is Fernet-encrypted at rest
-(register P1.11) into a store with none of those controls — so the scrubber is
-the thing standing between a careless ``%s`` and undoing that.
+has been copied out of the column where it is Fernet-encrypted at rest into a
+store with none of those controls — so the scrubber is the thing standing
+between a careless ``%s`` and undoing that.
 
 The cases below are organised around the two ways it can fail, because they
 fail in opposite directions and a test suite that only covers one gives false
@@ -49,7 +49,7 @@ JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1
 #: for, in the one place that would have gone unnoticed.
 BCRYPT = hash_password("correct-horse-battery-staple")
 
-#: A Fernet token — how every workspace WB token is stored (register P1.11).
+#: A Fernet token — how every workspace WB token is stored.
 FERNET = "gAAAAABmXk9pQ7Zt3vN8Lw2Rk5YxJhFcVbNmQwErTyUiOpAsDfGhJkL"
 
 
@@ -255,9 +255,9 @@ def test_identity_is_not_confidentiality() -> None:
     """Addresses and names survive, on purpose.
 
     They are what make a line an answer instead of a fact, and the audit log
-    already records an invitee's address deliberately (register P1.3). This
-    module hides credentials; redacting identifiers would defeat the reason the
-    context is bound at all.
+    already records an invitee's address deliberately. This module hides
+    credentials; redacting identifiers would defeat the reason the context is
+    bound at all.
     """
     # Act
     payload = _render("invitation sent", invitee="seller@example.com", workspace_name="Магазин")

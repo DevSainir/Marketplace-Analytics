@@ -4,7 +4,7 @@
 routinely finish below it: the funnel stops at the seller's first trade, and
 advertising stops when every campaign is covered. So the ratio cannot be what
 decides "finished", and a finished lane cannot be allowed to render at 40%
-while the words beside it say «готово».
+while the words beside it say «готово» (done).
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def test_a_finished_lane_reads_100_even_when_it_stopped_early() -> None:
 
     A shop that opened in June has ~80 days of funnel, not 365. The walk ends
     correctly and the counters honestly say 80/365 — but the lane is done, and
-    a bar frozen at 22% next to «готово» reads as a stuck job.
+    a bar frozen at 22% next to «готово» (done) reads as a stuck job.
     """
     assert _percent(_row(state=BackfillState.DONE, done=80, total=365)) == 100
 

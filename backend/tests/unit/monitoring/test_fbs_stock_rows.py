@@ -26,7 +26,7 @@ from src.modules.monitoring.tasks.fbs import (
     read_each_warehouse,
 )
 
-#: Two real sizes of nm 995716075 as catalogued locally.
+#: Two sample sizes of nm 995716075 as catalogued locally.
 _SIZES: dict[str, tuple[int, int]] = {
     "2046161763208": (995716075, 965033858),
     "2046161763215": (995716075, 965033859),

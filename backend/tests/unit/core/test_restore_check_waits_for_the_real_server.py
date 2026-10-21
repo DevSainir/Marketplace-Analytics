@@ -1,18 +1,18 @@
 """The restore rehearsal must wait for the *real* Postgres, not the init one.
 
-This is the 2026-09-20 backup failure, written down. The Sunday deep check
-polled `pg_isready` on the default Unix socket, got "accepting connections",
-and one second later `psql` answered:
+The failure mode, written down: a Sunday deep check that polls `pg_isready` on
+the default Unix socket gets "accepting connections", and one second later
+`psql` answers:
 
     connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed:
     No such file or directory
 
-Nothing was wrong with the dump. `postgres:16-alpine`'s entrypoint initialises
+Nothing is wrong with the dump. `postgres:16-alpine`'s entrypoint initialises
 an empty data directory by starting a **temporary** server, running the init
 steps against it, and shutting it down before exec'ing the real one — and that
-temporary server listens on the socket. The readiness gate was passing on a
-server that was about to disappear; on a loaded 1-CPU VPS the poll lands inside
-that window often enough to break a run.
+temporary server listens on the socket. Such a readiness gate passes on a
+server that is about to disappear; on a loaded single-CPU host the poll lands
+inside that window often enough to break a run.
 
 The temporary server runs with `listen_addresses=''`, so TCP on 127.0.0.1 is
 the one question that separates it from the real one. That is a property of the

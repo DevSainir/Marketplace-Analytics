@@ -172,12 +172,12 @@ def test_a_campaign_with_no_traffic_is_not_a_column() -> None:
 
 
 def test_a_campaign_that_showed_the_card_to_nobody_is_not_a_column() -> None:
-    """Spend with no показы and no клики measures nothing the page compares.
+    """Spend with no impressions and no clicks measures nothing the page compares.
 
     A campaign WB has since finished can still turn up in a fullstats answer
     with a rouble against it and no traffic. Its column is dashes, and seven of
     those under every figure of «Итог по тесту» is what the split was supposed
-    to make readable — observed on production 2026-09-19.
+    to make readable (seen 2026-09-19).
     """
     first = _variant(1)
     billed = _window(first, campaign_id=CPC, at=5, views=0, clicks=0)
@@ -241,7 +241,7 @@ def test_a_photo_can_lead_one_campaign_and_trail_the_other() -> None:
     """Why the gap is recomputed inside the campaign rather than carried over."""
     first, second = _variant(1), _variant(2)
     windows = [
-        # Единая: photo 1 converts twice as well as photo 2.
+        # «Единая» (unified): photo 1 converts twice as well as photo 2.
         _window(first, campaign_id=UNI, at=5, views=1000, clicks=40),
         _window(second, campaign_id=UNI, at=10, views=1000, clicks=20),
         # CPC: the other way round.

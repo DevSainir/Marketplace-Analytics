@@ -1,7 +1,7 @@
 """Unit tests for the derived thumbnails (services/thumbnails.py).
 
 The reason this exists is a measurement rather than a preference — fourteen
-production variant images are 78.8 MB, drawn at up to 88 CSS pixels — so what is
+full-size variant images came to 78.8 MB, drawn at up to 88 CSS pixels — so what is
 worth pinning is that the derivative is actually small, and that the formats a
 seller really uploads survive the trip. A phone photo is as likely to be a PNG
 with an alpha channel or a portrait JPEG carrying its rotation in EXIF as it is

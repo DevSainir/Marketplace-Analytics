@@ -3,8 +3,8 @@
 The three ratios the UI shows are chained, not parallel: each one divides by the
 previous stage, so «Доля добавлений в корзину» is add-to-basket per *click*, not
 per impression. Getting that wrong produces a plausible number rather than an
-error, which is why the expected values below are taken verbatim from WB's own
-A/B result screen for a real completed test.
+error, which is why the expected values below are a worked example in the
+shape of WB's own A/B result screen for a completed test.
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ def _window(ended: datetime, **counts: int) -> WindowCounts:
 
 
 def test_conversions_reproduce_wb_own_ab_result_screen() -> None:
-    """Our three ratios equal what WB printed for variant А of a real test.
+    """Our three ratios equal what WB's result screen shows for variant А.
 
-    WB reported 8.97 / 8.04 / 33.25 % against 54 249 impressions, 4 865 clicks,
+    The example: 8.97 / 8.04 / 33.25 % against 54 249 impressions, 4 865 clicks,
     391 carts and 130 orders. Any of the three computed against the wrong
     denominator still lands in a believable 0–100 range, so this is the check
     that catches it.

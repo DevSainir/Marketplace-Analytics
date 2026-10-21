@@ -271,8 +271,8 @@ async def test_a_broker_failure_costs_the_backfill_but_not_the_token(
 def test_a_feedback_token_reaches_nothing_the_bootstrap_reads() -> None:
     """«Вопросы и отзывы» feeds no harvest and no lane.
 
-    Added to «Демо» on 2026-10-02, it reset all four lanes and re-walked
-    the whole history for rows the кабинет already held.
+    Adding one to a workspace once reset all four lanes and re-walked the
+    whole history for rows the workspace already held.
     """
     assert newly_reachable(["content", "finance"], ["content", "finance", "feedback"]) == set()
 

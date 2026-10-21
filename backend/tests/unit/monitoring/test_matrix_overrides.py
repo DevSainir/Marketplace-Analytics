@@ -155,7 +155,7 @@ def test_buyout_percent_roundtrips_as_a_day_level_input() -> None:
 
     It is harvested, so a manager's correction has to survive a save the same
     way an edited count does — otherwise everything derived from it («Выкупы,
-    ₽», both ДРР rows) reverts on the next read.
+    ₽», both DRR rows) reverts on the next read.
     """
     fact = _fact_base()  # no cohort served for this day
     working = fact.model_copy(deep=True)

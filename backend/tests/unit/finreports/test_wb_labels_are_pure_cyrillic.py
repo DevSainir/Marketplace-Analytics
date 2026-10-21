@@ -71,8 +71,8 @@ def test_a_reason_label_contains_no_latin_lookalikes(label: str) -> None:
     """The ``bonus_type_name``/``payment_processing`` markers are pure Cyrillic too.
 
     ``SEPARATELY_BILLED_ACQUIRING`` is the sharpest case: a mismatch there moves
-    226 004 KGS between the acquiring and commission lines without changing any
-    total, so nothing downstream would look wrong.
+    the whole acquiring fee between the acquiring and commission lines without
+    changing any total, so nothing downstream would look wrong.
     """
     assert _latin_letters(label) == set()
     assert _unexpected(label) == set()
@@ -93,7 +93,7 @@ def test_an_advertising_funding_label_contains_no_latin_lookalikes(label: str) -
 
     A Latin lookalike in «Кэшбэк» is the quietest failure of the set: the label
     matches nothing, the bonus is silently treated as the seller's own money,
-    and the report goes back to the inflated ДРР it had before — with every
+    and the report goes back to the inflated DRR it had before — with every
     total still reconciling, because the ledger never enters the settlement.
     """
     assert _latin_letters(label) == set()

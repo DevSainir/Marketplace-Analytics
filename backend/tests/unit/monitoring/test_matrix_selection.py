@@ -93,11 +93,10 @@ def test_zero_delivery_campaign_is_cut() -> None:
 def test_trickling_campaign_day_is_cut() -> None:
     """A campaign-day spending a few ₽ is trickle, not delivery, and is cut.
 
-    Mirrors SKU 944212835 over 10-14.07: campaign 63813921 is a REAL campaign
-    (206 157 ₽ across 63 days, peaking at 10 118 ₽/day) that spent 3-16 ₽/day
-    for a week — a handful of Показы and no clicks. The day must read «—», not
-    present the SKU as advertised. The cut is per DAY, so the same campaign's
-    real days are unaffected (see the DAY2 column).
+    The pattern: a campaign that genuinely delivers on most days spends
+    3-16 ₽/day for a week — a handful of impressions and no clicks. The day
+    must read «—», not present the SKU as advertised. The cut is per DAY, so
+    the same campaign's delivering days are unaffected (see the DAY2 column).
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
     ad_rows = [

@@ -1,7 +1,7 @@
 """Reading WB's weekly report file — what it accepts, what it refuses, how it maps.
 
-The mapping itself was proven against WB's own file of report 992915233 (3 257
-rows, 58 columns agreeing with the API's rows on every row); these pin the
+The mapping itself was checked against a complete WB weekly report file (all 58
+columns agreeing with the API's rows on every row); these pin the
 behaviour around it — the refusals and the cells the file writes differently.
 """
 
@@ -79,7 +79,7 @@ def test_a_cut_or_edited_file_is_refused_on_its_numbering() -> None:
 
 
 def test_blank_ids_read_the_way_the_api_stores_them() -> None:
-    """No supply is NULL in the API's row and no ШК is 0 — the comparison depends on it."""
+    """No supply is NULL in the API's row and no «ШК» is 0 — the comparison depends on it."""
     xlsx = weekly_workbook([weekly_row({"Номер поставки": "", "ШК": ""})])
 
     (row,) = iter_report_rows(xlsx)

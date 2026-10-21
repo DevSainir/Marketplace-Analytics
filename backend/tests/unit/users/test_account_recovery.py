@@ -1,6 +1,6 @@
-"""Email confirmation and password reset (register P1.6).
+"""Email confirmation and password reset.
 
-The entry's warning is the reason most of these exist: *building this badly is
+One warning is the reason most of these exist: *building this badly is
 worse than not having it.* A reset flow is a full authentication path bolted on
 somewhere other than the login path, which is exactly how the careful rules the
 login path follows get left behind.

@@ -7,12 +7,12 @@ import time serves the first task that contends and raises ``… is bound to a
 different event loop`` in every later one. The same goes for a Redis client
 captured into a process-wide cache: its pool carries such a lock.
 
-It never shows up where it was written. On 2026-09-27 it was the Redis pool's
-lock, bound by a finance tick, that cost the monitoring harvest its prices — and
-only in a process where the finance tick had happened to contend first, so it
-looked like a random flake for five days. A rule over the source is the only
-check that holds for code not written yet; ``test_redis_client_per_loop.py`` and
-the integration tier cover the Redis client's own behaviour.
+It never shows up where it was written. A Redis pool's lock, bound by a finance
+tick, can cost the monitoring harvest its prices — and only in a process where
+the finance tick happened to contend first, so it looks like a random flake. A
+rule over the source is the only check that holds for code not written yet;
+``test_redis_client_per_loop.py`` and the integration tier cover the Redis
+client's own behaviour.
 """
 
 from __future__ import annotations

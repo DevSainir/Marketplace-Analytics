@@ -1,8 +1,8 @@
-"""The three per-tenant resource bounds added for register P1.13.
+"""Three per-tenant resource bounds on shared storage.
 
 `max_workspaces` and `max_managers` already existed and are what a customer
 bought. These are a different thing: safety bounds on shared storage, of the
-same family as the upload caps in P0.4. An authenticated tenant that reaches one
+same family as the upload caps. An authenticated tenant that reaches one
 has stopped using the feature and started filling the database.
 
 Grouped in one file rather than scattered across three modules' test
@@ -262,8 +262,8 @@ async def test_a_workspace_at_its_test_bound_cannot_create_another(
             workspace_id=uuid.uuid4(),
             payload=AbTestCreate(nm_id=_CARD.nm_id, name="проверка"),
             # A resolved card: the bound is about how many tests exist, not which
-            # article they name. `nm_id=1` used to be accepted here and in
-            # production, which is why the article is now resolved first.
+            # article they name. `nm_id=1` used to be accepted here and by the
+            # live API, which is why the article is now resolved first.
             card=_CARD,
         )
 

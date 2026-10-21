@@ -1,11 +1,11 @@
 """Unit tests for the advertising write-off ledger — who funded the ads.
 
-The payload these tests are built from is the live 2026-08..09 shape of the
-`Демо` workspace, and every case here is a way the feed has already been
-read wrong or could plausibly be:
+The payload these tests are built from follows the shape WB returned in
+2026-08..09, and every case here is a way the feed has already been read
+wrong or could plausibly be:
 
 * ``updNum`` is ``0`` on every cashback row, so it identifies nothing. A first
-  pass deduped on it and reported 500 KGS of bonuses where there were 169 000;
+  pass deduped on it and reported a tiny fraction of the bonuses actually paid;
 * ``currency`` varies inside a single window (RUB and KGS on one account), so
   amounts must never be summed across it;
 * ``updTime`` is a charge stamp, not a display day, and it is the ONLY date the

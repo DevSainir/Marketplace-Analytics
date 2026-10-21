@@ -69,7 +69,7 @@ async def test_a_null_payload_is_an_empty_window_not_a_failure() -> None:
 
 
 async def test_a_non_list_payload_raises_instead_of_reading_as_no_bonuses() -> None:
-    """A silent contract change must not be persisted as «бонусов не было».
+    """A silent contract change must not be persisted as "there were no bonuses".
 
     Defaulting to empty here would sweep a good window and rewrite it with
     nothing — a flattering number that no assertion downstream would catch.

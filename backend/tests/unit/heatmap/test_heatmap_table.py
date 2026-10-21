@@ -155,7 +155,7 @@ def test_a_settled_day_without_facts_is_zero_not_blank() -> None:
 
 
 def test_each_spend_cell_names_its_own_campaigns_currency() -> None:
-    """Across 20.08 one column is in roubles and the next in сомы — the sign is per cell."""
+    """Across 20.08 one column is in roubles and the next in som — the sign is per cell."""
     before, after = date(2026, 8, 19), date(2026, 8, 21)
     columns = build_columns(before, after, "day")
     facts = {

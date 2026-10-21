@@ -146,7 +146,7 @@ async def test_a_cluster_carries_its_campaigns_currency() -> None:
 
 
 async def test_a_cluster_billed_in_two_currencies_has_no_spend_figure() -> None:
-    """A RUB and a KGS campaign in one window: their sum would add roubles to сомы."""
+    """A RUB and a KGS campaign in one window: their sum would add roubles to som."""
     repo = _FakeClusterRepo(
         aggregates=[_aggregate(campaign_ids=(7, 8))], currencies={7: "RUB", 8: "KGS"}
     )

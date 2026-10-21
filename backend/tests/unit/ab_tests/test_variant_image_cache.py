@@ -1,7 +1,7 @@
 """Serving a variant's picture: the thumbnail is derived once and kept.
 
-The cost this is about is real and measured — the production originals are eight
-and nine megabytes each — but the cost of the FIX is real too: decoding a 9 MB
+The cost this is about is real and measured — full-size originals are eight and
+nine megabytes each — but the cost of the FIX is real too: decoding a 9 MB
 PNG is CPU and about fifty megabytes of bitmap. Doing it on every request would
 trade a slow page for a slow server, so "derived once" is the property that makes
 the whole thing worth having, and it is the one that silently stops holding if a

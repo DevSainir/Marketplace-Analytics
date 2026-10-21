@@ -11,8 +11,8 @@ restores into PostgreSQL without complaint.
 The S3 user-metadata checksum does not help: the object and its metadata are
 written with the same credentials, so it attests to the transfer and not to who
 made the file. Two records outside that blast radius do help, and this file
-pins both — a ledger on the box, which the bucket's credentials cannot reach,
-and the checksum in the weekly Telegram report, which not even this box can
+pins both — a ledger on the server, which the bucket's credentials cannot reach,
+and the checksum in the weekly Telegram report, which not even the server can
 reach once it has been sent.
 """
 
@@ -72,7 +72,7 @@ def test_the_secrets_bundle_is_recorded_too() -> None:
 
     It cannot be read back here — that is the design — but being unreadable to
     us does nothing about being forgeable by anyone with the public key. What
-    gets restored from a bundle is the `.env` a rebuilt box will run on.
+    gets restored from a bundle is the `.env` a rebuilt server will run on.
     """
     bundle = _source("backup_secrets.sh")
 
@@ -85,10 +85,10 @@ def test_the_secrets_bundle_is_recorded_too() -> None:
 
 
 def test_the_weekly_report_carries_the_checksum() -> None:
-    """A checksum that never leaves the box cannot outlive the box.
+    """A checksum that never leaves the server cannot outlive the server.
 
     The Sunday message is the only copy that survives an attacker who owns the
-    VPS, because it is already in somebody else's chat by then.
+    server, because it is already in somebody else's chat by then.
     """
     summary = _summary_body()
     assert "${ENCRYPTED_SHA}" in summary, (
@@ -111,7 +111,7 @@ def test_a_download_is_checked_against_what_this_box_wrote() -> None:
 
 
 def test_an_unknown_artifact_warns_rather_than_passing_quietly() -> None:
-    """Restoring onto a fresh box is the normal case, and it has no ledger.
+    """Restoring onto a fresh server is the normal case, and it has no ledger.
 
     It must not fail — that would make the disaster worse — and it must not
     stay silent either, or the check quietly becomes optional exactly when it

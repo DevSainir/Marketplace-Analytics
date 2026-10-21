@@ -1,8 +1,8 @@
 """The question behind ``/healthz/alerts``: is ``Watchdog`` active in Alertmanager?
 
-The route is the only witness to a silent pager (2026-09-29: Telegram unreachable
-for two weeks, learned from a customer), so the two ways it can lie are what
-these tests pin. It must never say "ok" unless an *active* ``Watchdog`` is in
+The route is the only witness to a silent pager (Telegram can be unreachable for
+weeks, and the first to notice is a customer), so the two ways it can lie are
+what these tests pin. It must never say "ok" unless an *active* ``Watchdog`` is in
 the answer — a suppressed one, some other alert, an error page or a timeout all
 mean nobody would hear an alert. And a public route must not turn a stranger's
 flood into a flood on Alertmanager.

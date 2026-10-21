@@ -1,16 +1,15 @@
-"""No route may change anything on a caller who is only allowed to read (P1.x).
+"""No route may change anything on a caller who is only allowed to read.
 
 An owner can set a manager to read-only. That setting is worth exactly as much
 as the weakest write route in the application, and the way it fails is silent:
 the route works, the manager sees no error, and the owner believes a limit is in
-force that is not. `PATCH /ab-tests/{test_id}` shipped that way on 2026-09-05 —
-a read-only manager could retune a running test's rotation trigger, and lowering
-a budget below what the live photo has already gathered swaps the card's main
+force that is not. An unguarded `PATCH /ab-tests/{test_id}`, for example, would
+let a read-only manager retune a running test's rotation trigger, and lowering a
+budget below what the live photo has already gathered swaps the card's main
 photo on the very next poll.
 
-**Why this is derived rather than listed.** The module-scoped test that was
-supposed to catch it enumerated its five paths by hand, and a hand-written list
-only ever proves the routes someone remembered. This walks the real app's
+**Why this is derived rather than listed.** A module-scoped test that enumerates
+its paths by hand only ever proves the routes someone remembered. This walks the real app's
 routers and resolves each route's whole dependency tree, so a new route is
 covered the moment it exists — the same shape as
 ``test_every_covered_route_binds_a_tenant.py``, for a different invariant.

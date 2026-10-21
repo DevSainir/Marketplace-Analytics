@@ -5,9 +5,9 @@ seller completes a campaign, WB moves it out of active/paused, and a harvest
 that scopes fullstats by status alone stops asking about it — including for the
 day it was still delivering on. That day is then never collectable again.
 
-Observed on prod 2026-08-20: the «Демо» rotation finished four campaigns
-part-way through the day, and 1 808 RUB (953770957) + 1 360 RUB (995716075) of
-that day's spend was dropped while WB was still serving it.
+Seen on 2026-08-20: an A/B rotation finished four campaigns part-way through
+the day, and the rest of that day's spend was dropped while WB was still
+serving it.
 """
 
 from __future__ import annotations

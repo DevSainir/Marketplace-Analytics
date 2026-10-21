@@ -1,9 +1,9 @@
-"""Unit tests for the security-control degradation ledger (register P1.2).
+"""Unit tests for the security-control degradation ledger.
 
-The register's finding was never "these controls fail open" — that is a decided
-trade-off. It was that one Redis outage silently removes brute-force protection
-*and* session revocation together, and nothing was positioned to say so. Each
-control logged its own exception from inside the request path, which turns an
+The problem was never "these controls fail open" — that is a decided trade-off.
+It is that one Redis outage silently removes brute-force protection *and*
+session revocation together, and without the ledger nothing is positioned to say
+so. A control that logs its own exception from inside the request path turns an
 outage into thousands of identical tracebacks: a flood no alert can bind to.
 
 These cases pin the three behaviours that make the difference: a degradation is
@@ -59,7 +59,7 @@ def _events(caplog: pytest.LogCaptureFixture, token: str) -> list[logging.LogRec
     """Return the records carrying a given event token.
 
     Matched on the ``event`` FIELD rather than on the rendered sentence. That
-    is the thing an alert rule binds to (register P2.2), so it is the thing
+    is the thing an alert rule binds to, so it is the thing
     worth asserting on — a test that reads the prose would keep passing after a
     change that left every rule matching nothing.
     """
@@ -129,7 +129,7 @@ def test_an_ongoing_outage_repeats_after_the_cooldown(
 def test_two_controls_down_together_raise_their_own_event(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The register's actual finding: the *combination* is the risk."""
+    """The actual risk: the *combination* of the two."""
     # Arrange
     clock = FakeClock()
     ledger = _ledger(clock)

@@ -1,4 +1,4 @@
-"""The logging contract the incident response rests on (register P2.2).
+"""The logging contract that investigating an incident rests on.
 
 Two properties, and they fail in opposite directions.
 

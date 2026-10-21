@@ -1,4 +1,4 @@
-"""«Обновить» fills the provisional tail, and only for the кабинет that asked.
+"""«Обновить» fills the provisional tail, and only for the workspace that asked.
 
 Two properties, and each was a bug before it was a rule.
 
@@ -12,7 +12,7 @@ used to sweep the fleet, so one seller's button reached every tenant's tokens.
 And it took the harvest's own lock, under which a click landing during the
 scheduled sweep would answer «already running» and fetch nothing — exactly the
 case the button exists for. It is now scoped to one workspace and keyed on it:
-the lock only has to stop two clicks on the same кабинет walking it twice.
+the lock only has to stop two clicks on the same workspace walking it twice.
 
 The fleet sweep is not tested here because it is no longer here — it runs inside
 the settled harvest's tick, after each seller's weekly walk. See
@@ -115,7 +115,7 @@ async def test_a_scoped_run_takes_its_own_lock_not_the_harvests(run) -> None:
     """Under the shared lock the button fetches nothing while the sweep runs.
 
     That is the one case «Обновить» exists for, so the scoped run is keyed on
-    the workspace: it still cannot walk the same кабинет twice at once, and it
+    the workspace: it still cannot walk the same workspace twice at once, and it
     no longer waits on a sweep of everybody else's.
     """
     await daily_tail.harvest_daily_tail(workspace_id=MINE)
@@ -125,7 +125,7 @@ async def test_a_scoped_run_takes_its_own_lock_not_the_harvests(run) -> None:
 
 
 async def test_a_scoped_run_for_a_workspace_that_is_gone_walks_nothing(run) -> None:
-    """A deleted кабинет is not an error, and must not fall back to the fleet."""
+    """A deleted workspace is not an error, and must not fall back to the fleet."""
     await daily_tail.harvest_daily_tail(workspace_id=THEIRS)
 
     assert run.walked == []

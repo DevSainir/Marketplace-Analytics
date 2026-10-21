@@ -195,6 +195,7 @@ def test_a_dev_is_exempt_from_an_expired_subscription() -> None:
 # The internal-only surfaces
 # --------------------------------------------------------------------------- #
 def test_a_dev_sees_the_internal_features() -> None:
+    """A/B tests and the labs are ours."""
     assert _access(role=EffectiveRole.DEV).sees_internal_features is True
 
 
@@ -207,9 +208,10 @@ def test_a_member_of_the_primary_organisation_sees_the_internal_features() -> No
 
 @pytest.mark.parametrize("role", [EffectiveRole.OWNER, EffectiveRole.MANAGER])
 def test_an_ordinary_tenant_does_not_see_the_internal_features(role: EffectiveRole) -> None:
-    """They were built for one seller, against one seller's data and legal case.
+    """They were built for one seller, against one seller's data.
 
-    a document naming OUR company, computed from OUR settlement reports.
+    This is the assertion that keeps a new customer out of the A/B tests and
+    the labs — surfaces tried out on OUR workspaces before anyone else's.
     """
     assert _access(role=role, is_primary_org=False).sees_internal_features is False
 
@@ -272,7 +274,7 @@ def test_a_head_with_no_organisation_is_let_in_to_read() -> None:
 
 @pytest.mark.parametrize("module", list(ModuleKey))
 def test_a_head_with_no_organisation_reaches_every_section(module: ModuleKey) -> None:
-    """Which кабинет is decided by the grant; inside it, everything is readable."""
+    """Which workspace is decided by the grant; inside it, everything is readable."""
     assert _guest().can_reach(module) is True
 
 

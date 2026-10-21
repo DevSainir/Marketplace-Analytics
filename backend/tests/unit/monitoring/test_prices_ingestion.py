@@ -122,7 +122,7 @@ async def test_ingest_prices_joins_seller_and_customer_by_sku() -> None:
         "customer_spp": None,
         "customer_source": "storefront",
         # What WB states for the price — not the settlement's currency, which
-        # for a KGS кабинет is a different one (checked live 2026-09-28).
+        # for a KGS workspace is a different one (checked 2026-09-28).
         "currency": "RUB",
     }
     # SKU 2: seller only (no storefront row) -> customer None.
@@ -238,7 +238,7 @@ async def test_the_storefront_still_wins_when_it_answers() -> None:
 
 
 async def test_the_configured_region_decides_which_orders_count() -> None:
-    """СПП is regional, so the comparable rows are the ones from the region the
+    """SPP is regional, so the comparable rows are the ones from the region the
     storefront's fixed ``dest`` stands for — even when another region sold more."""
     repo = _CapturingPriceRepo()
     service = _service(repo)

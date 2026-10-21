@@ -34,7 +34,7 @@ from src.modules.workspaces.schemas import WorkspaceTokenBundle
 def _tokens() -> WorkspaceTokenBundle:
     """A workspace whose «Финансы» and «Статистика» tokens are DIFFERENT.
 
-    Which is the shape «Демо» actually has — every other кабинет resolves
+    Which is the shape «Демо» actually has — every other workspace resolves
     both to one `unified` token, and that is why the lane read the wrong bucket
     for a day without anything showing.
     """
@@ -202,7 +202,7 @@ async def test_the_delay_is_read_from_the_finance_token_s_bucket(
     This read `tokens.statistics` while building a FINANCE gate until
     2026-09-23. On «Демо», which holds per-surface tokens, that bucket is
     never written and always answers «open», so the lane paced itself on the
-    spin guard and could not see a penalty block at all. Every other кабинет
+    spin guard and could not see a penalty block at all. Every other workspace
     resolves both fields to one `unified` token, which is why it never showed.
     """
     seen: list[str] = []

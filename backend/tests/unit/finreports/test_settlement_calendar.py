@@ -16,14 +16,14 @@ pytestmark = pytest.mark.unit
 
 
 def test_a_week_inside_one_month_ends_on_its_sunday() -> None:
-    """05.10-11.10.2026 is one period: report 992915233 says exactly that."""
+    """05.10-11.10.2026 is one period, and WB's weekly report for it says exactly that."""
     period_end = settlement_period_end(date(2026, 10, 5))
 
     assert period_end == date(2026, 10, 11)
 
 
 def test_a_week_crossing_a_month_end_is_cut_at_the_month_end() -> None:
-    """28.09-30.09 and 01.10-04.10 were two reports (992545862, 992863498), not one week."""
+    """28.09-30.09 and 01.10-04.10 come as two separate WB reports, not one week."""
     period_end = settlement_period_end(date(2026, 9, 28))
 
     assert period_end == date(2026, 9, 30)

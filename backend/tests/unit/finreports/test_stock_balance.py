@@ -48,7 +48,7 @@ def _balance(**overrides: object) -> object:
 def test_a_cell_is_its_units_priced_at_the_sku_cost() -> None:
     """The balance of a cell is quantity x cost price — the table's whole subject.
 
-    72 units at 800 is 57 600 сом sitting in Тула, and that is the figure a
+    72 units at 800 is 57 600 som (KGS) sitting in Tula, and that is the figure a
     seller reads next to the «72».
     """
     grid = _balance()

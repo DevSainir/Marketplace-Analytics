@@ -1,4 +1,4 @@
-"""Only the API may connect as the least-privilege role (register P2.4/P2.5).
+"""Only the API may connect as the least-privilege role.
 
 `marketplace_app` cannot run DDL and is subject to the row-level policies. That
 is right for a request and wrong for everything else in the stack: `migrate`
@@ -6,9 +6,8 @@ runs `alembic upgrade head`, `worker` and `beat` harvest across every workspace
 with no tenant bound, and the backup's `pg_dump` has to see all of it.
 
 Every service shares one `.env`, so the obvious rollout — point `POSTGRES_USER`
-at the new role — switches all of them at once. That instruction was written
-down and nearly followed; it would have broken the next deploy and the next
-harvest while appearing to tighten the API. The api services therefore carry
+at the new role — switches all of them at once. That would break the next
+deploy and the next harvest while appearing to tighten the API. The api services therefore carry
 their own `APP_POSTGRES_USER` / `APP_POSTGRES_PASSWORD`, falling through to the
 shared value when unset.
 

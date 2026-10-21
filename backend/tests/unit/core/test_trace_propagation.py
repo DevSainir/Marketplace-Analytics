@@ -1,4 +1,4 @@
-"""One id joining a click to the background work it caused (register P2.2).
+"""One id joining a click to the background work it caused.
 
 The API half of this service was already legible: every request binds a
 context, every line carries it. The worker half was not, and it is the half

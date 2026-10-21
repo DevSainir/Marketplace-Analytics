@@ -5,8 +5,8 @@ goes missing without anything failing. Two silent-corruption modes are pinned
 here because neither surfaces as an error:
 
 * **A column absent from the upsert's ``update_columns``** keeps its OLD value
-  when a report is re-harvested. A full re-fetch then reports "436 742 rows
-  written" while every new column stays at its ``ALTER TABLE`` default of zero —
+  when a report is re-harvested. A full re-fetch then reports every row as
+  written while every new column stays at its ``ALTER TABLE`` default of zero —
   which is precisely what a P&L with no revenue looks like.
 * **A column absent from the row mapper** is never written at all.
 
@@ -57,8 +57,8 @@ def test_the_mapper_writes_every_column_the_table_declares() -> None:
 def test_wb_omitted_fields_do_not_break_the_mapping() -> None:
     """WB omits keys rather than sending null; the mapping must tolerate it.
 
-    ``bonus_type_name`` is absent from 1 318 of 7 097 rows in one live report and
-    ``kiz`` from 99. Modelling any of them as required turns a normal report into
+    ``bonus_type_name`` is absent from a good share of the rows in a typical report,
+    and ``kiz`` from some. Modelling any of them as required turns a normal report into
     a harvest failure.
     """
     mapped = settlement_row(

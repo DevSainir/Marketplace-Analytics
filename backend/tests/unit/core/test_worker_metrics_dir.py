@@ -1,11 +1,11 @@
 """Nothing may fill the worker's metrics tmpfs, and it must say so before anything does.
 
-Written after 2026-10-15. The healthcheck's ``celery inspect ping`` imported the
-app every 30 s in multiprocess mode and left a ``counter_<pid>.db`` and a
-``histogram_<pid>.db`` behind each time; ``mark_process_dead`` keeps those on
-purpose. The 32 MB mount filled in ~40 h, and from 04:01 MSK every process that
-touched a metric died with SIGBUS — every task, for three hours. The only page
-was ``WorkerKilled``, and its text pointed at memory.
+The failure this guards against: the healthcheck's ``celery inspect ping``
+imports the app every 30 s in multiprocess mode and, unchecked, leaves a
+``counter_<pid>.db`` and a ``histogram_<pid>.db`` behind each time;
+``mark_process_dead`` keeps those on purpose. A 32 MB mount fills in ~40 h, and
+from then on every process that touches a metric dies with SIGBUS — every task.
+The only alert that fires is ``WorkerKilled``, and its text points at memory.
 
 The rule these tests hold, so that nobody has to remember a lifecycle hook:
 **a process that is not a prefork child leaves no metric file behind when it
@@ -110,7 +110,7 @@ def test_a_process_that_imports_the_app_leaves_no_metric_file_behind(
 
 
 def test_repeated_runs_do_not_accumulate(tmp_path: Path) -> None:
-    """The shape of the outage: one process every 30 s, adding up until SIGBUS."""
+    """The shape of the failure: one process every 30 s, adding up until SIGBUS."""
     # Act
     for _ in range(3):
         _run(_import_then_list("src.core.celery_app"), tmp_path)

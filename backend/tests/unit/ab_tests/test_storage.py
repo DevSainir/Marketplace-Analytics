@@ -2,7 +2,7 @@
 
 Two things are pinned here. The selection is the first and the connection
 reuse is the second: a client opened per call cost a TLS handshake per image —
-0.259 s against 0.071 s on a warm one, measured on production.
+0.259 s against 0.071 s on a warm one, as measured.
 
 Reuse is **opt-in**, and that is the part worth a test. The api runs one loop for
 the life of the process and can hold a connection; a Celery task runs on a loop it

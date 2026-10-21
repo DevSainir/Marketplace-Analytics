@@ -3,7 +3,7 @@
 A partial index is only used when its predicate covers the query's filter, and
 nothing about that connection is visible in either file: rename the operation in
 :data:`SALE_OPERS` and the query still returns the right answer, just by reading
-the whole table again. On the largest кабинет that is the difference between
+the whole table again. On the largest workspace that is the difference between
 0.3 s and 4 s, and it would show up as «P&L got slow again» months later.
 """
 

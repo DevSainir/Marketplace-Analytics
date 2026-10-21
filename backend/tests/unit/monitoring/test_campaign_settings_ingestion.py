@@ -3,8 +3,8 @@
 ``adverts-v2`` answers only for the campaign types alive since 2024. The
 retired ones still come back from ``promotion/count`` and still carry spend in
 ``fullstats``, so without a bid type and placements both the matrix and
-«Реклама» leave their money unclassified (on «Демо»: five type-6
-campaigns of 2023, 5 493 сом).
+«Реклама» leave their money unclassified (for example, type-6 campaigns
+from 2023).
 """
 
 from __future__ import annotations

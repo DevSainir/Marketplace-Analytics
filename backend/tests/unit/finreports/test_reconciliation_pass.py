@@ -322,7 +322,7 @@ async def test_the_button_still_spends_only_the_callers_budget(
 async def test_the_nightly_pass_reconciles_every_seller(
     walked: list[tuple[date, date]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Every кабинет is re-read each night, not one in rotation.
+    """Every workspace is re-read each night, not one in rotation.
 
     The ration was sized for an endpoint serving four requests an hour, where a
     fortnight's re-walk was three quarter-hour windows per seller. On
@@ -352,7 +352,7 @@ async def test_the_nightly_pass_re_walks_a_short_report_however_old(
     """An archive report that does not add up to WB's total is asked for again.
 
     The forward tick looks back 45 days and the history backfill runs once, so
-    on an established кабинет nothing else would ever fetch it.
+    on an established workspace nothing else would ever fetch it.
     """
     old = SETTLED - timedelta(days=400)
 
@@ -376,8 +376,8 @@ async def test_the_nightly_pass_asks_for_the_whole_history_s_totals(
 ) -> None:
     """One list request from the epoch, and what it names goes to the totals.
 
-    A кабинет older than the totals held them on eight of 143 reports, and the
-    completeness check is blind wherever a total is missing.
+    A workspace older than the totals held them on only a handful of its reports,
+    and the completeness check is blind wherever a total is missing.
     """
     asked: list[tuple[date, date]] = []
     recorded: list[int] = []

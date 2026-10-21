@@ -1,7 +1,7 @@
 """Unit tests for the client-side pacing of WB's per-endpoint token buckets.
 
 Every rule here was learned from the 2026-07-30 incident, when «Обновить»
-appeared never to work. The mechanism, measured live that morning:
+(Refresh) appeared never to work. The mechanism, measured live that morning:
 
 * the analytics surface meters per endpoint, three tokens deep per seller token,
   and publishes what is left in ``x-ratelimit-remaining``;
@@ -300,7 +300,7 @@ async def test_a_penalty_block_is_handed_to_the_gate_and_not_only_logged(
     the bucket for exactly one local refill. On the statistics surface that
     refill is minutes shorter than the block WB actually imposes, so the next
     request went out inside the block — and each such request RESTARTS WB's
-    window. Measured on prod 2026-09-09: a 429 demanding 1594s was followed one
+    window. Observed against WB on 2026-09-09: a 429 demanding 1594s was followed one
     900s refill later by a second 429 demanding precisely the remaining 694s.
     """
     gate = FakeRateGate()
@@ -434,7 +434,7 @@ async def test_an_unlisted_advertising_endpoint_keeps_the_conservative_default(
 @pytest.mark.parametrize(
     ("surface_buckets", "endpoint", "burst", "refill"),
     [
-        # Measured on «Демо» 2026-09-21 by bursting each endpoint and
+        # Measured on 2026-09-21 by bursting each endpoint and
         # reading WB's own `x-ratelimit-limit` / `reset` / `retry`.
         (STATISTICS_ENDPOINT_BUCKETS, "/api/v1/supplier/orders", 10, 60.0),
         (ANALYTICS_ENDPOINT_BUCKETS, "/api/analytics/v1/stocks-report/wb-warehouses", 1, 20.0),

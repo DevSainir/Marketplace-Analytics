@@ -1,19 +1,17 @@
 """The throwaway end-to-end stack must die when its run dies.
 
-On 2026-09-19 the nightly browser tier took the production service down for
-roughly ninety minutes, and neither half of the cause was a bug in any code
-this repository tests.
+If the nightly browser tier shares a host with a live stack, it can take that
+stack down without a single bug in any code this repository tests.
 
-The stack is started on the production box under its own Compose project, and
-`tests.yml` tears it down in a step marked `if: always()`. But `always()` binds
-the *workflow*, not the machine: when the box ran out of memory mid-tier the
-runner lost communication with GitHub and no further step executed at all. The
-overlay inherited `restart: unless-stopped` from the base file, so Docker then
-did exactly what it was told and brought the throwaway stack back up on every
-boot — 1.5 GB of test containers beside the live service on a 3915 MB box with
-no swap. `beat`, capped below its true working set, was OOM-killed and
-restarted every 45 seconds until nothing on the host could be scheduled and
-sshd itself stopped answering.
+The stack is started under its own Compose project, and `tests.yml` tears it
+down in a step marked `if: always()`. But `always()` binds the *workflow*, not
+the machine: when the host runs out of memory mid-tier the runner loses
+communication with GitHub and no further step executes at all. An overlay that
+inherits `restart: unless-stopped` from the base file then makes Docker do
+exactly what it was told and bring the throwaway stack back up on every boot —
+1.5 GB of test containers beside the live service on a small host with no swap.
+A service capped below its true working set is OOM-killed and restarted in a
+loop until nothing on the host can be scheduled.
 
 Both halves are one-line properties of the overlay, so they are asserted here
 rather than trusted to review: a stack that cannot restart itself cannot
@@ -32,10 +30,11 @@ _DOCKER = pathlib.Path(__file__).resolve().parents[3] / "docker"
 _BASE = _DOCKER / "docker-compose.yml"
 _E2E = _DOCKER / "docker-compose.e2e.yml"
 
-# The box the nightly tier shares with production: 3915 MB, no swap. The live
-# stack and the observability overlay together declare 3424 MB of limits, so
-# what is left for a throwaway topology is under 500 MB of true headroom —
-# which is why this ceiling is a budget rather than a guess. It is set at the
+# The tier is sized for a small swapless host it may share with the live stack.
+# The live stack and the observability overlay together declare 3424 MB of
+# limits, so on a 4 GB host what is left for a throwaway topology is under
+# 500 MB of true headroom — which is why this ceiling is a budget rather than a
+# guess. It is set at the
 # topology's present total; raising it is a decision about the host, not a
 # detail of a test, and should be made with `free -m` in hand.
 _E2E_MEMORY_CEILING_MB = 1472

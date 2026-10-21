@@ -1,4 +1,4 @@
-"""Unit tests for the per-account login backoff (register P1.5).
+"""Unit tests for the per-account login backoff.
 
 The control exists because the per-IP throttle is the wrong shape for credential
 stuffing: a campaign spread over thousands of rented addresses stays inside

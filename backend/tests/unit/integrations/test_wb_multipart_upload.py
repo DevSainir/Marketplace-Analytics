@@ -1,6 +1,6 @@
 """The one WB call that sends a body which is not JSON.
 
-`POST /content/v3/media/file` is a multipart upload — the only write the A/Б
+`POST /content/v3/media/file` is a multipart upload — the only write the A/B
 photo rotation makes, and the only non-JSON request in any WB client. It was
 answered 400 by WB for as long as the feature existed, because the transport
 put `Content-Type: application/json` in the CLIENT's default headers: httpx

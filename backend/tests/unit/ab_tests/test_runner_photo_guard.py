@@ -5,10 +5,10 @@ ask what a pass credits and what it does next; this asks whether the pass should
 be crediting anything at all — whether the picture the traffic belongs to is
 still the one under test.
 
-The case is real. On 2026-09-09 the main photo of nm 1944299862 was rewritten at
-11:58:18Z, thirteen hours after the rotation's last install, and because nothing
-was checking, the only reason no numbers were spoiled is that the test happened
-to be paused already. On a running one the poller would have gone on crediting
+The case is not hypothetical. A card's main photo was once rewritten thirteen
+hours after the rotation's last install, and because nothing was checking, the
+only reason no numbers were spoiled is that the test happened to be paused
+already. On a running one the poller would have gone on crediting
 window after window to a variant the card was no longer showing.
 
 Two rules run through every case here, and they pull in opposite directions:

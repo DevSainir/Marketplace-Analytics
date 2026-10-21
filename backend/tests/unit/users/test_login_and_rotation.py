@@ -93,7 +93,7 @@ async def test_a_backed_off_account_is_refused_even_with_the_right_password() ->
     """That is what the backoff is: the correct password stops working too.
 
     Otherwise it bounds nothing — an attacker whose next guess happens to be
-    right would be let straight in (register P1.5).
+    right would be let straight in.
     """
     user = make_user(email="user@example.com")
     backoff = FakeLoginBackoff(penalty=42)
@@ -346,7 +346,7 @@ async def test_logout_revokes_the_whole_family() -> None:
 
 
 async def test_logout_ends_the_lineages_access_tokens_too(redis_store) -> None:
-    """The point of P1.12: pressing logout stops the stolen token *now*.
+    """The point of the change: pressing logout stops the stolen token *now*.
 
     Revoking the refresh rows alone left the access token already handed out
     working for up to its full 15-minute TTL — which is exactly the window
@@ -409,7 +409,7 @@ async def test_logout_is_a_silent_no_op_for_unknown_tokens(secret: str | None) -
 
 
 # --------------------------------------------------------------------------- #
-# The confirmation gate (register P1.6)
+# The confirmation gate
 # --------------------------------------------------------------------------- #
 async def test_an_unconfirmed_address_cannot_log_in_even_with_the_right_password() -> None:
     """Registration creates the account and issues no session.
@@ -433,7 +433,8 @@ async def test_the_confirmation_gate_is_not_an_account_existence_oracle() -> Non
     admits an account exists, so it may only ever be raised by someone who has
     already proved they know the password. Were it raised before the password
     check, anyone could enumerate registered addresses by watching which ones
-    answer differently — the control P0.1 and P1.5 both paid for.
+    answer differently — undoing the uniform refusal that the login rate limit
+    and the per-account backoff both rely on.
     """
     # Arrange
     user = make_user(email="half@example.com", email_confirmed=False)

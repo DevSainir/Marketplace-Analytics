@@ -244,8 +244,8 @@ async def test_the_list_window_reaches_past_the_latest_lateness_seen(
 ) -> None:
     """A report WB serves late must still be inside the window we ask about.
 
-    The record is eight days (report 983241109, stamped 01.09.2026 and first
-    served on 09.09). The list is one request whatever its width, so the
+    The record is eight days (a report stamped 01.09.2026 and first served on
+    09.09). The list is one request whatever its width, so the
     window is sized for the worst case rather than for the common one.
     """
     client = _install(monkeypatch, _FakeClient([]))

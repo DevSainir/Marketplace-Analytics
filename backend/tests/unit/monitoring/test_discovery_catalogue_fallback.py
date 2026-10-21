@@ -5,8 +5,8 @@ persists. Treating its failure as fatal meant one revoked scope silenced every
 other source — funnel, advertising, stocks, prices — for a workspace whose SKU
 list had not changed at all.
 
-Prod, 2026-08-21: WB stopped serving ``/content/v2/get/cards/list`` on the
-analytics scope, so «Демо» harvested nothing at 06:00 MSK while its
+On 2026-08-21 WB stopped serving ``/content/v2/get/cards/list`` on the
+analytics scope, so a workspace harvested nothing at 06:00 MSK while its
 catalogue sat unchanged in Postgres.
 """
 

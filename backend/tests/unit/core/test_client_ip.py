@@ -1,10 +1,10 @@
 """Unit tests for the client-address resolution the auth rate limiter keys on.
 
-The behaviour under test is a security control, not a convenience: before this
-existed the limiter keyed on ``request.client.host``, which uvicorn derives from
-the leftmost ``X-Forwarded-For`` entry while running in always-trust mode. Since
-nginx appended to that header rather than replacing it, any client could choose
-its own counter key and brute-force ``/login`` without limit (register P0.1).
+The behaviour under test is a security control, not a convenience: a limiter
+keyed on ``request.client.host`` gets what uvicorn derives from the leftmost
+``X-Forwarded-For`` entry while running in always-trust mode. With nginx
+appending to that header rather than replacing it, any client could choose its
+own counter key and brute-force ``/login`` without limit.
 
 These cases pin the two halves of the fix: the address nginx wrote wins, and
 anything that is not an IP address never reaches a Redis key.
@@ -49,7 +49,7 @@ def test_the_address_nginx_wrote_is_used() -> None:
 def test_a_spoofed_forwarded_chain_cannot_choose_the_key() -> None:
     """A client-supplied ``X-Forwarded-For`` loses to the proxy's own header.
 
-    This is the P0.1 bypass in miniature. ``peer`` here stands in for what
+    This is that bypass in miniature. ``peer`` here stands in for what
     uvicorn's always-trust mode already resolved from the leftmost forwarded
     entry — attacker-chosen — and it must not become the counter key.
     """

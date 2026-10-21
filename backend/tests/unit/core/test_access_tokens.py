@@ -146,7 +146,7 @@ def test_the_family_claim_survives_the_round_trip() -> None:
     """The lineage has to be readable from the token, or it cannot be revoked.
 
     ``fam`` is what lets a logout end the access tokens of *this* browser
-    without touching the account's other devices (register P1.12).
+    without touching the account's other devices.
     """
     family_id = uuid.uuid4()
 

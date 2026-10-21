@@ -1,4 +1,4 @@
-"""No route may reach a policy-covered table without binding a tenant (P2.5).
+"""No route may reach a policy-covered table without binding a tenant.
 
 Row-level security fails **closed and loud**: a query that arrives with no
 workspace bound raises rather than returning fewer rows. That is the right

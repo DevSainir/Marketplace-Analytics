@@ -221,7 +221,7 @@ async def test_the_ceiling_hides_reports_this_sweep_has_already_attempted(
 async def test_the_whole_depth_is_listed_in_one_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Measured on «Демо» 2026-09-23: 143 reports for a 1095-day window.
+    """WB answers even a 1095-day window in one response, with no paging.
 
     Discovery being one request is what makes re-asking every tick affordable,
     and re-asking every tick is what keeps the lane from carrying a second,

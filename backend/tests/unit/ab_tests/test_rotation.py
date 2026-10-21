@@ -157,8 +157,8 @@ def test_a_slot_a_hair_short_still_counts() -> None:
     Both the install and this question are stamped with their Celery pass's
     start time, so a slot that is a whole number of poll periods — 5, 10, 30,
     60 minutes, every value anyone picks — is decided by which of two passes
-    started later. Measured on production 2026-09-07, consecutive passes drift
-    by up to ~14 ms. Losing that coin flip made an observed five-minute slot run
+    started later. Measured 2026-09-07, consecutive passes drift by up to
+    ~14 ms. Losing that coin flip made an observed five-minute slot run
     ten minutes.
     """
     decision = decide(
@@ -440,7 +440,7 @@ def test_either_mode_advances_on_the_slot_before_the_budget_is_met() -> None:
 
 
 def test_either_mode_holds_while_both_bounds_are_unmet() -> None:
-    """Neither reached is still a hold — «или» is not «всегда»."""
+    """Neither reached is still a hold — "or" does not mean "always"."""
     decision = decide(
         _state(
             active=VARIANTS[0],

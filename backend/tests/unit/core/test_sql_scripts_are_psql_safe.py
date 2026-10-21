@@ -1,16 +1,15 @@
-"""The operator SQL scripts must survive the tool that actually runs them (P2.4).
+"""The operator SQL scripts must survive the tool that actually runs them.
 
 `least_privilege_role.sql` is applied by hand through **psql**, and psql has a
 rule no other client shares: it substitutes `:variables` in the SQL it sends —
 but *not* inside a dollar-quoted block. Text between `$$` and `$$` reaches the
 server verbatim.
 
-That cost a failed production step on 2026-09-02. The script built its
-`CREATE ROLE ... PASSWORD :'app_password'` inside a `DO $$ ... $$` block, so
-psql passed the literal `:'app_password'` through and PostgreSQL answered
-`syntax error at or near ":"`.
+A script that builds its `CREATE ROLE ... PASSWORD :'app_password'` inside a
+`DO $$ ... $$` block therefore fails: psql passes the literal `:'app_password'`
+through and PostgreSQL answers `syntax error at or near ":"`.
 
-The integration test covering that script did not catch it, and could not: it
+The integration test covering that script does not catch it, and cannot: it
 replaces the variable in Python before executing, because it drives asyncpg
 rather than psql. It tests the grants — which is what it is for — and is blind
 to the substitution rule. This closes that specific gap by reading the file.
@@ -43,7 +42,7 @@ def test_there_are_scripts_to_check() -> None:
 
 
 def test_no_psql_variable_is_used_inside_a_dollar_quoted_block() -> None:
-    """The exact failure that broke the P2.4 rollout, encoded.
+    """The exact failure described above, encoded.
 
     Anything needing a variable has to sit outside ``$$``, which is why the role
     script now sets the password with a plain ``ALTER ROLE`` and creates the

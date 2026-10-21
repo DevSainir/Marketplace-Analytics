@@ -96,7 +96,7 @@ async def _item(*, buyouts: int, returns: int) -> Any:
 async def test_sale_date_buyouts_and_returns_are_reported_as_counts() -> None:
     """Both sides of the sale-date feed surface as raw counts.
 
-    The real 2026-07-16 figures for nm 953770957: 274 buyouts, 30 returns.
+    Sample figures for one SKU-day: 274 buyouts, 30 returns.
     """
     item = await _item(buyouts=274, returns=30)
 

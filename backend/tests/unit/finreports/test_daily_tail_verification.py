@@ -11,9 +11,9 @@ data rather than as an assumption somebody makes later.
 them per report, so one list answer covers every queued report at once and a
 report whose totals have not moved needs no detail request at all. The
 comparison is deliberately WB-against-WB: our own reconstruction of
-``forPaySum`` was 128.26 KGS out on report 989286628 until «Коррекция продаж»
-was found to be subtracted, and a screen built on our arithmetic would fire on
-the next such difference of ours and hide the one that is WB's.
+``forPaySum`` was out on one report until «Коррекция продаж» was found to be
+subtracted, and a screen built on our arithmetic would fire on the next such
+difference of ours and hide the one that is WB's.
 
 The rules each outcome has to keep, every one of which has a quiet failure:
 

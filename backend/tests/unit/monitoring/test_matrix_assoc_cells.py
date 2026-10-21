@@ -3,7 +3,7 @@
 The sibling ``test_matrix_assoc.py`` covers the decomposition itself — how
 ``derive_base_state`` apportions a campaign's all-variant totals across the
 SKUs behind them. This module covers what survives into the rendered table: that a carts/orders
-cell IS the кампания's count, that the card's own share rides beside it (the
+cell IS the campaign's count, that the card's own share rides beside it (the
 ``*_sku`` rows behind the hover) and is split across a campaign's two zones with
 it, that the share is suppressed when there is no gap, and that every ₽ and
 efficiency cell of an ad column divides the campaign's counts rather than the
@@ -32,7 +32,7 @@ from tests.support.matrix_rows import (
 # decorating the SKU's own carts/orders cells.
 # --------------------------------------------------------------------------- #
 def test_the_cell_is_the_campaigns_count_with_the_cards_share_beside_it() -> None:
-    """A single-zone campaign's cell reads the кампания; the card's share rides along."""
+    """A single-zone campaign's cell reads the campaign; the card's share rides along."""
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
     ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, add_to_cart=71, spend=5000, orders=30)]
     campaign_totals = [_campaign_total(1, DAY1, add_to_cart=100, orders=48)]
@@ -90,14 +90,14 @@ def test_the_card_share_is_hidden_without_a_gap() -> None:
 
 # --------------------------------------------------------------------------- #
 # The campaign's counts are what the ₽ and efficiency rows divide: an ad column
-# measures a рекламная кампания, so its revenue is the revenue the campaign
+# measures an ad campaign, so its revenue is the revenue the campaign
 # brought — associated size/colour variants included.
 # --------------------------------------------------------------------------- #
 def _assoc_money_rows() -> dict[str, list[float | None]]:
     """A search campaign that delivered 32 orders, 22 of them on the viewed card.
 
     Priced at 3 820.25 ₽ with a matured 50% buyout cohort behind it, so the two
-    ₽ rows and both ДРР are checkable to the ruble.
+    ₽ rows and both DRR rows are checkable to the ruble.
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
     ad_rows = [_ad_row(1, DAY1, views=1000, clicks=100, add_to_cart=40, spend=12000, orders=22)]
@@ -128,7 +128,7 @@ def test_ad_revenue_counts_every_variant_the_campaign_sold() -> None:
 
 
 def test_ad_efficiency_divides_the_campaigns_counts() -> None:
-    """Both ДРР and the cost-per rows judge the campaign by what IT delivered."""
+    """Both DRR rows and the cost-per rows judge the campaign by what IT delivered."""
     rows = _assoc_money_rows()
 
     # 12 000 ₽ over 122 248 ₽ ordered, and over 61 124 ₽ bought out.
@@ -136,7 +136,7 @@ def test_ad_efficiency_divides_the_campaigns_counts() -> None:
     assert _cell(rows, "drr_sales", 0, "manual_search") == 19.63
     assert _cell(rows, "cost_per_order", 0, "manual_search") == 375.0  # 12 000 / 32
     assert _cell(rows, "cost_per_cart", 0, "manual_search") == 240.0  # 12 000 / 50
-    # …and the конверсия between them stays inside the same campaign-level pair.
+    # …and the conversion between them stays inside the same campaign-level pair.
     assert _cell(rows, "order_conversion", 0, "manual_search") == 64.0  # 32 / 50
 
 

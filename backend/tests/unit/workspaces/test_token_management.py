@@ -267,7 +267,7 @@ def test_content_does_not_fall_back_to_the_analytics_token() -> None:
     `403 {"detail":"scope is not allowed for this resource"}` from
     `/content/v2/get/cards/list`, and 401 from `/ping`. The fallback that used
     to be here never made the call work; it only moved the failure three layers
-    away, where the catalogue refresh swallowed it into a warning and the A/Б
+    away, where the catalogue refresh swallowed it into a warning and the A/B
     installer reported a raw integration error. An empty token is refused up
     front with a message naming what to add.
     """
@@ -283,7 +283,7 @@ def test_a_non_primary_workspace_still_serves_content_from_its_unified_token() -
     """Dropping the analytics fallback must not disarm the unified one.
 
     Every workspace outside the primary organisation stores one all-category
-    token, and that one really does cover Контент — those three workspaces
+    token, and that one really does cover Content — those workspaces
     refreshed their catalogues normally while the primary's went stale.
     """
     workspace = make_workspace(organization_id=ORG_ID, is_primary=False)

@@ -1,6 +1,6 @@
 """Unit tests for the WB Marketplace (FBS) client's response contract.
 
-Both shapes here were captured from live responses on 2026-08-13, and both
+Both shapes here follow WB's responses as checked on 2026-08-13, and both
 differ from the rest of the integration in ways that would otherwise be found
 in production:
 

@@ -1,6 +1,6 @@
 """A caller must not be able to ask for unbounded work by sending a long list.
 
-Register P0.4. The window ceiling (``resolve_window``) bounded the days the
+The window ceiling (``resolve_window``) bounded the days the
 server would SELECT, and bounded nothing about the days a caller could ASSERT:
 the matrix preview and save endpoints take the whole working copy from the
 client and recompute every cell of it. The SKU lists had no ceiling at all.

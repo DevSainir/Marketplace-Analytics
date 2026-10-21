@@ -21,7 +21,7 @@ from src.modules.heatmap.services.metrics import (
 
 
 def _funnel_day(**over: object) -> Facts:
-    """A SKU-day the funnel reported: 10 orders at 10 000 ₽, WB's sum 10 370 с."""
+    """A SKU-day the funnel reported: 10 orders at 10 000 ₽, WB's sum 10 370 KGS."""
     facts = Facts(funnel_days=1, opens=100, carts=20, orders=10, priced_orders=10)
     facts.amount_seller = Decimal("10000")
     facts.valued_orders = 10
@@ -83,7 +83,7 @@ def test_the_orders_in_money_are_wbs_own_funnel_sum() -> None:
 
 
 def test_drr_divides_kgs_spend_by_wbs_kgs_order_sum() -> None:
-    """ДРР по заказам — сомы over сомы, no rate of ours in between."""
+    """DRR on orders is som over som, with no exchange rate of ours in between."""
     cell = _funnel_day(ad_days=1, ad_currencies=frozenset({"KGS"}))
     cell.spend = Decimal("1037")
 
@@ -91,7 +91,7 @@ def test_drr_divides_kgs_spend_by_wbs_kgs_order_sum() -> None:
 
 
 def test_drr_of_rub_spend_against_kgs_orders_is_unknown() -> None:
-    """Roubles over сомы is off by the day's rate — «—» until we convert."""
+    """Roubles over som is off by the day's rate — «—» until we convert."""
     cell = _funnel_day(ad_days=1, ad_currencies=frozenset({"RUB"}))
     cell.spend = Decimal("1037")
 

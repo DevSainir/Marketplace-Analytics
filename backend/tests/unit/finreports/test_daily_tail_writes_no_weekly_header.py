@@ -1,7 +1,7 @@
 """The provisional daily lane must not write into the settled bookkeeping.
 
-The daily and weekly reports are the same rows — measured over 14.09-20.09 on
-«Демо», 4 424 rows sharing their ``rrdId`` one for one — so the rows belong in
+The daily and weekly reports are the same rows — compared over one week, every
+row shares its ``rrdId`` one for one — so the rows belong in
 ``logistics_transaction`` like any others and the P&L reads them by ``rr_dt``
 with nothing else to change.
 
@@ -33,7 +33,7 @@ pytestmark = pytest.mark.unit
 
 _WORKSPACE = uuid.UUID("019f657a-a70c-780a-ac98-f010a1916615")
 
-#: A real daily report id's shape: `{supplier}{YYYYMMDD}`, fifteen digits.
+#: The shape of WB's daily report id: `{supplier}{YYYYMMDD}`, fifteen digits.
 _DAILY_REPORT_ID = 938364620260922
 _RRD_BASE = 3_135_239_758_000
 

@@ -2,7 +2,7 @@
 
 The card's «Заказы, ₽» / «Выкупы, ₽» are DERIVED (count x seller price, in
 roubles). Since 2026-09-29 the funnel row also stores WB's own sums — in the
-кабинет's settlement currency and NULL until the backfill reaches the day —
+workspace's settlement currency and NULL until the backfill reaches the day —
 and those must never leak into the card: reading them broke every SKU card
 with a 500 on the first deploy.
 """

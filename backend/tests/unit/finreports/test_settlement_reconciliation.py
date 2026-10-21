@@ -7,8 +7,8 @@ freshness gate, which probes the day *after* the watermark, never asks about
 them again.
 
 WB does not publish in that order. It forms single-day supplementary reports and
-starts serving their detail rows later. On 2026-08-31 the two facts met: report
-983241109 covered 31.08 alone and was formed on 09-01, yet on 09-06 all eighty
+starts serving their detail rows later. On 2026-08-31 the two facts met: a
+single-day report covered 31.08 alone and was formed on 09-01, yet on 09-06 all eighty
 probes over 31.08..05.09 answered 204 — WB was not serving it. On 09-07 the
 01.09-06.09 report landed, the watermark jumped to 09-06, and the day was out of
 reach before WB ever served it. Every workspace lost a day of settlement, and
@@ -72,7 +72,7 @@ def _fleet(count: int) -> list[WorkspaceTokenBundle]:
 
 
 def test_a_reconciliation_run_takes_exactly_one_workspace() -> None:
-    """Measured on prod: each window is a full WB refill of WAITING, not of work.
+    """As measured against WB: each window is a full WB refill of WAITING, not of work.
 
     The walk's two windows queued 633.8 s and 944.5 s while the requests
     themselves took seconds, so a three-window span is ~45 minutes — and the

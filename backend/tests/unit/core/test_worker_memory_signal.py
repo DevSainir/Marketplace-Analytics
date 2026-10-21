@@ -1,12 +1,12 @@
 """The worker's memory, and the death it ends in, must both leave a series.
 
-Written after 2026-09-17, when three prefork children were OOM-killed in twelve
-hours and Prometheus held no evidence of any of them. Two gaps made that
-possible and both are pinned here: multiprocess mode drops the default process
-collector, so the one container whose working set is driven by data volume was
-the one container publishing no resident set at all; and a killed child's task
-lands in ``celery_tasks_total{state="failure"}``, where three events in half a
-day is 0.00007/s against an alert threshold of 0.05.
+Without it, prefork children can be OOM-killed repeatedly while Prometheus holds
+no evidence of any of them. Two gaps make that possible and both are pinned
+here: multiprocess mode drops the default process collector, so the one
+container whose working set is driven by data volume would be the one container
+publishing no resident set at all; and a killed child's task lands in
+``celery_tasks_total{state="failure"}``, where three events in half a day is
+0.00007/s against an alert threshold of 0.05.
 """
 
 from __future__ import annotations
@@ -237,12 +237,12 @@ def test_a_platform_that_cannot_report_memory_records_nothing(
 def test_a_task_records_the_floor_it_started_from_before_it_can_die(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The reading a killed task still leaves, and the gap that cost a day.
+    """The reading a killed task still leaves, and the gap it closes.
 
-    Peak and growth are written at `task_postrun`, so the twenty-one harvests
-    the kernel killed on 2026-09-18 recorded neither: the surviving runs put
-    `finreports.harvest_finance` at 369 MB of growth while the cgroup gauge was
-    touching 767 MB, and only the second number was true.
+    Peak and growth are written at `task_postrun`, so a harvest the kernel kills
+    records neither: the surviving runs understate what
+    `finreports.harvest_finance` grows by while the cgroup gauge sits at the
+    limit, and only the second number is true.
 
     This one is written before the task body runs, so it survives whatever
     happens next. It cannot say what the task went on to need — nothing inside

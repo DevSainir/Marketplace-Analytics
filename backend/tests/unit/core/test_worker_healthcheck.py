@@ -1,8 +1,8 @@
 """The worker's healthcheck restarts a worker that keeps failing it.
 
-Docker never restarts an ``unhealthy`` container, so on 2026-10-15 the worker
-failed its ping 500 times in a row and ran nothing for three hours, the nightly
-harvest included, until a person restarted it. ``docker/worker_healthcheck.sh``
+Docker never restarts an ``unhealthy`` container, so a worker that keeps failing
+its ping runs nothing, the nightly harvest included, until a person restarts it.
+``docker/worker_healthcheck.sh``
 counts consecutive failures and asks PID 1 to shut down; these tests run that
 exact script, with a stand-in ``celery`` on ``PATH`` and a stand-in process in
 place of PID 1.

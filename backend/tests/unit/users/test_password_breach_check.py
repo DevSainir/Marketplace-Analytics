@@ -1,4 +1,4 @@
-"""Unit tests for the Have I Been Pwned range query (register P1.5).
+"""Unit tests for the Have I Been Pwned range query.
 
 Driven against a stubbed httpx transport, so nothing here touches the network.
 

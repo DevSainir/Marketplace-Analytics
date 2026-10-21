@@ -1,14 +1,13 @@
 """The gate every production probe has to go through.
 
-On 2026-09-17 an ad-hoc performance probe ran in the worker container — which
-connects as the table owner, so row-level security does not apply to it — chose
-«the кабинет with the most rows», and printed a paying customer's revenue into a
-transcript. Nothing refused it, because nothing was asked.
+The worker container connects as the table owner, so row-level security does
+not apply to it. An ad-hoc probe run there can pick "the workspace with the
+most rows" and print a paying customer's revenue into a transcript. Nothing
+refuses it, because nothing is asked.
 
-What is pinned here is the shape that makes that impossible to repeat by
-accident: the session is read-only, it drops the owner's privileges, it binds
-one кабинет, and there is no parameter through which a caller can name a
-different one.
+What is pinned here is the shape that makes that impossible by accident: the
+session is read-only, it drops the owner's privileges, it binds one workspace,
+and there is no parameter through which a caller can name a different one.
 
 Unit tier: the seam is the four statements the gate issues, and a fake session
 records them in order.
@@ -96,7 +95,7 @@ async def test_the_one_allowed_кабинет_is_bound(session: _FakeSession) ->
 async def test_a_caller_cannot_name_a_different_кабинет() -> None:
     """There is no parameter to pass one through.
 
-    The mistake was choosing a кабинет, so the gate does not offer the choice —
+    The mistake to prevent is choosing a workspace, so the gate does not offer the choice —
     a default that can be overridden is a default that will be.
     """
     assert inspect.signature(diagnostic_session).parameters == {}

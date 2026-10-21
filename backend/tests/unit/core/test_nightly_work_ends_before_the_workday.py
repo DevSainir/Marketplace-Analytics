@@ -15,7 +15,7 @@ night.
 
 The runtimes are measurements, not guesses: the worst ``succeeded in`` of each
 task in the worker log over 2026-09-21..28. They grow with the number of
-кабинеты — the harvest and the cohort pass walk every workspace in turn — so
+workspaces — the harvest and the cohort pass walk every workspace in turn — so
 when one of these is re-measured longer, update it here and let this test say
 whether the night still fits.
 """
@@ -45,10 +45,10 @@ _MORNING_PREPARATION = frozenset({"monitoring.harvest_all", "monitoring.refresh_
 
 #: Worst measured runtime per task, 2026-09-21..28, rounded up to the minute.
 _WORST_CASE: dict[str, timedelta] = {
-    # 582 s worst for six кабинеты, walked one after another.
+    # 582 s worst for six workspaces, walked one after another.
     "monitoring.harvest_all": timedelta(minutes=10),
-    # 2 078 s worst; ~22 paced requests per кабинет, walked one after another —
-    # plus, since 2026-10-02, up to two funnel-gap re-reads per кабинет at ~21 s
+    # 2 078 s worst; ~22 paced requests per workspace, walked one after another —
+    # plus, since 2026-10-02, up to two funnel-gap re-reads per workspace at ~21 s
     # each (`funnel_gaps.MAX_REPAIRS_PER_NIGHT`), ~4 more minutes for six.
     "monitoring.refresh_buyout_cohorts": timedelta(minutes=39),
     # (885 s worst) — the night is not over until that has finished too.
@@ -152,9 +152,9 @@ def _backup_starts_msk() -> timedelta:
 def test_nothing_nightly_runs_while_the_backup_dumps() -> None:
     """The backup has the database to itself: no nightly entry overlaps its window.
 
-    On 2026-09-29 the finance reconciliation fired at 03:00 beside pg_dump; the
-    postgres container hit its 384 MiB limit, the kernel killed a backend
-    mid-COMMIT and the dump died with it. The backup is a host cron job, not a
+    A reconciliation firing beside pg_dump can push the postgres container past
+    its 384 MiB limit; the kernel then kills a backend mid-COMMIT and the dump
+    dies with it. The backup is a host cron job, not a
     beat entry, so nothing but this test knows the two share a clock.
     """
     backup_start = _backup_starts_msk()

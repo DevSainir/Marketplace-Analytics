@@ -9,13 +9,13 @@ run's conclusion is `failure` — zero jobs, and the banner "This run likely
 failed because of a workflow file issue", which accuses the YAML rather than the
 approval that never came.
 
-Every release cut two of those. Nothing broke — the deploy gates on the `main`
-run — which is exactly why it survived: a red check that is known to be
+Every release cut two of those. Nothing broke — the `main` run is the one that
+counts — which is exactly why it survived: a red check that is known to be
 harmless teaches people that a red check is harmless.
 
 Re-adding `pull_request` is a one-line edit that reads like restoring lost
 coverage. It restores none: the release PR's contents are tested on `main` in
-the merge commit seconds later, before the deploy. A branch is tested by
+the merge commit seconds later. A branch is tested by
 dispatching `tests` against it, which is what the second assertion keeps
 possible.
 """

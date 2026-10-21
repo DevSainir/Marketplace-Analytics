@@ -5,12 +5,12 @@ must touch neither — the tier's whole value is that it runs anywhere, in any
 order, with nothing running, and a test that quietly reached a live Redis would
 also inherit whatever the previous test left in it.
 
-**Rotation** consults the replay-grace store (register P0.5). That one is
+**Rotation** consults the replay-grace store. That one is
 switched off rather than faked, because zero is the documented "no grace"
 setting.
 
 **Logout, revocation and login** consult the watermarks and the per-account
-backoff (P1.12, P1.5). Those are faked, not switched off, because their
+backoff. Those are faked, not switched off, because their
 behaviour is the thing under test: :func:`redis_store` puts one in-memory store
 behind ``get_redis`` for the whole tier, exactly as the component tier's fixture
 of the same name does, so a test can assert on what was written.

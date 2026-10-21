@@ -5,8 +5,8 @@ of when the lane may END. This file has the other half: what a tick that is
 owed something actually does about it.
 
 The choice that matters most here is the walk. WB serves the same rows by
-report id, one per request, and by period, several reports to a page — measured
-at 8 on NEVA and 21 on «Демо». The lane takes the window whenever it is owed
+report id, one per request, and by period, several reports to a page — how many
+depends on the seller's volume. The lane takes the window whenever it is owed
 more than one report it has WB's list entry for, and pays for the throughput
 with a coarser unit: the window books nothing unless the whole span landed.
 """
@@ -280,14 +280,14 @@ async def test_the_lane_records_wb_s_totals_for_the_whole_history(
 ) -> None:
     """This lane is the only caller that ever sees the deep archive's totals.
 
-    The forward harvest lists 45 days, so on «Демо» it can fill 8 of 143
-    headers and no more. This one lists the entire history every tick, and the
+    The forward harvest lists 45 days, so it can fill the last six or seven
+    weekly headers and no more. This one lists the entire history every tick, and the
     list is already in hand — so recording them here costs no WB request and is
     the only way the archive's figures are ever filled in.
 
     It runs before the walk and regardless of whether anything is missing: a
-    lane with nothing left to fetch is exactly the state «Демо» is in, and
-    it is the state where the totals are the only thing left to collect.
+    lane with nothing left to fetch is exactly the state of a fully collected
+    workspace, and it is the state where the totals are the only thing left to collect.
     """
     recorded: list[tuple[Any, ...]] = []
 
@@ -307,12 +307,12 @@ async def test_the_lane_records_wb_s_totals_for_the_whole_history(
 async def test_several_owed_reports_are_taken_as_one_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The whole point of the hybrid, and it is worth 8-21x.
+    """The whole point of the hybrid, and it is worth roughly an order of magnitude.
 
-    WB serves the same rows by period, several reports to a page — measured at
-    8 on NEVA and 21 on «Демо». One report per request turns a seven-request
-    history into a 143-request one, which at a request a minute is the
-    difference between ten minutes and two and a half hours.
+    WB serves the same rows by period, several reports to a page. Illustrative
+    figures: at twenty reports a page, a three-year history of ~150 reports is
+    eight requests; one report per request makes it ~150, which at a request a
+    minute is the difference between ten minutes and two and a half hours.
     """
     due = tuple(_report(900 + n, weeks_back=7 + n) for n in range(4))
     _backlog(monkeypatch, due=due, outstanding=4, total=10)

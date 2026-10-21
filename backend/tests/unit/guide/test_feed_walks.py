@@ -155,7 +155,7 @@ async def test_the_orders_walk_moves_its_cursor_only_between_pages() -> None:
 async def test_the_orders_walk_pages_until_a_short_page_arrives() -> None:
     """A full 80 000-row response means more rows exist behind it.
 
-    Measured on prod 2026-09-12: one request returned exactly 80 000 rows and
+    Seen 2026-09-12: one request returned exactly 80 000 rows and
     stopped seventeen days short of today. Treating that as the whole feed is
     the failure mode this pins.
     """

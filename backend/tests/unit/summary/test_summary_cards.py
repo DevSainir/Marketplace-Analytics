@@ -70,9 +70,9 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
 def test_advertising_is_charged_once_as_wbs_invoice() -> None:
     """«К перечислению» is already net of WB's weekly invoice, and the invoice is the total.
 
-    Taking the burn off as well charged it twice — found on live data: the card
-    read 2 657 954.54 against a true 4 313 444.72 over one 54-day window. Since
-    2026-10-02 the card charges the invoice, as the P&L's «Итого» does.
+    Taking the burn off as well charged it twice, and the card came out well
+    below the true margin over a 54-day window. Since 2026-10-02 the card
+    charges the invoice, as the P&L's «Итого» does.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     # payout_net 800 is already net of a 200 invoice.
@@ -147,9 +147,9 @@ def test_the_buyout_counter_travels_with_its_own_denominator() -> None:
     which is WB's own definition and the one «Сравнение SKU» has always used.
     Dividing by ORDERS instead is what made this card climb for three weeks
     after every order: an order still in transit counted against the rate as
-    though it had been refused. Measured on the live кабинет, the orders-based
-    figure reads 16 % on a week-old cohort and 26 % on a month-old one, while
-    the answered-based figure reads 27.8 % and 26.6 %.
+    though it had been refused. Illustratively, the orders-based figure reads
+    16 % on a week-old cohort and 26 % on a month-old one, while the
+    answered-based figure reads 27.8 % and 26.6 %.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     totals = make_row(
@@ -330,7 +330,7 @@ def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> N
     of a window have orders and spend and no settlement at all. They used to
     vanish from every chart; now they are days like any other, with revenue left
     as None rather than zero — the line stops instead of reporting that the
-    кабинет sold nothing.
+    workspace sold nothing.
     """
     days = build_days(
         buckets=[make_day(day=date(2026, 7, 19), revenue="1000", margin_profit="500")],
@@ -356,12 +356,12 @@ def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> N
 
 
 def test_the_advertising_invoice_is_not_counted_as_a_withholding() -> None:
-    """«Штрафы и удержания» excludes the money the ДРР card already reports.
+    """«Штрафы и удержания» excludes the money the DRR card already reports.
 
     WB withholds advertising as an invoice inside «Удержания», so a card that
     summed that line whole would show the same spend twice — once as a
     withholding, once as advertising — and a seller reading both would conclude
-    the кабинет paid for it twice.
+    the workspace paid for it twice.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="100", net_profit="700")
     report = make_report(

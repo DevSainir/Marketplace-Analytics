@@ -1,16 +1,14 @@
-"""Nothing CI runs on the production box may address production by default.
+"""Nothing CI runs may address the production stack by default.
 
-The pipeline runs on a self-hosted runner **on the production VPS**. The
-end-to-end tier stands up its own stack there and is fenced off through Compose
+The end-to-end tier stands up its own stack and is fenced off through Compose
 — its own project name, its own ports, and a guard step that fails the job if
 either is lost.
 
-On 2026-09-10 that fence held perfectly and production's `monitoring` schema was
-truncated anyway: `scripts/load_seed.sh` does not go through Compose. It runs
-`docker exec` against a container **named by a shell default**, and the default
-was `marketplace-service-postgres-1` — production's. Seven weeks of harvested
-history, every pinned SKU and every per-day note went with it (P2.9 in
-docs/security/HARDENING.md).
+That fence does not cover everything: `scripts/load_seed.sh` does not go through
+Compose. It runs `docker exec` against a container **named by a shell default**,
+and if that default is `marketplace-service-postgres-1` — the production stack's
+container — a seed run on a Docker host shared with production truncates the
+live `monitoring` schema: harvested history, pinned SKUs and per-day notes.
 
 Both halves of the fix are asserted here, in the cheapest tier that can see
 them, because both are one careless edit from coming undone: a default that
@@ -51,8 +49,8 @@ def _default_expression(script: pathlib.Path) -> str:
 def test_no_seed_script_defaults_to_the_production_database() -> None:
     """The fallback must be derived from the project, never spelled out.
 
-    A literal here is not a style problem: it is the exact line that emptied
-    production, and it reads as harmless in review precisely because the name
+    A literal here is not a style problem: it is exactly the line that would
+    empty production, and it reads as harmless in review precisely because the name
     looks like a local development container. It is the same name.
     """
     offenders = {
@@ -71,8 +69,8 @@ def test_the_loader_refuses_a_production_target() -> None:
     """The backstop under the derivation: recognise production and stop.
 
     The derivation fixes the caller that exists. This is for the next one — and
-    it reads the marker from the *target's* stack, because the runner's own
-    `backend/.env` is a copy of `.env.example` and says `local` while the
+    it reads the marker from the *target's* stack, because a CI checkout's own
+    `backend/.env` is a copy of `.env.example` and says `local` even when the
     container it addresses is production's.
     """
     body = (_SCRIPTS / "load_seed.sh").read_text()
@@ -108,13 +106,12 @@ def _load_job() -> dict[str, Any]:
 
 
 def test_the_load_profiles_never_run_on_the_production_box() -> None:
-    """The one job in this repository that must not touch the VPS runner.
+    """The one job in this repository that must never run on a self-hosted runner.
 
-    Everything else moved onto the production box when hosted minutes ran out,
-    and moving this one too is a single-word edit that would read like
-    finishing the job. It is not: `matrix-spike` drives 120 concurrent users
-    and `auth-flood` 60 requests a second, both deliberately trying to overload
-    what they point at. On the box that serves production that is not a test.
+    Moving it onto one is a single-word edit that reads like routine cleanup.
+    It is not: `matrix-spike` drives 120 concurrent users and `auth-flood` 60
+    requests a second, both deliberately trying to overload what they point at.
+    On a host that also serves production that is not a test.
 
     The workflow also asserts `RUNNER_ENVIRONMENT` at run time — belt and
     braces, because a label is a promise and the environment variable is a

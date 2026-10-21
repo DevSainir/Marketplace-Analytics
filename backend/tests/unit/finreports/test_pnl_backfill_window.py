@@ -2,8 +2,8 @@
 
 WB serves the same rows two ways, and the lane picks per tick. By report id it
 is one request each and a report books the moment it finishes; by period it is
-several reports to a page — 8 on NEVA, 21 on «Демо» — and the unit becomes
-the span, which books nothing unless the whole of it landed.
+several reports to a page — how many depends on the seller's volume — and the
+unit becomes the span, which books nothing unless the whole of it landed.
 
 The rule that took two production failures to find: a window may only ever span
 a RUN of owed reports, consecutive in WB's own ordering with nothing held in
@@ -315,10 +315,11 @@ async def test_a_window_that_failed_costs_every_report_in_it(
 async def test_a_window_too_wide_for_one_tick_is_paused_and_resumed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The fix for a lane that re-fetched the same 300 000 rows every sweep.
+    """The fix for a lane that re-fetched the same rows every sweep.
 
-    A contiguous run can still be wider than a tick can pay for — NEVA's spring
-    2025 reports are ~65 000 rows each, five times its own mean. Before this the
+    A contiguous run can still be wider than a tick can pay for — a large
+    seller's peak-season reports can run to tens of thousands of rows each,
+    several times its own mean. Before this the
     tick hit its deadline, reported a failed window, and the next sweep started
     the same span from zero: rows committed, nothing booked, for ever.
 

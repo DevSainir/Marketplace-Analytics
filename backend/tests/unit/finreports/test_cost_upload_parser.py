@@ -63,7 +63,7 @@ def test_xlsx_matches_the_key_and_cost_by_header_name() -> None:
     # Act.
     parsed = parse_cost_upload("pnl.xlsx", data)
 
-    # Assert: keyed on «Артикул WB», cost read from the per-unit column (not итого).
+    # Assert: keyed on «Артикул WB», cost read from the per-unit column (not the total).
     by_nm = {int(p.nm_id_raw): p for p in parsed}
     assert Decimal(str(by_nm[222].cost_raw)) == Decimal("700")
     assert by_nm[333].cost_raw is None
@@ -134,7 +134,7 @@ def test_unreadable_bytes_are_rejected() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Resource bounds (register P0.4 / P1.7)
+# Resource bounds
 #
 # The route's size check bounds the COMPRESSED bytes, which bounds nothing about
 # what parsing them costs: .xlsx is a ZIP, and a sheet can declare far more rows

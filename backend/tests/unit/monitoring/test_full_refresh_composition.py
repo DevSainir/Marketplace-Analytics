@@ -206,7 +206,7 @@ async def test_progress_walks_the_two_stages_and_ends_at_a_hundred(
 
     assert seen[0] == (1, 0, full_refresh.MSG_HARVEST)
     # The boundary: stage 2 announced BEFORE the slow pass starts, so the
-    # seller reads "воронка собрана" while the cohorts are still running.
+    # seller reads that the funnel is collected while the cohorts are still running.
     assert seen[1] == (2, 40, full_refresh.MSG_COHORTS)
     assert [percent for _stage, percent, _msg in seen[2:-1]] == [60, 80, 100]
     assert seen[-1] == (2, 100, full_refresh.MSG_DONE)

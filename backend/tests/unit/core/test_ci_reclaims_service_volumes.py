@@ -1,14 +1,14 @@
 """The verify job removes the anonymous volumes its service containers leave.
 
-`verify` runs on the production box with postgres and redis as GitHub service
-containers. Both images declare a VOLUME, and the runner removes the containers
-after the job but not their anonymous volumes. Nothing else on the box prunes
-volumes, so they piled up two per run — 628 of them, 22.8 GB — until the disk
-filled and the nightly backup failed on 2026-10-07 and 2026-10-08.
+`verify` runs with postgres and redis as GitHub service containers. Both images
+declare a VOLUME, and a self-hosted runner removes the containers after the job
+but not their anonymous volumes. If nothing else on the host prunes volumes, they
+pile up two per run until the disk fills and whatever else needs it — a nightly
+backup, for one — starts failing.
 
 The prune is asserted here rather than trusted to review, and so is its one
 dangerous spelling: `-a`/`--all` would extend it to NAMED volumes no container
-holds, and production's data lives in named volumes.
+holds, and persistent data lives in named volumes.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def test_verify_prunes_volumes_before_its_checkout() -> None:
 
 
 def test_the_volume_prune_never_reaches_named_volumes() -> None:
-    """`-a` would take production's named volumes whenever their container is down."""
+    """`-a` would take every named volume whose container happens to be down."""
     prunes = [
         line
         for command in _verify_commands()

@@ -28,7 +28,7 @@ _SECURE_ENV: dict[str, str] = {
     # Off on every deployment: nginx serves the SPA and the API from one origin,
     # so a cross-origin caller is somebody else's page reading our authenticated
     # responses. It is in this baseline because a deployed environment that omits
-    # it now refuses to boot (register P0.7).
+    # it refuses to boot.
     "CORS_ENABLED": "false",
 }
 
@@ -133,7 +133,7 @@ def test_only_local_may_publish_its_own_api_surface(monkeypatch: pytest.MonkeyPa
 def test_production_refuses_to_start_with_cors_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """P0.7 was verified by reading the deployed `.env`; nothing made it stay true.
+    """CORS off was only a line in the deployed `.env`; nothing made it stay true.
 
     The default is `true`, so a single dropped line would have re-enabled CORS
     on production silently — and CORS is what decides whether another origin's
@@ -178,7 +178,7 @@ def test_a_deployed_environment_logs_json_whatever_the_env_says(
 
     A deployed log is read by a shipper, and structure carried by an encoder
     rather than by punctuation is what stops a user-controlled value — a path,
-    an email, an upstream error — pretending to be a field (register P2.2).
+    an email, an upstream error — pretending to be a field.
     Left to a default it would be one forgotten `.env` line away from silently
     reverting, so the environment decides rather than the file.
 
@@ -276,7 +276,7 @@ def test_redis_url_carries_the_password_and_db_index(
 
 
 # --------------------------------------------------------------------------- #
-# Mail configuration (register P1.6)
+# Mail configuration
 #
 # A different kind of check from the ones above: those refuse a placeholder
 # secret, these refuse an *incoherent pair*. Both fail the boot, and for the
@@ -334,7 +334,7 @@ def test_a_fully_configured_mail_setup_boots(monkeypatch: pytest.MonkeyPatch) ->
 def test_mail_switched_off_entirely_boots(monkeypatch: pytest.MonkeyPatch) -> None:
     """The shipped default: no relay, no flows, and a production boot regardless.
 
-    This is what the deploy that introduced P1.6 actually ran, so it is the case
+    This is the configuration the mail checks first shipped with, so it is the case
     that must never regress into a refusal — the feature ships dark on purpose.
     """
     settings = _settings({**_SECURE_ENV, "EMAIL_ENABLED": "false"}, monkeypatch)

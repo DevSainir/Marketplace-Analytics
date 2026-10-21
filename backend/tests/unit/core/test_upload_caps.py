@@ -3,8 +3,7 @@
 Both upload routes used to do ``data = await file.read()`` and check
 ``len(data)`` on the next line. That check cannot protect anything: the bytes
 are already in the process. On a 512 MB container one oversized upload is an
-OOM kill, and the kill takes every other in-flight request on that worker with
-it (register P0.4).
+OOM kill, and the kill takes every other in-flight request on that worker with it.
 
 What these pin is the difference between the two: the refusal happens while
 reading, so the peak is the ceiling rather than the file.

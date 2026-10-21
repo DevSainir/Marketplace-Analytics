@@ -9,9 +9,9 @@ What is pinned here are the facts that live in three files at once and fail
 silently when they drift apart:
 
 * **The client's address.** nginx writes `X-Real-IP` from `$remote_addr`, and
-  the login limiter keys on it (HARDENING P0.1). Behind a TCP proxy that is the
-  proxy's address — for every request — unless the edge sends PROXY protocol
-  and nginx takes the address from it. Nothing errors when this breaks: every
+  the login limiter keys on it. Behind a TCP proxy that is the proxy's address
+  — for every request — unless the edge sends PROXY protocol and nginx takes
+  the address from it. Nothing errors when this breaks: every
   user simply shares one login budget, and one stranger's failed attempts lock
   everyone out. A half-done version fails differently but just as completely:
   a PROXY header nginx does not expect, or one it expects and never gets, is a
@@ -135,7 +135,7 @@ def test_both_nginx_serve_the_same_release_with_the_same_certificates() -> None:
 
 
 def test_the_e2e_stack_never_runs_a_production_image() -> None:
-    """Image tags are global to the daemon, and the nightly tier runs on the production box.
+    """Image tags are global to the daemon, which the nightly tier may share with production.
 
     A service the overlay leaves on `:latest` either runs production's image in
     the throwaway stack or — if the overlay builds it — overwrites the tag

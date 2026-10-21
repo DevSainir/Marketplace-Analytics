@@ -2,8 +2,8 @@
 
 This module replaced a per-day attribution pass, and with it the rule that the
 day of a swap belonged to nobody. The premise changed deliberately: WB serves
-the CURRENT advertising day and it moves within minutes (verified live on
-2026-09-04 — four campaigns gained 75–112 impressions over an eight-minute gap),
+the CURRENT advertising day and it moves within minutes (checked 2026-09-04:
+campaigns gained impressions between two reads eight minutes apart),
 so traffic is the difference between two readings and the grain is a poll rather
 than a day.
 
