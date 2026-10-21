@@ -1,8 +1,8 @@
 # Attack classes, as they actually show up here
 
 Per class: the question to ask, how it has appeared **in this repo**, and how to verify. The
-worked examples are real — every one was found in this codebase, which is why they are worth
-more than the generic category names.
+worked examples are real — every one was found in this codebase and fixed, which is why they
+are worth more than the generic category names. Where a test now pins the fix, it is named.
 
 Aligned to OWASP Top 10:2025 and the OWASP API Security Top 10, but organised by what you are
 about to write rather than by taxonomy.
@@ -15,15 +15,17 @@ about to write rather than by taxonomy.
 
 The single highest-risk class for this service, and historically its worst bug.
 
-**How it appeared here.** `X-Workspace-Id` was validated for *existence* only. Any
-authenticated account could read and write any seller's funnel data, settlement P&L, cost
-prices and stock by changing one header value — the header WAS the tenancy.
+**How it appeared here.** `X-Workspace-Id` was once validated for *existence* only, so the
+header WAS the tenancy: changing one value would have reached another seller's funnel data,
+settlement P&L, cost prices and stock. It is now checked against the caller's own
+organisation (`CurrentWorkspaceId`), and row-level security backs that check in the
+database.
 
-**Second form, harder to see.** Four cross-module loaders took no tenant argument, so
-`GET /pnl/skus` summed every tenant's orders and advertising into the «Итого» row of
+**Second form, harder to see.** Cross-module loaders that took no tenant argument let
+`GET /pnl/skus` sum every tenant's orders and advertising into the «Итого» (total) row of
 whichever tenant asked. No id was forged; the query simply never said whose data it wanted.
-
-Access control was fine — the *bundle contents* were not scoped.
+`test_export_loaders_are_scoped.py` now fails the build on a loader without a required
+keyword-only `workspace_id`.
 
 **Ask:**
 * Does every query carry a tenant column, or only an id?
@@ -63,18 +65,23 @@ fixture replacing the access dependency must still depend on `CurrentUser`, or e
 > Can this be called repeatedly, or with a hostile payload, to drain memory, connections,
 > disk, or someone else's API quota?
 
-The class with the most open items in this repo. WB rate budget is shared platform-wide, so
-one tenant can starve every other tenant — and the failure they see is indistinguishable from
-WB being down.
+The WB rate budget is shared platform-wide, so one tenant can starve every other tenant — and
+the failure they see is indistinguishable from WB being down.
 
-**How it appeared here:**
-* `POST /finreports/harvest` enqueues a harvest for **every workspace on the platform**.
-* Refresh endpoints enqueue Celery work with no per-caller budget and no dedup.
-* Uploads do `await file.read()` and *then* check the size — the cap does not protect memory.
-* `openpyxl.load_workbook` on attacker-supplied ZIP bytes with no decompressed-size or
-  row cap.
-* Request lists (`nm_ids`, matrix `days`) with no `max_items`.
-* No Celery `task_time_limit`, so one wedged task holds a worker slot indefinitely.
+**How it appeared here**, and what bounds each now:
+* A harvest endpoint enqueued work for **every workspace on the platform**; it now enqueues a
+  walk scoped to the caller's own workspace (`test_harvest_routes.py`).
+* Refresh endpoints enqueued Celery work with no per-caller budget and no dedup; they now
+  dedupe identical in-flight requests and spend a per-workspace budget
+  (`test_refresh_bounds.py`).
+* Uploads did `await file.read()` and *then* checked the size, so the cap did not protect
+  memory; `src/core/uploads.py` now refuses while reading (`test_upload_caps.py`).
+* `openpyxl.load_workbook` ran on attacker-supplied ZIP bytes with no decompressed-size or row
+  cap; both parsers now sum the declared sizes first and cap rows during iteration.
+* Request lists (`nm_ids`, matrix `days`) had no length bound; they carry `max_length` now
+  (`test_request_bounds.py`, `test_tenant_resource_bounds.py`).
+* Celery tasks had no time limit, so one wedged task could hold a worker slot indefinitely;
+  every task now has a soft and a hard deadline (`test_task_time_limits.py`).
 
 **Ask:**
 * Is the size check **before** the read into memory?
@@ -128,8 +135,10 @@ cannot fail is decoration.
 **Client-side races count too.** Three browser tabs share one cookie jar. Three tabs
 refreshing at once send three parallel `/refresh` calls with the *same* refresh secret; the
 first rotates, the other two look exactly like a replayed stolen token, and the family is
-revoked. The SPA's `refreshPromise` dedup only covers one tab's JS context. See
-`docs/security/HARDENING.md` — a security control whose false-positive path logs legitimate
+revoked. The SPA's `refreshPromise` dedup only covers one tab's JS context, so the server
+keeps a short replay-grace window in which every racing tab converges on the one live token
+(`test_concurrent_tab_refresh.py`), while a replay after the window still kills the lineage
+(`test_breach_detection.py`). A security control whose false-positive path logs legitimate
 users out is a control that will eventually be turned off.
 
 ---
@@ -205,7 +214,7 @@ other tenant-scoped route keys on.
 > The endpoint works exactly as designed, and the design is the problem.
 
 **Ask:**
-  ~5 s of CPU.)
+* What does this cost us if automated? (A WB call costs shared quota.)
 * Is a single-use credential enforced as single-use *in the database*, or only checked
   before a write that could race?
 * Can a flow be replayed — an invitation forwarded, a code shared, a link re-used?
@@ -221,13 +230,16 @@ Rotation with family-scoped breach detection is in place. What to keep in view:
 * **Fail-open is a decision, not a default.** The auth rate limiter and the session
   revocation watermark both fail open on a Redis outage. That is defensible for availability
   and it means a Redis outage removes brute-force protection and revocation *at the same
-  time*. If you add a third fail-open control, note the combination.
-* **A limiter is only as good as its client identity.** Ours keys on `request.client.host`;
+  time* — which is why both report to the degradation ledger, and the ledger raises its own
+  event when two controls are down together. A new fail-open control reports there too.
+* **A limiter is only as good as its client identity.** `request.client.host` is not one:
   with `--forwarded-allow-ips *`, uvicorn takes the **leftmost** `X-Forwarded-For` entry,
-  which the client controls. The limiter is currently bypassable — see
-  `docs/security/HARDENING.md`.
-* **Enumeration.** Login is constant-time and single-messaged. Registration returns a
-  distinct 409 for an existing email.
+  which the client controls. The limiter keys on the address the reverse proxy writes
+  (`src/core/client_ip.py`), and `test_auth_rate_limit_spoofing.py` wraps the app in
+  uvicorn's own proxy middleware to prove a forged header neither escapes a spent budget nor
+  opens a fresh one.
+* **Enumeration.** Login is constant-time and single-messaged, and so is account recovery:
+  the request endpoint answers the same whether or not the address is registered.
 
 ---
 
@@ -252,8 +264,11 @@ We call WB, and WB's responses are outside the trust boundary.
   app pulls fonts from Google Fonts; that is an allow-listed CSP entry and a supply-chain
   edge.
 * Base images go stale silently; rebuild on a schedule, not only on deploy.
-* **Inventory is a control.** `/docs`, `/redoc` and `/openapi.json` are currently public and
-  publish the entire API surface. An endpoint nobody remembers is an endpoint nobody guards.
+* **Inventory is a control.** `/docs`, `/redoc` and `/openapi.json` publish the entire API
+  surface, so they are mounted only where a setting allows it, and the three move together —
+  hiding the viewers while still serving the schema withholds nothing
+  (`test_documentation_exposure.py`). An endpoint nobody remembers is an endpoint nobody
+  guards.
 
 ---
 
@@ -264,8 +279,7 @@ Not prevention — the ability to answer "what happened" afterwards.
 Two different needs, and the second is not satisfied by the first.
 
 **Attribution** — `created_by_user_id` / `updated_by_user_id` on a row. Answers "who last
-touched this?" while the row exists. No monitoring, finreports or ab_tests table has it, so
-after an incident you cannot tell which account changed a figure.
+touched this?" while the row exists, and only while it exists.
 
 **An audit trail** — an append-only record of *events*, independent of the rows they concern.
 Attribution alone does not survive the thing it describes: a compromised manager who deletes
@@ -277,6 +291,10 @@ Security-relevant events need the second kind: who, which organisation, from whi
 and what changed — written once and never updated. Membership changes, credential rotations,
 role changes, subscription activations and workspace deletions all qualify. Ordinary business
 writes do not; an audit log that records everything is one nobody reads.
+
+Here that is `organizations.audit_log`: insert-only by grant and by trigger, with no foreign
+keys on actor or tenant so the entry outlives both. A trigger on `organizations.subscriptions`
+records every change even when it is made as raw SQL.
 
 ---
 

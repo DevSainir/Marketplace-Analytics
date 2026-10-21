@@ -85,6 +85,7 @@ is a route that will disagree with the others.
 | `MemberAccess` | belongs to an organisation, and its subscription is not past grace | **every data router** — this is the paywall, so a route behind it needs no separate one |
 | `WritingAccess` | + a role that writes (not a read-only manager) | any write, any WB call, any Celery enqueue |
 | `OwnerAccess` | owner (or dev) | workspaces, WB tokens, members, billing |
+| `InternalAccess` | dev or primary org | features built only for us (labs) |
 | `DevAccess` | platform `dev` role | guest grants, dev-only administration |
 | `CodeIssuerAccess` | dev, or the OWNER of the primary org (not its managers) | activation codes |
 
@@ -107,8 +108,8 @@ gate; enumerate workspaces yourself and you have re-opened a paywall that costs 
   that every cross-SKU aggregate must go through.
 * Never `SELECT ... WHERE id = :id` on tenant data. Always `AND <tenant column> = :tenant`.
 
-**Both of those dependencies also bind the tenant for the database** (`set_workspace_context`,
-register P2.5), and that has a consequence worth knowing before it bites: once
+**Both of those dependencies also bind the tenant for the database** (`set_workspace_context`),
+and that has a consequence worth knowing before it bites: once
 `row_level_security.sql` is applied, a route that reaches a policy-covered table *without*
 going through one of them makes its queries **raise**, not return fewer rows. So:
 
@@ -140,9 +141,10 @@ on the success path, with a `CONTROL_*` constant; add a new constant if yours is
 control. Do **not** log the outage from inside the control — that is one record per
 request, which is a flood rather than an alert, and it cannot see that a *second* control
 went down in the same instant. The ledger raises
-`SECURITY_CONTROLS_DEGRADED_TOGETHER` when two do, which is the failure mode that made
-this a register item (P1.2) rather than an accepted trade. The `detail` string reaches the
-log verbatim, so it carries an exception class, never a token or a key.
+`SECURITY_CONTROLS_DEGRADED_TOGETHER` when two do — two fail-open controls down together
+(say the auth rate limiter and session revocation) are worse than either alone, and that
+combination is what the ledger exists to see. The `detail` string reaches the log verbatim,
+so it carries an exception class, never a token or a key.
 
 **Decide races in the database (TOCTOU).** Any "only once" rule — redeem a code, accept an
 invitation, consume a token, claim a slot — is a read-then-write, and two requests in the
@@ -194,8 +196,8 @@ Uncertain on any of them → say so explicitly to the user rather than shipping 
 ## Say something when it's out of scope
 
 If you find a real weakness while doing unrelated work, do not silently widen the task and
-do not silently ignore it. State it in one sentence, note it in
-`docs/security/HARDENING.md`, and carry on with what was asked.
+do not silently ignore it. State it in one sentence to whoever asked, and carry on with what
+was asked.
 
 ## Deeper references
 
@@ -206,7 +208,8 @@ Read these when the work actually calls for them, not by default:
 * `references/attack-classes.md` — per class (BOLA, BFLA, resource exhaustion, injection,
   SSRF, supply chain…): the question to ask, how it has shown up *here*, and how to verify.
 
-Standing context: the live weakness register is `docs/security/HARDENING.md`; tenancy at
-the database level is `backend/scripts/sql/row_level_security.sql` (register P2.5), and the
-layering it sits in is the `backend-architecture` skill; anything WB-facing also needs
-`wildberries-api`.
+Standing context: the threat model and the reasoning behind each control are in
+`docs/security/SECURITY_DESIGN.md`; tenancy at the database level is
+`backend/scripts/sql/row_level_security.sql`, applied on top of the least-privilege application
+role in `least_privilege_role.sql`; the layering it all sits in is the `backend-architecture`
+skill.

@@ -152,32 +152,28 @@ cd backend && .venv/bin/python -m pytest -m "not integration"
 
 First-time setup for the browser tier: `npm install && npm run setup:e2e`.
 
-## CI runs on the production box — what that costs a test
+## Tests that stand up their own infrastructure
 
-The whole pipeline runs on a **self-hosted runner on the production VPS**, not on a hosted
-one. The end-to-end tier therefore stands up its stack on the same Docker daemon that is
-serving customers, and it is fenced off by Compose: its own project name
-(`marketplace-e2e`), its own ports (8080/8443), and a guard step that fails the job if either
-is ever lost.
+The end-to-end tier brings up a whole stack, and the Docker host it runs on may be serving
+another one. It is fenced off by Compose: its own project name (`marketplace-e2e`), its own
+ports (8080/8443), and a guard step that fails the job if either is ever lost.
 
-**That fence only covers what goes through Compose.** On 2026-09-10 the nightly run emptied
-production's entire `monitoring` schema — seven weeks of harvested history, every pin and
-every per-day note — because `scripts/load_seed.sh` addressed a container *by name*
-(`docker exec marketplace-service-postgres-1 …`) and the name it defaulted to was
-production's. Every Compose guard passed. The full account is P2.9 in
-`docs/security/HARDENING.md`.
+**That fence only covers what goes through Compose.** A seed script that addresses a container
+*by name* (`docker exec <container> …`) is outside it, and if the name it defaults to belongs to
+the other stack, the seed lands there — while every Compose guard passes. That happened once,
+and `tests/unit/core/test_ci_never_targets_production.py` now pins both halves of the fix.
 
-So, before adding or editing any step of a tier that runs on this box:
+So, before adding or editing any step of a tier that stands up infrastructure:
 
 * **Name the target, never inherit it.** Any `docker exec`, published port, host path or
   container name in a workflow step or a script it calls is outside the fence and must be
   passed explicitly, not defaulted.
-* **A default that names a real production resource is a bug**, even in a script "only ever
-  run in CI" — the whole incident is that sentence being false for one night.
-* **Make destructive scripts recognise production themselves.** `load_seed.sh` now reads
-  `ENVIRONMENT` from the *target stack's* api container and refuses `production`. Note where
-  it reads it from: the checkout's `backend/.env` on the runner is a copy of `.env.example`
-  and says `local` while the container being addressed is production's.
+* **A default that names a real, non-test resource is a bug**, even in a script "only ever run
+  in CI".
+* **Make destructive scripts recognise a live stack themselves.** `backend/scripts/load_seed.sh`
+  reads `ENVIRONMENT` from the *target stack's* api container and refuses `production`. Note
+  where it reads it from: a checkout's `backend/.env` is a copy of `.env.example` and says
+  `local` whatever container is being addressed.
 * **`monitoring` and `finreports` refuse an unannounced `TRUNCATE`** (a statement-level
   trigger; opt in with `SET LOCAL app.allow_truncate = 'on'`, and every attempt lands in
   `organizations.audit_log`). A fixture path that needs to empty a table must say so; if a
@@ -194,8 +190,8 @@ So, before adding or editing any step of a tier that runs on this box:
 5. `references/coverage-map.md` still reads true. It records what each tier *owns* and which gaps
    are deliberate, so it needs an edit when coverage changes shape, not when a file moves.
 6. Land it on `main`. This repo is **trunk-based**: commit and push straight to `main` — no feature
-   branches or PRs for normal work. That push *is* the deploy (CI reruns every tier, then the VPS
-   auto-deploys on green), so steps 1–5 are what stands between a commit and production.
+   branches or PRs for normal work. CI reruns every tier on the push, but there is no branch to
+   hide a breakage on, so steps 1–5 are what keeps `main` green.
 
 ## When a test fails
 

@@ -174,7 +174,7 @@ Before trusting what you see locally, check whether the data itself is synthetic
 stock used to invent its `chrt_id`s, so every size in «Остатки по складам» rendered as a bare
 `chrt 5352…` — a local-only artefact that looks exactly like a layout bug. It now reuses the SKU's
 catalogued sizes, but the lesson generalises: when a phone screenshot shows something odd, confirm
-against prod before redesigning around it.
+the data is real before redesigning around it.
 
 Every page except `/` and `/login` is behind the auth guard, so the browser preview shows you an
 empty shell. Drive those from a throwaway Playwright script that imports `CREDENTIALS` and the

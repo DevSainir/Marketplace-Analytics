@@ -1,8 +1,12 @@
 # marketplace_service
 
-Wildberries seller analytics. FastAPI + Celery backend, Vue 3 SPA, PostgreSQL + Redis,
-everything in Docker. A modular monolith: `backend/src/modules/{users,workspaces,monitoring,finreports}`,
-`frontend/src/modules/{auth,profile,monitoring,finreports}`.
+Analytics for sellers on the Wildberries (WB) marketplace. FastAPI + Celery backend, Vue 3 SPA,
+PostgreSQL + Redis, everything in Docker. A modular monolith:
+`backend/src/modules/{users,organizations,workspaces,monitoring,finreports,advertising,heatmap,summary,ab_tests,guide}`,
+`frontend/src/modules/{auth,profile,monitoring,finreports,advertising,heatmap,summary,abTests,labs}`.
+
+The interface is in Russian; everything written for a developer — code, comments, docs, commit
+messages — is in English.
 
 ## Repo-wide invariants
 
@@ -19,68 +23,47 @@ Four rules that cost more to discover from a failing test than to state here:
 All four are machine-enforced — `backend/tests/unit/core/test_module_boundaries.py`,
 `frontend/eslint.config.js`, `frontend/tests/integration/architecture.spec.js`.
 
-**Work is pushed straight to `main` — that is the owner's standing, explicit permission.**
-Claude Code on the web checks a session out on a `claude/...` branch before the first message
-and tells it to push only there, "never to a different branch without explicit permission".
-This paragraph is that permission, for every session: commit and push to `main`, do not ask
-again, and do not push the side branch. `.claude/hooks/trunk_check.py` switches such a session
-to `main` at start, and `.claude/hooks/no_branching.py` refuses a push to anything else.
+**Trunk-based.** Work is committed and pushed straight to `main` in small commits — no feature
+branches, no worktrees, no PRs for ordinary work. Two hooks in `.claude/settings.json` hold the
+line: `.claude/hooks/no_branching.py` refuses branch-creating commands and pushes to anything but
+`main`, and `.claude/hooks/trunk_check.py` moves a session that starts on a stray branch back to
+`main`. The details are in the `git-workflow` skill.
 
-## Production is somebody else's business, except one кабинет
+## One workspace at a time
 
-**Only «Демо» may be looked at, unless the user asks for another кабинет themselves or
-gives permission.** Every other кабинет on the box belongs to a paying customer, and reading
-one is a disclosure whether or not anything is written. This holds for every test, probe,
-measurement and "just checking" — there is no read-only exemption, and the permission is the
-user's to give rather than yours to infer from the task.
+Every seller account («кабинет» in the UI, `workspace` in the code) is a tenant, and reading one
+that is not yours is a disclosure whether or not anything is written. Tenancy is enforced twice:
+by every query (`workspace_sku_select`, the `CurrentWorkspaceId` dependency) and by PostgreSQL
+row-level security (`backend/scripts/sql/row_level_security.sql`, applied together with the
+least-privilege application role in `least_privilege_role.sql` — the role first, then the
+policies; each file's header says why the order matters).
 
-So a probe against production is never a script with its own session: it runs through
-`backend/scripts/diagnose.py`, which hands it a session that is read-only at the transaction
-level and pinned to that кабинет by row-level security, and which offers no way to name a
-different one (`backend/src/core/diagnostics.py`, tests in
+An ad-hoc look at stored data is never a script with its own session. It runs through
+`backend/scripts/diagnose.py`, which hands the probe a session that is read-only at the
+transaction level and pinned to one workspace by row-level security, with no way to name a
+different one (`backend/src/core/diagnostics.py`; tests in
 `tests/unit/core/test_diagnostic_gate.py` and
-`tests/integration/core/test_diagnostic_gate_is_enforced.py`). The worker container connects
-as the table owner, so a bare `AsyncSessionLocal()` there reaches every tenant with nothing
-in the way — that is how this rule came to be written.
+`tests/integration/core/test_diagnostic_gate_is_enforced.py`). The worker connects as the table
+owner, so a bare `AsyncSessionLocal()` there reaches every tenant with nothing in the way — which
+is why the gate exists.
 
 ## Where the rest lives
 
-The project's rules are skills in `.claude/skills/` — `backend-architecture`, `wildberries-api`,
-`frontend-architecture`, `design-system`, `phone-layout`, `testing`, `git-workflow`,
-`security`, `production-access`. Each one's
-description says when it applies, so they load themselves when the work calls for them rather than
-sitting in every conversation. Read them directly (they are plain markdown) when working without
-that mechanism, and put new project guidance in the relevant skill rather than here.
+The project's rules are skills in `.claude/skills/` — `backend-architecture`,
+`frontend-architecture`, `design-system`, `phone-layout`, `testing`, `git-workflow`, `security`.
+Each one's description says when it applies, so they load themselves when the work calls for
+them rather than sitting in every conversation. Read them directly (they are plain markdown) when
+working without that mechanism, and put new project guidance in the relevant skill rather than
+here.
 
-`docs/BACKLOG.md` is the one list of deferred work, each task with its details and a
-priority. A task the user asks to be recorded goes there, not into a session chip or the
-chat; a finished one is deleted from it.
+`docs/JOURNAL.md` is the record of finished work, one row per task; how a row is written is in the
+`git-workflow` skill.
 
-`docs/JOURNAL.md` is the record of finished work, one row per task, and the source of a
-filterable page. A task leaves the backlog and gets its journal row in the same commit;
-the rest of the rule is in the `git-workflow` skill.
-
-`docs/security/BACKUP_KEYS.md` explains the backup key scheme — why the archives are
-encrypted to two `age` recipients, which of the three keys lives where, and the one
-property the move away from a symmetric passphrase gave up. Read it before touching
-`scripts/backup/recipients/` or either encryption key.
-
-`docs/security/HARDENING.md` is the live weakness register — what is fixed, what blocks a
-public launch, and what was decided against on purpose. Read the entry before changing
-anything it names: several of them record *why* a choice was made, including the ones where
-the reasoning was later found wrong and corrected rather than deleted. The `security` skill is
-the standing checklist that keeps new code from adding to it, and
-`docs/security/INCIDENT_RESPONSE.md` is what to reach for when something has already gone
-wrong — every lever it names exists and is tested.
-
-Two controls in that register — `backend/scripts/sql/least_privilege_role.sql` (the app stops
-owning its tables) and `row_level_security.sql` (tenancy enforced by Postgres) — **were
-applied to production on 2026-09-02 and verified on the box**. They are an ordered pair — the
-role first, then the flag, then the policies — and each file's header says what happens if
-that order is broken, which is what to re-read before applying them anywhere else.
-
-`docs/monitoring/LIVE_POSITION.md` records the removed organic-position probe: six weeks of
-measurement against WB's storefront edge, kept because the endpoint facts outlive the feature.
+`docs/security/SECURITY_DESIGN.md` is the security design — the threat model and the controls that
+answer it. The `security` skill is the standing checklist that keeps new code inside that design.
+`docs/security/BACKUP_KEYS.md` explains the backup key scheme — why the archives are encrypted to
+two `age` recipients and what the move away from a symmetric passphrase gave up. Read it before
+touching `backend/scripts/backup/recipients/` or either encryption key.
 
 `docs/monitoring/OBSERVABILITY.md` is the observability stack — Prometheus, Grafana, Loki and
 Sentry, plus the structlog pipeline and its redaction filter. Read it before adding a metric
@@ -92,24 +75,22 @@ URL they try). Metrics answer "is the system healthy"; the logs, which carry `wo
 every line, answer "for whom". The stack is a separate compose overlay — `make obs-up` — so the
 service runs instrumented whether or not anything is watching it.
 
-`docs/finreports/` holds what no skill covers: how the P&L is derived from WB's weekly
-Read `PNL.md` before changing anything that touches a settlement figure — most of the ways to
-get it wrong produce a plausible statement rather than an error.
-`MIGRATION_TO_FINANCE_V1.md` records how the P&L moved off the settlement endpoint WB
-switched off on 15.07.2026 — six phases on 22.09.2026, the history backfill on 23.09. Read it before touching
-anything that paces, probes or walks the report: much of that machinery was built to
-survive the dead endpoint and is now gone (phase 7, 24.09). Its phase-2 diff (5508 rows,
-61 of 63 columns identical to the value) is the evidence the cutover rests on. The payout's
-sign comes from `doc_type_name`, not the operation — that rule matches WB's own `forPaySum`
-on all 143 reports of «Демо», and every booked report is checked against it with an
-alert (`PNL.md`, «Знак выплаты задаёт тип документа»).
+`docs/monitoring/LIVE_POSITION.md` records the removed organic-position probe: weeks of
+measurement against WB's storefront edge, kept because the endpoint facts outlive the feature.
+
+`docs/finreports/` holds what no skill covers: how the P&L is derived from WB's settlement
+detail and why each line is what it is (`PNL.md`). Read `PNL.md` before changing anything that
+touches a settlement figure — most of the ways to get it wrong produce a plausible statement
+rather than an error. `MIGRATION_TO_FINANCE_V1.md` records how the P&L moved off the settlement endpoint WB
+switched off, and why much of the machinery that paced, probed and walked the old report is gone.
+The payout's sign comes from `doc_type_name`, not the operation; every booked report is checked
+against WB's own `forPaySum` with an alert (`PNL.md`).
 
 `docs/RELEASES.md` covers versioning: the version is **derived from your commit messages**, never
-typed, so a `feat:`, a `feat-minor:` and a `fix:` are not interchangeable (which to use, and the
-trunk-based rule that work goes straight to `main`, are in the `git-workflow` skill). Release Please keeps one open
-`chore(release):` PR and merging it cuts the release; the announcement is auto-translated to
-Russian for the team. Read it before editing `.github/workflows/release.yml`, the version fields
-in `backend/pyproject.toml` / `frontend/package.json`, or anything under `.github/scripts/`.
+typed, so a `feat:`, a `feat-minor:` and a `fix:` are not interchangeable (which to use is in the
+`git-workflow` skill). Release Please keeps one open `chore(release):` PR, and merging it cuts the
+release. Read it before editing `.github/workflows/release.yml` or the version fields in
+`backend/pyproject.toml` / `frontend/package.json`.
 
 ## Commands
 

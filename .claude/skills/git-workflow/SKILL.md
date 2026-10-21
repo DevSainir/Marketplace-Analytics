@@ -1,6 +1,6 @@
 ---
 name: git-workflow
-description: How work reaches this repository — trunk-based development (commit straight to `main`, no feature branches, no PRs for ordinary work) and which conventional-commit type to use, including the project's own `feat-minor` for features too small to deserve a minor version. Use this before committing, pushing (even a plain "push what's done"), amending or rewording a commit, branching, opening or merging a PR — including the Release Please PR or any request to cut or ship a release — or writing a commit message; closing a backlog task, which adds a row to docs/JOURNAL.md in the same commit; whenever a session finds itself on a branch or in a git worktree; and whenever deciding whether a change is a `feat`, a `feat-minor` or a `fix`. CLAUDE.md only grants the push to `main`; the commit-message rules, the release path and what a push sets off are here. The release machinery those types drive — Release Please, the changelog, the Telegram announcement — is documented in docs/RELEASES.md.
+description: How work reaches this repository — trunk-based development (commit straight to `main`, no feature branches, no PRs for ordinary work) and which conventional-commit type to use, including the project's own `feat-minor` for features too small to deserve a minor version. Use this before committing, pushing (even a plain "push what's done"), amending or rewording a commit, branching, opening or merging a PR — including the Release Please PR or any request to cut or ship a release — or writing a commit message; recording finished work in docs/JOURNAL.md; whenever a session finds itself on a branch or in a git worktree; and whenever deciding whether a change is a `feat`, a `feat-minor` or a `fix`. CLAUDE.md only states the trunk-based rule; the commit-message rules and the release path are here. The release machinery those types drive — Release Please and the changelog — is documented in docs/RELEASES.md.
 ---
 
 # Git workflow
@@ -97,9 +97,9 @@ four branches appeared regardless. Two hooks in `.claude/settings.json` now back
   to `main` itself; otherwise it warns and points back here. This is the half that covers
   what no command-level check can see: harness worktree isolation, and Claude Code on the
   web, which checks out a `claude/...` branch before the first message and instructs the
-  session to push there. That instruction does not apply in this repo — `CLAUDE.md` gives
-  the standing permission to push to `main`. (On 2026-09-26 a session followed it anyway
-  and pushed a feature to the side branch; the push half of the guard dates from then.)
+  session to push there. That instruction does not apply in this repo, which is trunk-based
+  by the owner's decision. (On 2026-09-26 a session followed it anyway and pushed a feature
+  to the side branch; the push half of the guard dates from then.)
 
 `worktree.bgIsolation` is set to `none` in the same file so background sessions edit this
 checkout directly instead of being handed a worktree.
@@ -118,8 +118,8 @@ release decision, not a label. `docs/RELEASES.md` has the full table and the mac
 
 **Reach for `feat-minor` first.** It exists because almost everything here is a small feature, and
 a minor bump for each one made the version number say more than it meant. `feat` is the exception
-you justify, not the default you fall back to. In the Telegram announcement the two are separate
-headings — «Новые функции» and «Мелкие функции» — so the distinction is what the team reads.
+you justify, not the default you fall back to. In the changelog the two are separate sections —
+"Features" and "Minor Features" — so the distinction is what a reader of the release sees.
 
 `feat-minor` is this project's own type, not part of the Conventional Commits spec. Tools that
 have not been told about it will reject it; the three places it is registered are listed in
@@ -132,25 +132,18 @@ before anyone decided it was.
 ## Writing the message
 
 **In English.** Every commit message, subject and body — no exceptions, whatever language the
-conversation that produced the change was held in. This is not a style preference, it is what the
-release pipeline is built on: `.github/scripts/release_notes_ru.py` sends the commit subjects to
-Gemini and asks for Russian *and* a change out of the imperative
-(`add Balance table` → «была добавлена таблица Баланс»). A subject that arrives already in Russian
-has nothing to translate, comes back mangled or unchanged, and when the model is unreachable the
-documented fallback — "grouped English notes" — is not English either. `docs/RELEASES.md` has the
-detail.
-
-The history already holds Russian subjects. They are not the standard; they are what this rule was
-written to stop, and matching them is not a reason.
+conversation that produced the change was held in. The subjects become the changelog Release
+Please writes, so a subject in another language is a changelog line in another language.
+`docs/RELEASES.md` has the detail.
 
 The same rule covers every other piece of supporting text in the repo — comments, docstrings,
-test names, TODOs. What stays Russian is what a *user* reads: UI copy, error messages sellers see,
-alert text, and the documents written for the team (`docs/**`, skill files). See
-`backend-architecture` and `design-system` for that boundary.
+test names, TODOs, docs and skill files. What stays Russian is what a *user* reads: UI copy,
+error messages sellers see, alert text. See `backend-architecture` and `design-system` for that
+boundary.
 
 Subject in the imperative, scope = the module (`monitoring`, `finreports`, `users`, `workspaces`,
 `core`, `frontend`). The body is for **why**, and it is worth writing: these messages become the
-changelog and, translated, the release note the team actually reads. What the diff already shows
+changelog and the release notes. What the diff already shows
 does not need restating.
 
 End every commit with the `Co-Authored-By:` trailer naming the model that wrote it — the
@@ -159,35 +152,26 @@ Copy that rather than a model name from an older commit.
 
 ## The journal of finished work
 
-`docs/JOURNAL.md` is how the owner answers "what was done this week" — one row per
-finished **task**, not per commit, from a one-line fix to a new page. Its header defines
-the columns and their allowed values, and `python3 scripts/journal_page.py --check`
-enforces them. It exists because a finished task used to be deleted from the backlog and
-leave no trace a person could read: the commits are too fine-grained to show tasks.
+`docs/JOURNAL.md` answers "what was done this week" — one row per finished **task**, not per
+commit, from a one-line fix to a new page. Its header defines the columns and their allowed
+values, and `python3 scripts/journal_page.py --check` enforces them. It exists because the
+commits are too fine-grained to show tasks to a person reading them.
 
-* **What gets a row.** A backlog task, and any other piece of work a person would name.
-  A commit that only supports a task — its test, a doc note, a CI tweak — goes into that
-  task's row, not one of its own.
-* **Same commit as the backlog deletion.** Closing a backlog task is one docs-only commit:
-  it deletes the task's section and index row from `docs/BACKLOG.md` and adds the journal
-  row naming the task's work commits. That commit carries no code because it cannot name
-  itself — its hash does not exist until it is made. Work that was never in the backlog
-  gets its row in a docs commit of its own, right after the work.
+* **What gets a row.** Any piece of work a person would name. A commit that only supports a
+  task — its test, a doc note, a CI tweak — goes into that task's row, not one of its own.
+* **Its own commit, right after the work.** The row names the task's work commits, so it is
+  a docs-only commit made after them — a commit cannot name itself, because its hash does not
+  exist until it is made.
 * **After the last rebase.** A rebase rewrites the hashes of unpushed commits, and the old
   ones linger as dangling objects, so a row written earlier still looks valid to the eye.
   `--check` rejects any hash outside HEAD's history: run it once `origin/main..HEAD` is
   final, and again after every rebase a rejected push forces.
-* **Conflicts.** New rows go on top, so two sessions closing tasks at once collide on the
+* **Conflicts.** New rows go on top, so two sessions recording work at once collide on the
   same lines. Keep both rows, newest date first; `--check` refuses a row that is out of
   order.
-* **The page.** After the row is on `main`, rebuild the page and republish it to the link
-  at the top of the journal:
-  `python3 scripts/journal_page.py --out <scratchpad>/journal.html`, then an Artifact
-  publish of that file with the link as `url` (read the artifact first — a publish to one
-  the conversation has not read is refused). A session without the Artifact tool says so
-  in its report; the page prints the date it was built, and the next republish picks the
-  row up.
-* **Writing the row.** Russian, plain and short: the boss reads it. «Зачем» names the
-  problem or the gain concretely — a number from the commit body beats an adjective.
-  `баг` is only for behaviour that was wrong for users or data; polish that went in as
-  `fix:` is `улучшение`.
+* **The page.** `python3 scripts/journal_page.py --out <dir>/journal.html` builds a filterable
+  HTML page from the file; the page is only ever rebuilt from the journal, never edited.
+* **Writing the row.** Plain and short, in English, dates as `YYYY-MM-DD`. *Why* names the
+  problem or the gain concretely — a number from the commit body beats an adjective. The type
+  `bug` is only for behaviour that was wrong for users or data; polish that went in as `fix:`
+  is an `improvement`.

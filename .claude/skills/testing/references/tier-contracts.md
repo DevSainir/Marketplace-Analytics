@@ -8,7 +8,7 @@ Read this when deciding where a test goes, or when a tier's setup surprises you.
 * [unit](#unit) · [component](#component) · [integration](#integration)
 * [Contract testing between modules](#contract-testing-between-modules)
 * [end-to-end](#end-to-end) · [performance](#performance)
-* [CI/CD staging](#cicd)
+* [CI](#ci)
 
 ## Layout
 
@@ -96,7 +96,8 @@ that folder and record the split in `coverage-map.md`.
 
 ## end-to-end
 
-The fewer the better. Currently three journeys: auth, the monitoring morning flow, and the
+The fewer the better. Currently four journeys: auth, the monitoring morning flow, the P&L
+dashboard, and the A/B test photo upload.
 
 * **Never mock anything.** A mocked end-to-end test is a slow integration test.
 * Drive the UI as a user does — `getByRole`, `getByPlaceholder`, visible text. Never a CSS class:
@@ -143,7 +144,7 @@ What it must assert, beyond raw latency:
 Thresholds are **objectives, not observations**. A threshold copied from today's numbers passes
 forever and warns nobody. Never point this tier at production or the dev database.
 
-## CI/CD
+## CI
 
 `.github/workflows/tests.yml`, staged so the cheapest gate fails first:
 

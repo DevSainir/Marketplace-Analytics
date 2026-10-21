@@ -46,6 +46,42 @@ to violate under concurrency and expensive to discover afterwards:
 When you add a rule of the form "there can only be one X", ask whether the database can say
 it. Application-level uniqueness checks lose races.
 
+### Roles and row-level security
+
+Two SQL scripts move tenancy and privilege from a promise into PostgreSQL. They are an
+ordered pair, and each file's header says what happens if the order is broken:
+
+1. `backend/scripts/sql/least_privilege_role.sql` — the API stops connecting as the table
+   owner. Its role has DML on the module schemas and nothing else: no DDL, no ownership, no
+   superuser, and only `INSERT`/`SELECT` on `organizations.audit_log`. Migrations, Celery
+   harvests and the backup keep the owner, because they legitimately cross workspaces.
+   `tests/unit/core/test_only_the_api_uses_the_restricted_role.py` reads the compose file so
+   the role cannot be rolled out to every service at once by a one-line `.env` edit.
+2. `backend/scripts/sql/row_level_security.sql` — policies keyed on
+   `current_setting('app.workspace_id')`. RLS does not apply to a table's owner, which is why
+   the role comes first. A query with no tenant bound **raises** rather than returning zero
+   rows: an empty answer looks like "this customer has no data" and invites someone to delete
+   the scoping, an error does not. `src/core/observability/rls_watch.py` counts those
+   refusals so the first one pages somebody.
+
+Both are proved by applying the shipped script to a real PostgreSQL and then connecting as
+the role it creates (`tests/integration/core/test_least_privilege_role.py`,
+`test_row_level_security.py`). The RLS test deliberately runs naive queries with **no**
+tenant predicate — a test that scoped its own SQL would pass with the policies dropped.
+
+The `monitoring` and `finreports` schemas also refuse an unannounced `TRUNCATE` (a
+statement-level trigger; opt in with `SET LOCAL app.allow_truncate = 'on'`, and every
+attempt is written to the audit log).
+
+### The diagnostic gate
+
+The worker connects as the owner, so a script that opens its own `AsyncSessionLocal()` there
+reaches every tenant. Ad-hoc probes of stored data therefore go through
+`backend/scripts/diagnose.py`, which hands the probe a session that is read-only at the
+transaction level and pinned to one workspace by RLS (`src/core/diagnostics.py`; tests
+`tests/unit/core/test_diagnostic_gate.py`,
+`tests/integration/core/test_diagnostic_gate_is_enforced.py`).
+
 ---
 
 ## 3. Query scoping
@@ -59,8 +95,8 @@ intended, not a gap.
 This is enforced by a test, not by convention:
 `tests/integration/monitoring/test_export_loaders_are_scoped.py` reflects over the contract
 and fails the build if a loader is added without one, or given a default, or made positional.
-Four of them leaked precisely because their signatures let a caller not say whose data it
-wanted.
+A signature that lets a caller not say whose data it wants is how a cross-tenant read
+happens without anyone forging an id.
 
 The one deliberate cross-tenant reader is `load_workspace_token_bundles`, used only by Celery
 harvest fan-out. No request path may call it.
@@ -95,8 +131,12 @@ key, `DEBUG=true`, or `WB_FAKE_HARVEST=true`
 * Access token 15 min, refresh 7 days, **rotating**: each refresh consumes the presented
   token and issues a new pair.
 * Replay of a consumed token revokes that **family** (RFC 9700 §4.14.2) — not the account.
-  Account-wide revocation on a replay caused a team-wide outage on 2026-07-27 when a laptop
-  woke from sleep; the ambiguity between a thief and a stale-but-legitimate client is real.
+  Account-wide revocation on a replay logs out every device whenever one laptop wakes from
+  sleep with a stale cookie; the ambiguity between a thief and a stale-but-legitimate client
+  is real, so the blast radius stays at one lineage.
+* Logout and "end every session" stamp a per-family revocation watermark in Redis, so an
+  access token dies at once rather than at its 15-minute expiry
+  (`tests/integration/users/test_logout_ends_the_access_token.py`).
 * Refresh secrets travel only as `HttpOnly; Secure; SameSite=Lax`, path-scoped to
   `/api/v1/auth`. That SameSite value is also the CSRF control for `/refresh`; every other
   mutating route authenticates with a Bearer header, which is not CSRF-able.
@@ -117,6 +157,25 @@ reaches the client as a 502 body. Log the detail, return a sentence.
 
 The request log records method, path, status, duration and client IP — deliberately **not**
 the query string, which carries filter values. If you add fields, keep secrets and PII out.
+
+**Redaction is a net, not a licence.** `src/core/observability/scrubbing.py` scrubs every log
+line and every Sentry event for the value shapes this codebase produces — JWTs (a WB token is
+one), bcrypt digests, Fernet ciphertexts, DSN and proxy-URL passwords — whether they arrive as a
+named field or loose inside a sentence. `tests/unit/core/test_log_redaction.py` pins both
+failure directions: a credential surviving, and a correlation id (`trace_id` is 32 hex
+characters, like a digest) being eaten. Do not rely on it; it is there for the `%s` nobody
+noticed.
+
+**The client address** a per-IP control keys on comes from `src/core/client_ip.py`: the
+header the reverse proxy overwrites, never `request.client`, which a forged
+`X-Forwarded-For` can choose (`tests/unit/core/test_client_ip.py`,
+`tests/component/users/test_auth_rate_limit_spoofing.py`).
+
+**The audit log** (`organizations.audit_log`) is append-only twice over — by grant and by
+trigger — and records security-relevant events (membership and role changes, credential
+rotations, subscription changes) with actor, tenant and target, never a secret
+(`tests/integration/organizations/test_audit_log_is_append_only.py`,
+`test_audit_events_are_recorded.py`).
 
 ---
 
@@ -147,7 +206,7 @@ appears in CI or production.
   `tests/unit/core/test_task_loop_hygiene.py`.
 * Scheduled jobs that walk a rate-limited API take `single_flight` (`src/core/locks.py`) —
   a heartbeat-renewed Redis lock, not a long TTL.
-* WB calls pass a shared Redis token bucket (`src/integrations/wildberries/rate_limit.py`)
+* WB calls pass a shared Redis token bucket (`src/integrations/wildberries/rate_limit/`)
   because WB meters the IP that the api and worker processes share.
 
 ---

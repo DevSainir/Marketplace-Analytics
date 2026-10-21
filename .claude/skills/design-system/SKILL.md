@@ -106,10 +106,10 @@ read it before making anything narrow.
 ## One word for one thing
 
 What a seller switches between — one WB seller account with its own catalogue, its own P&L
-and its own tokens — is a **кабинет**. Full form «Личный кабинет», short form «Кабинет»,
-plural «Кабинеты». Never «рабочее пространство»: it is an English calque, it is not what
-the marketplace calls a seller's account, and it was used in eleven places while «кабинет»
-was used in none.
+and its own tokens — is a **«кабинет»** (workspace). Full form «Личный кабинет», short form
+«Кабинет», plural «Кабинеты». Never «рабочее пространство»: it is a calque of the English
+"workspace", it is not what the marketplace calls a seller's account, and it was used in eleven
+places while «кабинет» was used in none.
 
 The code still says `workspace` everywhere — model, table, store, header, route — and that
 stays. The identifier is not the noun a user reads, renaming it would be a migration across
@@ -180,7 +180,7 @@ extends the shared one rather than growing a local copy.
 | A modal question | `core/components/UiDialog.vue` («Отмена» before the main action) |
 | Loading, empty, failed | `core/components/DataState.vue`; a reload keeps the figures in `BusyRegion.vue` |
 | More records | `core/components/ShowMoreButton.vue` — «Показать ещё (N)» |
-| A table | PrimeVue or a hand-drawn `<table>` inside `.app-datatable`; `SortIcon.vue` for a hand-drawn sort. A figure column reads from the right — head, cells and «Итого»: `class="col-num"` on a PrimeVue `<Column>`, `text-right tabular-nums` on a hand-drawn one. Identifiers (Артикул WB) and text stay left |
+| A table | PrimeVue or a hand-drawn `<table>` inside `.app-datatable`; `SortIcon.vue` for a hand-drawn sort. A figure column reads from the right — head, cells and «Итого»: `class="col-num"` on a PrimeVue `<Column>`, `text-right tabular-nums` on a hand-drawn one. Identifiers («Артикул WB») and text stay left |
 | A number | `core/utils/format.js` — «—» is no figure, «0» is zero; never `toLocaleString` in a page |
 
 Left different on purpose — do not "fix" these:
@@ -189,9 +189,7 @@ Left different on purpose — do not "fix" these:
   leave empty cells blank: every pixel saved is one more warehouse column, and a «—» in every
   empty cell is noise.
 * The heatmap prints percentages without «%» — the unit is in the metric's name.
-* Logistics keeps kopecks: those sums go into a claim.
 * The change-password form has its own «показать пароль»: one press shows all three fields.
-* The logistics page picks a week, not a period — the owner's call.
 * `labs/` are sandboxes with their own look.
 
 ### Dates and periods
@@ -209,7 +207,7 @@ day with data — also what turns «180 дней» into «Вся история�
 preset window, the one lit preset and a page's default window come from `presetWindow` /
 `activePreset` in `core/utils/calendarModel.js`; a default built any other way opens the page
 with nothing lit. The chosen period is kept by `core/utils/periodMemory.js` — an hour, per page
-and per кабинет — never by a page's own storage.
+and per workspace — never by a page's own storage.
 
 Nothing here is machine-checked (there is no visual-regression tier), so a UI change is verified
 by looking at it: run the app and screenshot the surface you changed.
