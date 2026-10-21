@@ -97,7 +97,7 @@ const TONE_CLASSES = {
 /**
  * Blank cells render as «—» here, where the table leaves them empty: a dash is
  * noise across a mostly-empty ribbon, but a blank row in a vertical list reads
- * as a rendering fault rather than as «нет данных».
+ * as a rendering fault rather than as "no data".
  */
 function valueText(cell) {
   return cell?.display || '—'

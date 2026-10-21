@@ -8,11 +8,11 @@
  * so it is now exactly that: a card per kind, its total, and its zones.
  *
  * The payment model (CPM / CPC) is a tag on the card rather than a level of
- * nesting. The order is fixed — единая ставка, the two manual ones, CPC — not
+ * nesting. The order is fixed — unified bid, the two manual ones, CPC — not
  * by size, so a card is always in the same place from one period to the next; a kind that did not
  * run stays on the row at zero rather than vanishing.
  *
- * Единая ставка has no «Каталог»: WB reports only a unified campaign's search
+ * Unified bid has no «Каталог»: WB reports only a unified campaign's search
  * slice, so the rest of it is «Полки» and nothing finer can be told apart.
  */
 

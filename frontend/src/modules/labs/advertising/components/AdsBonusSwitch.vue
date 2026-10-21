@@ -4,15 +4,15 @@
  *
  * A switch, not a checkbox or a chip: it changes how the whole page reads
  * (cards, table columns, chart line), and a sliding track is the control that
- * says «режим», where a chip reads as one more filter. It sits in the page
+ * says "mode", where a chip reads as one more filter. It sits in the page
  * toolbar beside the period because it governs everything below it.
  *
- * It is the кабинет's setting, not this browser's: flipping it changes the page
- * for everyone in the кабинет, and it stays that way.
+ * It is the workspace's setting, not this browser's: flipping it changes the page
+ * for everyone in the workspace, and it stays that way.
  *
  * Disabled — with the reason on hover — when the window holds no bonus at
  * all (switching a zero on and off would be a control that does nothing), and
- * for a caller who may not change the кабинет's settings.
+ * for a caller who may not change the workspace's settings.
  */
 import { computed } from 'vue'
 
@@ -20,7 +20,7 @@ const props = defineProps({
   on: { type: Boolean, required: true },
   /** Whether the window carries any WB-funded spend. */
   available: { type: Boolean, default: true },
-  /** The caller may not change the кабинет's settings (read-only, or a guest). */
+  /** The caller may not change the workspace's settings (read-only, or a guest). */
   locked: { type: Boolean, default: false },
 })
 

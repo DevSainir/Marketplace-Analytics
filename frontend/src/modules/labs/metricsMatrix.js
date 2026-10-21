@@ -3,13 +3,13 @@
  * the manager's Excel workbook.
  *
  * Every day is a section of columns (traffic type × display zone):
- *   Единая ставка (Поиск | Полки) · Руч. поиск (Поиск | Каталог) ·
- *   Руч. полки (Полки) · CPC (Поиск | Полки) · Общая · Органика
+ *   «Единая ставка» («Поиск» | «Полки») · «Руч. поиск» («Поиск» | «Каталог») ·
+ *   «Руч. полки» («Полки») · «CPC» («Поиск» | «Полки») · «Общая» · «Органика»
  * with the date spanning the section; sections flow horizontally, the newest
  * day on the right. Metric rows mirror the workbook's order.
  *
  * «CPC» is the pay-per-click campaign group: WB bills it per click instead of
- * per 1000 показов, so its ставка and its CPM cannot be read against the CPM
+ * per 1000 impressions, so its bid and its CPM cannot be read against the CPM
  * columns beside it and it gets a group of its own.
  *
  * ALL values arrive precomputed from the backend (`SkuDetailResponse.matrix`,
@@ -17,7 +17,7 @@
  * frontend. This module only maps backend cells onto the workbook layout and
  * applies ru-RU display formatting; `null` cells render as «—».
  *
- * Money is in the кабинет's settlement currency, which the backend states and
+ * Money is in the workspace's settlement currency, which the backend states and
  * the caller passes in. The unit goes on the ROW label («Затраты, KGS») and the
  * cells stay bare numbers: a leaf column is ~52px, and «45 679 KGS» in it
  * would clip its leading digit and print a different number (see main.css).
@@ -86,7 +86,7 @@ export const DAY_COLSPAN = TRAFFIC_COLUMNS.reduce((sum, column) => sum + (column
  * `spansZones` groups have no zone split — their header cell spans the zones
  * row too instead of repeating the same word twice. `key` addresses the day's
  * campaign ids (`product.campaign_ids[iso][key]`) for the traffic-group links. «Руч. поиск» spans two
- * zones: WB search campaigns also deliver in каталог (backend-split).
+ * zones: WB search campaigns also deliver in the catalogue (backend-split).
  */
 export const TRAFFIC_GROUPS = [
   { key: 'uni', label: 'Единая ставка', span: 2 },
@@ -141,10 +141,10 @@ const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
  *
  * `group` assigns each row to one of the four data blocks; every block gets
  * its own subtle row tint (see the `matrix-group--*` rules in main.css):
- * traffic (Доля трафика..Клики), funnel (Корзины..Конверсия в заказ),
- * money (Заказы..Стоимость корзины), efficiency (the ДРР/выкуп trio).
+ * traffic («Доля трафика»..«Клики»), funnel («Корзины»..«Конверсия в заказ»),
+ * money («Заказы»..«Стоимость корзины»), efficiency (the DRR/buyout trio).
  *
- * `money` rows take the кабинет's currency on their label (`moneyLabel`). The
+ * `money` rows take the workspace's currency on their label (`moneyLabel`). The
  * funnel's counts say «шт» so that, with the currency unknown, «Заказы» the
  * count and «Заказы» the sum are still two different rows.
  *
@@ -166,7 +166,7 @@ const METRIC_DEFS = [
   { key: 'cpm', label: 'CPM', money: true, group: 'traffic', format: fmtMoney },
   { key: 'cpc', label: 'CPC', money: true, group: 'traffic', format: fmtMoneyTenths },
   { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
-  // The cell itself is the кампания's count. `skuKey` points at the backend's
+  // The cell itself is the campaign's count. `skuKey` points at the backend's
   // row for the VIEWED card's share of it, which is emitted only when the two
   // differ — i.e. when associated size/colour variants converted. Hovering
   // then breaks the cell down per variant; `assocCountField` picks this
@@ -248,7 +248,7 @@ const STOCK_METRIC_DEFS = [
   { key: 'stock_to_client', label: 'В пути к клиенту, шт', format: fmtNumber },
   { key: 'stock_from_client', label: 'В пути от клиента, шт', format: fmtNumber },
 ]
-// The compact «Всего» card next to «Остатки»: остаток + оба «в пути»,
+// The compact «Всего» card next to «Остатки»: on hand + both «в пути»,
 // COMPUTED BY THE BACKEND (`stock_total` matrix row) — mapped here like any
 // other metric, label/formatting only.
 const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Всего, шт', format: fmtNumber }]
@@ -269,7 +269,7 @@ function rowLabel(def, currency) {
  * computed server-side — the frontend only formats and marks editability.
  *
  * @param {object} product A `SkuDetailResponse`.
- * @param {string} [currency] The кабинет's settlement currency; `''` while
+ * @param {string} [currency] The workspace's settlement currency; `''` while
  *   unknown, which leaves the money labels without a unit.
  * @returns {{days: Array<{iso: string, label: string}>, currency: string, rows: Array<{
  *   key: string, label: string, tone: string|null,

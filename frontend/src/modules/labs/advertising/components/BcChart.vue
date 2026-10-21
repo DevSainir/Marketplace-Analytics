@@ -3,8 +3,8 @@
  * The kit's `BC.seriesChart` as a component: options in, the kit's SVG out.
  *
  * The kit draws at a fixed pixel width so that its axis labels stay 11.5px
- * instead of scaling with the picture — «рисуй под реальную ширину колонки, а
- * не страницы». So the width is measured here and the chart is redrawn
+ * instead of scaling with the picture — "draw to the actual width of the column,
+ * not of the page". So the width is measured here and the chart is redrawn
  * whenever the column changes, not just on a window resize.
  *
  * `v-html` is safe for this string: every label and value the kit writes into

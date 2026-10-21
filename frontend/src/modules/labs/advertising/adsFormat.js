@@ -17,7 +17,7 @@ export function ratioPct(ratio) {
 /**
  * `BC.money` in the response's currency. The kit keeps its currency in one
  * module-level variable, so it is set on every call rather than once — two
- * кабинеты in two currencies can be on screen one after the other.
+ * workspaces in two currencies can be on screen one after the other.
  */
 export function shortMoney(value, currency) {
   BC.setCurrency(currencySign(currency).trim())
@@ -29,7 +29,7 @@ export function bigMoney(value, currency) {
   return BC.bigNum(shortMoney(value, currency))
 }
 
-/** ДРР above this is printed in the negative tone, and turns the headline dark. */
+/** DRR above this is printed in the negative tone, and turns the headline dark. */
 export const DRR_ALARM = 0.2
 
 /** "2026-07-05" -> "05.07.2026". */

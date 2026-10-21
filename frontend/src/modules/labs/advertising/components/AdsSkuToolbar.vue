@@ -1,7 +1,7 @@
 <script setup>
 /**
- * The per-article table's controls: search, the grain (артикулы / предметы /
- * бренды) and the subject and brand filters.
+ * The per-article table's controls: search, the grain (SKUs / subjects /
+ * brands) and the subject and brand filters.
  *
  * Presentational: every value is a `v-model` owned by `useAdsSource`, which is
  * what filters the rows. Wraps rather than shrinks, so on a phone each control

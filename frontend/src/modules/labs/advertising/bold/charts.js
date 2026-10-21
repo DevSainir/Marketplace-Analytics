@@ -1,6 +1,6 @@
 /**
- * Bold Clarity — the design kit's charts.js (docs/new-design-kit/bold-clarity/), for the
- * /labs/advertising trial ONLY.
+ * Bold Clarity — the design kit's charts.js (the kit itself is not part of this repo),
+ * for the /labs/advertising trial ONLY.
  *
  * The code is the kit's, unchanged but for Prettier's layout: `BC.seriesChart`
  * (lines, areas, bars, stacked layers, the «сегодня» line, day bands, the hover
@@ -19,7 +19,7 @@ const esc = (s) =>
     /[&<>"]/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
   )
-// Подсказки графиков: один обработчик на документ, данные графиков — в реестре по id.
+// Chart tooltips: one handler per document, chart data in a registry keyed by id.
 const CHARTS = new Map()
 let chartSeq = 0,
   tipsBound = false
@@ -88,7 +88,7 @@ const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
 const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 })
 const fmt = (v) => (v == null || !isFinite(v) ? '—' : nf0.format(Math.round(v)))
 const pct = (v) => (v == null || !isFinite(v) ? '—' : nf0.format(v * 100) + '%')
-// Деньги: «2,4 млн», «450 тыс», «9 500» + валюта (по умолчанию сом).
+// Money: «2,4 млн», «450 тыс», «9 500» + currency (som by default).
 let CUR = 'сом'
 const money = (v) => {
   if (v == null || !isFinite(v)) return '—'
@@ -103,7 +103,7 @@ const money = (v) => {
     CUR
   )
 }
-// Крупное число для .num-xl/.num-l: цифра отдельно от единиц («2,4» + <small>млн сом</small>).
+// Big number for .num-xl/.num-l: the figure apart from its units («2,4» + <small>млн сом</small>).
 const bigNum = (s) => {
   const m = String(s).match(/^(−?-?[\d\s,]+)\s(.+)$/)
   return m ? `${esc(m[1])}<small>${esc(m[2])}</small>` : esc(s)
@@ -121,11 +121,11 @@ function hbars(items, { max, valueFmt }) {
     .join('')}</div>`
 }
 
-// Линии и столбики на одной оси (одна шкала). Серии с name попадают в подсказку при наведении.
-// series: { values, color, name?, dash?, bar?, opacity?, area?, base?, tip? }; today — индекс дня «сегодня» (линия-маркер).
-// base — нижняя граница сплошной заливки (слои с накоплением); tip — подписи значений для подсказки вместо valueFmt.
-// bands: [{ a, b, cls, label?, strip? }] — подсвеченные отрезки дней (strip — узкая полоса у оси вместо фона); tipNote(i) — HTML под строками подсказки.
-// Ширина рисунка — по ширине колонки, чтобы подписи не масштабировались вместе с графиком.
+// Lines and bars on one axis (one scale). Series with a name show up in the hover tooltip.
+// series: { values, color, name?, dash?, bar?, opacity?, area?, base?, tip? }; today — index of the «сегодня» day (marker line).
+// base — lower edge of a solid fill (stacked layers); tip — value labels for the tooltip instead of valueFmt.
+// bands: [{ a, b, cls, label?, strip? }] — highlighted day ranges (strip — a thin band by the axis instead of a background); tipNote(i) — HTML under the tooltip rows.
+// The drawing is as wide as the column, so labels do not scale together with the chart.
 function seriesChart({
   days,
   series,
@@ -189,7 +189,7 @@ function seriesChart({
       continue
     }
     if (s.base) {
-      // слой между base и values; разрывы (null) делят его на куски
+      // the layer between base and values; gaps (null) split it into pieces
       let run = []
       const flush = () => {
         if (run.length) {

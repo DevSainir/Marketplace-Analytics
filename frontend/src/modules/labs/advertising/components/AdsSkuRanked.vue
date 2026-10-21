@@ -1,10 +1,10 @@
 <script setup>
 /**
  * The per-article (or subject, or brand) money as a ranked list — the kit's
- * «ранжированный список с инлайн-полоской и одной цифрой вместо таблицы».
+ * "a ranked list with an inline bar and one figure instead of a table".
  *
  * Largest spend first, ten at a time; each row is its name, a `--fact` bar at
- * the scale of the largest row, the money, and ДРР — `--hot` past the alarm.
+ * the scale of the largest row, the money, and DRR — `--hot` past the alarm.
  * «Итого» of the whole filter heads the list. The full table, with orders,
  * sales, bonus and sorting by any column, is the level below (the section
  * opens it); this list is what a reader needs before asking for it.

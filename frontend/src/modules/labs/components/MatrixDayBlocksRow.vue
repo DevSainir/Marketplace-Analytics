@@ -27,7 +27,7 @@ const props = defineProps({
   priceRows: { type: Array, default: () => [] },
   /** «Остатки» block rows — one «Общая» cell per day (read-only). */
   stockRows: { type: Array, default: () => [] },
-  /** «Всего» card row — per-day total stock (остаток + оба «в пути»), read-only. */
+  /** «Всего» card row — per-day total stock (on hand + both «в пути»), read-only. */
   stockTotalRows: { type: Array, default: () => [] },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
@@ -95,7 +95,7 @@ const blocks = computed(() => [
             </div>
           </div>
 
-          <!-- Compact «Всего» card: total stock (остаток + оба «в пути»)
+          <!-- Compact «Всего» card: total stock (on hand + both «в пути»)
                for the day. Same tint as «Остатки» — it belongs to it. -->
           <div v-if="stockTotalRows.length" class="day-block day-block--stock day-block--total">
             <span class="day-block-name">Всего, шт</span>

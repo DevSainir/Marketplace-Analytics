@@ -3,12 +3,12 @@
  * The answer — what the period's advertising cost and whether it paid.
  *
  * One figure as large as the kit draws anything (spend), one sentence that
- * says what ДРР means for this seller, and at most three facts under them —
- * the kit's budget for a screen. The band is the brand colour; once ДРР is past
- * the alarm it turns `--hero-hot`, so «плохо» reads from across the room
+ * says what DRR means for this seller, and at most three facts under them —
+ * the kit's budget for a screen. The band is the brand colour; once DRR is past
+ * the alarm it turns `--hero-hot`, so "bad" reads from across the room
  * before a single figure is.
  *
- * ДРР is Σ(реклама − бонусы) over settled days ÷ Σ продажи of the same days,
+ * DRR is Σ(ad spend − bonuses) over settled days ÷ Σ sales of the same days,
  * never a mean of per-article ratios (see `skuModel.drrOf`).
  *
  * The figures go in through `v-html` because the kit's `BC.bigNum` splits a

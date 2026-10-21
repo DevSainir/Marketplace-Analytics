@@ -27,8 +27,8 @@ function seeded(seed) {
 }
 
 /**
- * The window is the real week the campaign ids were read for (`realSkus.js`),
- * so a campaign link opens on the same days the table shows.
+ * The window is the week the sample campaign ids are dated to (`realSkus.js`),
+ * so a campaign link would open on the same days the table shows.
  */
 const DAY_COUNT = 8
 const END = new Date(Date.UTC(2026, 8, 25))
@@ -87,10 +87,10 @@ const METRICS = {
 
 /** The zone buckets each campaign group delivers into (indices into TRAFFIC_COLUMNS). */
 const GROUP_BUCKETS = {
-  uni: [0, 1], // Единая ставка — Поиск + Полки
-  manual_search: [2, 3], // Руч. поиск — Поиск + Каталог
-  manual_shelves: [4], // Руч. полки
-  cpc: [5, 6], // CPC — Поиск + Полки
+  uni: [0, 1], // unified bid — search + shelves
+  manual_search: [2, 3], // manual search — search + catalogue
+  manual_shelves: [4], // manual shelves
+  cpc: [5, 6], // CPC — search + shelves
 }
 
 const ROLLUPS = [TOTAL, ORGANIC]
@@ -231,8 +231,8 @@ function buildProduct({
  * The made-up hoodie: the one card that runs ALL FOUR campaign types in turn,
  * one a day — a seller runs one campaign at a time, not four in parallel — so
  * every group of the table (including the one-column «Руч. полки») gets a day
- * with an id in it. Its campaign ids are made up and open WB's «кампания не
- * найдена»; the real cards' ids are real.
+ * with an id in it. Its campaign ids are made up, like the sample cards' ids in
+ * `realSkus.js`, so a link opens WB's «кампания не найдена».
  */
 const HOODIE_ADVERT_IDS = {
   uni: 38102455,
@@ -278,7 +278,7 @@ const REAL = REAL_SKUS.map((sku, i) =>
 /** Every card the sandbox can show, by nm ID. */
 export const products = Object.fromEntries([...REAL, HOODIE].map((p) => [p.nm_id, p]))
 
-/** What the page opens on: the first real card. */
+/** What the page opens on: the first sample card. */
 export const DEFAULT_NM_ID = REAL[0].nm_id
 
 /** The real builder, on the real payload — no sandbox-specific shortcut. */
@@ -299,7 +299,7 @@ export const skuList = [
   ...FAKE_SKUS,
 ]
 
-/** The real cards first, each in its own tint (the /monitoring palette); the made-up ones after, untinted. */
+/** The sample cards first, each in its own tint (the /monitoring palette); the other made-up ones after, untinted. */
 export const pinnedSkus = [
   ...REAL_SKUS.map(({ nm_id, vendor_code, color }) => ({
     nm_id,

@@ -2,11 +2,11 @@
 /**
  * «Открутка по дням» on the kit's own chart — money only, one scale.
  *
- * The live page draws ДРР as a dashed line on a second, percent axis. The kit
+ * The live page draws DRR as a dashed line on a second, percent axis. The kit
  * has one axis by design, and two scales on one plot invite reading their
- * crossings as meaningful, so ДРР moved into the hover tooltip, under the
+ * crossings as meaningful, so DRR moved into the hover tooltip, under the
  * day's money (`tipNote`). The days past the settlement — no sales yet, so no
- * ДРР — are a shaded band rather than a line that stops without saying why.
+ * DRR — are a shaded band rather than a line that stops without saying why.
  *
  * With bonuses shown the day is two stacked layers that add up to its whole
  * spend: the seller's own money in `--fact`, WB's bonus above it in
@@ -24,7 +24,7 @@ const props = defineProps({
   days: { type: Array, required: true },
   currency: { type: String, default: '' },
   showBonus: { type: Boolean, default: false },
-  /** False when spend and sales are in different currencies — no ДРР then. */
+  /** False when spend and sales are in different currencies — no DRR then. */
   showDrr: { type: Boolean, default: true },
 })
 
@@ -33,7 +33,7 @@ const spend = computed(() => props.days.map((d) => Number(d.spend)))
 const bonus = computed(() => props.days.map((d) => Number(d.bonus)))
 const own = computed(() => spend.value.map((v, i) => v - bonus.value[i]))
 
-/** Per-day ДРР from the seller's own money; `null` past the settlement. */
+/** Per-day DRR from the seller's own money; `null` past the settlement. */
 const drr = computed(() =>
   props.days.map((d, i) => (d.sales === null ? null : drrOf(own.value[i], Number(d.sales)))),
 )

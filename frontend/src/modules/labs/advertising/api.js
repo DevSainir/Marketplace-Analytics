@@ -11,7 +11,7 @@ export async function fetchAdvertising(params, signal) {
   return data
 }
 
-/** The days the кабинет has advertising for, and the last settled day. */
+/** The days the workspace has advertising for, and the last settled day. */
 export async function fetchAdvertisingSpan(signal) {
   const { data } = await apiClient.get('/v1/advertising/span', { signal })
   return data

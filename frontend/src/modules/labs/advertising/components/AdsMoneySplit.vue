@@ -3,7 +3,7 @@
  * «Куда ушли деньги» — a sentence, then one bar per kind of campaign.
  *
  * The live page answers this with four cards, each with its own segmented bar
- * and zone list. The kit's rule is «фраза вместо таблицы»: the sentence says
+ * and zone list. The kit's rule is "a sentence instead of a table": the sentence says
  * which kind took the money and where it was shown, the kit's `BC.hbars` puts
  * the four kinds side by side at one scale, and the zones are summed across
  * all kinds into one line. What that gives up is each kind's own zone split:

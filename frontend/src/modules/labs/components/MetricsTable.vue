@@ -1,7 +1,7 @@
 <script setup>
 /**
  * Day-by-day metrics table (spreadsheet-like): a horizontal ribbon of day
- * sections, each one the workbook's «тип трафика × зона показов» block,
+ * sections, each one the workbook's "traffic type × display zone" block,
  * newest day on the right. Auto-scrolls to the newest day whenever a
  * new matrix arrives; the metric-name column stays frozen on the left while
  * scrolling (see `.app-datatable--matrix` skin in main.css).
@@ -32,7 +32,7 @@
  * cells render as plain text.
  *
  * Header (3 rows, as in the workbook):
- *   Дата · Тип получения трафика (groups) · Зоны показов (leaf columns).
+ *   «Дата» · «Тип получения трафика» (groups) · «Зоны показов» (leaf columns).
  * A group that ran a campaign that day links to it in WB's advertising cabinet;
  * hovering shows the id, selectable and copyable (`campaignLinks.js`).
  */
@@ -60,7 +60,7 @@ const props = defineProps({
   priceRows: { type: Array, default: () => [] },
   /** «Остатки» block rows — one «Общая» cell per day (read-only). */
   stockRows: { type: Array, default: () => [] },
-  /** «Всего» card row — per-day total stock (остаток + оба «в пути»), read-only. */
+  /** «Всего» card row — per-day total stock (on hand + both «в пути»), read-only. */
   stockTotalRows: { type: Array, default: () => [] },
   /** Persisted day notes, keyed by ISO day: `{body, header}` per commented day. */
   comments: { type: Object, default: () => ({}) },
@@ -156,7 +156,7 @@ watch(
                 {{ day.label }}
               </th>
             </tr>
-            <!-- Row 2: «Тип получения трафика» groups (Общая/Органика span row 3). -->
+            <!-- Row 2: «Тип получения трафика» groups («Общая»/«Органика» span row 3). -->
             <tr>
               <th>Тип получения трафика</th>
               <template v-for="day in days" :key="day.iso">

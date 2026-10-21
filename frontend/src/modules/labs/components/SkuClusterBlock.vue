@@ -64,8 +64,8 @@ defineProps({
               <td class="text-right">{{ formatNumber(item.orders) }}</td>
               <td class="text-right">{{ formatMoney(item.spend) }}</td>
               <td class="text-right">{{ formatMoney(item.cpc) }}</td>
-              <!-- Null = WB reported no position at all, which is not «первое
-                   место» — an em dash is the only honest rendering. -->
+              <!-- Null = WB reported no position at all, which is not "first
+                   place" — an em dash is the only honest rendering. -->
               <td class="text-right">
                 {{ item.avg_position === null ? '—' : item.avg_position }}
               </td>

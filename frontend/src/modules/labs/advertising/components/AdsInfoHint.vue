@@ -3,7 +3,7 @@
  * An ⓘ that explains a column — visible on hover AND on keyboard focus.
  *
  * Not a native `title`: that waits a second, shows nothing on touch, and reads
- * as «наведение ничего не показывает». The icon is what tells the reader the
+ * as "hovering shows nothing". The icon is what tells the reader the
  * heading has an explanation at all. A click on it is swallowed, so opening the
  * hint inside a sortable header does not also re-sort the table.
  */

@@ -8,7 +8,7 @@
  * The window is the only thing that costs a round trip. The bonus switch, the
  * table's grain, its filters and its search are all answered from the payload.
  *
- * The bonus switch is the кабинет's setting, stored on the server and shared by
+ * The bonus switch is the workspace's setting, stored on the server and shared by
  * everyone in it. A seller either has WB's promo bonuses or does not, so the
  * choice is made once — not per browser, where it had to be made again on every
  * device and by every manager.
@@ -55,11 +55,11 @@ export const useLabAdvertisingStore = defineStore('labAdvertising', () => {
 
   const workspaces = useWorkspaceStore()
   const members = useMembersStore()
-  /** The кабинет's switch; on until someone in the кабинет turns it off. */
+  /** The workspace's switch; on until someone in the workspace turns it off. */
   const showBonus = computed(() => workspaces.currentWorkspace?.ads_show_bonus ?? true)
   /**
    * Who may not change it: a read-only manager, and a head looking into another
-   * company's кабинет — the server refuses both, so the switch says so first.
+   * company's workspace — the server refuses both, so the switch says so first.
    */
   const bonusLocked = computed(
     () => !members.canWrite || Boolean(workspaces.currentWorkspace?.is_guest),
@@ -74,7 +74,7 @@ export const useLabAdvertisingStore = defineStore('labAdvertising', () => {
   /** What every bonus element on the page obeys: the switch, and the data. */
   const bonusVisible = computed(() => showBonus.value && hasBonus.value)
   /**
-   * ДРР divides ad spend by settled sales. When the spend was billed in a
+   * DRR divides ad spend by settled sales. When the spend was billed in a
    * currency other than the settlement's, that is two units — withheld.
    */
   const drrComparable = computed(() =>
@@ -137,7 +137,7 @@ export const useLabAdvertisingStore = defineStore('labAdvertising', () => {
     return load()
   }
 
-  /** Flip the кабинет's switch — for everyone in it, from now on. */
+  /** Flip the workspace's switch — for everyone in it, from now on. */
   function setShowBonus(on) {
     if (bonusLocked.value) return
     return workspaces.saveSettings({ ads_show_bonus: on })

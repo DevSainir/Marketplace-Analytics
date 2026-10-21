@@ -4,7 +4,7 @@
  * level below the ranked list (`AdsSkuRanked`), fed the same rows.
  *
  * PrimeVue for the sorting and the frozen first column, sorted by «Реклама»
- * to start with: the question the table answers first is «где деньги». The
+ * to start with: the question the table answers first is "where is the money". The
  * «Итого» is the whole current filter. «Промо-бонусы» sits next to the money
  * it is part of and only exists while the page shows bonuses.
  */

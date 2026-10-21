@@ -1,13 +1,13 @@
 /**
- * Three REAL cards of «Демо», so the sandbox's links land on real pages.
+ * Three sample cards of «Демо» — the cards the sandbox opens on.
  *
- * Real: the nm IDs, vendor codes, titles, buyer ratings, sizes (with their WB
- * chrt IDs) and the campaign IDs — read off production on 2026-09-26 for the
- * week 18.09–25.09 (`monitoring.advertising_stat_daily`, the campaigns that
- * actually delivered; a campaign spending a few roubles a day is cut the way
- * the real matrix cuts it). Everything else on the page for these cards — the
- * metrics, the stock — is synthesised, because the point is to click through,
- * not to read the numbers.
+ * Fixed per card: the nm IDs, vendor codes, titles, buyer ratings, sizes (with
+ * WB-style chrt IDs) and one campaign ID per traffic group for the week
+ * 18.09–25.09. They are sample values in the shape the backend sends, not
+ * identifiers of live cards, so a WB link built from them need not open
+ * anything. Everything else on the page for these cards — the metrics, the
+ * stock — is synthesised, because the point is to click through, not to read
+ * the numbers.
  *
  * `campaigns` is keyed by TRAFFIC_GROUPS `key`; the same campaign ran on every
  * day of the window, so one id per group covers all of it.

@@ -24,8 +24,8 @@ export const labsRoutes = [
     },
   },
   {
-    // Блок «Реклама» вырос из лабы в модуль `advertising` на живых данных;
-    // старая ссылка ведёт туда же.
+    // The «Реклама» block grew out of the lab into the `advertising` module on
+    // live data; the old link leads there too.
     path: '/labs/advertisement-source',
     redirect: '/advertising',
   },

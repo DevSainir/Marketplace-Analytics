@@ -3,12 +3,11 @@
  *
  * The original grid gives every warehouse a COLUMN. That is the right shape
  * for fifteen warehouses and the wrong one for what a seller sees since WB
- * folded its report into one «Склад WB» on 16.08 (`wildberries-api` skill,
- * `references/stocks.md`): one column per day, two days across a 1300px
- * screen, and a gulf between two numbers per row. So here a warehouse is not
- * a column but a SEGMENT inside its size's row — a slice of a bar, a run of
- * dots, a stripe on a chip — and a size row means the same thing whether one
- * warehouse feeds it or fifteen.
+ * folded its report into one «Склад WB» on 16.08: one column per day, two days
+ * across a 1300px screen, and a gulf between two numbers per row. So here a
+ * warehouse is not a column but a SEGMENT inside its size's row — a slice of a
+ * bar, a run of dots, a stripe on a chip — and a size row means the same thing
+ * whether one warehouse feeds it or fifteen.
  *
  * Each day is also compared with the day before, because what the team reads
  * is the movement. Pure, so it is tested without mounting anything; the pivot
@@ -47,8 +46,8 @@ const MONTHS_LONG = [
 
 /**
  * How many warehouses get a colour of their own: the validated categorical
- * palette minus its green and red, which here already mean «приход» and
- * «расход». A seventh hue is never generated — the tail folds into one
+ * palette minus its green and red, which here already mean incoming and
+ * outgoing. A seventh hue is never generated — the tail folds into one
  * neutral «прочие» instead (`hue: null`).
  */
 export const HUE_SLOTS = 6

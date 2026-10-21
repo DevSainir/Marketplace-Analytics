@@ -1,5 +1,5 @@
-/* Bold Clarity — the design kit's visual.css (docs/new-design-kit/bold-clarity/), for the
- * /labs/advertising trial ONLY.
+/* Bold Clarity — the design kit's visual.css (the kit itself is not part of this repo),
+ * for the /labs/advertising trial ONLY.
  *
  * Every value is the kit's own. Three things differ from the file it ships as, and
  * each is what it takes to live inside this app rather than on a page of its own:
@@ -10,7 +10,7 @@
  *      Class names like `.chart`, `.tip` and `.legend` are scoped for the same
  *      reason.
  *   2. Fonts are self-hosted. The kit links Google Fonts, which our CSP refuses
- *      (`font-src 'self'`, docs/security/HARDENING.md P1.8). Both faces are
+ *      (`font-src 'self'`, docs/security/SECURITY_DESIGN.md). Both faces are
  *      variable — one file per subset carries 400–700 — and only the Cyrillic
  *      and Latin subsets are kept, as with Inter Tight in `assets/fonts.css`.
  *   3. Dark theme only on `.bc[data-theme="dark"]`, never from the OS setting:
@@ -54,10 +54,10 @@
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Смысл цветов:
-   --brand  — главный акцент и «факт» на графиках;     --ink   — «план» (сплошная/пунктир), сильный текст;
-   --muted  — вспомогательные серии («спрос», оси);     --hot   — проблема: отставание, разрыв, дефицит;
-   --mkt, --q1…q4 — внешний рынок (частотность), слои от крупного к мелкому;   --good / --warn — статусы. */
+/* What the colours mean:
+   --brand  — the main accent and «факт» on charts;     --ink   — «план» (solid/dashed), strong text;
+   --muted  — secondary series («спрос», axes);     --hot   — a problem: lagging, a gap, a shortage;
+   --mkt, --q1…q4 — the outside market (search frequency), layers from large to small;   --good / --warn — statuses. */
 .bc {
   --bg: #f3f2ee;
   --surface: #ffffff;
@@ -141,7 +141,7 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* ---------- типографика ---------- */
+/* ---------- typography ---------- */
 .bc .t-display {
   font-family: var(--f-display);
   font-weight: 700;
@@ -196,7 +196,7 @@
   color: var(--good);
 }
 
-/* ---------- графики ---------- */
+/* ---------- charts ---------- */
 .bc .legend {
   display: flex;
   gap: 16px;

@@ -18,7 +18,7 @@
   --ribbon-pad-y: 0px;
 
   /* Warehouse hues: the dataviz reference palette's categorical slots minus
-     green and red (those mean «приход» / «расход» here), validated as a set —
+     green and red (those mean incoming / outgoing here), validated as a set —
      worst adjacent CVD ΔE 9.1, normal-vision ΔE 19.6. Three sit under 3:1 on
      white, so a hue never travels alone: the legend names every one. */
   --wh-0: #2a78d6;

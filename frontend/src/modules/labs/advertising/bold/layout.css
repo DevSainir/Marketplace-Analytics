@@ -4,10 +4,10 @@
  * so this file is where its SKILL.md rules become a page:
  *
  *   * the answer is the first screen — one figure, filled with the brand colour
- *     (or with `--hero-hot` when ДРР is past the alarm: the kit's token for an
+ *     (or with `--hero-hot` when DRR is past the alarm: the kit's token for an
  *     alarming headline);
  *   * sections are full-width bands that change background instead of cards
- *     with borders — «воздух и смена фона, а не рамки»;
+ *     with borders — "air and a change of background, not frames";
  *   * the table is the last level, behind a toggle.
  *
  * Everything is under `.bc`, for the reason visual.css gives.

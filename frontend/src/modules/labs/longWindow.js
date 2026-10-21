@@ -3,7 +3,7 @@
  *
  * `fixtures.js` is ten days wide, which is the window the rest of the sandbox
  * is about: at ten days every layout looks fine, and the question these charts
- * exist to answer («что делать с кварталом и с годом») cannot be asked of it.
+ * exist to answer ("what to do with a quarter and with a year") cannot be asked of it.
  *
  * Deliberately shaped rather than uniformly random, because a flat noise band
  * hides exactly the failure the layouts are being judged on. This is the shape
@@ -81,7 +81,7 @@ const METRICS = {
   seller_price: { base: 3190, ratio: true, spread: 240 },
   customer_price: { base: 2410, ratio: true, spread: 190 },
   // A LEVEL, not a flow: this is the one metric a weekly fold must average
-  // rather than sum — see `chartScaling.js`.
+  // rather than sum.
   stock_quantity: { base: 740, ratio: true, spread: 420 },
 }
 

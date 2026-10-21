@@ -3,9 +3,9 @@
  * «Реклама» — /labs/advertising, the live page re-laid in the Bold Clarity kit.
  *
  * Copied one for one from `modules/advertising` on 2026-10-07, then re-laid the
- * same day to try the kit in `docs/new-design-kit/` against the page it would
- * replace — same API, same figures, so the two can be opened side by side on
- * one кабинет and period.
+ * same day to try the Bold Clarity design kit (not part of this repo) against the
+ * page it would replace — same API, same figures, so the two can be opened side by
+ * side on one workspace and period.
  *
  * What is the kit's and what is ours: colours, type and charts come from
  * `bold/visual.css` and `bold/charts.js` as the kit ships them; the layout is
@@ -13,7 +13,7 @@
  * band per question, a sentence before any figure list, the table last.
  *
  * Top to bottom: the settings line (period and the bonus switch, which governs
- * the whole page); the answer (spend, what ДРР means, three facts); «Куда ушли
+ * the whole page); the answer (spend, what DRR means, three facts); «Куда ушли
  * деньги»; «Открутка по дням»; the per-article list and the table behind it.
  *
  * Internal-only while it is being built (route meta and the API both say so).

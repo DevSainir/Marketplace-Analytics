@@ -59,7 +59,7 @@ function toggle(nmId) {
   emit('update:modelValue', [...next])
 }
 
-/** Clearing the selection is what «все» means here — not selecting every id. */
+/** Clearing the selection is what "all" means here — not selecting every id. */
 function selectAll() {
   emit('update:modelValue', [])
 }

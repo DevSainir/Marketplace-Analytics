@@ -17,15 +17,15 @@
  * the plot. What a reader compares there is SHAPE; the real values are a hover
  * away, and the table above holds every one of them.
  *
- * The FUNNEL's counts are read down the LEFT edge and деньги down the RIGHT,
+ * The FUNNEL's counts are read down the LEFT edge and money down the RIGHT,
  * always, whatever is ticked — see `AXES` and `COUNT_RULER_METRICS`. Those
  * series are drawn as they are, so every number on either scale is the number.
- * Everything else — показы, клики, проценты — is drawn as an INDEX instead,
+ * Everything else — impressions, clicks, percentages — is drawn as an INDEX instead,
  * rebased to 100 at the window's first reported day, on a third axis that is
  * never shown.
  *
- * ЗАКАЗЫ are never rebased, even in a mixed pick, and that is what makes the
- * left-hand scale readable at all: it is a scale of заказов, so 120 заказов
+ * ORDERS are never rebased, even in a mixed pick, and that is what makes the
+ * left-hand scale readable at all: it is a scale of orders, so 120 orders
  * lands a little above the 120 line. Every other series is a shape against a
  * real quantity rather than against a ruler with no relationship to anything
  * on the canvas.
@@ -50,10 +50,10 @@ const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key,
  * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
  * chart uses them too, but only to group the hover.
  *
- * Money names carry no unit: {@link labelledGroups} appends the кабинет's
+ * Money names carry no unit: {@link labelledGroups} appends the workspace's
  * currency, the same one the table above labels its rows with.
  *
- * `type: 'bar'` on остатки, корзины and заказы, and deliberately no `stack`:
+ * `type: 'bar'` on stock, carts and orders, and deliberately no `stack`:
  * they stand side by side as separate columns per day. Stacked they would draw
  * a total that means nothing — a cart is not a unit of stock.
  *
@@ -167,8 +167,8 @@ export const SKU_METRIC_GROUPS = [
  * rate that joins them.
  *
  * A blank plot makes the reader do work before the page says anything, and a
- * plot of everything says nothing. Затраты against показы is where the money
- * goes, корзины against заказы is what came back, and CTR is the hinge between
+ * plot of everything says nothing. Spend against impressions is where the money
+ * goes, carts against orders is what came back, and CTR is the hinge between
  * them; each of the five is a different colour and only two are columns.
  */
 export const SKU_DEFAULT_METRICS = ['spend', 'views', 'ctr', 'carts', 'orders']
@@ -177,10 +177,10 @@ export const SKU_DEFAULT_METRICS = ['spend', 'views', 'ctr', 'carts', 'orders']
  * The account-wide catalogue — shorter, because not every metric survives
  * being summed over an account.
  *
- * Prices and СПП are per-card facts: the average price of a T-shirt and a mug
+ * Prices and SPP are per-card facts: the average price of a T-shirt and a mug
  * is a number about nothing. «Процент выкупа» is a lagged cohort ratio the
  * aggregate endpoint does not compute. CTR and CPC need the advertising
- * clicks and показы of one card's campaigns, which the summed matrix does not
+ * clicks and impressions of one card's campaigns, which the summed matrix does not
  * carry. Each is absent rather than approximated.
  */
 export const AGGREGATE_METRIC_GROUPS = [
@@ -270,12 +270,12 @@ export const AGGREGATE_METRIC_GROUPS = [
 export const AGGREGATE_DEFAULT_METRICS = ['spend', 'views', 'carts', 'orders']
 
 /**
- * The catalogue as the reader sees it: money names carry the кабинет's currency
+ * The catalogue as the reader sees it: money names carry the workspace's currency
  * («Затраты» -> «Затраты, KGS»), and nothing while it is unknown. One helper
  * for the chips, the legend and the hover, so the three never disagree.
  *
  * @param {Array<object>} groups A metric catalogue.
- * @param {string} [currency] The кабинет's settlement currency.
+ * @param {string} [currency] The workspace's settlement currency.
  * @returns {Array<object>} The same groups, money items renamed.
  */
 export function labelledGroups(groups, currency = '') {
@@ -340,8 +340,8 @@ function indexed(data) {
 /**
  * The three scales a plot has, and which one a metric is read against.
  *
- * **They are fixed.** Whatever is ticked, штуки are down the left edge and
- * деньги down the right, and both rulers are drawn even when nothing is on
+ * **They are fixed.** Whatever is ticked, units are down the left edge and
+ * money down the right, and both rulers are drawn even when nothing is on
  * them. The alternative was tried and is worse than it sounds: rulers chosen
  * from the data meant that ticking one more metric silently re-scaled the
  * others, so «Заказы» could be a readable column one moment and a smear along
@@ -359,14 +359,14 @@ const AXES = { count: 0, money: 1, index: 2 }
 /**
  * The catalogue keys the left-hand ruler is a scale of: the FUNNEL's counts.
  *
- * Not every metric measured in штуках. Показы run to five figures and клики to
- * four while заказы run to two, so a ruler true for the first two draws the
+ * Not every metric measured in units. Impressions run to five figures and clicks to
+ * four while orders run to two, so a ruler true for the first two draws the
  * third along the axis — which is the complaint that produced this list. The
  * funnel's own counts share an order of magnitude with each other, and they are
  * what the page is about; the advertising counters are shapes against them.
  *
  * Keyed by CATALOGUE key rather than by unit, because «Клики» and «Заказы» are
- * both штуки and only one of them belongs here.
+ * both units and only one of them belongs here.
  */
 const COUNT_RULER_METRICS = new Set([
   'carts',
