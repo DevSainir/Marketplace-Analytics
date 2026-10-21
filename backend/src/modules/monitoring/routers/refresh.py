@@ -121,7 +121,7 @@ async def refresh_all_skus(
         # An empty catalogue is a workspace whose WB token was set recently, not
         # a mistake: nothing but the Content API can say which SKUs exist, and
         # the only pass that read it was the nightly one. So this answered 404
-        # — «нет ни одного артикула» — until 06:00 MSK, with no button anywhere
+        # — "no SKUs at all" — until 06:00 MSK, with no button anywhere
         # that could fix it. Discovery is what "refresh everything" MEANS here.
         # The same budget and in-flight guard apply; an empty SKU set is a
         # stable, distinct dedup key, so a second press rejoins the first run.

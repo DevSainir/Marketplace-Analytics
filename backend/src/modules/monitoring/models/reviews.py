@@ -8,7 +8,7 @@ list only shows reviews that still exist.
 
 Three tables, and not a copy of every review per day:
 
-* :class:`RatingSnapshot` — one row per склейка per day, append-only: the
+* :class:`RatingSnapshot` — one row per card group per day, append-only: the
   stars, the unrounded sum, the count and the distribution, so the day the
   rating flipped and by how much the count moved are both on record.
 * :class:`ReviewState` — one row per review, upserted daily: what it scores
@@ -73,22 +73,23 @@ class ReviewEventKind(enum.StrEnum):
 
 
 class RatingSnapshot(Base):
-    """One склейка's rating as the storefront showed it on one day.
+    """One card group's rating as the storefront showed it on one day.
 
     The first observation of a day stands: a second run the same day inserts
     nothing, so the row is what the day looked like when first asked.
 
     Attributes:
         snapshot_date: Moscow date of the observation.
-        workspace_id: The кабинет whose reviews named this склейка.
-        imt_id: The склейка — WB rates the склейка, not the article.
+        workspace_id: The workspace whose reviews named this card group.
+        imt_id: The card group (WB's merged card) — WB rates the group, not the
+            article.
         valuation: WB's rounded stars, ``None`` when WB served none.
         valuation_sum: Sum of the counted scores; over the distribution's total
             it is the unrounded mean.
-        feedback_count: WB's own review count for the склейка.
+        feedback_count: WB's own review count for the card group.
         stars_1..stars_5: The counted distribution.
         nm_distribution: The per-article distribution, verbatim.
-        seller_api_count: Reviews of this склейка our own walk holds as live,
+        seller_api_count: Reviews of this card group our own walk holds as live,
             unreplaced and not known to be excluded — set beside WB's count so a
             divergence between the two lists is visible the day it starts.
     """
@@ -118,9 +119,9 @@ class ReviewState(Base):
     """One review's latest known state.
 
     Attributes:
-        workspace_id: Owning кабинет.
+        workspace_id: Owning workspace.
         review_id: WB's review id.
-        nm_id / imt_id: The article and склейка it was left on.
+        nm_id / imt_id: The article and card group it was left on.
         valuation: Its score now.
         created_at: When the buyer left it (WB's ``createdDate``).
         parent_review_id / child_review_id: The review it replaced, and the one
@@ -165,7 +166,7 @@ class ReviewEvent(Base):
 
     Attributes:
         id: UUIDv7.
-        workspace_id: Owning кабинет.
+        workspace_id: Owning workspace.
         observed_on: Moscow date of the walk.
         review_id / nm_id / imt_id: Which review, on which card.
         kind: A :class:`ReviewEventKind` value.

@@ -1,8 +1,8 @@
-"""The кабинет's advertising at CAMPAIGN grain — the raw facts the «Реклама» page composes.
+"""The workspace's advertising at CAMPAIGN grain — the raw facts the «Реклама» page composes.
 
 Every other ad loader in this module answers one question at one grain: spend
 per SKU, spend per day, bonus per SKU over a window. The advertising page asks
-all of them at once and needs them to agree to the сом — the zone table, the
+all of them at once and needs them to agree to the som — the zone table, the
 daily chart, the per-article table and the headline cards are four cuts of the
 same money. That only holds if they are cut from the same rows, so this loader
 hands out the rows themselves, at the finest grain the page needs, and leaves
@@ -17,8 +17,8 @@ the arithmetic to the consumer:
 
 Tenancy. Spend and the search slice carry ``nm_id`` and are scoped through
 ``workspace_sku_select``. The campaign dimension and the ledger carry no tenant
-at all, so both are restricted to the campaigns that spent on this кабинет's
-cards in the window — and the ledger's bonus is scaled by the кабинет's share of
+at all, so both are restricted to the campaigns that spent on this workspace's
+cards in the window — and the ledger's bonus is scaled by the workspace's share of
 each campaign's window spend, so a campaign that also advertised a card we do
 not own can never hand its whole bonus to the cards we do (the same rule as
 :func:`~src.modules.monitoring.services.ad_bonus.load_ad_bonus_by_nm`).
@@ -52,14 +52,14 @@ class AdCampaignMeta(NamedTuple):
     campaign_id: int
     #: ``cpm`` or ``cpc``.
     payment_type: str | None
-    #: ``manual`` (ручная ставка) or ``unified`` (единая ставка).
+    #: ``manual`` (manual bid) or ``unified`` (unified bid).
     bid_type: str | None
     placement_search: bool | None
     placement_recommendations: bool | None
 
 
 class AdCampaignSpend(NamedTuple):
-    """One campaign's ``fullstats`` spend on one of the кабинет's cards on one day."""
+    """One campaign's ``fullstats`` spend on one of the workspace's cards on one day."""
 
     campaign_id: int
     stat_date: date
@@ -68,7 +68,7 @@ class AdCampaignSpend(NamedTuple):
 
 
 class AdCampaignSearch(NamedTuple):
-    """One campaign-day's SEARCH-zone spend on the кабинет's cards (normquery)."""
+    """One campaign-day's SEARCH-zone spend on the workspace's cards (normquery)."""
 
     campaign_id: int
     stat_date: date
@@ -76,7 +76,7 @@ class AdCampaignSearch(NamedTuple):
 
 
 class AdCampaignBonus(NamedTuple):
-    """WB-funded spend charged to a campaign on one day, already scaled to this кабинет.
+    """WB-funded spend charged to a campaign on one day, already scaled to this workspace.
 
     ``stat_date`` is the CHARGE day: WB writes bonuses off in batches, so it
     aligns with the spend over a run of days rather than day by day.
@@ -88,7 +88,7 @@ class AdCampaignBonus(NamedTuple):
 
 
 class AdCampaignFacts(NamedTuple):
-    """Everything the advertising page composes, for one кабинет and window."""
+    """Everything the advertising page composes, for one workspace and window."""
 
     campaigns: list[AdCampaignMeta]
     spend: list[AdCampaignSpend]
@@ -99,7 +99,7 @@ class AdCampaignFacts(NamedTuple):
     #: than by a second pass over the window.
     currencies: tuple[str, ...] = ()
     #: Whether WB's funding ledger has ANY row for these campaigns in the
-    #: window — what separates «бонусов не было» from «журнал не собран».
+    #: window — what separates "there were no bonuses" from "the ledger was not harvested".
     ledger_known: bool = False
 
 
@@ -110,9 +110,9 @@ async def load_ad_campaign_facts(
     date_from: date,
     date_to: date,
 ) -> AdCampaignFacts:
-    """Return the window's campaign-grain advertising facts for one кабинет.
+    """Return the window's campaign-grain advertising facts for one workspace.
 
-    Money is in the кабинет's currency where the FX sweep has converted it
+    Money is in the workspace's currency where the FX sweep has converted it
     (``repos/ad_money.py``); a consumer that must not mix units asks
     :func:`~src.modules.monitoring.services.sku_day_facts.load_ad_currencies`.
 
@@ -268,11 +268,11 @@ async def _scaled_bonus(
     date_from: date,
     date_to: date,
 ) -> list[AdCampaignBonus]:
-    """Return the ledger's bonus rows, each scaled by the кабинет's share of its campaign.
+    """Return the ledger's bonus rows, each scaled by the workspace's share of its campaign.
 
-    The share is taken over the window: the campaign's spend on this кабинет's
+    The share is taken over the window: the campaign's spend on this workspace's
     cards over its spend on every card. For a campaign that only ever advertised
-    this кабинет — every campaign seen on prod — it is exactly one.
+    this workspace — the usual case — it is exactly one.
     """
     charges: dict[tuple[int, date], Decimal] = {}
     for entry in ledger:

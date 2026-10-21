@@ -1,6 +1,6 @@
 """The daily review history: what a card's rating was, and which reviews moved it.
 
-:mod:`diff` holds the rules, pure; :mod:`history` runs them for one кабинет
+:mod:`diff` holds the rules, pure; :mod:`history` runs them for one workspace
 against WB and the database. The tables and the reasoning behind them are in
 :mod:`src.modules.monitoring.models.reviews`.
 """

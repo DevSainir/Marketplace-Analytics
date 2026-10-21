@@ -136,7 +136,7 @@ def _set_ad_metric(
 ) -> None:
     """Set an ad cell's CAMPAIGN metric, moving the card's own share with it.
 
-    An advertising cell states what the кампания did, so that is what a typed
+    An advertising cell states what the campaign did, so that is what a typed
     number sets. The rest of the campaign is harvested fact the edit has no
     claim on — the other cards' spend, the other variants' conversions — so the
     VIEWED card's own share absorbs the whole delta, which keeps «Общая» and
@@ -255,8 +255,8 @@ def _edit_ad_bucket(
 def _solve_traffic_share(day: MatrixDayBase, bucket: str, value: float) -> None:
     """Set a bucket's views so its share WITHIN ITS TRAFFIC TYPE equals ``value``.
 
-    «Доля трафика» is normalized per «тип получения трафика» (Единая / Ручной /
-    CPC), so only the other buckets OF THE SAME TYPE are the denominator.
+    «Доля трафика» is normalized per traffic type (unified / manual / CPC), so
+    only the other buckets OF THE SAME TYPE are the denominator.
     Holding them fixed: ``share = v / (others + v)`` ⇒
     ``v = others * f / (1 - f)`` with ``f = value / 100``; the other same-type
     buckets' shares then recompute.
@@ -292,7 +292,7 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
     # «Процент выкупа» is a HARVESTED fact, not a formula: the cohort pass
     # reads it from WB's period aggregate. So it is a plain input here, and
     # editing it recomputes «Выкупы, ₽» (in «Общая» and in every ad zone) plus
-    # both ДРР rows. Handled before the funnel guard — a day can carry a buyout
+    # both DRR rows. Handled before the funnel guard — a day can carry a buyout
     # percent without a funnel row of its own.
     if metric == "buyout_percent":
         day.lagged_buyout_percent = _percent(value)
@@ -336,7 +336,7 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
 
 
 def _edit_organic(day: MatrixDayBase, metric: str, value: float) -> None:
-    """Resolve an edit in the «Органика» column (общая - реклама).
+    """Resolve an edit in the «Органика» column (overall - advertising).
 
     Organic = funnel - advertising. Holding the advertising side fixed, an edit
     solves the funnel input: ``funnel = organic + ad``.

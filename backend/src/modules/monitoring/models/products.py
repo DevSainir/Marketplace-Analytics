@@ -85,7 +85,7 @@ class ProductCard(Base):
     # `server_default` as well as `default`, unlike the two columns above: the
     # migration adds the column with one, so a model without it makes
     # `create_all` (the integration tier's schema) disagree with the migrated
-    # schema (production's) about what an INSERT omitting this column does.
+    # schema about what an INSERT omitting this column does.
     photo_url: Mapped[str] = mapped_column(
         String(512), default="", server_default="", nullable=False
     )

@@ -7,7 +7,7 @@ re-ingestion idempotent.
 
 :class:`AdvertisingWriteOffDaily` is the money counterpart: fullstats reports
 spend without ever saying whether the seller or WB funded it, and that split is
-the difference between a real ДРР and a flattering one.
+the difference between a true DRR and a flattering one.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ class AdvertisingStatDaily(FxConverted, Base):
         order_sum: Ad-attributed order revenue (WB ``sum_price``), in :attr:`currency`.
         currency: The campaign's own unit, as fullstats states it on the
             campaign. RUB for campaigns created before WB moved the ad account
-            to KGS on 2026-08-20, KGS after — so one кабинет holds both.
+            to KGS on 2026-08-20, KGS after — so one workspace holds both.
             ``""`` = not yet read (rows harvested before the column existed).
     """
 
@@ -113,7 +113,7 @@ CLUSTER_MAX_LENGTH: int = 255
 
 
 class AdvertisingClusterStatDaily(FxConverted, Base):
-    """Daily metrics of ONE search cluster («кластер») for one SKU/campaign.
+    """Daily metrics of ONE search cluster for one SKU/campaign.
 
     Sourced from ``POST /adv/v1/normquery/stats`` — the same payload
     :class:`AdvertisingSearchStatDaily` sums over. That table answers "how much
@@ -168,8 +168,8 @@ PAYMENT_TYPE_MAX_LENGTH: int = 32
 
 #: ``paymentType`` values that mean «WB paid for this, not the seller».
 #:
-#: Verified live 2026-09-15 on the `Демо` workspace. «Кэшбэк» is the label
-#: WB actually uses; «Бонусы» is listed alongside it because WB's own cabinet
+#: Checked against WB's API on 2026-09-15. «Кэшбэк» is the label WB actually
+#: uses; «Бонусы» is listed alongside it because WB's own seller portal
 #: names the same pool that way and a rename would otherwise go unnoticed.
 #:
 #: **The match is an allowlist, and that direction is deliberate.** An
@@ -193,11 +193,11 @@ class AdvertisingWriteOffDaily(FxConverted, Base):
     an impression. ``fullstats`` reports the spend whatever funded it, and a
     cashback charge never reaches the settlement report at all (WB gives it no
     invoice document), so without this table WB's bonuses are counted as the
-    seller's money in every per-SKU ДРР, ROI and profit figure.
+    seller's money in every per-SKU DRR, ROI and profit figure.
 
     **``currency`` is in the primary key because WB mixes currencies inside one
-    window.** Measured 2026-08..09 on one account: 96 «Баланс» rows in RUB
-    against 223 in KGS. Summing across it would add unlike units, so the grain
+    window.** Over 2026-08..09 one account had «Баланс» rows in both RUB and
+    KGS. Summing across it would add unlike units, so the grain
     keeps them apart and the reader picks the one currency it settles in.
 
     The grain deliberately drops WB's ``updNum``: it is an invoice-document

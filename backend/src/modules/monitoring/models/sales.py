@@ -1,7 +1,7 @@
 """Per-item sale/return records from the WB Statistics API.
 
 One row per item OPERATION (``saleID``): an ``S``-prefixed id is a buyout
-(продажа), an ``R``-prefixed one a return (возврат). Rows are dated by the
+(sale), an ``R``-prefixed one a return. Rows are dated by the
 SALE date — the day the customer accepted or returned the item — which is the
 attribution the manager's «Выкупы, ₽» expects (the sales-funnel ``buyoutCount``
 is an order-date cohort instead and matures for weeks).

@@ -8,9 +8,9 @@ The distinction matters because the two feeds disagree by construction. WB's
 ``fullstats`` reports every impression a campaign served whoever funded it, and
 the weekly settlement report never sees a bonus charge at all — a cashback
 write-off carries no invoice document, so no «Оказание услуг «WB Продвижение»»
-row is ever raised for it. Measured on one account for 2026-09-01..15: WB funded
-123 291 of 392 003 KGS of write-offs, and every сом of it was being reported as
-the seller's own spend.
+row is ever raised for it. On one account checked over a fortnight in September
+2026, WB had funded a large share of the write-offs, and every som of it was
+being reported as the seller's own spend.
 
 Same rules as :mod:`.exports`: module-level functions, the caller owns the
 session, and nothing here is imported except through ``contract.py``.
@@ -50,7 +50,7 @@ async def load_ad_bonus_by_nm(
     WB pays part of a seller's advertising out of a bonus pool («Кэшбэк», up to
     50 % of a charge). Those impressions are in ``fullstats`` like any other, and
     they never reach the settlement report at all — a bonus write-off carries no
-    invoice document — so without this the seller's own ДРР, ROI and profit count
+    invoice document — so without this the seller's own DRR, ROI and profit count
     WB's money as theirs.
 
     **The allocation is a model, and it is confined to this function.** WB's
@@ -59,8 +59,8 @@ async def load_ad_bonus_by_nm(
     the spend ``fullstats`` booked on them **over the same window**. Four rules
     make that safe enough to put on a report:
 
-    * **The window, not the day.** Write-offs are batched (one 9 761 KGS row at
-      22:45 against a day of impressions), so a day-grain split would put a
+    * **The window, not the day.** Write-offs are batched (one large row at 22:45
+      against a day of impressions), so a day-grain split would put a
       campaign's whole bonus on whichever SKUs happened to run that evening. Over
       a window the two feeds agree to ~0.1 % per campaign — measured 2026-09.
     * **Never across campaigns.** A campaign's bonus only ever reaches the SKUs
@@ -72,10 +72,9 @@ async def load_ad_bonus_by_nm(
       spend are in the campaign's own unit — RUB for campaigns created before WB
       moved the ad account to KGS on 2026-08-20, KGS after — and `upd` agrees
       with `fullstats` at 90-100 % per campaign on both sides. (This line once
-      called 20.08 a relabel; it was a real move, see
-      wildberries-api/references/currencies.md.) Filtering the ledger by the
+      called 20.08 a relabel; it was a real move.) Filtering the ledger by the
       SETTLEMENT currency was
-      this function's first shape and it was wrong: it dropped 402 022 of real
+      this function's first shape and it was wrong: it dropped most of the
       bonuses for July-August windows because WB labelled the ad account
       differently from the payout. The currency is still kept in storage — it is
       what WB said — and a window carrying more than one is reported as a caveat
@@ -191,7 +190,7 @@ async def ad_bonus_coverage(
     """Return the write-off days on record for this workspace inside a window.
 
     Answers «has the funding ledger been harvested for this period», which is
-    what separates «бонусов не было» from «мы про них ещё не спрашивали» — the
+    what separates "there were no bonuses" from "we have not asked about them yet" — the
     distinction that decides whether the column prints ``0`` or nothing at all.
 
     Scoped to the workspace's own campaigns even though the ledger is fetched

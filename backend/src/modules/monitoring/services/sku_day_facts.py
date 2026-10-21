@@ -2,9 +2,9 @@
 
 :mod:`.exports` answers "how much did each SKU do over the window" and
 :mod:`.day_series` "how much did the whole account do on each day"; these answer
-the product of the two, one row per SKU per day, for every SKU of a кабинет at
+the product of the two, one row per SKU per day, for every SKU of a workspace at
 once. The heatmap paints that grid, and building it from the per-SKU detail
-loaders would be one round trip per article — hundreds on a large кабинет.
+loaders would be one round trip per article — hundreds on a large workspace.
 
 Four loaders, one per source, rather than one wide join: a heatmap cell shows at
 most two metrics, and each loader is called only when a chosen metric reads its
@@ -18,10 +18,10 @@ owns the transaction, and **every** query scoped by ``workspace_id`` through
 semijoin, so a foreign article in the list simply matches nothing.
 
 Advertising here is the SKU's own Promotion-API rows summed as reported, every
-campaign included — what the кабинет actually spent. The monitoring matrix's
+campaign included — what the workspace actually spent. The monitoring matrix's
 «Общая» column keeps only the campaigns its bucket attribution selected, so the
 two can differ on a card with small side campaigns; this is the figure that
-adds up to the кабинет's spend.
+adds up to the workspace's spend.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ from src.modules.monitoring.repos.base import workspace_sku_select
 
 
 class CatalogCard(NamedTuple):
-    """One card of the кабинет's catalogue, as a row label and a filter option."""
+    """One card of the workspace's catalogue, as a row label and a filter option."""
 
     nm_id: int
     vendor_code: str
@@ -104,9 +104,9 @@ class PriceSkuDay(NamedTuple):
 
     nm_id: int
     stat_date: date
-    #: Before WB's СПП (``discountedPrice``).
+    #: Before WB's SPP (``discountedPrice``).
     seller_price: Decimal | None
-    #: What a shopper pays, СПП applied; ``None`` when neither source answered.
+    #: What a shopper pays, SPP applied; ``None`` when neither source answered.
     customer_price: Decimal | None
 
 
@@ -136,11 +136,11 @@ def _money(value: object) -> Decimal | None:
 async def load_workspace_catalog(
     session: AsyncSession, *, workspace_id: uuid.UUID
 ) -> list[CatalogCard]:
-    """Return every card the кабинет owns, ordered by article.
+    """Return every card the workspace owns, ordered by article.
 
     Args:
         session: An open async session (caller owns the transaction).
-        workspace_id: The кабинет whose catalogue to read.
+        workspace_id: The workspace whose catalogue to read.
     """
     stmt = (
         select(
@@ -361,10 +361,10 @@ async def load_stock_sku_days(
 
 
 async def load_price_currency(session: AsyncSession, *, workspace_id: uuid.UUID) -> str:
-    """Return the currency WB stated for this кабинет's newest priced snapshot.
+    """Return the currency WB stated for this workspace's newest priced snapshot.
 
-    Not the settlement's currency. «Демо» settles in KGS while its prices
-    API answers RUB; the orders valued at those prices (``amount_*`` above) are
+    Not the settlement's currency. A workspace can settle in KGS while its
+    prices API answers RUB; the orders valued at those prices (``amount_*`` above) are
     in this currency too. ``""`` when no snapshot has recorded one yet.
     """
     stmt = (
@@ -382,7 +382,7 @@ async def load_price_currency(session: AsyncSession, *, workspace_id: uuid.UUID)
 async def load_ad_currencies(
     session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> list[str]:
-    """Return the currencies this кабинет's ad spend was in over the window.
+    """Return the currencies this workspace's ad spend was in over the window.
 
     First from the spend rows: fullstats states each campaign's currency and
     the harvest keeps it since 2026-09-29. WB moved the ad account to KGS on
@@ -390,11 +390,11 @@ async def load_ad_currencies(
     both. Rows from before the column carry none until the backfill labels
     them; for such a window the write-off ledger answers instead, and its label
     is the truth rather than decoration — matched document by document against
-    the KGS settlement on 2026-09-28, «Демо»'s write-offs labelled RUB were
+    a KGS settlement on 2026-09-28, the write-offs labelled RUB were
     settled at the Bank of Russia rate of the document's closing day, to the
     kopeck, and those labelled KGS at exactly 1.00. The ledger's bonus rows are
     left out. Since 2026-10-02 rouble rows are converted where they are stored
-    (``repos/ad_money.py``), so a KGS кабинет answers KGS alone.
+    (``repos/ad_money.py``), so a KGS workspace answers KGS alone.
 
     Returns:
         The distinct labels, alphabetically; empty when neither source names one.

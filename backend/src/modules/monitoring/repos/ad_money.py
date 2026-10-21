@@ -1,17 +1,17 @@
-"""Advertising money in the кабинет's own currency: the RUB→KGS conversion sweep.
+"""Advertising money in the workspace's own currency: the RUB→KGS conversion sweep.
 
 WB states each campaign's money in the currency the campaign was created in —
 RUB before it moved the ad accounts to KGS on 2026-08-20, KGS after — while a
-Kyrgyz кабинет settles, and is reported, in KGS. Every rouble of ad money is
+Kyrgyz workspace settles, and is reported, in KGS. Every rouble of ad money is
 therefore converted where it is stored, at the Bank of Russia rate of its own
-day, the rate WB uses for every RUB→KGS conversion it makes itself
-(wildberries-api/references/currencies.md). Storing the converted figure means
-every reader — the matrix, the heatmap, the P&L, «Сводка», A/Б — gets one
+day, the rate WB uses for every RUB→KGS conversion it makes itself.
+Storing the converted figure means
+every reader — the matrix, the heatmap, the P&L, «Сводка», «A/Б» — gets one
 currency without knowing a conversion happened.
 
-**Which кабинет converts** is read off its own sales funnel: WB answers the
+**Which workspace converts** is read off its own sales funnel: WB answers the
 funnel's money in the settlement currency, so an article whose funnel speaks
-KGS belongs to a KGS кабинет. A RUB кабинет's article never matches, and its
+KGS belongs to a KGS workspace. A RUB workspace's article never matches, and its
 RUB ads stay as they are.
 
 **The sweep is idempotent and re-runnable.** It converts only rows still as
@@ -64,9 +64,9 @@ rate_day AS (
     ORDER BY d.day, c.currency, c.rate_date DESC
 )"""
 
-# The кабинет's currency per article: what its кабинет's funnel answers in. By
-# кабинет, not by article — a card delisted before WB served funnel sums has no
-# currency of its own, and its old roubles are the кабинет's like any other's.
+# The workspace's currency per article: what its workspace's funnel answers in.
+# By workspace, not by article — a card delisted before WB served funnel sums has
+# no currency of its own, and its old roubles are the workspace's like any other's.
 _TARGET = """
 cabinet AS (
     SELECT c.workspace_id, max(f.currency) AS currency
@@ -116,7 +116,7 @@ WHERE s.campaign_id = rc.campaign_id AND t.nm_id = s.nm_id
   AND t.currency <> 'RUB' AND s.fx_rate IS NULL
 """
 
-# The ledger keys on currency, so a converted row moves to the кабинет's
+# The ledger keys on currency, so a converted row moves to the workspace's
 # currency and merges with a same-day row WB already stated in it (20.08 split
 # one document across both).
 _LEDGER = """
@@ -175,7 +175,7 @@ def _statements(scoped: bool) -> list[str]:
 async def convert_rouble_ad_money(
     session: AsyncSession, *, campaign_ids: Iterable[int] | None = None
 ) -> int:
-    """Convert every rouble ad row still as WB served it into the кабинет's currency.
+    """Convert every rouble ad row still as WB served it into the workspace's currency.
 
     Args:
         session: An open session; the caller owns the transaction.
@@ -205,7 +205,7 @@ class RateBook:
     """RUB→``currency`` factors by day, for figures converted in Python.
 
     The same rule as the SQL sweep: a day takes the latest Bank rate on or
-    before it, and none older than :data:`MAX_RATE_AGE_DAYS`. A rouble кабинет
+    before it, and none older than :data:`MAX_RATE_AGE_DAYS`. A rouble workspace
     — or one whose currency is not known yet — converts nothing: its factor is 1.
     """
 
@@ -242,10 +242,10 @@ async def load_rate_book(session: AsyncSession, *, currency: str) -> RateBook:
 
 
 async def cabinet_currency(session: AsyncSession, *, workspace_id: uuid.UUID) -> str:
-    """The currency a кабинет settles in, as its own funnel states it; ``""`` unknown.
+    """The currency a workspace settles in, as its own funnel states it; ``""`` unknown.
 
     WB answers the funnel's money in the settlement currency, so monitoring
-    knows its кабинет's currency without asking the P&L.
+    knows its workspace's currency without asking the P&L.
     """
     stmt = (
         select(SalesFunnelDaily.currency)

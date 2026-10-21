@@ -67,7 +67,7 @@ class PriceRepository(BaseRepository):
         """Return the currency WB stated on this SKU's newest labelled snapshot.
 
         Not windowed: the label was only recorded from 2026-09-29, and the
-        prices API has answered RUB for every card on every кабинет since long
+        prices API has answered RUB for every card on every workspace since long
         before that (verified against the orders feed back to July 2026), so
         the newest label is the right one for an older window as well.
 

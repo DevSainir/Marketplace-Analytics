@@ -46,7 +46,7 @@ class OrderDay(NamedTuple):
     told yet».
 
     The two money figures are what «ДРР от заказов» divides by, at whichever
-    price base the reader picked, and both are in the кабинет's own currency —
+    price base the reader picked, and both are in the workspace's own currency —
     the advertising they are divided into is. At the seller's price it is WB's
     own funnel sum (``orderSum``, converted by WB at the order day's Bank of
     Russia rate). At the customer's price WB publishes no sum, so each card's
@@ -55,16 +55,16 @@ class OrderDay(NamedTuple):
     reading of a price WB varies by region. A card-day WB served no sum for
     (before 2025-09-30, and 07.09.2026) is the count at the snapshot price,
     converted at the Bank rate of the day. ``None`` when not one card of the
-    day could be valued — zero there would read as infinite ДРР.
+    day could be valued — zero there would read as infinite DRR.
     """
 
     stat_date: date
     orders: int
     buyouts: int | None
     decided: int | None
-    #: Σ the seller's own price, before WB's СПП.
+    #: Σ the seller's own price, before WB's SPP.
     amount_seller: Decimal | None
-    #: Σ what the customer pays, СПП applied.
+    #: Σ what the customer pays, SPP applied.
     amount_paid: Decimal | None
 
 
@@ -157,7 +157,7 @@ def _in_cabinet_currency(
     """WB's own sum plus the roubles it did not cover, converted; ``None`` if neither.
 
     Roubles with no rate for the day make the whole day unknown rather than
-    adding roubles to the кабинет's currency.
+    adding roubles to the workspace's currency.
     """
     if from_wb is None and in_roubles is None:
         return None

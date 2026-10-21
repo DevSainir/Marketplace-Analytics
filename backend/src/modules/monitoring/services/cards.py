@@ -31,7 +31,7 @@ from src.modules.monitoring.models import (
 from src.modules.monitoring.repos.base import workspace_sku_select
 
 #: How far back the picker's ranking looks. A week is what a seller means by
-#: «продажи за последнюю неделю», and it is short enough that a card which
+#: "sales over the last week", and it is short enough that a card which
 #: stopped selling drops down the list within days rather than within a month.
 RANKING_DAYS: int = 7
 
@@ -46,7 +46,7 @@ class WorkspaceCard(NamedTuple):
 
     Attributes:
         nm_id: WB article.
-        vendor_code: Артикул продавца.
+        vendor_code: Seller article code («Артикул продавца»).
         title: Card title.
         orders_7d: Ordered units over the last :data:`RANKING_DAYS` days. Zero
             for a card the funnel history has not covered — the picker ranks

@@ -43,13 +43,13 @@ class AdAggregate:
 
 @dataclass(frozen=True, slots=True)
 class CampaignDayTotal:
-    """One campaign-day's metrics across ALL its nm_ids — the whole кампания.
+    """One campaign-day's metrics across ALL its nm_ids — the whole campaign.
 
-    An advertising column of the matrix is a view of a рекламная кампания, not
+    An advertising column of the matrix is a view of an ad campaign, not
     of the card on screen, so this — not the viewed SKU's slice of it — is what
     the column is built from. WB attributes a campaign's conversions to every
-    size/colour variant the buyer actually converted on («ассоциированные
-    конверсии»), so the totals exceed any single SKU's slice whenever
+    size/colour variant the buyer actually converted on (WB's "associated
+    conversions"), so the totals exceed any single SKU's slice whenever
     associated variants converted.
 
     ``traffic_add_to_cart``/``traffic_orders`` are the same sums restricted to
@@ -146,7 +146,7 @@ class AdvertisingRepository(BaseRepository):
         )
 
     async def convert_rouble_money(self, *, campaign_ids: Iterable[int]) -> int:
-        """Convert these campaigns' rouble ad money to the кабинет's currency.
+        """Convert these campaigns' rouble ad money to the workspace's currency.
 
         Run after every write of ad money; see :mod:`.ad_money`.
         """
@@ -244,10 +244,10 @@ class AdvertisingRepository(BaseRepository):
     async def campaign_day_totals(
         self, *, campaign_ids: Iterable[int], date_from: date, date_to: date
     ) -> list[CampaignDayTotal]:
-        """Return per-(campaign, day) totals across ALL nm_ids — the whole кампания.
+        """Return per-(campaign, day) totals across ALL nm_ids — the whole campaign.
 
         These ARE the matrix's advertising columns: a column measures the
-        рекламная кампания, and the viewed SKU's own rows only decorate it (the
+        ad campaign, and the viewed SKU's own rows only decorate it (the
         carts/orders hover) and feed the «Общая»/«Органика» columns.
 
         Args:

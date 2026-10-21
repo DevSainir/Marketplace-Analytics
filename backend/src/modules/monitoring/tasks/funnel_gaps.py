@@ -27,7 +27,7 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 logger = get_logger(__name__)
 
-#: Gap days re-read per кабинет per night, newest first. Each is one paced
+#: Gap days re-read per workspace per night, newest first. Each is one paced
 #: aggregate call (~20 s); two keep the night inside its budget
 #: (``tests/unit/core/test_nightly_work_ends_before_the_workday.py``) and still
 #: clear a one-off hole the next morning.
@@ -37,10 +37,10 @@ MAX_REPAIRS_PER_NIGHT = 2
 async def heal_funnel_gaps(
     bundle: WorkspaceTokenBundle, *, today: date, cohort_days: int
 ) -> list[date]:
-    """Re-read this кабинет's newest incomplete funnel days; return those still incomplete.
+    """Re-read this workspace's newest incomplete funnel days; return those still incomplete.
 
     Args:
-        bundle: The кабинет's decrypted tokens.
+        bundle: The workspace's decrypted tokens.
         today: Today in Moscow time.
         cohort_days: How far back the nightly cohort pass reads — its days are
             its own, and are not holes yet.
@@ -64,7 +64,7 @@ async def heal_funnel_gaps(
 
 
 def announce_funnel_gaps(bundle: WorkspaceTokenBundle, days: list[date]) -> None:
-    """Name the кабинет and the days in the log — the metric may not."""
+    """Name the workspace and the days in the log — the metric may not."""
     if not days:
         return
     bind_workspace(bundle.workspace_id)

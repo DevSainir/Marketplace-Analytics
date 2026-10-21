@@ -63,9 +63,9 @@ def _advertising_harvest_ids(
     # once WB stops calling it active, because the day it ENDS on is a day only
     # this pass can still collect: the seller completes the campaign, WB moves
     # it to status 7, and the next harvest would drop it while its final
-    # (partial) day was never fetched. Observed 2026-08-20 on the «Демо»
-    # rotation — four campaigns finished mid-day and took 3 603 RUB of that
-    # day's spend across two SKUs with them, permanently. Re-asking also lets
+    # (partial) day was never fetched. Observed 2026-08-20 on an A/B
+    # rotation — four campaigns finished mid-day and took part of that day's
+    # spend across two SKUs with them, permanently. Re-asking also lets
     # WB's own retroactive corrections to closed campaigns land.
     already_seen = set(scoped)
     return [*scoped, *sorted(cid for cid in recent_campaign_ids if cid not in already_seen)]
@@ -82,8 +82,8 @@ def _candidate_search_pairs(
 
     * dual-zone campaigns (every unified-bid one, plus dual-placement manual
       ones) — the slice splits «Поиск» from «Полки»;
-    * search-only manual campaigns — WB «поисковые» campaigns also deliver in
-      the CATALOG zone (verified live: fullstats runs ~10-13% above the
+    * search-only manual campaigns — WB's search campaigns also deliver in
+      the CATALOG zone (verified against WB's data: fullstats runs ~10-13% above the
       normquery sum day after day), so the slice splits «Поиск» from
       «Каталог».
 

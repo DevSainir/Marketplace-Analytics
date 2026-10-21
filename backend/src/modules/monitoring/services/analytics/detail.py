@@ -237,8 +237,8 @@ class DetailAnalytics:
             window=MetricWindow(start=date_from, end=date_to),
             # Two units, never one: the prices (and every sum valued at them)
             # are in what the prices API states, the spend in what each
-            # campaign is billed in — RUB and KGS respectively on a кабинет
-            # that settles in KGS. See wildberries-api/references/currencies.md.
+            # campaign is billed in — RUB and KGS respectively on a workspace
+            # that settles in KGS.
             price_currency=inputs.price_currency,
             ad_currencies=await self._ad_currencies(
                 nm_id=nm_id, ad_rows=inputs.ad_rows, date_from=date_from, date_to=date_to
@@ -395,7 +395,7 @@ class DetailAnalytics:
         First the spend rows themselves: fullstats states each campaign's
         currency and the harvest keeps it since 2026-09-29. Rows from before
         that carry none until the backfill labels them, so next the write-off
-        ledger for the SKU's own campaigns, and last the кабинет's ledger — the
+        ledger for the SKU's own campaigns, and last the workspace's ledger — the
         ledger names only some campaigns, and a blank label on most SKUs would
         read as "no currency" rather than "not recorded".
         """

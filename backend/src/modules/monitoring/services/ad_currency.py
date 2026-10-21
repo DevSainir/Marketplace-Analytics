@@ -3,10 +3,10 @@
 Rows harvested before 2026-09-29 were stored without the campaign's currency,
 and nothing but WB can say what it was: RUB for campaigns created before WB
 moved the ad account to KGS on 2026-08-20, KGS for later ones, both inside one
-кабинет (wildberries-api, ``references/currencies.md``). fullstats states it on
-every campaign it answers for, so one call can label up to fifty campaigns —
-provided each of them actually delivered inside the call's window, because
-fullstats says nothing at all about a campaign that did not.
+workspace. fullstats states it on every campaign it answers for, so one call
+can label up to fifty campaigns — provided each of them actually delivered
+inside the call's window, because fullstats says nothing at all about a
+campaign that did not.
 
 Two callers make the calls: :func:`advance_ad_currency`, one call per tick of
 the hidden ``ad_currency`` lane (it survives a deploy, like every lane), and

@@ -10,7 +10,7 @@ measurement, so which one was used is written down beside the number:
 
 Measured 2026-09-22, the two agree closely but not exactly: ratio 1,0013,
 median gap 5 ₽. The exact-match rate is low (31 %) for a reason that is not
-error — the storefront was sampled once, in the morning, and WB moves the СПП
+error — the storefront was sampled once, in the morning, and WB moves the SPP
 grid during the day.
 """
 
@@ -38,7 +38,7 @@ def _modal_prices(
 ) -> dict[int, tuple[float, float | None]]:
     """Reduce one day's ordered lines to ``{nm_id: (price, spp)}``.
 
-    The day's orders for a SKU are not one number: СПП is regional, so the rows
+    The day's orders for a SKU are not one number: SPP is regional, so the rows
     carry several. The comparable subset is the regions the storefront's fixed
     ``dest`` stands for; when a SKU sold nowhere in them, every region is used
     rather than dropping the SKU — a price from the wrong region beats no price,
@@ -71,7 +71,7 @@ def _modal_prices(
     for nm_id, rows in by_sku.items():
         comparable = [row for row in rows if row.region_name in regions] or rows
         price = Counter(row.finished_price for row in comparable).most_common(1)[0][0]
-        # The СПП is only reported for the price it belongs to, so it is taken
+        # The SPP is only reported for the price it belongs to, so it is taken
         # from the rows that carry that price rather than from the day at large.
         spps = [row.spp for row in comparable if row.finished_price == price and row.spp > 0]
         resolved[nm_id] = (price, Counter(spps).most_common(1)[0][0] if spps else None)

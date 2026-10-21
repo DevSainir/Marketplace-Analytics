@@ -9,13 +9,13 @@ rule for everything here is that it must never be the reason paying work waited:
   top-up.
 * **One run at a time.** A Redis lock across the whole fleet walk, so a slow
   evening never meets the next one.
-* **Out of a first harvest's way.** While any кабинет's first-run harvests may
+* **Out of a first harvest's way.** While any workspace's first-run harvests may
   be running, the task puts itself back by twenty minutes, at most a few times.
   Those harvests are what the worker's memory ceiling was sized around.
 * **Its own buckets.** The seller list is paced on the «Вопросы и отзывы» bucket
   it shares only with the monthly `guide` capture; the storefront on one slow
-  bucket shared by every кабинет.
-* **Only the кабинеты that can.** A workspace with no «Вопросы и отзывы» (or
+  bucket shared by every workspace.
+* **Only the workspaces that can.** A workspace with no «Вопросы и отзывы» (or
   unified) token is skipped without a word — it is not a failure to have
   chosen not to grant a scope.
 """
@@ -52,7 +52,7 @@ _MAX_POSTPONEMENTS = 3
 
 
 async def _snapshot_all(*, may_postpone: bool) -> dict[str, int] | None:
-    """Run the review history for every кабинет holding the scope, in turn.
+    """Run the review history for every workspace holding the scope, in turn.
 
     Args:
         may_postpone: Whether a first-run harvest in flight may still put this
@@ -99,7 +99,7 @@ async def _snapshot_all(*, may_postpone: bool) -> dict[str, int] | None:
                             workspace_id=bundle.workspace_id,
                             today=today,
                         ).run()
-                except Exception as exc:  # one кабинет's failure is not the fleet's
+                except Exception as exc:  # one workspace's failure is not the fleet's
                     logger.warning("Review history failed for '%s': %s", bundle.name, exc)
                     totals["failed"] += 1
                     continue
@@ -132,7 +132,7 @@ async def _snapshot_all(*, may_postpone: bool) -> dict[str, int] | None:
 def snapshot_reviews(self: Any) -> dict[str, int]:
     """Scheduled entrypoint: record today's ratings and review changes.
 
-    Not on the shared retry policy: a WB failure is recorded per кабинет and
+    Not on the shared retry policy: a WB failure is recorded per workspace and
     the next evening is the retry. The only re-run is the postponement.
 
     Returns:

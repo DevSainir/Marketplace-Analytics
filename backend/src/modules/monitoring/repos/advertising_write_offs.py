@@ -115,17 +115,17 @@ class AdvertisingWriteOffRepository(BaseRepository):
     async def currencies_for_sku_cabinet(
         self, *, nm_id: int, date_from: date, date_to: date
     ) -> list[str]:
-        """Return the currencies the SKU's whole кабинет was charged in over a window.
+        """Return the currencies the SKU's whole workspace was charged in over a window.
 
         The fallback for :meth:`currencies_for_campaigns`. The ledger names only
-        some campaigns — on «Демо» 8 of the 31 that spent in a fortnight of
-        September 2026 — so a SKU advertised by the others would print its spend
-        with no unit, where the кабинет's own label is almost always the right
-        one. The кабинет is the one owning this SKU's card (``nm_id`` is the
+        some campaigns — about a quarter of those that spent in one sampled
+        fortnight — so a SKU advertised by the others would print its spend
+        with no unit, where the workspace's own label is almost always the right
+        one. The workspace is the one owning this SKU's card (``nm_id`` is the
         card's primary key), and only campaigns that advertised its cards count.
 
         Args:
-            nm_id: The SKU whose кабинет is being asked about.
+            nm_id: The SKU whose workspace is being asked about.
             date_from: Inclusive window start.
             date_to: Inclusive window end.
 

@@ -34,10 +34,11 @@ logger = get_logger(__name__)
 #: Settings implied by a retired campaign type, for campaigns ``adverts-v2``
 #: no longer describes. WB dropped the single-zone types in 2024 and never
 #: gave them a bid type, so without this their spend stays unclassified on
-#: both the matrix and «Реклама» — on «Демо» five type-6 campaigns of
-#: 2023, 5 493 сом. Each was a manual CPM campaign in one zone: 6 «в поиске»,
-#: 5 «в карточке товара» and 7 «на главной» (both shelves). Type 4 «в
-#: каталоге» is left out: the matrix has no placement flag for the catalogue.
+#: both the matrix and «Реклама» — an account can still carry a few such
+#: campaigns from 2023. Each was a manual CPM campaign in one zone: 6 «в поиске»
+#: (search), 5 «в карточке товара» (product card) and 7 «на главной» (home
+#: page) — the last two both shelves. Type 4 «в каталоге» (catalogue) is left
+#: out: the matrix has no placement flag for the catalogue.
 _LEGACY_SETTINGS: dict[int, dict[str, object]] = {
     6: {"placement_search": True, "placement_recommendations": False},
     5: {"placement_search": False, "placement_recommendations": True},
@@ -111,7 +112,7 @@ class AdvertisingIngestion:
         self._advertising_write_offs = advertising_write_off_repo
 
     async def _convert(self, campaign_ids: Iterable[int]) -> None:
-        """Convert the rouble money just written to the кабинет's currency (``repos/ad_money``)."""
+        """Convert the rouble money just written to the workspace's currency (``ad_money``)."""
         converted = await self._advertising.convert_rouble_money(campaign_ids=campaign_ids)
         if converted:
             logger.info("Converted %d rouble ad rows at the Bank of Russia rate.", converted)

@@ -307,7 +307,7 @@ async def _harvest_sku_window(
         # for why this is not the removed «Заказы» feed coming back).
         #
         # Unlike the sales feed above this runs on EVERY path, single-SKU
-        # «Обновить» included, because rewriting today's price with СПП is the
+        # «Обновить» included, because rewriting today's price with SPP is the
         # button's whole point — and it is cheap enough to mean it: the window
         # is today alone rather than the harvest's, and this endpoint's bucket
         # is 10 requests a minute against the sales feed's one.
@@ -316,7 +316,7 @@ async def _harvest_sku_window(
 
         # WB's advertising write-off ledger — the only feed that says whether a
         # charge came out of the seller's money («Баланс») or out of WB's bonus
-        # pool («Кэшбэк»). Without it every per-SKU ДРР, ROI and profit counts
+        # pool («Кэшбэк»). Without it every per-SKU DRR, ROI and profit counts
         # WB's bonuses as the seller's spend, because `fullstats` reports the
         # impressions either way funded and a bonus charge never reaches the
         # settlement report (it has no invoice document).

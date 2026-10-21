@@ -6,7 +6,7 @@ captured on each harvest and accumulates a per-day series over time.
 
 * ``seller_price`` — the seller's DISCOUNTED price (WB ``discountedPrice``, after
   the seller's own discount). Drives the matrix's «Заказы, ₽»/«Выкупы, ₽»
-  (count x price) and is the base of the СПП ratio.
+  (count x price) and is the base of the SPP ratio.
 * ``customer_price`` — the final price a shopper pays after ALL discounts incl.
   WB loyalty, or ``NULL`` when neither source could answer.
 * ``customer_spp`` — WB's loyalty discount as a percent, when it is known as a
@@ -16,7 +16,7 @@ captured on each harvest and accumulates a per-day series over time.
   point at. ``storefront`` is the shelf price for one fixed region at one moment
   of the morning; ``orders`` is what customers were actually charged that day.
 
-СПП (скидка постоянного покупателя) is DERIVED on read
+SPP (WB's customer discount) is DERIVED on read
 (``(seller - customer) / seller x 100``), never stored.
 """
 

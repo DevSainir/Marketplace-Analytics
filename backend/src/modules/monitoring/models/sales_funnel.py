@@ -66,11 +66,11 @@ class SalesFunnelDaily(Base):
     cancel_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     add_to_wishlist: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    # The funnel's money, in :attr:`currency` — which is the кабинет's
+    # The funnel's money, in :attr:`currency` — which is the workspace's
     # SETTLEMENT currency, not the prices' RUB: WB converts each order's RUB
-    # price at the Bank of Russia rate of the order day (wildberries-api,
-    # references/currencies.md). NULL = not yet read for this day (rows from
-    # before 2026-09-29, until the backfill reaches them). The history feed
+    # price at the Bank of Russia rate of the order day. NULL = not yet
+    # read for this day (rows from before 2026-09-29, until the backfill reaches
+    # them). The history feed
     # owns ``order_sum``; ``buyout_sum``/``cancel_sum`` mature like their
     # counts and are the cohort pass's after the first insert.
     order_sum: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)

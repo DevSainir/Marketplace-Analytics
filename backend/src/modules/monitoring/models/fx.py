@@ -1,11 +1,11 @@
 """Bank of Russia exchange rates, and the mark a converted money row carries.
 
-WB moved every ad account from RUB to KGS on 2026-08-20; a KGS кабинет's
+WB moved every ad account from RUB to KGS on 2026-08-20; a KGS workspace's
 earlier advertising — and the tail of campaigns created before the move — is
-stored by WB in roubles. Those rows are converted to the кабинет's own
+stored by WB in roubles. Those rows are converted to the workspace's own
 currency at the rate WB itself uses for every RUB→KGS conversion it makes: the
 Bank of Russia's, of the day (verified to five decimals on five dates of
-2026-07..09, see wildberries-api/references/currencies.md).
+2026-07..09).
 
 The rates are loaded once (migration ``c4e8a2f71d39``) rather than harvested:
 the RUB campaigns stopped spending on 2026-09-22, so there is no new rouble

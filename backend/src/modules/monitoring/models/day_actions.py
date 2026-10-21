@@ -26,7 +26,7 @@ _SCHEMA: str = "monitoring"
 class SkuDayAction(Base):
     """One SKU-day's logged manager actions.
 
-    The two РК slots are positional — «Первая РК» / «Вторая РК» — and each holds
+    The two ad campaign slots are positional — «Первая РК» / «Вторая РК» — and each holds
     a campaign TYPE (``uni`` / ``manual_search`` / ``manual_shelves`` / ``cpc``)
     rather than a yes/no. The frontend keeps the two types distinct; a stored
     row should never repeat one across the slots.
@@ -38,8 +38,8 @@ class SkuDayAction(Base):
         first_rk_budget: The first campaign's «Бюджет рекламы», rubles.
         second_rk_type: «Вторая РК» campaign type, or ``None``.
         second_rk_budget: The second campaign's «Бюджет рекламы», rubles.
-        price_change: «Меняли цену?» — ``"up"`` (повысили) / ``"down"``
-            (понизили), or ``None`` when unset.
+        price_change: «Меняли цену?» — ``"up"`` (raised) / ``"down"``
+            (lowered), or ``None`` when unset.
         price_change_amount: «На сколько» — the price difference, rubles.
         updated_at: When the row was last edited (bumped on every save).
     """

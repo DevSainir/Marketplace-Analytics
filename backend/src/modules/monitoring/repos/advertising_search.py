@@ -45,7 +45,7 @@ class AdvertisingSearchRepository(BaseRepository):
     ) -> list[CampaignSearchDayTotal]:
         """Return per-(campaign, day) search-zone totals across ALL nm_ids.
 
-        The zone split of an advertising column divides the whole кампания, so
+        The zone split of an advertising column divides the whole campaign, so
         the slice it splits off has to be the whole campaign's search zone —
         not the viewed card's share of it.
 

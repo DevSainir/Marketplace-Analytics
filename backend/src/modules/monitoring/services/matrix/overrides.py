@@ -17,7 +17,7 @@ from src.modules.monitoring.schemas.matrix import (
     MatrixBaseState,
 )
 
-#: Editable input fields of an advertising bucket — the кампания's own numbers.
+#: Editable input fields of an advertising bucket — the campaign's own numbers.
 _AD_FIELDS: tuple[str, ...] = (
     "views",
     "clicks",
@@ -37,7 +37,7 @@ _AD_SKU_FIELDS: tuple[str, ...] = ("views", "clicks", "add_to_cart", "spend", "o
 #: row of the per-variant breakdown (that row IS this SKU's own count).
 _VIEWED_ROW_FIELDS: frozenset[str] = frozenset({"add_to_cart", "orders"})
 #: Editable input fields of the organic funnel (behind «Общая»). The ₽ volumes
-#: and СПП are derived from ``seller_price``/``customer_price`` (not stored).
+#: and SPP are derived from ``seller_price``/``customer_price`` (not stored).
 _FUNNEL_FIELDS: tuple[str, ...] = (
     "open_count",
     "cart_count",
@@ -51,7 +51,7 @@ _FUNNEL_BUCKET = "funnel"
 _DAY_BUCKET = "day"
 #: Editable day-level inputs. «Процент выкупа» is harvested from WB's period
 #: aggregate, so it is a fact a manager may correct — and everything derived
-#: from it («Выкупы, ₽», both ДРР rows) recomputes.
+#: from it («Выкупы, ₽», both DRR rows) recomputes.
 _DAY_FIELDS: tuple[str, ...] = ("lagged_buyout_percent",)
 #: The synthetic bucket name under which DISPLAY overrides are stored; the
 #: ``field`` is then the ``"<bucket>:<metric>"`` cell key.

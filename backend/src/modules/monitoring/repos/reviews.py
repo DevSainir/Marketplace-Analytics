@@ -66,7 +66,7 @@ class ReviewRepository:
         """The recorded state of the given reviews, keyed by id.
 
         Args:
-            workspace_id: The кабинет.
+            workspace_id: The workspace.
             review_ids: One page's ids — bounded by the page size.
 
         Returns:
@@ -219,7 +219,7 @@ class ReviewRepository:
         )
 
     async def imt_ids(self, *, workspace_id: uuid.UUID) -> list[int]:
-        """Every склейка this кабинет's reviews were left on, ascending."""
+        """Every card group this workspace's reviews were left on, ascending."""
         rows = await self._session.execute(
             select(ReviewState.imt_id)
             .where(ReviewState.workspace_id == workspace_id, ReviewState.imt_id > 0)
@@ -229,7 +229,7 @@ class ReviewRepository:
         return list(rows.scalars())
 
     async def has_snapshot(self, *, workspace_id: uuid.UUID, imt_id: int) -> bool:
-        """Whether this склейка has been snapshotted before, on any day."""
+        """Whether this card group has been snapshotted before, on any day."""
         result = await self._session.execute(
             select(RatingSnapshot.imt_id)
             .where(RatingSnapshot.workspace_id == workspace_id, RatingSnapshot.imt_id == imt_id)
@@ -238,7 +238,7 @@ class ReviewRepository:
         return result.first() is not None
 
     async def seller_api_count(self, *, workspace_id: uuid.UUID, imt_id: int) -> int:
-        """Live, unreplaced reviews of a склейка not known to be excluded."""
+        """Live, unreplaced reviews of a card group not known to be excluded."""
         result = await self._session.execute(
             select(func.count())
             .select_from(ReviewState)
@@ -282,7 +282,7 @@ class ReviewRepository:
 
 
 def _missing_filter(workspace_id: uuid.UUID, walked_on: date) -> tuple[Any, ...]:
-    """Live reviews of the кабинет last listed before the walk of ``walked_on``."""
+    """Live reviews of the workspace last listed before the walk of ``walked_on``."""
     return (
         ReviewState.workspace_id == workspace_id,
         ReviewState.vanished_on.is_(None),

@@ -1,11 +1,11 @@
-"""One кабинет's daily review history: walk the review list, then read the ratings.
+"""One workspace's daily review history: walk the review list, then read the ratings.
 
-Two phases, in this order because the second needs the first's склейки:
+Two phases, in this order because the second needs the first's card groups:
 
 1. **The walk.** Both halves of the seller review list (unanswered, then
    answered), oldest first, one page at a time: each page is diffed against
    what is on record, upserted, and committed before the next is asked for. A
-   ~150k-review кабинет is therefore never in memory — one page is — and a walk
+   ~150k-review workspace is therefore never in memory — one page is — and a walk
    cut short keeps every page before the cut.
 
    Unanswered first: a review answered DURING the walk then moves into the half
@@ -19,13 +19,13 @@ Two phases, in this order because the second needs the first's склейки:
    item parsed — and only as many as :func:`vanishing_is_believable` allows.
    Anything less, and «not listed» means «not read».
 
-2. **The ratings.** The storefront summary of every склейка the кабинет's
-   reviews name, one at a time on a shared, slow bucket, each committed on its
+2. **The ratings.** The storefront summary of every card group (WB's merged card) the
+   workspace's reviews name, one at a time on a shared, slow bucket, each committed on its
    own. A storefront that refuses three in a row is treated as refusing the
    rest: the day's ratings are lost either way, and asking on is how an
    unauthenticated reader gets its address blocked.
 
-No transaction is open across a WB call: each page and each склейка is read
+No transaction is open across a WB call: each page and each card group is read
 first, then written and committed.
 """
 
@@ -65,7 +65,7 @@ PAGE_OVERLAP = 50
 #: is incomplete rather than wrong.
 MAX_SKIP = 199_000
 
-#: Storefront refusals in a row after which the rest of the склейки are skipped.
+#: Storefront refusals in a row after which the rest of the card groups are skipped.
 STOREFRONT_GIVE_UP_AFTER = 3
 
 
@@ -81,13 +81,13 @@ class RatingReader(Protocol):
     """The storefront summary: ``WBStorefrontFeedbacksClient``."""
 
     async def fetch_rating(self, imt_id: int) -> WBStorefrontRating | None:
-        """One склейка's rating summary."""
+        """One card group's rating summary."""
         ...
 
 
 @dataclass(slots=True)
 class HistoryResult:
-    """What one кабинет's run did."""
+    """What one workspace's run did."""
 
     listed: int = 0
     events: int = 0
@@ -100,7 +100,7 @@ class HistoryResult:
 
 
 class ReviewHistory:
-    """Runs both phases for one кабинет."""
+    """Runs both phases for one workspace."""
 
     def __init__(
         self,
@@ -112,14 +112,14 @@ class ReviewHistory:
         workspace_id: uuid.UUID,
         today: date,
     ) -> None:
-        """Bind the collaborators for one кабинет and one day.
+        """Bind the collaborators for one workspace and one day.
 
         Args:
             repo: Review persistence on the caller's session.
-            commit: Commits that session; called after every page and склейка.
-            feedbacks: The кабинет's seller review client.
+            commit: Commits that session; called after every page and card group.
+            feedbacks: The workspace's seller review client.
             storefront: The shared public storefront client.
-            workspace_id: The кабинет.
+            workspace_id: The workspace.
             today: The Moscow date every observation is filed under.
         """
         self._repo = repo
@@ -133,7 +133,7 @@ class ReviewHistory:
         """Walk the reviews, then snapshot the ratings.
 
         The storefront phase runs even when the walk failed part-way: the
-        rating snapshot does not depend on it, and the склейки come from what
+        rating snapshot does not depend on it, and the card groups come from what
         earlier walks recorded as well as this one.
         """
         result = HistoryResult()
@@ -210,7 +210,7 @@ class ReviewHistory:
         await self._commit()
 
     async def _snapshot_ratings(self, result: HistoryResult) -> None:
-        """Read and store every склейка's storefront rating, one at a time."""
+        """Read and store every card group's storefront rating, one at a time."""
         refused_in_a_row = 0
         for imt_id in await self._repo.imt_ids(workspace_id=self._workspace_id):
             try:

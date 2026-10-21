@@ -75,10 +75,10 @@ class FunnelRepository(BaseRepository):
         super().__init__(session)
 
     async def currency_for_sku(self, *, nm_id: int) -> str:
-        """The currency WB values this article's funnel in — its кабинет's; ``""`` unknown.
+        """The currency WB values this article's funnel in — its workspace's; ``""`` unknown.
 
         Not windowed: a window from before WB served sums (2025-09-30) states
-        none, and the кабинет's currency does not change with it.
+        none, and the workspace's currency does not change with it.
         """
         stmt = (
             select(SalesFunnelDaily.currency)
@@ -94,8 +94,8 @@ class FunnelRepository(BaseRepository):
         A day is incomplete when an article SOLD on it and the row still lacks
         WB's own money (``order_sum``) or its matured cohort (``cancel_count``).
         An idle row — no orders — is never one: WB's aggregate omits articles
-        with no activity, so their cohort stays NULL for good (871 such rows
-        on «Демо», 30.06 to 09.09.2026, every one of them all zeros), and
+        with no activity, so their cohort stays NULL for good (in one sampled
+        workspace, every such row over two months was all zeros), and
         counting them would raise an alarm nothing can clear.
         """
         if not nm_ids:

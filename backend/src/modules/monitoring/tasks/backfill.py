@@ -293,7 +293,7 @@ def backfill_funnel_sums(
 
     The same step as :func:`backfill_funnel` — ``advance_funnel`` treats a day
     without the funnel's money as unfinished, so re-walking fills the sums of a
-    кабинет harvested before they were stored. It reports into its own lane,
+    workspace harvested before they were stored. It reports into its own lane,
     ``funnel_sums``, which the profile does not render: a seller whose history
     loaded long ago should not see «Загружаем историю» come back. The watchdog
     restarts it after a deploy all the same.

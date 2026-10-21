@@ -6,8 +6,8 @@ slice of them) and the per-(day, bucket) accumulator such slices are folded
 into. The tiny numeric helpers live here too so every stage rounds and guards
 division-by-zero the same way.
 
-Both carry the кампания's numbers as their primary metrics — an advertising
-column measures a рекламная кампания, not the card on screen — with the viewed
+Both carry the campaign's numbers as their primary metrics — an advertising
+column measures an ad campaign, not the card on screen — with the viewed
 card's own share alongside in :class:`_SkuSlice`, which is what «Общая» and
 «Органика» are built from and what the carts/orders hover splits out.
 """
@@ -50,9 +50,9 @@ class _AdSlice:
     """Advertising metrics of one campaign-day (or a zone slice of it).
 
     Every metric here is the CAMPAIGN's, summed across all its nm_ids: the
-    matrix's advertising columns measure a рекламная кампания, so a conversion
+    matrix's advertising columns measure an ad campaign, so a conversion
     it paid for counts whichever size/colour variant the buyer finally picked
-    («ассоциированные конверсии» — WB books the conversion on the variant, not
+    (WB's "associated conversions" — WB books the conversion on the variant, not
     on the advertised card).
 
     ``order_sum`` is ``None`` when the slice's revenue cannot be attributed to

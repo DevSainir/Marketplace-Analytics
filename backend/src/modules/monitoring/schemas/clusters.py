@@ -37,9 +37,9 @@ class SkuClusterItem(BaseModel):
     as ranking last, so it must never render as 0.
 
     The money is in what the cluster's campaigns' spend is stored in — the
-    кабинет's currency, rouble campaigns converted at the Bank rate of their day.
+    workspace's currency, rouble campaigns converted at the Bank rate of their day.
     A campaign the conversion could not reach (a day past the loaded rates)
-    would add roubles to сомы, so ``spend``/``cpc``/``cpm`` are ``None`` there.
+    would add roubles to soms, so ``spend``/``cpc``/``cpm`` are ``None`` there.
     """
 
     cluster: str = Field(description="Normalized search phrase WB grouped queries under.")

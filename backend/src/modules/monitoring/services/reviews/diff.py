@@ -20,7 +20,7 @@ from src.modules.monitoring.repos import EventDraft, KnownReview
 VANISH_FLOOR = 25
 
 #: Above this share of the live reviews, missing ones are NOT believed. WB
-#: removing two per cent of a кабинет's reviews in one day is not moderation, it
+#: removing two per cent of a workspace's reviews in one day is not moderation, it
 #: is an answer that stopped short — a list WB truncated, an offset that jumped
 #: — and recording it would bury the real disappearances under a false wave.
 VANISH_MAX_SHARE = 0.02
@@ -102,12 +102,12 @@ def diff_exclusions(
     *,
     baseline: bool,
 ) -> tuple[list[EventDraft], dict[str, tuple[bool, str]]]:
-    """Events and state changes from one storefront read of a склейка.
+    """Events and state changes from one storefront read of a card group.
 
     Args:
         seen: :func:`exclusions_seen` of the read.
         known: Our record of those ids; ids we hold no row for are ignored.
-        baseline: The first read of this склейка ever. Its flags become state
+        baseline: The first read of this card group ever. Its flags become state
             and nothing else, because «excluded» on a first read says nothing
             about WHEN — and dating it to today would place it beside whatever
             else today brought.
@@ -167,7 +167,7 @@ def snapshot_row(
     snapshot_date: date,
     seller_api_count: int,
 ) -> dict[str, Any]:
-    """The ``rating_snapshot`` row for one склейка's read."""
+    """The ``rating_snapshot`` row for one card group's read."""
     return {
         "snapshot_date": snapshot_date,
         "workspace_id": workspace_id,

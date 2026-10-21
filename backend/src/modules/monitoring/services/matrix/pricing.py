@@ -45,7 +45,7 @@ def ad_order_sum(orders: int, funnel: MatrixFunnelBase | None) -> float | None:
 
     ``orders`` is the CAMPAIGN's count, all associated size/colour variants
     included (an ad bucket carries no other kind — see :class:`_AdSlice`),
-    because the column measures a рекламная кампания: an order the campaign
+    because the column measures an ad campaign: an order the campaign
     paid for is revenue it brought whichever variant the buyer finally picked.
     It is valued at the viewed card's order unit — the only price a SKU-scoped
     view has, and an approximation whenever the variants are not priced alike.

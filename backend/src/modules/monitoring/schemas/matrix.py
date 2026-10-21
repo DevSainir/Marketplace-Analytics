@@ -1,7 +1,7 @@
 """Day x traffic-bucket metrics-matrix DTOs (the monitoring table's data).
 
 The matrix mirrors the manager's workbook: for every day of the window there
-is one column per traffic bucket («тип получения трафика» x «зона показов»),
+is one column per traffic bucket (traffic type x display zone),
 and one row per metric. ALL values are computed server-side — the frontend
 only formats and renders them (strict rule: no calculations in the frontend).
 """
@@ -17,15 +17,15 @@ from src.modules.monitoring.constants import MAX_MATRIX_DAYS
 #: Traffic buckets, in column order. ``uni_*`` are the unified-bid campaign
 #: («Единая ставка») zones — split from search-cluster stats; ``manual_*`` are
 #: manual-bid campaigns by their enabled zone (``manual_catalog`` is the
-#: CATALOG slice of a search-only campaign: WB «поисковые» campaigns also
-#: deliver in каталог, derived as fullstats - normquery). Единая ставка has no
-#: catalogue bucket: WB reports only its search slice, so a unified «Каталог»
+#: CATALOG slice of a search-only campaign: WB's search campaigns also
+#: deliver in the catalogue, derived as fullstats - normquery). A unified bid has
+#: no catalogue bucket: WB reports only its search slice, so a unified «Каталог»
 #: column could only ever be empty and was removed on 2026-10-05. ``cpc_*``
 #: are the pay-per-click campaigns («CPC»), which WB bills per click rather
-#: than per 1000 показов and whose ставки therefore cannot be read
-#: alongside a CPM campaign's — they get their own «тип получения трафика»
-#: group, split into the same two zones; ``total`` is the funnel-wide «Общая»
-#: column and ``organic`` is «Органика» (общая - реклама).
+#: than per 1000 views and whose bids therefore cannot be read
+#: alongside a CPM campaign's — they get their own traffic-type group, split
+#: into the same two zones; ``total`` is the funnel-wide «Общая» column and
+#: ``organic`` is «Органика» (overall - advertising).
 MATRIX_BUCKETS: tuple[str, ...] = (
     "uni_search",
     "uni_shelves",
@@ -50,15 +50,15 @@ MATRIX_AD_BUCKETS: tuple[str, ...] = (
     "cpc_shelves",
 )
 
-#: «Доля трафика» is normalized WITHIN a «тип получения трафика», so each type
+#: «Доля трафика» is normalized WITHIN a traffic type, so each type
 #: sums to 100% on its own: a unified campaign's zones cannot be a share of a
-#: manual campaign's показы, and a CPC campaign — bought per click — is not
+#: manual campaign's views, and a CPC campaign — bought per click — is not
 #: comparable to either. Maps a bucket to the type it is normalized against.
 _BUCKET_TYPES: tuple[str, ...] = ("uni", "manual", "cpc")
 
 
 def bucket_traffic_type(bucket: str) -> str:
-    """Return the «тип получения трафика» an ad bucket is normalized within.
+    """Return the traffic type an ad bucket is normalized within.
 
     Unknown buckets answer ``"manual"``, which is what the single ``uni``/
     ``manual`` split did before CPC campaigns existed — the fallback only ever
@@ -101,7 +101,7 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "drr_orders",
     "drr_sales",
     "buyout_percent",
-    # Prices & СПП — «Общая»-column only, derived from the price snapshot.
+    # Prices & SPP — «Общая»-column only, derived from the price snapshot.
     "seller_price",
     "customer_price",
     "spp",
@@ -134,7 +134,7 @@ class MatrixDayCurrencies(BaseModel):
     """What each money cell of one day column is counted in.
 
     Two sources, never merged: the order money («Заказы»/«Выкупы» in money) is
-    WB's own funnel sum — in the кабинет's settlement currency — or, on a day WB
+    WB's own funnel sum — in the workspace's settlement currency — or, on a day WB
     served none, the order count at the day's price, in the prices' currency.
     The spend is in whatever each campaign is billed in, fixed at its creation,
     so a bucket that folds two campaigns can hold two codes. ``""`` is a source
@@ -188,7 +188,7 @@ class AssocSkuCount(BaseModel):
 class MatrixAdSkuBase(BaseModel):
     """The viewed card's own share of an ad bucket's metrics.
 
-    An advertising bucket is the whole кампания; these are the part of it
+    An advertising bucket is the whole campaign; these are the part of it
     booked on the card being viewed. «Общая» and «Органика» are built from
     them — the card's own day, and that day minus what the ads brought — and
     the carts/orders hover reports the rest as the associated share.
@@ -205,10 +205,10 @@ class MatrixAdBucketBase(BaseModel):
     """The editable input facts of one ``(day, ad-bucket)`` cell.
 
     Every metric here is the CAMPAIGN's, across all the nm_ids it delivered
-    for: an advertising column measures a рекламная кампания, so its spend, its
+    for: an advertising column measures an ad campaign, so its spend, its
     traffic and its conversions are the campaign's own — including the
     conversions WB booked on associated size/colour variants
-    («ассоциированные конверсии»), which are orders the campaign paid for and
+    (WB's "associated conversions"), which are orders the campaign paid for and
     brought.
 
     ``order_sum`` is ``None`` for split (unified / dual-placement) campaigns
@@ -268,7 +268,6 @@ class MatrixFunnelBase(BaseModel):
     orders): the order money then falls back to ``seller_price`` converted by
     ``price_rate`` — the Bank rate of the day, WB's own — into
     ``order_currency``, or, without a rate, stays in ``price_currency``.
-    See wildberries-api/references/currencies.md.
     """
 
     open_count: int = 0

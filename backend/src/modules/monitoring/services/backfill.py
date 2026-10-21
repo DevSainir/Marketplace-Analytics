@@ -21,7 +21,7 @@ The funnel lane does double duty and that is deliberate. It INSERTs days WB
 still serves (a rolling 365) and UPDATEs matured ``buyout_count``/``cancel_count``
 on days that lack them — which is «Процент выкупа», and therefore what
 «Выкупы, ₽» and «ДРР от продаж» divide by. A day whose rows carry no cohort is a
-blank ДРР cell on the seller's screen.
+blank DRR cell on the seller's screen.
 """
 
 from __future__ import annotations

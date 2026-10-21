@@ -107,9 +107,9 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
         for day in base.days:
             day_ad = _day_ad_from_base(day)
             bucket_accs = {name: _acc_from_base(b) for name, b in day.buckets.items()}
-            # «Доля трафика» is normalized within each «тип получения трафика»
-            # (Единая / Ручной / CPC each sum to 100%), so precompute per-type
-            # total Показы.
+            # «Доля трафика» is normalized within each traffic type (unified /
+            # manual / CPC each sum to 100%), so precompute per-type total
+            # views.
             type_views: dict[str, int] = {}
             for name, b in day.buckets.items():
                 traffic_type = bucket_traffic_type(name)
@@ -171,10 +171,10 @@ def build_metrics_matrix(
         price_snapshots: The SKU's seller/customer price snapshots.
         stock_daily: The SKU's per-day stock totals.
         campaign_totals: Per-(campaign, day) metrics across all nm_ids — the
-            кампания the advertising columns measure.
+            campaign the advertising columns measure.
         campaign_search_totals: The search-zone slice of those totals.
         price_currency: What the prices are stated in.
-        rates: The Bank rates into the кабинет's currency.
+        rates: The Bank rates into the workspace's currency.
 
     Returns:
         A fully computed :class:`MetricsMatrixRead`.

@@ -1,10 +1,9 @@
 """Which currency each money cell is in, and which cells may be computed at all.
 
-A кабинет that settles in KGS was billed for ads in RUB until 20.08.2026 and
+A workspace that settles in KGS was billed for ads in RUB until 20.08.2026 and
 in KGS after; its order money is WB's funnel sum in KGS. Rouble spend is
 converted where it is stored, at the Bank of Russia rate of its day — WB's own
-rule — so normally every cell is in one currency (``repos/ad_money.py``,
-wildberries-api/references/currencies.md).
+rule — so normally every cell is in one currency (``repos/ad_money.py``).
 
 What is left here is the guard for a row the conversion could not reach — a
 rouble day past the loaded rates: a figure that would add or divide two
@@ -39,10 +38,10 @@ def spend_is_mixed(codes: list[str]) -> bool:
 
 
 def pairs_with_orders(codes: list[str], day: MatrixDayBase) -> bool:
-    """Whether spend in ``codes`` may be divided by the day's order money (ДРР).
+    """Whether spend in ``codes`` may be divided by the day's order money (DRR).
 
     Only when both are one stated currency — a rouble row the conversion could
-    not reach would divide roubles by сомы.
+    not reach would divide roubles by soms.
     """
     _price, orders = order_unit(day.funnel)
     return bool(orders) and codes == [orders]

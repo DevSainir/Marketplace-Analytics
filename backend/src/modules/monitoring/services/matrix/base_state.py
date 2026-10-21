@@ -88,7 +88,7 @@ def derive_base_state(
         stock_daily: The SKU's per-day stock totals; applied only to their
             exact snapshot days for the read-only stock/in-transit rows.
         campaign_totals: Per-(campaign, day) metrics across ALL nm_ids — the
-            кампания itself, which is what the advertising columns are built
+            campaign itself, which is what the advertising columns are built
             from. A campaign-day missing from here falls back to the viewed
             card's own rows standing in for the whole campaign.
         campaign_search_totals: The search-zone slice of those same totals,
@@ -104,7 +104,7 @@ def derive_base_state(
         price_currency: What the prices are stated in — the currency of the
             order money on a day WB served no funnel sum for and ``rates``
             cannot convert.
-        rates: The Bank rates into the кабинет's currency (``rates.currency``):
+        rates: The Bank rates into the workspace's currency (``rates.currency``):
             a day WB served no funnel sum for values its orders at the seller
             price converted at the day's rate, as WB itself would have.
 
@@ -116,7 +116,7 @@ def derive_base_state(
     ordered_prices = sorted(price_snapshots or [], key=lambda s: s.stat_date)
     ordered_stock = sorted(stock_daily or [], key=lambda s: s.stat_date)
 
-    # One slice per (campaign, day) — the WHOLE кампания, which is what an
+    # One slice per (campaign, day) — the WHOLE campaign, which is what an
     # advertising column measures.
     campaign_day: dict[tuple[int, date], _AdSlice] = {
         (total.campaign_id, total.stat_date): _AdSlice(

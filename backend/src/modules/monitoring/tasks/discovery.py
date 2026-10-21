@@ -69,7 +69,7 @@ async def _discover_and_harvest_workspace(
     (no token, or one whose categories do not include «Контент»), the harvest
     falls back to the SKUs already registered to the workspace and runs every
     other source over them; only a workspace with no catalogue at all has
-    nothing left to harvest. Letting it abort instead cost the «Демо»
+    nothing left to harvest. Letting it abort instead cost a
     workspace every nightly harvest from the day WB stopped serving
     ``/content/v2/get/cards/list`` on the analytics scope: funnel, advertising,
     stocks and prices all went unharvested because the SKU LIST could not be

@@ -8,7 +8,7 @@ values through :func:`_shown`, so a ratio never contradicts the cells it
 divides.
 
 No formula here adds or divides money of two currencies: a spend sum over
-campaigns billed differently, and a ДРР whose spend and order money differ,
+campaigns billed differently, and a DRR whose spend and order money differ,
 are «—» (see :mod:`~src.modules.monitoring.services.matrix.currency`).
 """
 
@@ -39,7 +39,7 @@ _SPEND_METRICS: frozenset[str] = frozenset(
 def _shown(day: MatrixDayBase, bucket: str, metric: str, computed: float | None) -> float | None:
     """The value a cell actually SHOWS — a manual display override wins.
 
-    The ДРР rows divide the spend and revenue printed above them in the same
+    The DRR rows divide the spend and revenue printed above them in the same
     column, so they resolve their inputs through this. Cells whose value cannot
     be back-solved into a fact (the «Общая» spend roll-up, a buyout volume) are
     stored as display overrides; without this they would be painted on screen
@@ -54,14 +54,14 @@ def _ad_cell(
 ) -> float | None:
     """Compute one metric for an advertising bucket cell.
 
-    ``bid_type_views`` is the total Показы of the bucket's bid type (unified or
-    manual) that day — «Доля трафика» is normalized WITHIN a type, so Единая and
-    Ручной each sum to 100%.
+    ``bid_type_views`` is the total views of the bucket's bid type (unified or
+    manual) that day — «Доля трафика» is normalized WITHIN a type, so unified and
+    manual each sum to 100%.
 
     ``day`` carries the price and the lagged buyout percent the revenue rows are
     derived from (see :func:`ad_order_sum`).
 
-    Every metric here is the кампания's — an ad bucket carries no other kind
+    Every metric here is the campaign's — an ad bucket carries no other kind
     (see :class:`~...slices._AdSlice`) — so every ratio describes what the
     campaign spent and brought, not the fraction of it that happened to be
     booked on the card on screen. The card's own share is emitted separately by
@@ -137,10 +137,10 @@ def _total_cell(
     """Compute one metric for the «Общая» column (funnel + cross-campaign ads).
 
     Count cells require a REAL funnel row (``has_funnel``) — a price-only day
-    (the current day, funnel not served yet) renders its prices/СПП while the
+    (the current day, funnel not served yet) renders its prices/SPP while the
     counts stay blank.
 
-    The two ДРР rows read their spend and revenue through :func:`_shown`: this
+    The two DRR rows read their spend and revenue through :func:`_shown`: this
     column's «Затраты, ₽» is a cross-campaign roll-up and its «Выкупы, ₽» a
     derived volume, neither of which back-solves into a fact, so both are
     edited as display overrides — and a ratio that ignored them would contradict
@@ -208,31 +208,31 @@ def _total_cell(
             return None if stock is None else float(stock.in_way_to_client)
         case "stock_from_client":
             return None if stock is None else float(stock.in_way_from_client)
-        case "stock_total":  # остаток + в пути к клиенту + в пути от клиента
+        case "stock_total":  # in stock + in transit to the customer + from the customer
             if stock is None:
                 return None
             return float(stock.quantity + stock.in_way_to_client + stock.in_way_from_client)
         case "ctr":
             # The ADVERTISING click-through rate, rolled up across the day's
-            # campaigns — the same clicks over the same показы each ad bucket
+            # campaigns — the same clicks over the same views each ad bucket
             # divides, summed. It is emitted here even though this column's
             # «Клики» row shows the FUNNEL's clicks (organic included), so the
-            # two do not reconcile: read it as «CTR рекламы за день», which is
+            # two do not reconcile: read it as "the day's ad CTR", which is
             # what every ad bucket beside it already means.
             return None if day_ad is None else _percent(day_ad.clicks, day_ad.views)
         case "ad_clicks":  # the CTR's numerator, for its hover
             return None if day_ad is None else float(day_ad.clicks)
         case "cpm":
-            # The day's whole advertising bill over the показы it bought —
+            # The day's whole advertising bill over the views it bought —
             # built the same way as «CTR» above, as a ratio of SUMS.
             #
             # This column used to be blank on the grounds that a CPC campaign's
-            # thousand-показов price cannot be averaged against a CPM one's.
+            # thousand-views price cannot be averaged against a CPM one's.
             # That objection is about averaging the campaigns' own CPMs, which
-            # this is not: spend over показы is what the seller actually paid
-            # per thousand показов that day, and it stays a fact whatever the
-            # billing models underneath it are. Read it as «CPM рекламы за
-            # день», the way the CTR row beside it is read.
+            # this is not: spend over views is what the seller actually paid
+            # per thousand views that day, and it stays a fact whatever the
+            # billing models underneath it are. Read it as "the day's ad
+            # CPM", the way the CTR row beside it is read.
             cpm = _ratio(day_ad.spend if day_ad else None, day_ad.views if day_ad else None)
             return None if cpm is None else round(cpm * 1000, 2)
         case _:
@@ -243,7 +243,7 @@ def _total_cell(
 def _organic_cell(
     key: str, funnel: MatrixFunnelBase | None, day_ad: _SkuSlice | None
 ) -> float | None:
-    """Compute one metric for the «Органика» column (общая - реклама).
+    """Compute one metric for the «Органика» column (overall - advertising).
 
     ``day_ad`` is the CARD's own advertising day, never the campaigns' — the
     funnel counts are the card's, so subtracting a campaign's all-variant
@@ -266,10 +266,10 @@ def _organic_cell(
             return None
 
 
-#: The zone buckets of one campaign, per «тип получения трафика» group. «ДРР от
+#: The zone buckets of one campaign, per traffic-type group. «ДРР от
 #: продаж» is a CAMPAIGN-level metric (WB never attributes buyouts to a zone):
 #: every zone bucket of a group carries the same campaign-level value — the
-#: group's total Затраты over the day's total «Выкупы, ₽» — and the frontend
+#: group's total spend over the day's total «Выкупы, ₽» — and the frontend
 #: renders the group as ONE merged cell.
 _CAMPAIGN_ZONE_GROUPS: tuple[tuple[str, ...], ...] = (
     ("uni_search", "uni_shelves"),

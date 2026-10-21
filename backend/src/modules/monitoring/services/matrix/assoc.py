@@ -1,6 +1,6 @@
 """Apportion associated-variant conversions across a split campaign-day.
 
-WB reports «ассоциированные конверсии» only at campaign level, so when a
+WB reports associated conversions only at campaign level, so when a
 campaign-day is split across display zones the associated variants' counts have
 no exact zone attribution. The helpers here allocate them proportionally while
 keeping every leg's rows summing exactly to the leg totals.

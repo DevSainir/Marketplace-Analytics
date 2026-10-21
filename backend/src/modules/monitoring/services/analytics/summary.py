@@ -167,7 +167,7 @@ class SummaryAnalytics:
                     # refusals at pickup, so any ratio built from it answers a
                     # different question than «Процент выкупа» — the old
                     # `buyout_conversion` divided by returns and read 90% where WB
-                    # said ~30% (nm 953770957, live 2026-07-16). «Процент выкупа»
+                    # said ~30% (one card, checked 2026-07-16). «Процент выкупа»
                     # is the matrix's `buyout_percent`; see SkuSummaryItem.
                     total_ad_spend=ads.spend if ads else 0.0,
                     total_ad_clicks=ads.clicks if ads else 0,
@@ -190,11 +190,11 @@ class SummaryAnalytics:
     ) -> SkuLookupResponse:
         """Resolve a seller vendor code (or fragment) to matching SKUs.
 
-        Backs the frontend's "или артикулу продавца" search: it turns a code
-        like ``"M-TRX01-BLK"`` (or a prefix like ``"M-TRX01"``) into the
-        concrete ``nm_id``\\ (s) the other endpoints key on. Matching is
-        case-insensitive and substring-based, so a partial code fans out to every
-        colourway.
+        Backs the frontend's search by seller article code («или артикулу
+        продавца»): it turns a code like ``"M-TRX01-BLK"`` (or a prefix like
+        ``"M-TRX01"``) into the concrete ``nm_id``\\ (s) the other endpoints key on.
+        Matching is case-insensitive and substring-based, so a partial code fans
+        out to every colourway.
 
         Args:
             vendor_code: The vendor code or fragment to search for.

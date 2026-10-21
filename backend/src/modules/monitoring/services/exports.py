@@ -7,7 +7,7 @@ imports these exclusively via ``contract.py``.
 They exist for the finreports P&L, which needs figures the weekly settlement
 report cannot supply:
 
-* **Orders.** The settlement only sees what was bought out; заказы live in the
+* **Orders.** The settlement only sees what was bought out; orders live in the
   sales-funnel history the monitoring harvest collects.
 * **Advertising.** The settlement carries advertising only as account-level
   «WB Продвижение» invoices with no ``nm_id``. The per-SKU spend comes from the
@@ -168,7 +168,7 @@ async def funnel_coverage(
 ) -> tuple[date | None, date | None]:
     """Return the funnel days actually on record inside a window.
 
-    Lets a consumer say «заказы известны с 2026-06-11» instead of printing 0
+    Lets a consumer say "orders known since 2026-06-11" instead of printing 0
     orders for two years the funnel never saw.
 
     Args:
@@ -217,7 +217,7 @@ async def stock_day_span(
 
     Stock is a point-in-time snapshot with no carry-over: a day WB never
     reported simply has no rows, and showing it as an empty balance would read
-    as «всё распродано». The span bounds the balance table's day picker so only
+    as "sold out". The span bounds the balance table's day picker so only
     days that were actually captured can be asked for.
 
     Args:
@@ -313,7 +313,7 @@ async def load_vendor_codes(session: AsyncSession, *, workspace_id: uuid.UUID) -
 
 
 async def load_card_photos(session: AsyncSession, *, workspace_id: uuid.UUID) -> dict[int, str]:
-    """Return the workspace's catalogue thumbnails («главное фото» per SKU).
+    """Return the workspace's catalogue thumbnails (the main photo per SKU).
 
     The finreports P&L shows one row per SKU and has no catalogue of its own —
     the settlement report carries an article string and nothing else. This is
@@ -451,7 +451,7 @@ async def load_campaign_ids_for_workspace(
         since_days: How far back a campaign must have served to count.
         nm_ids: Restrict to campaigns that served these cards. ``None`` keeps
             the whole workspace's catalogue, which is what the exports want and
-            what the A/Б poller deliberately does not.
+            what the A/B poller deliberately does not.
 
     Returns:
         Campaign ids, ascending.

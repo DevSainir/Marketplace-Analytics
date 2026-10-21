@@ -9,9 +9,9 @@ The read DTOs and the service type are re-exported for future consumers; the
 finreports P&L, which needs per-SKU orders and advertising spend the settlement
 report does not carry, and by its «Баланс по товарным остаткам» table, which
 prices the stock still sitting in the warehouses. The ``*_sku_days`` loaders and
-``load_workspace_catalog`` feed the heatmap, which paints every SKU of a кабинет
+``load_workspace_catalog`` feed the heatmap, which paints every SKU of a workspace
 day by day. ``load_ad_campaign_facts`` and its ``AdCampaign*`` rows feed the
-advertising page, which cuts one кабинет's spend by zone, day and article and
+advertising page, which cuts one workspace's spend by zone, day and article and
 needs all of those cuts taken from the same rows.
 """
 

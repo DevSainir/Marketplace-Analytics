@@ -13,10 +13,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-#: A РК campaign type: Единая / Руч. поиск / Руч. полки / CPC.
+#: An ad campaign type: «Единая» / «Руч. поиск» / «Руч. полки» / «CPC».
 RkType = Literal["uni", "manual_search", "manual_shelves", "cpc"]
 
-#: «Меняли цену?» answers: повысили / понизили (no «Нет» — an unmoved price is
+#: «Меняли цену?» answers: raised / lowered (no «Нет» — an unmoved price is
 #: simply left unanswered).
 PriceChange = Literal["up", "down"]
 
@@ -51,7 +51,7 @@ class DayActionState(BaseModel):
 
     @model_validator(mode="after")
     def _distinct_rk_types(self) -> DayActionState:
-        """Reject the same campaign type in both РК slots.
+        """Reject the same campaign type in both ad campaign slots.
 
         The two dropdowns are synced on screen, so this only fires on a
         malformed request — but a day claiming «Единая» twice is meaningless,

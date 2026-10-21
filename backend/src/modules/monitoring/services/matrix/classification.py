@@ -4,8 +4,8 @@ Campaign classification (via the ``Campaign`` dimension's adverts-v2 fields):
 
 * ``manual`` bid + only the SHELVES placement -> the campaign's whole totals
   go to «Руч. полки».
-* ``manual`` bid + only the SEARCH placement -> WB «поисковые» campaigns also
-  deliver in the CATALOG zone (verified live: fullstats runs ~10-13% above the
+* ``manual`` bid + only the SEARCH placement -> WB's search campaigns also
+  deliver in the CATALOG zone (verified against WB's data: fullstats runs ~10-13% above the
   normquery sum), so the search slice goes to «Руч. поиск» and the remainder
   to «Руч. каталог». Without a harvested search slice (legacy rows) the whole
   day stays in «Руч. поиск» — misattributing ~90% of a search campaign to
@@ -15,7 +15,7 @@ Campaign classification (via the ``Campaign`` dimension's adverts-v2 fields):
   (``fullstats - search``, clamped at zero) to «Полки».
 
 A ``cpc`` payment type overrides all of it: WB bills those campaigns per CLICK
-rather than per 1000 показов, so their ставки, their CPM and their «Доля
+rather than per 1000 views, so their bids, their CPM and their «Доля
 трафика» share nothing with a CPM campaign's and belong in their own «CPC»
 group («Поиск» | «Полки»), whatever the bid type says. A dual-placement CPC
 campaign splits on the same normquery slice; a single-placement one keeps its
@@ -28,7 +28,7 @@ realistically has one — at most two — campaigns actually bringing traffic. A
 campaign-day must first spend at least :data:`_MIN_CAMPAIGN_DAY_SPEND` to count
 as delivering (:data:`_MIN_CPC_CAMPAIGN_DAY_SPEND` for a pay-per-click campaign,
 which buys the same delivery for a quarter of the money); of those, only the
-leading campaign (by Показы) is kept, plus a second campaign when its Показы clear
+leading campaign (by views) is kept, plus a second campaign when its views clear
 :data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. A surviving campaign
 keeps ALL its zones (a unified campaign's WB search/shelves split is shown even
 at 99/1). Cut campaigns are excluded from «Общая»/«Органика» too.
@@ -85,7 +85,7 @@ def _split_search(
 ) -> tuple[_AdSlice, _AdSlice]:
     """Split a dual-zone campaign-day into (search, shelves) slices.
 
-    Both sides are the whole кампания's. The search slice is clamped per-metric
+    Both sides are the whole campaign's. The search slice is clamped per-metric
     at the campaign total (the two sources are collected at different times, so
     tiny attribution drifts can put a click in one report before the other); the
     shelves slice is the remainder. Zone-attributed order revenue does not
@@ -187,11 +187,11 @@ def _classify(
             return [("uni_search", search_slice), ("uni_shelves", shelves_slice)]
         return [("manual_search", search_slice), ("manual_shelves", shelves_slice)]
     if unified:
-        # Defensive: live unified campaigns always run in both zones, but obey
+        # Defensive: unified campaigns seen so far always run in both zones, but obey
         # the flags if WB ever ships a single-zone unified campaign.
         return [("uni_search" if in_search else "uni_shelves", total)]
     if in_search:
-        # WB «поисковые» campaigns also deliver in the CATALOG zone: the
+        # WB's search campaigns also deliver in the CATALOG zone: the
         # normquery slice is «Поиск», the remainder «Каталог». Without a
         # harvested slice for this campaign-day (legacy rows), keep the whole
         # day in «Руч. поиск» — a missing slice must not shove ~90% of a
@@ -247,53 +247,46 @@ def _bucket_base(
     )
 
 
-#: A second campaign is kept only when its Показы are at least this fraction of
+#: A second campaign is kept only when its views are at least this fraction of
 #: the LEADING campaign's; below it the campaign is noise and cut («—»). Chosen
-#: from the live data: real second campaigns sit at ≥0.145 of the leader (with
-#: thousands of ₽ and 100+ clicks), noise seconds at ≤0.022 — a wide empty gap,
-#: so 0.10 separates them robustly. Tunable.
+#: from observed data: genuine second campaigns sat at ≥0.145 of the leader (with
+#: real spend and 100+ clicks), noise seconds at ≤0.022 — a wide empty gap, so
+#: 0.10 separates them robustly. Tunable.
 _SECONDARY_MIN_CAMPAIGN_VIEW_RATIO = 0.10
 
-#: Minimum Затраты for a campaign-DAY to count as delivering at all; below it
-#: the day is cut («—»). Per DAY, not per campaign: the live data shows a real
-#: campaign is idle on most of its days (one spending 206 157 ₽ over 63 days,
-#: peaking at 10 118 ₽/day, still trickled 3-16 ₽/day for a whole week) — so
-#: "is this campaign real?" cannot answer "did it deliver on this day?".
+#: Minimum spend for a campaign-DAY to count as delivering at all; below it
+#: the day is cut («—»). Per DAY, not per campaign: in observed data a genuine
+#: campaign is idle on most of its days (a large one, spending thousands of ₽ a
+#: day at its peak, still trickled a few ₽ a day for a whole week) — so "is this
+#: campaign real?" cannot answer "did it deliver on this day?".
 #:
-#: Chosen from the live spend distribution of campaign-days (Затраты per
-#: campaign x SKU x day, all zones):
-#:
-#:     <25 ₽      502 days, avg 4-22 Показы    <- residual trickle
-#:     25-100 ₽    71 days, avg ~190 Показы
-#:     100-200 ₽   19 days, avg ~520 Показы
-#:     >=200 ₽    637 days, avg 16 390 Показы  <- real delivery
+#: Chosen from the observed spend distribution of campaign-days (spend per
+#: campaign x SKU x day, all zones): the days under 25 ₽ are a residual trickle
+#: of a few dozen views at most, the 25-200 ₽ band is thin, and the days at
+#: 200 ₽ and above carry thousands of views — real delivery.
 #:
 #: Every noise campaign (one that never delivers on any day) peaks below 200 ₽,
-#: so this floor excludes them entirely, while a real campaign's genuinely
-#: active days sit far above it — the median active day spends 1 223 ₽, i.e.
-#: 10x the floor. WB's own CPM floor (~150-300 ₽ per 1000 Показы) puts 200 ₽ at
-#: roughly 700-1300 Показы: about the least a campaign can spend in a day and
-#: still be meaningfully in the auction. Tunable.
+#: so this floor excludes them entirely, while a genuine campaign's active days
+#: sit far above it — the median active day spends about 10x the floor. WB's
+#: own CPM floor (~150-300 ₽ per 1000 views) puts 200 ₽ at roughly 700-1300
+#: views: about the least a campaign can spend in a day and still be
+#: meaningfully in the auction. Tunable.
 _MIN_CAMPAIGN_DAY_SPEND = 200.0
 
 #: The same floor for a PAY-PER-CLICK campaign, which buys the same delivery for
 #: a fraction of the money and would otherwise be cut as trickle on days it
-#: plainly ran. Derived, not picked: the floor is a proxy for «did this campaign
-#: deliver», and on the live data a CPC campaign's показы cost about a quarter of
-#: a CPM campaign's (20.08.2026, card M-TRX01-CHK: CPC campaign 230 ₽ per 1000
-#: показы against the manual campaign's 630 ₽ on the same card and day), so the
-#: same bar converts to ~50 ₽.
+#: plainly ran. Derived, not picked: the floor is a proxy for "did this campaign
+#: deliver", and in observed data a CPC campaign's views cost about a quarter of
+#: a CPM campaign's (a CPC and a manual campaign compared on the same card and
+#: day), so the same bar converts to ~50 ₽.
 #:
-#: The live CPC campaign-day-cards separate even more sharply than the CPM ones
+#: Observed CPC campaign-day-cards separate even more sharply than the CPM ones
 #: did, because WB bills these per click and a day with no clicks costs nothing:
-#:
-#:     0 ₽        16 days, avg 4 показы, 0 кликов   <- never delivered
-#:     166-285 ₽   3 days, 334-1158 показы, 19-114 кликов
-#:     8 556 ₽     1 day, 10 491 показы, 671 кликов
-#:
-#: — an empty band from 0 to 166 ₽, so 50 ₽ separates them with room on both
-#: sides. Without it the 166.50 ₽ / 646 показы / 74 клика day of campaign
-#: 97455941 read as noise and the «CPC» column stayed blank on that card.
+#: the days that never delivered cost 0 ₽ with a handful of views and no clicks,
+#: while every delivering day cost well over 150 ₽ with hundreds of views and
+#: dozens of clicks or more — an empty band above zero, so 50 ₽ separates them
+#: with room on both sides. Without it a plainly delivering CPC day read as noise
+#: and the «CPC» column stayed blank on that card.
 #: Tunable.
 _MIN_CPC_CAMPAIGN_DAY_SPEND = 50.0
 
@@ -318,13 +311,13 @@ def _select_day_buckets(
     """Keep only the significant campaign(s) for a day, cutting the noise.
 
     A SKU realistically has one — at most two — campaigns actually bringing
-    traffic (a paused campaign can still deliver, so status is ignored; only real
+    traffic (a paused campaign can still deliver, so status is ignored; only actual
     paid delivery counts). A campaign-day must first clear
     :data:`_MIN_CAMPAIGN_DAY_SPEND` ON THIS CARD to count as delivering at all — a real
     campaign spends thousands of ₽ on the days it runs, so a few ₽ of residual
     trickle is not a campaign the SKU's traffic should be attributed to.
-    Survivors are ranked by Показы; the leader is kept, and a second is kept
-    only when its Показы are at least
+    Survivors are ranked by views; the leader is kept, and a second is kept
+    only when its views are at least
     :data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. Everything else is
     dropped («—»).
 
@@ -343,12 +336,12 @@ def _select_day_buckets(
     """
     # Selection reads the CARD's own delivery, never the campaign's. A campaign
     # promoting a sibling variant books associated conversions here with no
-    # traffic and no spend of its own (live: this card carries 2 orders of a
-    # campaign that spent 6 483 ₽ on another card) — its column belongs on the
-    # card it advertises, not on this one, and ranked by campaign Показы it
-    # would out-rank the campaign that actually runs here. What the surviving
-    # column then SHOWS is the whole кампания; what puts it on this page is the
-    # card's own share of it.
+    # traffic and no spend of its own (seen in practice: a card carrying a couple of
+    # orders from a campaign whose whole spend went to another card) — its column
+    # belongs on the card it advertises, not on this one, and ranked by campaign
+    # views it would out-rank the campaign that actually runs here. What the
+    # surviving column then SHOWS is the whole campaign; what puts it on this page
+    # is the card's own share of it.
     candidates = [
         (total, legs)
         for total, legs in campaigns_today

@@ -32,8 +32,8 @@ class Campaign(Base):
         status_label: Normalized status string for filtering (see
             :data:`WB_STATUS_LABELS`): ``active`` / ``paused`` / ``completed`` /
             ``ready`` / ``declined`` / ``deleting`` / ``unknown``.
-        bid_type: WB bid model — ``unified`` (единая ставка) or ``manual``
-            (ручная ставка); ``None`` until the adverts-v2 sync has run.
+        bid_type: WB bid model — ``unified`` (unified bid) or ``manual``
+            (manual bid); ``None`` until the adverts-v2 sync has run.
         placement_search: Whether the campaign shows in the search zone
             («Поиск»); ``None`` until synced.
         placement_recommendations: Whether the campaign shows in the
