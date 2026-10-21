@@ -13,7 +13,7 @@
 # target — the same tag is re-pushed on every patch release — so an image built
 # from it today and one built next week are different images with the same name,
 # and neither the lock file nor CI can tell. The digest makes the base as
-# reproducible as the dependencies uv resolves into it (register P1.8).
+# reproducible as the dependencies uv resolves into it.
 #
 # The cost is that a digest goes stale: pinning opts OUT of the automatic
 # security patches a floating tag delivers. That is why `.github/workflows/
@@ -46,8 +46,8 @@ RUN npm run build
 #
 #   docker build --target release -o type=local,dest=<dir> frontend/
 #
-# and the deploy installs that directory on the server beside the previous one
-# (.github/workflows/deploy.yml). Keeping the bundle OUT of the runtime image
+# and the deploy installs that directory beside the previous one (`make
+# frontend-release` does the same locally). Keeping the bundle OUT of the runtime image
 # below is the entire point: a new SPA build then leaves the runtime image
 # byte-identical, so `docker compose up -d frontend` is a no-op and the one
 # nginx container holding :443 is never recreated. It used to be recreated on

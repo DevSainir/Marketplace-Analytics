@@ -34,7 +34,7 @@ const CURRENCY_SIGNS = { KGS: 'с', RUB: '₽' }
  * the rouble, the ISO code for anything else.
  *
  * Every figure carries its own sign — «57 600с», «4 120₽» — rather than a
- * heading saying «, KGS» over a column. A Kyrgyz кабинет holds money in two
+ * heading saying «, KGS» over a column. A Kyrgyz workspace holds money in two
  * currencies at once (settled in soms, priced in roubles, advertised in
  * whatever each campaign bills in), and a sign on the figure is the one place
  * a reader cannot miss it. A sum of both — spend across WB's 2026-08-20 move of

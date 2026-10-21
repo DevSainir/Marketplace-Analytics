@@ -97,9 +97,8 @@ services:
     #
     # On 2026-09-10 a CI job emptied production's monitoring schema and the
     # database recorded nothing about it — the cause had to be reconstructed
-    # from relfilenode numbers and tuple counters (P2.9 in
-    # docs/security/HARDENING.md). The truncate guard installed with that entry
-    # covers TRUNCATE; `log_statement=ddl` covers the other way a table's
+    # from relfilenode numbers and tuple counters. The truncate guard installed
+    # after that covers TRUNCATE; `log_statement=ddl` covers the other way a table's
     # contents leave — DROP and ALTER, which fire no trigger. It logs schema
     # changes only, so the cost is a handful of lines per migration rather than
     # one per query.
@@ -229,7 +228,7 @@ services:
       # cross every workspace and bind no tenant, so once the row-level
       # security policies are applied their queries would raise. Pointing the
       # shared value at `marketplace_app` would therefore break the next deploy
-      # and the next harvest, not just tighten the API (register P2.4/P2.5).
+      # and the next harvest, not just tighten the API.
       #
       # These two overrides are how the API alone changes identity. Unset, they
       # fall through to the shared value and nothing differs — so this is inert
@@ -306,8 +305,7 @@ services:
     cpus: 0.5
     # Internet-facing, so it keeps nothing it could use if subverted: no
     # capabilities (it listens on 8080/8443 inside, so it needs none), no
-    # writable filesystem, no privilege gain. Same posture as the analyst
-    # gateway, which runs the same software.
+    # writable filesystem, no privilege gain.
     read_only: true
     tmpfs:
       - /tmp
@@ -367,10 +365,10 @@ services:
         condition: service_healthy
     volumes:
       # The release this nginx serves: the built SPA plus the config that
-      # serves it, installed by the deploy as `releases/<sha>/` with a
-      # `current` symlink pointing at one of them
-      # (.github/workflows/deploy.yml). Read-only, because nothing in the
-      # container writes here — the deploy does, from the host.
+      # serves it, installed as `releases/<sha>/` with a `current` symlink
+      # pointing at one of them (`make frontend-release` stages one locally).
+      # Read-only, because nothing in the container writes here — the host
+      # does.
       #
       # A host directory rather than a named volume for one reason: the flip is
       # a single atomic rename(2) over the symlink, done from the host where

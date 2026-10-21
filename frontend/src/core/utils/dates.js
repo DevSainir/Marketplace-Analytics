@@ -18,7 +18,7 @@ export function isoLocalDate(date) {
 /**
  * YYYY-MM-DD for `days` days ago (0 = today), today being the **Moscow** day.
  *
- * The service runs on Moscow time (`core/utils/moscow.js`): a seller in Бишкек
+ * The service runs on Moscow time (`core/utils/moscow.js`): a seller in Bishkek
  * at 01:00 is still on yesterday in WB's cabinet, and so are we. The step back
  * is calendar arithmetic, so no zone can move it.
  */

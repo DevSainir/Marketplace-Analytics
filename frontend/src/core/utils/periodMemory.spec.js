@@ -1,7 +1,7 @@
 /**
  * How a page's period is remembered between visits — one rule for every page.
  *
- * Kept for an hour, per page and per кабинет; a window that meant «the latest
+ * Kept for an hour, per page and per workspace; a window that meant «the latest
  * N days» comes back on the newest day there is now. The owner's rule that
  * started this: a period picked on the monitoring page and another on the P&L
  * must each come back as it was, not overwrite one another.

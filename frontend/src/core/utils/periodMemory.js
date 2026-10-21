@@ -8,8 +8,8 @@
  * the next working session, where yesterday's window would be a stale default
  * nobody chose.
  *
- * Kept per page AND per кабинет: a window picked on the P&L must not move the
- * monitoring page, and one кабинет's history says nothing about another's.
+ * Kept per page AND per workspace: a window picked on the P&L must not move the
+ * monitoring page, and one workspace's history says nothing about another's.
  *
  * A window that ended on the newest day the page had data for meant «the
  * latest N days», so it comes back moved onto the newest day there is now;

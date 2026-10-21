@@ -9,9 +9,9 @@
  *
  * Nothing ticked means no filter at all, which is what a seller opening a page
  * expects: every article, not none. «Выбрать все» ticks (or clears) what the
- * search currently shows, so «найти все костюмы и отметить» is two actions.
+ * search currently shows, so "find every suit and tick them" is two actions.
  *
- * A кабинет can hold a thousand articles, so the list draws at most
+ * A workspace can hold a thousand articles, so the list draws at most
  * {@link RENDER_LIMIT} of them and says so — the search is how a seller finds
  * the rest, and a thousand checkboxes in a popover are unusable anyway.
  *

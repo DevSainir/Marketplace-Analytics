@@ -184,7 +184,7 @@
  *
  * Replaces the native `title`, which waits about a second, renders in the OS
  * font wherever the cursor is, cannot be styled, and does not exist on touch —
- * «навожу, ничего нет» is what that delay feels like.
+ * "I hover and nothing is there" is what that delay feels like.
  *
  * The bubble is NOT a descendant of the icon: it is teleported to `<body>` and
  * placed in fixed coordinates, because the metric labels live inside the result

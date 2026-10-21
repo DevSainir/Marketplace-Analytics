@@ -5,8 +5,8 @@
  * been open across one asks for chunks that no longer exist and dies on the
  * next lazy route. One full page load fixes it — but it has to load the page
  * the person was GOING to. Reloading the current URL, which this used to do,
- * fetched the new build and left them exactly where they clicked from: «что-то
- * прогружает, обновляет, но по итогу остаётся на исходной странице». Vite
+ * fetched the new build and left them exactly where they clicked from: "it
+ * loads something, refreshes, but ends up on the page I started from". Vite
  * reports the missing chunk as `vite:preloadError` before the router sees
  * anything, so the target has to be remembered from the navigation itself.
  *

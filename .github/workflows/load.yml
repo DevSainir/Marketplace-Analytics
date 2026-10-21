@@ -129,7 +129,7 @@ jobs:
           echo "::error::The stack did not become healthy in time." >&2
           exit 1
 
-      # The profiles read real reports, so they need a catalogue and an account
+      # The profiles read reports from the database, so they need a catalogue and an account
       # — the same two things the browser tier needs, seeded the same way.
       - name: Load the catalogue seed
         working-directory: backend

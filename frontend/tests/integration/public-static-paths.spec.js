@@ -1,19 +1,20 @@
 /**
- * Ничто в `public/` не должно закрывать собой маршрут SPA.
+ * Nothing in `public/` may shadow an SPA route.
  *
- * nginx отдаёт приложение правилом `try_files $uri $uri/ /index.html`, и вторая
- * ветка — та, что ищет КАТАЛОГ, — срабатывает раньше отката на `index.html`.
- * Каталог в `public/`, названный как маршрут, поэтому перехватывает его: nginx
- * находит директорию, листинг выключен, и вместо страницы приходит 403.
+ * nginx serves the app with `try_files $uri $uri/ /index.html`, and the second
+ * branch — the one that looks for a DIRECTORY — fires before the fallback to
+ * `index.html`. A directory in `public/` named like a route therefore captures
+ * it: nginx finds the directory, listing is off, and a 403 arrives instead of
+ * the page.
  *
- * Это уже случилось. Датапак финмодели лежал в `public/labs/finmodel/`, и
- * `/labs/finmodel` на проде отдавал 403, пока соседний `/labs/monitoring`
- * открывался. Ни один тест этого не видел, и увидеть не мог: dev-сервер Vite
- * такого правила не знает, у него любой неизвестный путь и так уходит в
- * `index.html`. Ломается только за nginx — как и CSP (см. csp.spec.js).
+ * This has already happened. A data pack once sat in a `public/` directory
+ * named after a route, and that route answered 403 while its sibling routes
+ * opened. No test saw it, and none could: Vite's dev server does not know this
+ * rule, and any unknown path goes to `index.html` there anyway. It breaks only
+ * behind nginx — like the CSP (see csp.spec.js).
  *
- * Отсюда правило: имя каталога в `public/` не может совпасть с первым сегментом
- * маршрута. Файл рядом безопасен — `try_files` отдаёт его как файл.
+ * Hence the rule: a directory name in `public/` may not match the first segment
+ * of a route. A file beside it is safe — `try_files` serves it as a file.
  */
 import { readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -22,7 +23,7 @@ import router from '@/core/router'
 
 const PUBLIC = resolve(process.cwd(), 'public')
 
-/** Каталоги в `public/` — только они перехватывают `$uri/`. */
+/** Directories in `public/` — only they capture `$uri/`. */
 function publicDirectories(dir = PUBLIC, prefix = '') {
   const found = []
   for (const entry of readdirSync(dir)) {
@@ -35,7 +36,7 @@ function publicDirectories(dir = PUBLIC, prefix = '') {
   return found
 }
 
-/** Пути всех маршрутов приложения — уже развёрнутые, вложенные включительно. */
+/** Paths of every app route — already expanded, nested ones included. */
 function routePaths() {
   return router.getRoutes().map((route) => route.path)
 }

@@ -23,7 +23,7 @@
 # target — the same tag is re-pushed on every patch release — so an image built
 # from it today and one built next week are different images with the same name,
 # and neither the lock file nor CI can tell. The digest makes the base as
-# reproducible as the dependencies uv resolves into it (register P1.8).
+# reproducible as the dependencies uv resolves into it.
 #
 # The cost is that a digest goes stale: pinning opts OUT of the automatic
 # security patches a floating tag delivers. That is why `.github/workflows/

@@ -61,7 +61,7 @@ test("switching workspace re-scopes every subsequent request", async ({
 
   // Switching RELOADS this page; it no longer redirects to /monitoring. The
   // reload is what drops every per-workspace cache — the destination was
-  // incidental, and sending everyone to Мониторинг put a manager not granted it
+  // incidental, and sending everyone to «Мониторинг» put a manager not granted it
   // on «Раздел недоступен» for the crime of changing workspace.
   await expect(page).toHaveURL(/\/profile$/);
 

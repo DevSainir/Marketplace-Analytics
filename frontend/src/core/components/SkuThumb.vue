@@ -66,7 +66,7 @@ const showImage = computed(() => !!props.src && !failed.value)
       referrerpolicy="no-referrer"
       @error="failed = true"
     />
-    <!-- The placeholder is a glyph, not a spinner: «нет фото» is a settled
+    <!-- The placeholder is a glyph, not a spinner: "no photo" is a settled
          state, and a table full of spinners that never resolve is worse than
          an obviously empty box. -->
     <svg

@@ -42,7 +42,7 @@ describe('SkuThumb', () => {
   it('falls back to the placeholder when WB no longer serves the image', async () => {
     // The URL is a cache of what the CDN served at the last catalogue sync, so
     // a re-shot card 404s until the next one. A broken-image glyph in a data
-    // table reads as «эта строка сломана»; the placeholder reads as «нет фото».
+    // table reads as "this row is broken"; the placeholder reads as "no photo".
     const wrapper = mount(SkuThumb, { props: { src: PHOTO } })
 
     await wrapper.find('img').trigger('error')

@@ -1,6 +1,6 @@
 /**
  * The reload that follows a deploy must land on the page the person clicked,
- * not the one they clicked from (BACKLOG №4).
+ * not the one they clicked from.
  *
  * A real router over a memory history; the lazy route fails the way a built
  * app does in a tab opened before the deploy — Vite's preload helper fires

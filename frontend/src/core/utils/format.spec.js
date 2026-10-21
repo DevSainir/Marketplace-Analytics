@@ -13,7 +13,7 @@ const plain = (text) => text.replace(/\s/g, ' ')
 
 describe('formatMoney', () => {
   it('puts the sign of its own currency on the figure', () => {
-    // A KGS кабинет is paid in soms and priced in roubles: the sign has to be
+    // A KGS workspace is paid in soms and priced in roubles: the sign has to be
     // on the figure, not on a heading shared by both.
     expect(plain(formatMoney(12345.6, 'KGS'))).toBe('12 346с')
     expect(plain(formatMoney(4120, 'RUB'))).toBe('4 120₽')

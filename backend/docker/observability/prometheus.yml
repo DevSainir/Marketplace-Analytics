@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# What Prometheus scrapes, and how long it keeps it (register P2.1).
+# What Prometheus scrapes, and how long it keeps it.
 #
 # Three targets, all reached over the internal Docker network and none of them
 # published to the host: the two API instances (which share nginx's upstream

@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # Loki, single-binary, on a VPS that cannot spare much for it.
 #
-# This is the "centralised, append-only collection" P2.2 left open. The lines
+# This is the centralised, append-only log collection. The lines
 # were already in a shape a shipper could consume — one JSON object per line,
 # every field a field (src/core/logging.py) — which was the prerequisite; this
 # is the destination.

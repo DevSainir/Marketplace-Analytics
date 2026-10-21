@@ -3,7 +3,7 @@
  *
  * WB runs in Moscow time and the seller reads our pages next to figures from
  * the WB cabinet, so a stamp in the browser's own zone would put the two a few
- * unexplained hours apart (Бишкек is three ahead). Every instant the UI prints
+ * unexplained hours apart (Bishkek is three ahead). Every instant the UI prints
  * goes through here, and every printed time of day says «МСК» so the reader
  * never has to guess which clock it is.
  *

@@ -78,7 +78,7 @@ export function formatDay(iso) {
  * A rolling window ending on `end`, or for «Вся история» everything from
  * `historyFrom`. Either is then held inside the page's own bounds: it never
  * starts before the first day the page has data for, and never runs longer
- * than `maxDays` — «90 дней» on a кабинет a month old is that month, not a
+ * than `maxDays` — «90 дней» on a workspace a month old is that month, not a
  * window the calendar would refuse to draw.
  *
  * @param {number} days The preset's length; 0 = «Вся история».
@@ -99,7 +99,7 @@ export function presetWindow(days, { end = '', historyFrom = '', maxDays = 0 } =
  * Which preset, if any, stands for the window on screen — at most ONE.
  *
  * Two presets can produce the same window once it is held inside the page's
- * bounds: on a кабинет with exactly thirty days of history «30 дней» and «Вся
+ * bounds: on a workspace with exactly thirty days of history «30 дней» and «Вся
  * история» are the same dates. Marking both read as two choices made at once,
  * so «Вся история» wins such a tie and otherwise the shortest match does.
  *

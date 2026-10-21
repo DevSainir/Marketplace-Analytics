@@ -11,16 +11,8 @@
 # Pre-1.0 the config sets `bump-minor-pre-major`, so a breaking change moves
 # 0.1.0 -> 0.2.0 instead of jumping the project to 1.0.0 before it is ready.
 #
-# The announcement is the second half. Release notes are written in English by
-# people who read English; the people who USE the product read Russian, so the
-# commit subjects are sent through Gemini for translation and — the part that
-# actually makes them readable — a tense change out of the imperative:
-#   feat(finreports): add Balance table
-#   -> Модуль финотчётов: была добавлена таблица Баланс.
-#
-# Audience differs by kind of news, deliberately: deploys and backups are
-# operational and go to the maintainer in English (see deploy.yml), releases are
-# product news and go to everyone in Russian. All of it is sent silently.
+# Release notes are the commit subjects, in English. Announcing a release to
+# the people who use the product is not part of this repository.
 #
 # The release PR is merged here rather than by hand (see «Merging it» below);
 # label it `hold-release` to keep one open.
@@ -37,8 +29,7 @@
 # blamed on "a workflow file issue", for an approval nobody was ever going to
 # give. `tests` no longer runs on `pull_request` at all; its header says why.
 # Nothing is lost — the PR only touches CHANGELOG.md and the version files, and
-# the merge commit lands on main and runs the full pipeline, which is what gates
-# the deploy.
+# the merge commit lands on main and runs the full pipeline.
 
 name: release
 
@@ -55,8 +46,8 @@ name: release
 #
 # Sunday 17:00 UTC is 20:00 MSK: a week's work cut as one version, in the
 # evening of the quietest day, with Monday morning free to look at it. Nothing
-# waits for it — `deploy` still fires on every push, so main reaches production
-# continuously and only the VERSION batches.
+# else waits for it — main keeps moving on every push, and only the VERSION
+# batches.
 #
 # `workflow_dispatch` cuts one immediately when a week is too long to wait.
 on:
@@ -80,9 +71,9 @@ permissions:
 jobs:
   release:
     name: version + changelog + announcement
-    # On the VPS runner: this workflow is what cuts a version, and a version
-    # that cannot be cut is a change that cannot ship. Its scripts are stdlib
-    # `python3` and `gh` only, both of which the box already has.
+    # On the self-hosted runner: this workflow is what cuts a version, and a
+    # version that cannot be cut is a change that cannot ship. Its steps need
+    # only `python3` and `gh`, both of which the runner already has.
     runs-on: [self-hosted, prod-vps]
     timeout-minutes: 15
     steps:
@@ -98,11 +89,10 @@ jobs:
       # dependencies. So the moment Release Please bumps
       # backend/pyproject.toml, the committed lock is one line stale and
       # `uv sync --locked` fails — taking the `lint + types + fast tiers` job
-      # down with it, and with it the deploy gate.
+      # down with it.
       #
       # v0.1.1 is the worked example: it was tagged and released, its tests
-      # went red on that single line, and the deploy correctly refused to
-      # run. The release existed and production never saw it.
+      # went red on that single line, and the release never shipped.
       #
       # The honest fix is to update the lock rather than to stop checking it:
       # `--locked` is what stops CI installing a dependency set the lock does

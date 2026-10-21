@@ -1,5 +1,5 @@
 /**
- * End-to-end: creating an A/Б test and putting photos into its rotation.
+ * End-to-end: creating an A/B test and putting photos into its rotation.
  *
  * This journey earns a browser test because its failure makes the feature
  * unusable in a way no lower tier can see: the upload is a real multipart form

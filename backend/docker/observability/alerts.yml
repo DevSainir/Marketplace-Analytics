@@ -1,8 +1,7 @@
 # ---------------------------------------------------------------------------
-# The rules that page somebody. Register P2.2 named real-time alerting on auth
-# failures, 403 spikes and rate-limit trips as the open half of the logging
-# work, and P2.1 said the fields to bind a rule to already existed. These are
-# those rules.
+# The rules that page somebody. Real-time alerting on auth failures, 403
+# spikes and rate-limit trips was the open half of the logging work, and the
+# fields to bind a rule to already existed. These are those rules.
 #
 # Every alert here obeys two conventions. `for:` is never zero — an alert that
 # fires on one bad scrape fires on a deploy, and an alert that fires on a
@@ -198,6 +197,7 @@ groups:
       # 2026-09-23 it is every 15 minutes 07:00-18:45 MSK, hourly outside that
       # and the 03:00 reconcile (`src/core/celery_app.py`) — against sources
       # WB publishes on ITS schedule — the settlement report weekly, paid
+      # storage daily, penalties and measurements rarely. Measured over the 24h to
       # that is correct. So nineteen of those twenty-one runs legitimately
       # write nothing, and any six-hour window between publications is red.
       #
@@ -316,7 +316,7 @@ groups:
 
       # `card-prices` is left out on purpose. Since 2026-09-22 the storefront
       # answers 498 (the wbaas captcha) to every address we hold, so every
-      # кабинет loses it on every nightly pass — four partials an hour, one
+      # workspace loses it on every nightly pass — four partials an hour, one
       # page a night, about something nobody can fix from here
       # (integrations/wildberries/clients/card.py). StorefrontPriceBack below
       # says when that changes; put the source back here then.
@@ -334,7 +334,7 @@ groups:
 
       # The other half of HarvestPartial's exclusion: good news, and the only
       # way anyone learns of it. The nightly pass wrote prices within the last
-      # day (so it ran) and not one кабинет lost `card-prices` in that day. Both
+      # day (so it ran) and not one workspace lost `card-prices` in that day. Both
       # counters move in the same record_harvest_outcome call, so one window
       # covers both, and a worker restart keeps the older samples in range.
       - alert: StorefrontPriceBack

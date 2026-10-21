@@ -1,5 +1,4 @@
-# The recurring security review, made automatic enough to actually happen
-# (register P2.8).
+# The recurring security review, made automatic enough to actually happen.
 #
 # "Re-run the audit each quarter" is the kind of intention that survives exactly
 # as long as somebody remembers it. This turns it into a red run, which is a

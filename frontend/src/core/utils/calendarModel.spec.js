@@ -36,7 +36,7 @@ describe('presetWindow', () => {
   })
 
   it('never starts before the first day the page has data for', () => {
-    // «90 дней» on a кабинет a month old is that month, not a window reaching
+    // «90 дней» on a workspace a month old is that month, not a window reaching
     // into days the calendar greys out.
     const window = presetWindow(90, { end: '2026-10-04', historyFrom: '2026-09-05' })
 

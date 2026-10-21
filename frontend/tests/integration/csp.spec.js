@@ -7,7 +7,7 @@
  * component and integration run — it only bites once nginx serves the app, in
  * CI and in production.
  *
- * That is not hypothetical: `img-src 'self' data:` silently blocked every A/Б
+ * That is not hypothetical: `img-src 'self' data:` silently blocked every A/B
  * variant thumbnail (2026-08-21). The photos sit behind an authenticated
  * route, so the SPA fetches their bytes with the API client and hands `<img>`
  * an object URL — and `blob:` was not in the directive. The browser reported it
@@ -48,7 +48,7 @@ describe('production Content-Security-Policy', () => {
     // The monitoring SKU search, «Сравнение SKU» and the per-SKU P&L show the
     // seller's card photos. Those are public, unauthenticated links on
     // `basket-NN.wbbasket.ru`, so `<img>` loads them directly rather than
-    // through the API the way the A/Б variants are — proxying hundreds of
+    // through the API the way the A/B variants are — proxying hundreds of
     // table rows would buy nothing, since the images are public either way.
     // Without this source they are blank in production only (see the header).
     expect(directives()['img-src']).toContain('https://*.wbbasket.ru')
@@ -57,7 +57,7 @@ describe('production Content-Security-Policy', () => {
   it('names WB’s image CDN and nothing else, anywhere in the policy', () => {
     // The strongest CSP is the one that names nobody but us, and this one was
     // that until the SKU thumbnails landed. Until the Inter Tight typeface was
-    // self-hosted it carried two Google origins (register P1.8) — every one of
+    // self-hosted it carried two Google origins — every one of
     // them a host that can serve content to our users, and a host whose logs
     // learn every visitor's IP.
     //

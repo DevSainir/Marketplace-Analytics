@@ -1,4 +1,4 @@
-/* Inter Tight, self-hosted (register P1.8).
+/* Inter Tight, self-hosted.
  *
  * Served from our own origin instead of fonts.gstatic.com. Three things that
  * buys, in the order they matter here:
@@ -27,7 +27,8 @@
  * from Google's own stylesheet, so a browser still downloads only the subsets a
  * page needs — self-hosting does not mean shipping every byte to everyone.
  *
- * To refresh, re-run the fetch documented in docs/security/HARDENING.md (P1.8).
+ * To refresh, download the same four subsets from Google Fonts' stylesheet for
+ * Inter Tight and keep its `unicode-range` values.
  */
 
 /* latin */

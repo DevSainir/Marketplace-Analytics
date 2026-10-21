@@ -41,7 +41,7 @@ describe('request interceptor', () => {
     // outranks the per-request type Axios would infer. A multipart body sent
     // under it reaches the server unparseable — the boundary is missing, so
     // there are no fields at all — and the upload fails as a malformed
-    // request, which is what broke every A/Б photo upload in the browser
+    // request, which is what broke every A/B photo upload in the browser
     // while every unit and component test stayed green.
     const form = new FormData()
     form.append('file', new Blob(['x']), 'variant.jpg')

@@ -7,9 +7,9 @@
  * «Как использовать» link. This is the A/B mechanics in the advertising look.
  *
  * Why not `title`: it waits about a second, cannot be styled and does not
- * exist on touch — «навожу, ничего нет». Why teleported: the labels it sits on
- * live inside table scrollers, and `overflow: auto` clips a child bubble on
- * both axes, so the bubble leaves the table for `<body>` and is placed in
+ * exist on touch — "I hover and nothing is there". Why teleported: the labels
+ * it sits on live inside table scrollers, and `overflow: auto` clips a child
+ * bubble on both axes, so the bubble leaves the table for `<body>` and is placed in
  * fixed coordinates — and then kept inside the part of the table that is on
  * screen (`core/utils/tipFit`), or it hangs past the card's edge. A `<button>`,
  * so it is focusable and a tap opens it on a phone, where hover does not exist.

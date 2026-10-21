@@ -365,9 +365,9 @@ jobs:
       # to fail, the same audit with the flags below answered correctly in 2.6s.
       #
       # When the budget ran out GitHub CANCELLED the job, and a cancelled job
-      # makes the run `cancelled` — which deploy.yml does not deploy, because it
-      # requires `success`. So an advisory lookup nobody was gated on quietly
-      # held a production release. `continue-on-error` never covered that: it
+      # makes the run `cancelled` — which the deploy would not ship, because it
+      # required `success`. So an advisory lookup nobody was gated on quietly
+      # held a release. `continue-on-error` never covered that: it
       # swallows a non-zero exit and says nothing about a process that does not
       # return. A step that outlives its OWN timeout fails instead, and
       # `continue-on-error` absorbs that — which is what "informational" always
@@ -545,7 +545,7 @@ jobs:
       # truncated production's monitoring schema. The script now derives the
       # name from COMPOSE_PROJECT_NAME and refuses any stack whose api declares
       # ENVIRONMENT=production; naming it here as well makes the target visible
-      # in the log rather than implied. See docs/security/HARDENING.md.
+      # in the log rather than implied.
       SEED_PG_CONTAINER: marketplace-e2e-postgres-1
 
     steps:

@@ -61,7 +61,7 @@
 # and has not been since Grafana was given its own host; the tunnel survives as
 # the way in when nginx itself is the broken thing:
 #
-#     ssh -L 3001:127.0.0.1:3000 <the production alias>
+#     ssh -L 3001:127.0.0.1:3000 <host>
 #
 # The published port stays bound to `127.0.0.1:` for that reason and no other —
 # it is the bypass around TLS, the security headers and the login throttle, so
@@ -174,8 +174,7 @@ services:
     # to end and is verified against api.telegram.org. Straight out, this
     # container has IPv4 only and one address that answers two connects in
     # three — and before 2026-09-30 an address that had answered nothing for
-    # two weeks (HARDENING P2.12). docker/telegram-relay/haproxy.cfg has the
-    # measurements.
+    # two weeks. docker/telegram-relay/haproxy.cfg has the measurements.
     extra_hosts:
       - "api.telegram.org:host-gateway"
     depends_on:

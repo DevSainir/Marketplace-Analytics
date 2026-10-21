@@ -1,4 +1,4 @@
-# The other half of pinning by digest (register P1.8).
+# The other half of pinning by digest.
 #
 # Pinning made the build reproducible and, in the same stroke, opted out of the
 # security patches a floating tag delivers for free. `python:3.12-slim` is
@@ -15,7 +15,7 @@
 # A second list would drift from the first, and the failure mode of a drifted
 # freshness check is the worst available: a green tick that means nothing.
 #
-# The second job answers the question the first one cannot (register P2.7). "Has
+# The second job answers the question the first one cannot. "Has
 # this tag moved?" and "is what we pinned known-vulnerable?" are different
 # facts, and a pin can be perfectly current while carrying a CVE published
 # yesterday — nothing upstream has to move for our image to become a problem. So

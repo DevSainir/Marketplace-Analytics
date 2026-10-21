@@ -1,5 +1,5 @@
 /**
- * HSTS is what makes "HTTPS only" survive the second visit (register P0.6).
+ * HSTS is what makes "HTTPS only" survive the second visit.
  *
  * Like the CSP next door, this header is invisible to every other tier: the
  * Vite dev server never sends it, so weakening it looks perfectly healthy
@@ -8,7 +8,7 @@
  * shortens how long a browser refuses to speak plain HTTP to us, which is a
  * property nobody would notice was gone.
  *
- * P0.6 was closed on an observation: the header was seen on the wire on
+ * The header was once confirmed by observation: it was seen on the wire on
  * 2026-08-29. That was true of that day. This is what keeps it true.
  */
 import { readFileSync } from 'node:fs'

@@ -168,11 +168,10 @@ lock: ## Re-resolve backend/uv.lock (run after changing a dependency in pyprojec
 # The frontend container serves a RELEASE DIRECTORY, not its own image: the SPA
 # bundle and the nginx config live in .frontend-releases/ and the container
 # follows a `current` symlink into it (frontend/docker/Dockerfile). That is what
-# lets a production deploy reload nginx instead of recreating the one container
-# holding :443. The cost is that a release has to exist before nginx can start,
-# so `up` stages one first — production does the same two steps from
-# .github/workflows/deploy.yml, with an atomic flip this does not need because
-# nothing is serving yet.
+# lets a deploy reload nginx instead of recreating the one container holding
+# :443. The cost is that a release has to exist before nginx can start, so `up`
+# stages one first. A deploy does the same two steps with an atomic flip, which
+# this does not need because nothing is serving yet.
 frontend-release: ## Stage the SPA bundle + nginx config the frontend container serves
 	@mkdir -p .frontend-releases/releases
 	DOCKER_BUILDKIT=1 docker build -f frontend/docker/Dockerfile --target release \
@@ -215,7 +214,7 @@ logs: ## Follow the logs of every service
 # ALERT_TELEGRAM_* is set separately in backend/.env).
 #
 # Grafana is on 127.0.0.1:3000 only. Reach it with an SSH tunnel:
-#     ssh -L 3000:127.0.0.1:3000 <production alias>
+#     ssh -L 3000:127.0.0.1:3000 <host>
 # --------------------------------------------------------------------------- #
 # The renderer runs FIRST and is not optional: Alertmanager's config carries the
 # Telegram bot token, so it is generated from backend/.env rather than committed.
@@ -237,7 +236,7 @@ obs-logs: ## Follow the observability services' logs
 # --------------------------------------------------------------------------- #
 # The analyst gateway: the one way an outside analyst's SSH tunnel reaches
 # Postgres, on 127.0.0.1:5433 only. Stopping it closes the door without
-# touching the role or the service. See docs/analyst/ACCESS.md.
+# touching the role or the service.
 # --------------------------------------------------------------------------- #
 analyst-up: ## Open the analyst gateway (127.0.0.1:5433 -> postgres)
 	$(COMPOSE_ANALYST) up -d gateway

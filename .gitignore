@@ -71,9 +71,8 @@ tests/performance/**/*.summary.json
 *.whl
 
 # ---- Private operational notes ----
-# Host addresses, users and key paths for the production box. The skills that
-# reference them are tracked so the guidance survives; the coordinates are not,
-# so the repository can be published without shipping a map to the server.
+# Private, per-machine notes kept beside the skills. The skills are tracked;
+# these notes are not.
 .claude/skills/**/*.local.md
 
 # Rendered from backend/docker/observability/alertmanager.yml.template by
@@ -88,7 +87,7 @@ backend/docker/observability/alertmanager.yml
 # That happened once — see tests/unit/core/test_metrics_bootstrap.py.
 *_[0-9]*.db
 
-# Frontend releases installed by the deploy (see .github/workflows/deploy.yml).
-# Server-side state: the built bundle plus the nginx config that serves it,
-# kept beside the running one so a deploy is a symlink flip and a reload.
+# Frontend releases staged by `make frontend-release` (see the Makefile).
+# Local state: the built bundle plus the nginx config that serves it, kept
+# beside the running one so a new release is a symlink flip and a reload.
 .frontend-releases/
