@@ -135,7 +135,7 @@ export function subtotals(rows, columns) {
  *
  * @param {Array<object>} rows Flattened rows from {@link toRow}.
  * @param {'subject'|'brand'|'group'} cut
- * @param {Array<object>} groups The кабинет's «Группы».
+ * @param {Array<object>} groups The workspace's «Группы».
  */
 export function groupBalanceRows(rows, cut, groups) {
   const how = { nmId: (r) => r.nmId, subject: (r) => r.subject, brand: (r) => r.brand, groups }
@@ -172,7 +172,7 @@ export function groupBalanceRows(rows, cut, groups) {
 }
 
 /**
- * Search + Тип предмета / Бренд filtering over one loaded balance response.
+ * Search + «Тип предмета» / «Бренд» filtering over one loaded balance response.
  *
  * @param {import('vue').Ref<object|null>} balance The `/finreports/balance` payload.
  */
@@ -218,7 +218,7 @@ export function useBalanceRows(balance) {
     [...new Set(rawRows.value.map((r) => r[key]).filter(Boolean))].sort((a, b) =>
       a.localeCompare(b, 'ru'),
     )
-  // Тип предмета and Бренд have no column of their own here (the grid's columns
+  // «Тип предмета» and «Бренд» have no column of their own here (the grid's columns
   // are warehouses), but they stay filterable — they are how a seller narrows a
   // catalogue down to the part they are actually restocking.
   const subjects = computed(() => distinct('subject_name'))

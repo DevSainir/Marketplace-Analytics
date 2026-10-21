@@ -100,15 +100,16 @@ describe('sumRows — строка «Итого»', () => {
     expect(t.sales).toBe(4000)
     expect(t.logistics).toBe(500)
     expect(t.sold).toBe(80)
-    // Доля суммы, а не среднее долей, и от «Продаж» (цена продавца до СПП),
-    // как карточка наверху: 500 / (1000 + 3000). До 26.09.2026 «Итого» делило
-    // на «Оплачено», и одна страница показывала две доли логистики.
+    // The share of the sum, not the average of shares, and of «Продажи» (the
+    // seller's price before SPP), like the card above: 500 / (1000 + 3000). Until
+    // 26.09.2026 «Итого» divided by «Оплачено», and one page showed two
+    // logistics shares.
     expect(t.logisticsPct).toBeCloseTo((500 / 4000) * 100)
     expect(t.returnPct).toBeCloseTo((8 / 80) * 100)
   })
 
   it('выкуп итога — выкупы к решённым заказам по сумме штук, а не среднее процентов', () => {
-    // 30/40 и 10/100: среднее процентов дало бы 42,5 %, а по штукам — 40/140.
+    // 30/40 and 10/100: the average of percentages would give 42.5 %; by units it is 40/140.
     const t = sumRows([flat(), flat({ nmId: 2, buyoutUnits: 10, decidedUnits: 100 })])
 
     expect(t.decidedUnits).toBe(140)
@@ -129,8 +130,9 @@ describe('sumRows — строка «Итого»', () => {
   })
 
   it('возвращает счета за рекламу обратно, когда в сумме есть строка счёта', () => {
-    // Счёт «WB Продвижение» уже удержан внутри «К перечислению» строки счёта,
-    // поэтому вычесть сверху ещё и открут — значит списать рекламу дважды.
+    // The «WB Продвижение» invoice is already withheld inside the account row's
+    // «К перечислению», so deducting the ad spend on top would charge
+    // advertising twice.
     const bucket = flat({
       nmId: 0,
       isBucket: true,
@@ -150,14 +152,14 @@ describe('sumRows — строка «Итого»', () => {
     })
     const t = sumRows([flat(), bucket], 500)
 
-    // 600 - 500 (удержанный счёт) + 500 (он же, возвращённый) - 300 - 70
+    // 600 - 500 (withheld invoice) + 500 (the same, added back) - 300 - 70
     expect(t.profit).toBe(230)
   })
 
   it('без данных по рекламе счёт не возвращается — вычитать нечего', () => {
-    // Счёт — тогда единственная цифра рекламы, и он остаётся внутри «К
-    // перечислению». Вернуть его, ничего не вычтя взамен, значит показать
-    // прибыль больше на все счета периода. Бэкенд делает так же.
+    // The invoice is then the only advertising figure, and it stays inside «К
+    // перечислению». Adding it back with nothing deducted instead would show
+    // profit higher by all the period's invoices. The backend does the same.
     const bucket = flat({
       nmId: 0,
       isBucket: true,
@@ -177,7 +179,7 @@ describe('sumRows — строка «Итого»', () => {
     })
     const t = sumRows([flat({ advertising: null, advertisingCash: null }), bucket], 500)
 
-    // 600 - 500 (удержанный счёт) - 300, без открута и без возврата счёта
+    // 600 - 500 (withheld invoice) - 300, no ad spend and no invoice added back
     expect(t.profit).toBe(-200)
   })
 
@@ -211,7 +213,7 @@ describe('база цены — «Цена селлера» или «Цена р
     expect(r.logisticsPct).toBeCloseTo(20) // 200 / 1000
     expect(r.advertisingPct).toBeCloseTo(9) // 90 / 1000
     expect(r.profitPct).toBeCloseTo(18) // 180 / 1000
-    expect(r.averageCheque).toBeCloseTo(1000 / 9) // 10 продано − 1 возврат
+    expect(r.averageCheque).toBeCloseTo(1000 / 9) // 10 sold − 1 returned
   })
 
   it('по цене реализации делит то же самое на выручку после СПП', () => {
@@ -225,7 +227,7 @@ describe('база цены — «Цена селлера» или «Цена р
   })
 
   it('не двигает то, что на выручку не делится', () => {
-    // Выплата, прибыль деньгами и СПП — одни и те же при любой базе.
+    // The payout, profit in money and SPP are the same on either base.
     const seller = toRow(backendRow, false, 'seller')
     const paid = toRow(backendRow, false, 'paid')
 
@@ -239,7 +241,7 @@ describe('база цены — «Цена селлера» или «Цена р
 
     expect(t.sales).toBe(1800)
     expect(t.logisticsPct).toBeCloseTo((400 / 1800) * 100)
-    expect(t.averageCheque).toBeCloseTo(100) // 1800 / 18 чистых штук
+    expect(t.averageCheque).toBeCloseTo(100) // 1800 / 18 net units
     expect(t.sppPct).toBeCloseTo(10) // (2000 − 1800) / 2000
   })
 

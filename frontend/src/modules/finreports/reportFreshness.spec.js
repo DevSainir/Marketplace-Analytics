@@ -261,7 +261,7 @@ describe('a WB rate block', () => {
 })
 
 describe('describeFreshness — a report WB has formed and not yet served', () => {
-  // 12.10.2026: report 992915233 (05.10–11.10) was on WB's site by 08:00 and
+  // 12.10.2026: the weekly report for 05.10–11.10 was on WB's site by 08:00 and
   // absent from the API at 08:05. The seller sees it there; the line says why
   // it is not here yet instead of «WB ещё не выложил».
   const MONDAY = new Date('2026-10-12T05:10:00Z')

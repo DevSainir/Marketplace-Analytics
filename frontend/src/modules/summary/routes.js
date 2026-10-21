@@ -2,7 +2,7 @@
 export const summaryRoutes = [
   {
     // A product surface, and the replacement for «Сравнение SKU»: the same
-    // question — how is the кабинет doing — answered in money rather than in
+    // question — how is the workspace doing — answered in money rather than in
     // lines. Behind its own grant since 2026-10-12, like the API
     // (`require_summary`); it asked for both «Мониторинг» and P&L before.
     path: '/summary',

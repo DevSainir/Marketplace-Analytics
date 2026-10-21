@@ -4,7 +4,7 @@
  * Pulled out of `PnlSkuTable.vue` so the component stays under the size limit and
  * the pure data logic can be read (and tested) on its own. It never fetches:
  * it maps the backend's `PnlSkuRow`s to the flat shape the DataTable sorts on,
- * and filters them by the search query and the Тип предмета / Бренд selectors —
+ * and filters them by the search query and the «Тип предмета» / «Бренд» selectors —
  * all view concerns, so the dashboard totals are unaffected.
  */
 import { computed, ref } from 'vue'
@@ -29,11 +29,11 @@ const num = (value) => (value === null || value === undefined ? null : Number(va
  * @param {string} [base] `'seller'` or `'paid'` — see `priceBase.js`.
  */
 /**
- * «Логистика на 1 выкуп»: вся логистика — туда, обратно и прочая — на одну
- * проданную штуку. Делится на продажи, а не на доставки: поездки, которые
- * кончились отказом, оплачивает тот, кто купил, поэтому плохой выкуп размера
- * здесь виден в сомах. На продажи без вычета возвратов — как считает выкуп WB.
- * Без продаж — `null`, не бесконечность.
+ * «Логистика на 1 выкуп»: all logistics — outbound, return and the rest — per
+ * unit sold. Divided by sales, not by deliveries: the trips that ended in a
+ * refusal are paid for by the units that were bought, so a size's poor buyout
+ * shows up here in money. Over sales before returns are deducted — the way WB
+ * computes buyout. No sales gives `null`, not infinity.
  */
 export function perSale(logistics, sold) {
   return logistics === null || !Number(sold) ? null : logistics / Number(sold)
@@ -78,14 +78,16 @@ export function toRow(r, isBucket = false, base = 'seller') {
     sold: r.sold_units,
     returned: r.returned_units,
     returnPct: num(r.return_rate_pct),
-    // Выкупы и решённые заказы из воронки — «Процент выкупа» WB. Нужны строке
-    // «Итого»: её выкуп считается от сложенных штук, а не как средний процент.
+    // Buyouts and settled orders from the funnel — WB's «Процент выкупа». The
+    // «Итого» row needs them: its buyout is computed from summed units, not as
+    // an average percentage.
     buyoutUnits: num(r.buyout_units),
     decidedUnits: num(r.decided_units),
     buyoutPct: num(r.buyout_pct),
     sales,
-    // Обе базы — строке «Итого»: доли она пересчитывает от сложенных сумм
-    // (доля суммы — не сумма долей), а СПП это разница между ними.
+    // Both bases are for the «Итого» row: it recomputes shares from summed
+    // amounts (the share of a sum is not the sum of shares), and SPP is the gap
+    // between them.
     seller,
     paid,
     averageCheque: net && sales !== null ? sales / net : null,
@@ -111,7 +113,7 @@ export function toRow(r, isBucket = false, base = 'seller') {
 }
 
 /**
- * Search + Тип предмета / Бренд filtering over the loaded rows.
+ * Search + «Тип предмета» / «Бренд» filtering over the loaded rows.
  *
  * @param {import('vue').Ref<Array>} rows Reactive `PnlSkuRow[]`.
  * @param {import('vue').Ref<object|null>} unallocated The account-level bucket.
@@ -133,7 +135,7 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller', uncosted
   const subjects = computed(() => distinct('subject_name'))
   const brands = computed(() => distinct('brand_name'))
 
-  /** Search or a Тип/Бренд/Группа filter — what narrows the dashboard too. */
+  /** Search or a «Тип»/«Бренд»/«Группа» filter — what narrows the dashboard too. */
   const isScoping = computed(() => !!query.value.trim() || active.value)
   /** Anything that narrows the table, «Без себестоимости» included. */
   const isFiltering = computed(() => isScoping.value || uncostedOnly.value)
@@ -142,7 +144,7 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller', uncosted
   const uncostedCount = computed(() => rows.value.filter(isUncosted).length)
 
   /**
-   * The raw `PnlSkuRow`s (no bucket) matching the search + Тип/Бренд filters —
+   * The raw `PnlSkuRow`s (no bucket) matching the search + «Тип»/«Бренд» filters —
    * the selection the dashboard cards are summed over.
    *
    * «Без себестоимости» is left out of it on purpose: it is a to-do list over
@@ -217,7 +219,7 @@ export function usePnlSkuRows(rows, unallocated, base = () => 'seller', uncosted
  *
  * @param {Array<object>} rows Flat article rows from {@link toRow}, no bucket.
  * @param {'subject'|'brand'|'group'} cut
- * @param {Array<object>} groups The кабинет's «Группы».
+ * @param {Array<object>} groups The workspace's «Группы».
  */
 export function groupPnlRows(rows, cut, groups) {
   return splitBy(rows, cut, {
@@ -267,7 +269,7 @@ export function subsetDashboard(rows, base = null) {
   const sum = (pick) => included.reduce((acc, r) => acc + n(pick(r)), 0)
 
   const sales = sum((r) => r.revenue_seller_price) // seller price, net of returns
-  const paid = sum((r) => r.revenue_paid) // what buyers paid, after СПП
+  const paid = sum((r) => r.revenue_paid) // what buyers paid, after SPP
   const logistics = sum((r) => r.logistics_total)
   const sold = included.reduce((a, r) => a + r.sold_units, 0)
   const returned = included.reduce((a, r) => a + r.returned_units, 0)
@@ -292,30 +294,32 @@ export function subsetDashboard(rows, base = null) {
 }
 
 /**
- * Сумма по каждому столбцу того, что сейчас на экране — строка «Итого».
+ * The per-column sum of what is on screen right now — the «Итого» row.
  *
- * Складываются только суммы; все доли пересчитываются от сложенных баз, потому
- * что доля суммы это не сумма долей: средняя «Доля логистики» по сорока
- * артикулам ничего не значит, а логистика всего периода к выручке всего периода
- * значит. Отмеченные «Не включать в общий счёт» строки в сумму не идут — это и
- * есть общий счёт, тот же, что в карточках наверху.
+ * Only amounts are added up; every share is recomputed from the summed bases,
+ * because the share of a sum is not the sum of shares: an average «Доля
+ * логистики» over forty articles means nothing, while the whole period's
+ * logistics over the whole period's revenue does. Rows marked «Не включать в
+ * общий счёт» stay out of the sum — that is exactly the overall account, the
+ * same as in the cards above.
  *
- * Отдельная арифметика у одной цифры — «Чистая прибыль». Реклама приходит от WB
- * дважды: счётом «Оказание услуг «WB Продвижение»», уже удержанным внутри «К
- * перечислению», и открутом по дням из статистики кампаний. В строке артикула
- * вычитается только открут (счёт не несёт артикула), и это верно. Но как только
- * в сумму попадает строка «Без привязки к артикулу» — а вместе с ней и удержанный
- * счёт, — вычесть сверху ещё и открут значит списать рекламу дважды. Поэтому
- * счета возвращаются обратно ровно в этом случае: это та же поправка, которую
- * бэкенд делает в `build_sku_report`, и без неё «Итого» разошлось бы с его
- * итогом на всю рекламу периода (на живом окне это были миллионы). И так же, как
- * там, — только когда открут известен: без него счёт единственная цифра рекламы,
- * и вернуть его, ничего не вычтя взамен, значит завысить прибыль на все счета.
+ * One figure has arithmetic of its own — «Чистая прибыль». Advertising comes
+ * from WB twice: as the invoice «Оказание услуг «WB Продвижение»», already
+ * withheld inside «К перечислению», and as daily ad spend from the campaign
+ * statistics. An article row deducts only the spend (the invoice carries no
+ * article), and that is correct. But as soon as the «Без привязки к артикулу»
+ * row enters the sum — and the withheld invoice with it — deducting the spend
+ * on top would charge advertising twice. So the invoices are added back in
+ * exactly that case: the same correction the backend makes in
+ * `build_sku_report`, without which «Итого» would differ from its total by the
+ * whole period's advertising. And, as there, only when the spend is known:
+ * without it the invoice is the only advertising figure, and adding it back
+ * with nothing deducted instead would overstate profit by all the invoices.
  *
- * @param {Array<object>} rows Плоские строки из {@link toRow} — то, что отрисовано.
- * @param {number} adInvoices Удержанные WB счета за рекламу («ВБ.Продвижение»)
- *   за период, из дашборда. Применяются, только если в `rows` есть строка счёта.
- * @returns {object|null} Строка той же формы, что и остальные, либо `null` на пустой таблице.
+ * @param {Array<object>} rows Flat rows from {@link toRow} — what is rendered.
+ * @param {number} adInvoices Advertising invoices withheld by WB («ВБ.Продвижение»)
+ *   over the period, from the dashboard. Applied only if `rows` has the account row.
+ * @returns {object|null} A row of the same shape as the others, or `null` on an empty table.
  */
 export function sumRows(rows, adInvoices = 0) {
   const included = rows.filter((r) => !r.isExcluded)
@@ -323,7 +327,7 @@ export function sumRows(rows, adInvoices = 0) {
 
   const n = (v) => (v === null || v === undefined ? 0 : Number(v))
   const sum = (key) => included.reduce((acc, r) => acc + n(r[key]), 0)
-  /** Сумма, но `null`, если её не знает ни одна строка («нет данных» ≠ ноль). */
+  /** A sum, but `null` if no row knows it («no data» ≠ zero). */
   const known = (key) =>
     included.some((r) => r[key] !== null && r[key] !== undefined) ? sum(key) : null
   const share = (part, whole) => (whole ? (part / whole) * 100 : null)
@@ -342,7 +346,7 @@ export function sumRows(rows, adInvoices = 0) {
   const advertisingCash = known('advertisingCash')
   const payout = sum('payout')
 
-  // Без открута подменять нечем: счёт остаётся внутри «К перечислению».
+  // Without ad spend there is nothing to substitute: the invoice stays inside «К перечислению».
   const returnInvoices = included.some((r) => r.isBucket) && advertisingCash !== null
   const profit =
     cogs === null ? null : payout + (returnInvoices ? n(adInvoices) : 0) - cogs - n(advertisingCash)

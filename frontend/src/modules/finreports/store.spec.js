@@ -451,7 +451,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     // The case the whole refactor is for. WB meters the settlement report at
     // one request per ~15 minutes, so a click inside that window used to
     // enqueue a harvest whose first act was to sit still for most of it —
-    // seven minutes of «Обновляем…» over a walk doing nothing (prod
+    // seven minutes of «Обновляем…» over a walk doing nothing (seen
     // 2026-09-09). There is no version of waiting that helps, so the page says
     // when to come back and stops.
     triggerHarvest.mockResolvedValue({
@@ -655,7 +655,7 @@ describe('«Обновить» — the manual WB harvest', () => {
   it('says nothing about a run this browser did not ask for', async () => {
     // The lock is platform-wide and the schedule takes it many times a day:
     // «Обновление уже идёт» on an ordinary page load was usually about another
-    // кабинет. A report found for this one is the freshness line's to announce.
+    // workspace. A report found for this one is the freshness line's to announce.
     fetchHarvestState
       .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
       .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })

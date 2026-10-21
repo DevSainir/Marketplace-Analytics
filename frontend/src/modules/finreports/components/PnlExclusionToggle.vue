@@ -1,11 +1,12 @@
 <script setup>
 /**
- * Отметка «Не включать в общий счёт» — последняя колонка отчёта по артикулам.
+ * The «Не включать в общий счёт» mark — the last column of the per-article
+ * report.
  *
- * Подпись у колонки пустая (заголовок съел бы ширину, которой в таблице нет),
- * поэтому смысл галочки объясняет подсказка при наведении. Она открывается
- * ВЛЕВО: колонка крайняя правая, и всплывающая вправо подсказка вылезает за
- * край области прокрутки.
+ * The column has no caption (a header would eat width the table does not
+ * have), so a hover tooltip explains what the checkbox means. It opens to the
+ * LEFT: the column is the rightmost one, and a tooltip popping out to the right
+ * spills past the edge of the scroll area.
  */
 defineProps({
   checked: { type: Boolean, default: false },

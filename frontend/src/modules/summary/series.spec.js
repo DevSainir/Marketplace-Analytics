@@ -2,7 +2,7 @@
  * The chart lines, and the one rule that matters in them: when is a point
  * missing rather than zero.
  *
- * ДРР is a division, so it has two ways of being unknown — no advertising
+ * DRR is a division, so it has two ways of being unknown — no advertising
  * statistics for the day, and no price to value that day's orders at. Both used
  * to be expressible as zero, and both read as a claim: free advertising in one
  * direction, infinite spend in the other.
@@ -42,7 +42,7 @@ describe('drr', () => {
   })
 
   it('is withheld on a day that returned more than it sold, rather than negative', () => {
-    // «Демо», 19.06.2024: 1 520 of advertising against −14 870 of sales.
+    // A sample day: 1 520 of advertising against −14 870 of sales.
     expect(drr('1520', '-14870')).toBeNull()
   })
 })

@@ -29,7 +29,7 @@ export async function fetchHeatmap(params, signal) {
 }
 
 /**
- * GET /v1/heatmap/catalog — every card of the кабинет and its subjects,
+ * GET /v1/heatmap/catalog — every card of the workspace and its subjects,
  * most-ordered in the window first.
  *
  * @param {{date_from: string, date_to: string}} params
@@ -39,7 +39,7 @@ export async function fetchCatalog(params) {
   return data
 }
 
-/** GET /v1/heatmap/groups — the кабинет's groups. */
+/** GET /v1/heatmap/groups — the workspace's groups. */
 export async function fetchGroups() {
   const { data } = await apiClient.get('/v1/heatmap/groups')
   return data
@@ -62,7 +62,7 @@ export async function deleteGroup(id) {
   await apiClient.delete(`/v1/heatmap/groups/${id}`)
 }
 
-/** GET /v1/heatmap/norms — every hand-set norm of the кабинет. */
+/** GET /v1/heatmap/norms — every hand-set norm of the workspace. */
 export async function fetchNorms() {
   const { data } = await apiClient.get('/v1/heatmap/norms')
   return data

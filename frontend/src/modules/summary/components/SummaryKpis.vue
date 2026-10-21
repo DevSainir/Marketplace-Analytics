@@ -118,13 +118,13 @@ const cards = computed(() => [
     note: 'без счетов за рекламу',
     negative: Number(props.kpi.penalties) > 0,
   },
-  // ДРР is computed here rather than sent, so it follows the price base the
+  // DRR is computed here rather than sent, so it follows the price base the
   // reader picked: the same advertising is a different share of the seller's
-  // price and of the after-СПП one.
+  // price and of the after-SPP one.
   {
     key: 'drr',
     label: 'ДРР от продаж',
-    // A window that returned more than it sold has no meaningful ДРР.
+    // A window that returned more than it sold has no meaningful DRR.
     value: pct(revenue.value > 0 ? ratio(props.kpi.ad_spend, revenue.value) : null),
     note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке',
     muted: props.kpi.ad_spend === null,

@@ -1,10 +1,10 @@
 /**
- * Список артикулов на телефоне: чем сортировать и что показывать под карточкой.
+ * The article list on a phone: what to sort by and what to show under a card.
  *
- * Отдельно от компонента, потому что это описание таблицы, а не разметка: у
- * телефонной проекции нет строки заголовков, которую можно нажать, поэтому
- * порядок и подписи приходится задать списком — и этот список длиннее, чем
- * вся остальная логика карточек.
+ * Kept apart from the component because it describes the table, not markup: the
+ * phone projection has no header row to click, so the order and the captions
+ * have to be given as a list — and that list is longer than all the rest of the
+ * card logic.
  */
 import { pct, units } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'

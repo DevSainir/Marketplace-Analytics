@@ -5,7 +5,7 @@
  *
  * Two projections, one set of rows — `PnlSkuDataTable` on a desktop and
  * `PnlSkuCards` below `sm`, both fed the same `tableRows`, so the search and
- * the Тип предмета / Бренд filters above them apply to both without being
+ * the «Тип предмета» / «Бренд» filters above them apply to both without being
  * wired twice.
  *
  * Every figure is the backend's — this only formats, filters and sorts. Search
@@ -91,14 +91,14 @@ watchEffect(() => {
 })
 
 /**
- * Строка «Итого» — сумма того, что сейчас в таблице.
+ * The «Итого» row — the sum of what is in the table right now.
  *
- * Считается здесь, а не в проекции: карточки и таблица должны показывать одну
- * и ту же выборку, а выборку знает этот компонент. Складываются артикулы, а не
- * строки на экране: в разбивке по группам артикул стоит в каждой своей группе,
- * и сумма строк посчитала бы его дважды. Счета WB за рекламу
- * передаются отдельно — из них складывается поправка, без которой «Итого»
- * списало бы рекламу дважды (подробности в `sumRows`).
+ * Computed here, not in a projection: the cards and the table must show the
+ * same selection, and this component is the one that knows it. Articles are
+ * summed, not on-screen rows: in the by-group cut an article appears in each of
+ * its groups, and summing rows would count it twice. WB's advertising invoices
+ * are passed separately — they make up a correction without which «Итого»
+ * would deduct advertising twice (details in `sumRows`).
  */
 const totals = computed(() =>
   sumRows(articleRows.value, Number(props.baseDashboard?.advertising ?? 0)),

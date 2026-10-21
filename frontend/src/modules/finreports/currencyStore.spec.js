@@ -12,7 +12,7 @@ beforeEach(() => {
 
 describe('useCurrencyStore', () => {
   it('asks the backend once, however many pages want the unit', async () => {
-    // The matrix, the chart and the A/Б summary all ask on the same page load.
+    // The matrix, the chart and the A/B summary all ask on the same page load.
     vi.mocked(fetchSettlementCurrency).mockResolvedValue('KGS')
     const store = useCurrencyStore()
 

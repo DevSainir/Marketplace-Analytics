@@ -142,7 +142,7 @@ defineExpose({ scroller })
             <!-- Zeros read as blanks — only real remainders carry figures. The
                  divider sits on the column's centre line, stock closing on it
                  from the left and money opening from the right, so a column
-                 reads as two aligned числа rather than one ragged string.
+                 reads as two aligned numbers rather than one ragged string.
                  Both figures are what is LYING here: goods in transit belong to
                  no shelf and are reported once, in «Итого по артикулу». -->
             <div v-if="row.byWarehouse[column.name]" class="cell-split">

@@ -5,8 +5,8 @@
  * Left: the painted metric, ⇄, and an optional second metric — when one is
  * chosen every cell carries two numbers, the painted one on top. Each select
  * is as wide as its longest option, no wider. Right: where the norm comes
- * from (the median, or a number typed per article), the column width (день /
- * неделя / месяц), and whether a row is compared with its own days or with
+ * from (the median, or a number typed per article), the column width (day /
+ * week / month), and whether a row is compared with its own days or with
  * every other row. What a row stands for is `GroupingChips`, above the card
  * like on every other page.
  *

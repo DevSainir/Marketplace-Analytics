@@ -21,9 +21,9 @@ import SearchField from '@/core/components/SearchField.vue'
 import { GroupsFilter } from '@/modules/heatmap'
 
 const props = defineProps({
-  /** Distinct Предмет values to choose from. */
+  /** Distinct «Предмет» values to choose from. */
   subjects: { type: Array, default: () => [] },
-  /** Distinct Бренд values to choose from. */
+  /** Distinct «Бренд» values to choose from. */
   brands: { type: Array, default: () => [] },
   query: { type: String, default: '' },
   /** The chosen ones — empty is «все». */

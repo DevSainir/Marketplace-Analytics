@@ -25,7 +25,7 @@ export function useCostEntry(store) {
   async function save({ nmId, cost, vendorCode }) {
     // Costs are matched in the window's settlement currency; one stated in
     // any other would leave the article uncosted. An empty window has none,
-    // and the backend's default is the кабинет's.
+    // and the backend's default is the workspace's.
     const currency = store.report?.currency
     await saveCostPrices([
       { nm_id: nmId, cost, vendor_code: vendorCode, ...(currency ? { currency } : {}) },

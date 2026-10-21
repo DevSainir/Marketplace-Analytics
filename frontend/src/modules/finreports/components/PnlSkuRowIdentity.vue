@@ -1,11 +1,12 @@
 <script setup>
 /**
- * Первая (закреплённая) ячейка отчёта: треугольник размеров, фото и артикул.
+ * The first (frozen) cell of the report: the sizes triangle, the photo and the
+ * article.
  *
- * Треугольник живёт именно здесь, а не в отдельной колонке: таблица уезжает
- * вбок на двадцать денежных колонок, и раскрывающий элемент в своей колонке
- * уехал бы от строки, которую открывает. По той же причине здесь же фото —
- * картинка, отъехавшая от артикула, перестаёт быть опознавательным знаком.
+ * The triangle lives here and not in a column of its own: the table scrolls
+ * sideways across twenty money columns, and an expander in its own column would
+ * drift away from the row it opens. The photo is here for the same reason — a
+ * picture that has drifted away from its article stops identifying it.
  *
  * The «no cost» mark sits here for the same reason: the «Себестоимость»
  * column is fourteen columns to the right, off screen on most laptops, and a
@@ -14,7 +15,7 @@
 import SkuThumb from '@/core/components/SkuThumb.vue'
 
 defineProps({
-  /** @type {object} Плоская строка таблицы. */
+  /** @type {object} A flat table row. */
   row: { type: Object, required: true },
   open: { type: Boolean, default: false },
   /** The mark is a button that asks for the cost, not just a label. */
@@ -36,8 +37,8 @@ defineEmits(['toggle', 'cost'])
     >
       <span class="inline-block transition" :class="open && 'rotate-90'">▶</span>
     </button>
-    <!-- Строка счёта и строка-сумма (предмет, бренд, группа) не раскрываются:
-         у них нет ни артикула, ни размеров. -->
+    <!-- The account-level row and sum rows (subject, brand, group) do not
+         expand: they have neither an article nor sizes. -->
     <span v-else class="w-4"></span>
 
     <SkuThumb v-if="row.isSku" :src="row.photoUrl" :label="row.saName" size="sm" />

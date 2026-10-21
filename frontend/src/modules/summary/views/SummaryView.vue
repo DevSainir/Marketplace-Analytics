@@ -2,7 +2,7 @@
 /**
  * «Сводка» — /labs/summary.
  *
- * The whole кабинет in one window: what it earned, what it kept, and which
+ * The whole workspace in one window: what it earned, what it kept, and which
  * articles produced both. Every figure comes from one request, so the cards and
  * the charts can never be showing two different periods.
  *

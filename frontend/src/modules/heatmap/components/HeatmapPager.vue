@@ -2,7 +2,7 @@
 /**
  * Under the grid: how many rows a page holds, and which page is on screen.
  *
- * Thirty by default, as in the reference — enough to see a кабинет's leaders
+ * Thirty by default, as in the reference — enough to see a workspace's leaders
  * and the start of its tail on one screen. Paging is answered from rows the
  * page already holds, so it never waits on the network.
  */

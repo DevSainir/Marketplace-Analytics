@@ -12,7 +12,7 @@
  * Shown only to a caller the server lets read groups — anybody holding one of
  * the pages that carry this filter (`GROUP_MODULES`), which every page
  * rendering it is. «Добавить» and ✎ only for one who may write: a read-only manager or a
- * guest in another company's кабинет is refused by the server anyway.
+ * guest in another company's workspace is refused by the server anyway.
  *
  * `cards` is what the editor offers; the heatmap passes its catalogue (ranked
  * by orders in its own window), any other page leaves it to the store.

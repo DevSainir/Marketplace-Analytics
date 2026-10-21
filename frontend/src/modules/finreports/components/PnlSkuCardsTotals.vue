@@ -14,7 +14,7 @@ import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { amountClass } from '@/modules/finreports/pnlThresholds'
 
 defineProps({
-  /** @type {object} Строка из `sumRows`. */
+  /** @type {object} A row from `sumRows`. */
   totals: { type: Object, required: true },
 })
 

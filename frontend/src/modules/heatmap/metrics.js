@@ -5,14 +5,14 @@
  * Keys are the backend's (`MetricKey` in `heatmap/schemas.py`), shared
  * verbatim; this file owns only presentation — the same split the monitoring
  * matrix uses. The direction is what the colour is built on, so it is the one
- * field here with consequences: «меньше — лучше» for every cost ratio (ДРР,
+ * field here with consequences: «меньше — лучше» for every cost ratio (DRR,
  * CPC, CPM, CPO) and for the ad budget, «нейтрально» for prices and stock,
  * which have no better end, and «больше — лучше» for everything else.
  *
  * Money names carry no currency; every figure carries its own sign
  * («1 240с», «4 120₽») from `currencyOf` — the prices' for prices and order
  * sums, the campaigns' for spend and its costs, the settlement's for revenue
- * and profit. A кабинет settled in KGS is priced in RUB, so one кабинет-wide
+ * and profit. A workspace settled in KGS is priced in RUB, so one workspace-wide
  * unit was wrong for some figure whichever unit it was.
  */
 import { currencySign, formatNumber } from '@/core/utils/format'
@@ -263,7 +263,7 @@ export function formatValue(value, unit, currency = '') {
  * where the row names one per cell (spend, CPC, CPM, CPO — `units`), with the
  * grid's otherwise.
  *
- * Across 20.08.2026 the spend is roubles in one column and сомы in the next, so
+ * Across 20.08.2026 the spend is roubles in one column and som in the next, so
  * a grid-wide sign would be wrong on half of them; a cell over both has no
  * figure (the backend sends null).
  *

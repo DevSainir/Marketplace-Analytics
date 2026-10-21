@@ -9,7 +9,7 @@
 
 /**
  * Plot margins, in px. Left is wide enough for a «1,2 млн» tick; right for a
- * «20 %» one, because the ДРР charts carry a second axis over there.
+ * «20 %» one, because the DRR charts carry a second axis over there.
  */
 export const MARGIN = { left: 58, right: 44, top: 12, bottom: 26 }
 
@@ -68,7 +68,7 @@ export function buildScales({ width, height, series, count }) {
   const x = (index) =>
     MARGIN.left + (count < 2 ? innerWidth / 2 : (index / (count - 1)) * innerWidth)
 
-  // Two independent vertical scales. A ДРР line lives between 0 and 20 while
+  // Two independent vertical scales. A DRR line lives between 0 and 20 while
   // the orders beside it are in the thousands: on one axis the percentage is a
   // flat line on the floor, which is the one shape it must never have.
   const left = buildAxis(

@@ -13,7 +13,7 @@
  * ran to one screen every two records, which is not a report anyone scrolls.
  *
  * Fed the SAME `tableRows` the table renders — one report, two projections, so
- * the search and the Тип предмета / Бренд filters in the shared toolbar apply to
+ * the search and the «Тип предмета» / «Бренд» filters in the shared toolbar apply to
  * both without being wired twice. Sorting is this component's own: the table
  * sorts by clicking a header, and there are no headers here.
  *

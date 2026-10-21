@@ -20,7 +20,7 @@ const props = defineProps({
   /**
    * One entry per line: `{ name, color, values: (number|null)[] }`, plus
    * `axis: 'right'` to put it on the second scale and `percent: true` to render
-   * it as a percentage. A ДРР line needs both — on the counts' own axis it
+   * it as a percentage. A DRR line needs both — on the counts' own axis it
    * would be a flat line along the floor.
    */
   series: { type: Array, required: true },

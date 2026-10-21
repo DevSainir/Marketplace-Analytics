@@ -87,7 +87,7 @@ describe('«Логистика на 1 выкуп» у артикула и в «�
 
     expect(perSale(600, 2)).toBe(300)
     expect(perSale(600, 0)).toBeNull()
-    // 1 000 / 10, а не среднее из 300 и 50.
+    // 1 000 / 10, not the average of 300 and 50.
     expect(sumRows([a, b]).logisticsPerSale).toBe(100)
   })
 })

@@ -41,7 +41,7 @@ export function providePnlCurrencies(currencies) {
  *
  * «Реклама» and «Бонусы» are signed in the payout's currency too: WB billed
  * old campaigns in roubles until 22.09.2026, and since 02.10.2026 those roubles
- * are converted to the кабинет's currency where they are stored, at the Bank
+ * are converted to the workspace's currency where they are stored, at the Bank
  * of Russia rate of their day. The report's caveat names any rouble row the
  * conversion could not reach.
  *

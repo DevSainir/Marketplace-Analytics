@@ -24,7 +24,7 @@ export const SORTS = [
 /**
  * Which price base the figures are shown at, the seller's own first.
  *
- * It is also the default. WB's СПП is a discount WB funds, so «цена реализации»
+ * It is also the default. WB's SPP is a discount WB funds, so «цена реализации»
  * is what the buyer paid and «цена селлера» is what the payout is actually
  * pegged to — the base a seller plans against.
  */
@@ -55,7 +55,7 @@ function bucketsOf(rows, cut, groups) {
  *
  * @param {Array<object>} rows Per-article rows from the API.
  * @param {{cut: string, base: string, sort: string, groups?: Array<object>}} options
- *   `groups` — the кабинет's «Группы», for the `group` cut.
+ *   `groups` — the workspace's «Группы», for the `group` cut.
  * @returns {Array<object>} Bars, largest first by the chosen metric, each with
  *   its share of the visible total and its own margin percentage.
  */

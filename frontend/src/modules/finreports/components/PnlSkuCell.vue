@@ -1,13 +1,15 @@
 <script setup>
 /**
- * Одна ячейка таблицы «По артикулам» — по описанию из `pnlSkuCells.cellOf`.
+ * One cell of the «По артикулам» table — rendered from the description
+ * `pnlSkuCells.cellOf` builds.
  *
- * Цифра, доля в скобках (логистика, прибыль), «N причин» перед штрафами и у
- * размера — полоска его доли в артикуле. Под колонками «Продажи, шт» и
- * «Продажи»: видно, какой размер тянет артикул, не читая цифр.
+ * The figure, a share in brackets (logistics, profit), «N причин» before
+ * penalties and, on a size row, a bar of its share of the article. Under the
+ * «Продажи, шт» and «Продажи» columns: you can see which size carries the
+ * article without reading the numbers.
  *
- * «N причин» только сообщает о клике (`reasons`); карточку держит таблица —
- * почему, написано в `PnlPenaltyReasons`.
+ * «N причин» only reports the click (`reasons`); the table owns the card — why
+ * is written in `PnlPenaltyReasons`.
  */
 import { computed } from 'vue'
 

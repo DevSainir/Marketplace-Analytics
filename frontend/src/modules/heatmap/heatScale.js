@@ -20,8 +20,8 @@
  *   the day furthest under it is the full red.
  *
  * Direction decides the hue: «больше — лучше» paints above the norm green,
- * «меньше — лучше» (ДРР, CPC, CPM, CPO, the ad budget) paints it red. Prices,
- * СПП and stock have no better end: with the default norm they are painted in
+ * «меньше — лучше» (DRR, CPC, CPM, CPO, the ad budget) paints it red. Prices,
+ * SPP and stock have no better end: with the default norm they are painted in
  * the action hue by magnitude, the cheapest white; against a hand-set norm, in
  * the same hue by distance from it, either way.
  */

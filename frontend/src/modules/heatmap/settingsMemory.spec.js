@@ -1,6 +1,6 @@
 /**
  * The heatmap remembers its settings for an hour after the last change — the
- * same hour every page's period is kept for — per кабинет, and starts on its defaults when storage has nothing fresh.
+ * same hour every page's period is kept for — per workspace, and starts on its defaults when storage has nothing fresh.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

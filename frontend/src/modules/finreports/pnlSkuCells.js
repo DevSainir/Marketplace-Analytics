@@ -1,14 +1,15 @@
 /**
- * Колонки таблицы «По артикулам» и что каждая показывает в строке артикула и в
- * строке размера.
+ * The columns of the «По артикулам» table and what each shows in an article row
+ * and in a size row.
  *
- * Описанием, а не двадцатью шаблонами в разметке: у размера своя версия почти
- * каждой ячейки, и вдвоём они не помещались в `.vue` файл. Ячейка — это
- * `{text, cls, sub, subCls, reasons, bar}`, рисует её `PnlSkuCell`.
+ * A description rather than twenty templates in the markup: a size has its own
+ * version of almost every cell, and the two together did not fit in a `.vue`
+ * file. A cell is `{text, cls, sub, subCls, reasons, bar}`, drawn by
+ * `PnlSkuCell`.
  *
- * Колонки без `size` у размера пустые, а не «—»: рекламы, себестоимости и
- * прибыли у размера нет вовсе (WB не делит рекламу по размерам, PNL.md §17.1),
- * а прочерк читается как «не знаем».
+ * Columns without `size` are blank on a size row, not «—»: a size has no
+ * advertising, cost price or profit at all (WB does not split advertising by
+ * size, PNL.md §17.1), and a dash reads as «we don't know».
  */
 import { formatNumber } from '@/core/utils/format'
 import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
@@ -16,7 +17,7 @@ import { pct } from '@/modules/finreports/pnlFormat'
 
 const BLANK = { text: '' }
 
-/** Деньги со долей в скобках — «Логистика». */
+/** Money with a share in brackets — «Логистика». */
 function withShare(money, value, share, toneKey, base) {
   return {
     text: money(value),
@@ -26,8 +27,8 @@ function withShare(money, value, share, toneKey, base) {
 }
 
 /**
- * Колонки после «Артикула» в порядке таблицы. `art` и `size` получают строку и
- * форматтер денег и возвращают ячейку.
+ * The columns after «Артикул», in table order. `art` and `size` take the row
+ * and the money formatter and return a cell.
  */
 export const COLUMNS = [
   {
@@ -100,8 +101,8 @@ export const COLUMNS = [
     field: 'penalties',
     header: 'Штрафы',
     num: true,
-    // Причины — не строками в ячейке (строка вырастала на пять строк текста),
-    // а «N причин» с карточкой по клику; крупные сверху, сторно внизу.
+    // Reasons are not lines in the cell (the row grew by five lines of text)
+    // but «N причин» with a card on click; largest on top, reversals at the bottom.
     art: (r, money) => ({
       text: money(r.penalties),
       reasons: r.penalties
@@ -175,11 +176,11 @@ export const COLUMNS = [
 ]
 
 /**
- * Ячейка колонки для строки любого вида.
+ * A column's cell for a row of any kind.
  *
- * @param {object} column Колонка из `COLUMNS`.
- * @param {object} row Строка артикула, размера или пояснения.
- * @param {(value: unknown) => string} money Форматтер денег страницы.
+ * @param {object} column A column from `COLUMNS`.
+ * @param {object} row An article, size or note row.
+ * @param {(value: unknown) => string} money The page's money formatter.
  */
 export function cellOf(column, row, money) {
   if (row.kind === 'size') return column.size ? column.size(row, money) : BLANK

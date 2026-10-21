@@ -1,7 +1,7 @@
 /**
  * Which currency sign a money figure carries.
  *
- * One кабинет holds three: on «Демо» WB prices in RUB, advertises in KGS
+ * One workspace holds three: on «Демо» WB prices in RUB, advertises in KGS
  * since 20.08.2026 and settles in KGS. A price signed with the settlement's
  * currency is the mistake this pins against.
  */

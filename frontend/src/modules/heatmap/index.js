@@ -1,8 +1,8 @@
 /**
  * PUBLIC API CONTRACT — heatmap module.
  *
- * «Тепловая карта»: every article of a кабинет, day by day, painted by one
- * metric — the view for a кабинет with too many working articles to watch one
+ * «Тепловая карта»: every article of a workspace, day by day, painted by one
+ * metric — the view for a workspace with too many working articles to watch one
  * at a time. Lives at /heatmap.
  *
  * The ONLY entry point other parts of the app may import from.

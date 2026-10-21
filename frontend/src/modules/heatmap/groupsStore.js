@@ -1,16 +1,16 @@
 /**
- * «Группы» — a кабинет's hand-made sets of articles, one list for every page.
+ * «Группы» — a workspace's hand-made sets of articles, one list for every page.
  *
  * The heatmap had them alone; the P&L, the balance and advertising filter by
  * them too now. One store, so a group created or edited on one page is the
  * group every other page shows — the list lives on the server and is the same
- * for everyone in the кабинет, and this is its one copy in the tab.
+ * for everyone in the workspace, and this is its one copy in the tab.
  *
  * `revision` ticks on every change made here (not on a plain reload), so a page
  * whose figures depend on the groups — the heatmap cut by them — knows to ask
  * again without asking on every visit.
  *
- * A кабинет switch reloads the whole app, so nothing here is keyed by кабинет.
+ * A workspace switch reloads the whole app, so nothing here is keyed by workspace.
  */
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
@@ -28,7 +28,7 @@ export const useGroupsStore = defineStore('heatmap-groups', () => {
   const revision = ref(0)
   const busy = ref(false)
   const error = ref('')
-  /** Every card of the кабинет, most-ordered first — what the editor picks from. */
+  /** Every card of the workspace, most-ordered first — what the editor picks from. */
   const cards = ref([])
 
   /** Refreshed on every page that shows them: someone else may have changed one. */

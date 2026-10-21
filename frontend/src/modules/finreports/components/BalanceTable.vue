@@ -22,7 +22,7 @@
  * {@link syncPanels}, which is what keeps every total against its row and its
  * column.
  *
- * Тип предмета and Бренд are NOT columns (the columns are warehouses) but stay
+ * «Тип предмета» and «Бренд» are NOT columns (the columns are warehouses) but stay
  * filterable through the shared P&L toolbar. Ordering and the totals are the
  * composable's: a «Не считать» applies the instant it is clicked, so both have
  * to be derived on screen rather than fetched (see `useBalanceRows`).

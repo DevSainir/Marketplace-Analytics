@@ -1,11 +1,12 @@
 /**
- * Состояние и форматирование таблицы «По артикулам» — всё, что не разметка.
+ * State and formatting of the «По артикулам» table — everything that is not
+ * markup.
  *
- * Вынесено из `PnlSkuDataTable.vue` по той же причине, по которой из него уже
- * вынесены карточки: два десятка определений колонок и так занимают файл
- * целиком, и любая логика рядом с ними перестаёт читаться. Здесь — какие
- * артикулы раскрыты, порядок и страница с размерами под артикулами и как
- * выглядит строка «Итого»; там — только колонки.
+ * Pulled out of `PnlSkuDataTable.vue` for the same reason the cards were: a
+ * couple of dozen column definitions already fill the file, and any logic next
+ * to them stops being readable. Here: which articles are expanded, the order
+ * and the page with sizes under their articles, and what the «Итого» row looks
+ * like; there: only the columns.
  */
 import { computed, ref, watch } from 'vue'
 
@@ -51,10 +52,10 @@ export function useExpandedSkus(onOpen, sizesOf = () => ({})) {
 }
 
 /**
- * Готовые ячейки строки «Итого». Собраны заранее, чтобы каждая колонка несла
- * один `:footer`, а не блок форматирования внутри шаблона.
+ * Ready-made cells of the «Итого» row. Built in advance so that each column
+ * carries one `:footer`, not a block of formatting inside the template.
  *
- * @param {import('vue').Ref<object|null>} totals Строка из `sumRows`.
+ * @param {import('vue').Ref<object|null>} totals A row from `sumRows`.
  */
 export function useFooterCells(totals) {
   const { money } = usePnlMoney()
@@ -84,30 +85,30 @@ export function useFooterCells(totals) {
 }
 
 /**
- * Сортировка, страница и размеры под артикулами — то, что раньше делал сам
- * PrimeVue (почему больше не он — в `pnlSkuTree`).
+ * Sorting, the page and sizes under their articles — what PrimeVue used to do
+ * itself (why it no longer does is in `pnlSkuTree`).
  *
  * @param {object} src
- * @param {import('vue').Ref<Array>} src.rows Артикулы после фильтров.
- * @param {() => number} src.perPage Строк на странице.
- * @param {import('vue').Ref<object>} src.expanded Открытые артикулы.
- * @param {() => object} src.sizes Размеры из стора.
- * @param {() => string} src.base База цены страницы.
+ * @param {import('vue').Ref<Array>} src.rows Articles after filters.
+ * @param {() => number} src.perPage Rows per page.
+ * @param {import('vue').Ref<object>} src.expanded Expanded articles.
+ * @param {() => object} src.sizes Sizes from the store.
+ * @param {() => string} src.base The page's price base.
  */
 export function useSkuTreePage({ rows, perPage, expanded, sizes, base }) {
   const sortField = ref(null)
   const sortOrder = ref(null)
-  /** Первый артикул страницы — счёт по артикулам, не по строкам. */
+  /** The page's first article — counted in articles, not rows. */
   const first = ref(0)
 
-  // Фильтр сузил выборку — страница за её концом показала бы пустую таблицу.
+  // A filter narrowed the selection — a page past its end would show an empty table.
   watch(
     () => rows.value.length,
     (length) => {
       if (first.value >= length) first.value = 0
     },
   )
-  // Новый порядок — с первой страницы, как это делал PrimeVue.
+  // A new order starts from the first page, as PrimeVue did.
   watch([sortField, sortOrder], () => {
     first.value = 0
   })

@@ -5,9 +5,9 @@
  * One form, one «Сохранить» — the group is replaced whole, name and members
  * together, so a failed save leaves nothing half-edited behind. Deleting asks
  * twice (the second click is the confirmation), because a group is shared by
- * everyone in the кабинет and is gone for all of them.
+ * everyone in the workspace and is gone for all of them.
  *
- * Modal over a dimmed page, like the A/Б finish dialog: Escape and the backdrop
+ * Modal over a dimmed page, like the A/B finish dialog: Escape and the backdrop
  * close it, except mid-save.
  */
 import { computed, ref, watch } from 'vue'

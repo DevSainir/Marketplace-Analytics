@@ -13,9 +13,10 @@
 .sum-cat__head,
 .sum-cat__row {
   display: grid;
-  /* The money columns are sized for their widest real content — «1 396 367 KGS»
-     — because a narrower track does not clip the figure, it lets it overflow
-     back across the bars. The share columns need far less. */
+  /* The money columns are sized for their widest likely content — a seven-digit
+     sum like «1 234 567 KGS» — because a narrower track does not clip the
+     figure, it lets it overflow back across the bars. The share columns need
+     far less. */
   grid-template-columns: minmax(96px, 168px) 1fr 132px 88px 132px 88px;
   align-items: center;
   gap: 12px;

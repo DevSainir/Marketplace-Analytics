@@ -10,12 +10,12 @@
  *
  * - «Продажи» — revenue NET of returns at the page's price base (`priceBase.js`),
  *   which the card names, then the units bought out and returned. Units are
- *   net too: «488 шт» over a net figure while 69 of them came back made the
- *   money and the count disagree.
+ *   net too: a gross unit count over a net figure, while part of those units
+ *   came back, made the money and the count disagree.
  * - «Логистика» — the full delivery bill and its share of sales at the same
- *   a customer has no such page, so the card shows them neither link nor word.
+ *   base.
  * - «Прочие удержания» — WB's own «Прочие удержания» line (Σ deduction), with
- *   the advertising (ВБ.Продвижение) share it is mostly made of.
+ *   the advertising («ВБ.Продвижение») share it is mostly made of.
  * - «Себестоимость» — the seller's own cost of the sold units; flags how many
  *   SKUs still have no cost, because the profit is understated by exactly them,
  *   and says «Заполнить →» / «Изменить →» — it is the way into the cost editor.
@@ -67,6 +67,8 @@ const cards = computed(() => {
       key: 'logistics',
       label: 'Логистика',
       value: money(d.logistics),
+      sub: logisticsShare,
+      to: null,
     },
     {
       key: 'other',

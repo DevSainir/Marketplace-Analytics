@@ -1,11 +1,11 @@
 /**
- * The active кабинет's settlement currency — the unit of every money figure.
+ * The active workspace's settlement currency — the unit of every money figure.
  *
  * A store of its own rather than a field on each response: monitoring and the
- * A/Б tests print money too, and the backend cannot put the unit on their
+ * A/B tests print money too, and the backend cannot put the unit on their
  * responses without monitoring depending on finreports, which already depends
  * on monitoring. So it is one small request per session, shared by every page.
- * Switching кабинет reloads the app (`App.vue`, the profile page), so the
+ * Switching workspace reloads the app (`App.vue`, the profile page), so the
  * answer cannot go stale underneath a page.
  *
  * `ensureLoaded()` never rejects. A failed or not-yet-answered request leaves

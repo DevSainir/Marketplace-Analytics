@@ -13,17 +13,17 @@ export function dayRevenue(day, base) {
 }
 
 /**
- * ДРР — advertising as a share of what it sold, per day, in percent.
+ * DRR — advertising as a share of what it sold, per day, in percent.
  *
  * `null` on either side of the division, never zero: a day with no advertising
  * statistics and a day with no price to value its orders at are both «не
- * знаем», and zero there would read as free advertising or as infinite ДРР.
+ * знаем», and zero there would read as free advertising or as infinite DRR.
  */
 export function drr(spend, base) {
   if (spend === null || spend === undefined) return null
   // Not positive: the day returned more than it sold, and advertising over a
-  // negative sum is a negative ДРР, which means nothing (19.06.2024 on
-  // «Демо», −10 %) — withheld like a day without sales.
+  // negative sum is a negative DRR, which means nothing — withheld like a day
+  // without sales.
   if (base === null || base === undefined || Number(base) <= 0) return null
   return (Number(spend) / Number(base)) * 100
 }
@@ -52,11 +52,11 @@ export function revenueSeries(days, { base, costed }) {
 }
 
 /**
- * «Заказы и ДРР в день» — the day's orders against ДРР of what they were worth.
+ * «Заказы и ДРР в день» — the day's orders against DRR of what they were worth.
  *
  * The ordered money follows the same price base as everything else on the page:
  * a day's orders are worth one thing at the seller's own price and another
- * after WB's СПП, and the advertising is the same money either way.
+ * after WB's SPP, and the advertising is the same money either way.
  */
 export function orderSeries(days, { base }) {
   return [
@@ -73,7 +73,7 @@ export function orderSeries(days, { base }) {
   ]
 }
 
-/** «Продажи и ДРР в день» — what WB calculated as sold, against ДРР of revenue. */
+/** «Продажи и ДРР в день» — what WB calculated as sold, against DRR of revenue. */
 export function saleSeries(days, { base }) {
   return [
     {

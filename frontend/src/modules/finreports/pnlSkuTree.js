@@ -1,16 +1,16 @@
 /**
- * Строки таблицы «По артикулам» вместе с размерами — дерево, развёрнутое в
- * плоский список.
+ * The rows of the «По артикулам» table together with their sizes — a tree
+ * flattened into a list.
  *
- * Размеры стоят строками прямо под своим артикулом, в тех же колонках: цифра
- * размера читается под цифрой артикула, и сравнить размеры можно, глядя вниз
- * по колонке. Раньше под артикулом раскрывалась отдельная таблица со своими
- * колонками и своим «Итого», которое повторяло строку артикула.
+ * Sizes sit as rows right under their article, in the same columns: a size's
+ * figure reads under the article's figure, and sizes can be compared by looking
+ * down the column. An article used to expand into a separate table with its
+ * own columns and its own «Итого», which repeated the article row.
  *
- * Поэтому сортировку и страницы делает этот файл, а не PrimeVue: его сортировка
- * растащила бы размеры от артикула, а его страница отрезает ровно N строк и
- * вытеснила бы артикулы размерами. Здесь сортируются и делятся на страницы
- * только артикулы, а размеры вставляются после.
+ * That is why this file does the sorting and paging, not PrimeVue: its sorting
+ * would pull sizes away from their article, and its page cuts exactly N rows
+ * and would push articles out with sizes. Here only articles are sorted and
+ * paged, and sizes are inserted afterwards.
  */
 import { atBase, shareOf } from '@/modules/finreports/priceBase'
 import { perSale } from '@/modules/finreports/usePnlSkuRows'
@@ -18,13 +18,13 @@ import { perSale } from '@/modules/finreports/usePnlSkuRows'
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
 /**
- * Артикулы по колонке. Пустое значение — всегда в конце, в какую сторону ни
- * сортируй: «нет данных» не самое маленькое и не самое большое.
+ * Articles by a column. An empty value always goes last, whichever way you
+ * sort: «no data» is neither the smallest nor the largest.
  *
- * @param {Array<object>} rows Строки из `toRow`.
- * @param {string|null} field Поле строки.
- * @param {number|null} order 1 — по возрастанию, −1 — по убыванию.
- * @returns {Array<object>} Новый массив; исходный не трогается.
+ * @param {Array<object>} rows Rows from `toRow`.
+ * @param {string|null} field The row field.
+ * @param {number|null} order 1 — ascending, −1 — descending.
+ * @returns {Array<object>} A new array; the original is left untouched.
  */
 export function sortRows(rows, field, order) {
   if (!field || !order) return rows
@@ -42,12 +42,12 @@ export function sortRows(rows, field, order) {
 }
 
 /**
- * Один размер в полях строки артикула: колонка берёт одно и то же поле у
- * обоих. Доли полосок — от суммы размеров, она же строка артикула.
+ * One size in the fields of an article row: a column reads the same field from
+ * both. Bar shares are of the sum of sizes, which is the article row.
  *
- * @param {object} size Строка ответа `/sizes`.
- * @param {{sold: number, sales: number}} whole Суммы по всем размерам.
- * @param {string} base База цены страницы.
+ * @param {object} size A row of the `/sizes` response.
+ * @param {{sold: number, sales: number}} whole Sums over all sizes.
+ * @param {string} base The page's price base.
  */
 function toSizeRow(size, whole, base) {
   const sold = Number(size.sold_units)
@@ -73,7 +73,7 @@ function toSizeRow(size, whole, base) {
   }
 }
 
-/** Что стоит под открытым артикулом, пока размеров нет: одна строка-пояснение. */
+/** What sits under an open article while there are no sizes: one note row. */
 function noteFor(state) {
   if (!state || state.loading) return 'Загружаем…'
   if (state.error) return state.error
@@ -81,11 +81,11 @@ function noteFor(state) {
 }
 
 /**
- * Строки одного открытого артикула: его размеры или строка-пояснение.
+ * The rows of one open article: its sizes or a note row.
  *
- * @param {number} nmId Артикул.
- * @param {object|null} state `{loading, error, data}` из стора.
- * @param {string} base База цены страницы.
+ * @param {number} nmId Article ID.
+ * @param {object|null} state `{loading, error, data}` from the store.
+ * @param {string} base The page's price base.
  */
 export function childRows(nmId, state, base) {
   const sizes = state?.data?.rows ?? []
@@ -105,12 +105,12 @@ export function childRows(nmId, state, base) {
 }
 
 /**
- * Страница таблицы: артикулы страницы, под каждым открытым — его размеры.
+ * A table page: the page's articles, with its sizes under each open one.
  *
- * @param {Array<object>} page Артикулы страницы, уже отсортированные.
- * @param {object} expanded `nmId -> true` для открытых.
- * @param {object} sizes `nmId -> state` из стора.
- * @param {string} base База цены страницы.
+ * @param {Array<object>} page The page's articles, already sorted.
+ * @param {object} expanded `nmId -> true` for open ones.
+ * @param {object} sizes `nmId -> state` from the store.
+ * @param {string} base The page's price base.
  */
 export function treeRows(page, expanded, sizes, base) {
   return page.flatMap((row) => {

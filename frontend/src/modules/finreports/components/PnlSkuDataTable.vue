@@ -3,8 +3,8 @@
  * The per-SKU P&L as a table — the desktop projection of `PnlSkuTable`.
  *
  * One row per SKU with the money columns of the reference workbook plus WB's
- * catalogue identity (the card photo / Артикул WB / Тип предмета / Бренд) and the efficiency
- * ratios (Выкуп, Средний чек, ROI). «Продажи» is shown NET of returns at the
+ * catalogue identity (the card photo / «Артикул WB» / «Тип предмета» / «Бренд») and the
+ * efficiency ratios («Выкуп», «Средний чек», ROI). «Продажи» is shown NET of returns at the
  * page's price base (`priceBase.js`); the percentages are shares of it.
  *
  * «Штрафы» carry their categories inline — what tells a seller whether a fine
@@ -13,14 +13,15 @@
  *
  * Three things beyond plain columns:
  *
- * * **Цвет только за рамкой.** Доли и коэффициенты подкрашены, когда вышли за
- *   границы из `pnlThresholds` — границы взяты по фактическому распределению,
- *   чтобы в обычном отчёте горели несколько строк, а не половина таблицы.
- * * **Размеры строками под артикулом.** Треугольник у артикула вставляет под
- *   ним его размеры в тех же колонках; грузятся по клику (`@load-sizes`).
- *   Своего «Итого» у размеров нет: их сумма — это строка артикула над ними.
- * * **Строка «Итого».** Закреплена внизу области прокрутки, считается по всему
- *   текущему фильтру, а не по странице пагинации.
+ * * **Colour only out of bounds.** Shares and ratios are tinted when they leave
+ *   the bounds in `pnlThresholds` — the bounds come from the observed
+ *   distribution, so that a typical report lights up a few rows, not half the
+ *   table.
+ * * **Sizes as rows under the article.** The triangle on an article inserts its
+ *   sizes beneath it in the same columns; they load on click (`@load-sizes`).
+ *   Sizes have no «Итого» of their own: their sum is the article row above them.
+ * * **The «Итого» row.** Pinned to the bottom of the scroll area, computed over
+ *   the whole current filter, not over the pagination page.
  *
  * PrimeVue for the sticky header, the frozen first column and the sort arrows,
  * in `lazy` mode: the order and the page are `useSkuTreePage`'s, so sizes stay
@@ -126,8 +127,8 @@ function toggleReasons(anchor, row, cell) {
         <div class="px-md py-xl text-center text-base text-muted">Нет продаж за период</div>
       </template>
 
-      <!-- Фото и треугольник размеров живут в этой же закреплённой ячейке —
-           почему именно так, написано в `PnlSkuRowIdentity`. -->
+      <!-- The photo and the sizes triangle live in this same frozen cell —
+           why it is done this way is written in `PnlSkuRowIdentity`. -->
       <Column field="saName" :header="firstHeader" sortable frozen :footer="foot.saName">
         <template #body="{ data }">
           <span v-if="data.kind === 'size'" class="pnl-size-pill">{{ data.label }}</span>

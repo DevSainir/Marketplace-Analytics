@@ -207,8 +207,8 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    * * A harvest is running — watch it in the background. Say so only if this
    *   browser asked for it: the lock is platform-wide and the schedule takes it
    *   many times a day, so on an ordinary page load «Обновление уже идёт» was
-   *   usually about somebody else's кабинет and read as noise. A run that
-   *   actually found a report for THIS кабинет is the freshness line's to
+   *   usually about somebody else's workspace and read as noise. A run that
+   *   actually found a report for THIS workspace is the freshness line's to
    *   announce («WB выложил новый отчёт — загружаем»).
    * * Nothing is running but this browser asked for one — it finished while the
    *   tab was away, so report how it ended rather than silently dropping it.

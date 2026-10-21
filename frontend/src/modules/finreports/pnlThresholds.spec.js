@@ -2,8 +2,8 @@ import { tone } from '@/modules/finreports/pnlThresholds'
 
 describe('рамки подсветки и база цены', () => {
   it('одна и та же доля логистики красная по цене селлера и обычная по цене реализации', () => {
-    // От меньшей выручки (после СПП) та же логистика даёт больший процент, и
-    // рамки цены селлера красили бы на этой базе лишние строки.
+    // Over a smaller revenue (after SPP) the same logistics is a larger
+    // percentage, and the seller's-price bounds would tint extra rows on this base.
     expect(tone('logisticsPct', 40, 'seller')).toBe('negative')
     expect(tone('logisticsPct', 40, 'paid')).toBe('')
   })

@@ -137,7 +137,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           {{ store.harvestBusy ? 'Обновляем…' : 'Обновить' }}
         </button>
         <!--
-          The weekly report WB shows in its кабинет hours before its API serves
+          The weekly report WB shows in the seller's account hours before its API serves
           it: the seller downloads it there and hands it over here. Hidden for a
           read-only member, whom the route would refuse.
         -->

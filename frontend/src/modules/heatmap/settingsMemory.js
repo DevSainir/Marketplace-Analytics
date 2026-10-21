@@ -3,7 +3,7 @@
  *
  * A back-and-forward to another page, or a reload, used to drop every choice —
  * metrics, cut, filters, sort — back to the defaults. So they are kept in this
- * browser's `localStorage`, keyed by кабинет (an article filter means nothing
+ * browser's `localStorage`, keyed by workspace (an article filter means nothing
  * in another one), and forgotten an hour after the last change: the same hour
  * the period is kept for (`core/utils/periodMemory.js`, where the period itself
  * now lives), so the page never comes back with half its choices.

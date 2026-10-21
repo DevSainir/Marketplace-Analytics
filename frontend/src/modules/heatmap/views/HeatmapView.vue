@@ -2,8 +2,8 @@
 /**
  * «Тепловая карта» — /heatmap.
  *
- * Every article of the кабинет, day by day, painted by one metric: the view for
- * a кабинет with too many working articles to watch one at a time, where the
+ * Every article of the workspace, day by day, painted by one metric: the view for
+ * a workspace with too many working articles to watch one at a time, where the
  * question is not «how is this card» but «which cards dipped, and when».
  *
  * The view composes; the store decides what costs a request. The previous grid

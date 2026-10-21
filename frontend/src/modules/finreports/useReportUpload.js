@@ -1,7 +1,7 @@
 /**
  * «Загрузить отчёт» — the weekly report WB shows the seller before its API serves it.
  *
- * The seller downloads «Еженедельный детализированный отчет» from WB's кабинет
+ * The seller downloads «Еженедельный детализированный отчет» from their WB account
  * and picks it here. The backend answers at once (is it WB's file, which
  * report) and a worker reads it; this polls until the worker is done and then
  * shows the worker's own sentence — «загружен», «уже есть», or why not.

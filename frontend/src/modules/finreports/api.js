@@ -2,6 +2,8 @@
  * FinReports module API layer — thin async wrappers over the backend's
  * `/api/v1/finreports/*` endpoints (see backend `finreports/routers`).
  *
+ * The P&L statement plus its cost-price inputs and the settlement-report
+ * upload. Errors propagate to the caller.
  */
 import apiClient, { WINDOW_TIMEOUT_MS } from '@/core/api/axios'
 
@@ -23,13 +25,13 @@ export async function fetchSkuPnl(params = {}, signal) {
 }
 
 /**
- * GET /v1/finreports/pnl/skus/{nmId}/sizes — размеры одного артикула за то же
- * окно, что и таблица. Запрашивается по клику на раскрытие строки: в отчёте на
- * сорок артикулов это ~400 строк размеров, а открывают один-два.
+ * GET /v1/finreports/pnl/skus/{nmId}/sizes — the sizes of one article over the
+ * same window as the table. Requested when a row is expanded: a report of forty
+ * articles has ~400 size rows, and people open one or two.
  *
- * @param {number} nmId Артикул WB.
+ * @param {number} nmId WB article ID.
  * @param {{date_from?: string, date_to?: string}} [params]
- * @param {AbortSignal} [signal] Отменяет запрос, если начался более свежий.
+ * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
  * @returns {Promise<object>} `{ nm_id, sa_name, currency, rows }`
  */
 export async function fetchSkuSizes(nmId, params = {}, signal) {
@@ -93,9 +95,9 @@ export async function triggerHarvest() {
 }
 
 /**
- * GET /v1/finreports/currency — the currency the active кабинет is settled in.
+ * GET /v1/finreports/currency — the currency the active workspace is settled in.
  *
- * Membership is enough, not the «P&L» grant: monitoring and the A/Б tests print
+ * Membership is enough, not the «P&L» grant: monitoring and the A/B tests print
  * money in this unit for managers who cannot open the P&L.
  *
  * @returns {Promise<string>} ISO code (`KGS`), or `''` before the first report.
@@ -177,8 +179,8 @@ export async function downloadCostPricesXlsx(params = {}) {
   const response = await apiClient.get('/v1/finreports/cost-prices/export', {
     params,
     responseType: 'blob',
-    // The whole-history P&L aggregates ~620k settlement rows; like the claim
-    // package, it legitimately outruns the client's default timeout.
+    // The whole-history P&L aggregates ~620k settlement rows, so the export
+    // legitimately outruns the client's default timeout.
     timeout: 600000,
   })
   const disposition = response.headers['content-disposition'] || ''
@@ -214,7 +216,7 @@ export async function importCostPricesXlsx(file) {
 /**
  * POST /v1/finreports/settlement-uploads — hand WB's weekly report to the backend.
  *
- * The file the seller downloads from WB's кабинет («Еженедельный
+ * The file the seller downloads from their WB seller account («Еженедельный
  * детализированный отчет №…»): the zip, or the .xlsx inside it. Answered at
  * once with `status: 'queued'`; the worker reads it and
  * {@link fetchSettlementUpload} says how it ended.
@@ -245,47 +247,12 @@ export async function fetchSettlementUpload(id) {
 
 /**
  * GET /v1/finreports/weeks — the WB weekly report periods (newest first) that
+ * the P&L period picker offers.
  *
  * @param {AbortSignal} [signal]
  * @returns {Promise<{weeks: Array<{report_id: number, date_from: string, date_to: string}>}>}
  */
 export async function fetchWeeks(signal) {
   const { data } = await apiClient.get('/v1/finreports/weeks', { signal })
-  return data
-}
-
-/**
- *
- * Returns the archive as a Blob plus the server-suggested file name.
- *
- * @param {{date_from?: string, date_to?: string}} [params]
- * @returns {Promise<{blob: Blob, filename: string}>}
- */
-    params,
-    responseType: 'blob',
-    // Building the full-history package renders ~90k ledger rows and bundles
-    // the proof archive (tens of MB); it legitimately outruns the client's
-    // default timeout, so this request gets its own generous budget.
-    timeout: 600000,
-  })
-  const disposition = response.headers['content-disposition'] || ''
-  const match = disposition.match(/filename="?([^"]+)"?/)
-}
-
-/**
- *
- * @param {{date_from?: string, date_to?: string}} [params]
- * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
- * @returns {Promise<object>}
- */
-  // The backend caches this response content-addressed and warms the whole-
-  // history window after each harvest, so the common call is a fast cache hit.
-  // A cold MISS (an arbitrary window, or an entry invalidated by fresh data)
-  // still re-prices ~620k settlement rows and outruns the default 15s budget —
-  // which surfaced as «Данные недоступны · timeout of 15000ms exceeded» — so the
-    params,
-    signal,
-    timeout: 120000,
-  })
   return data
 }

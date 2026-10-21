@@ -1,18 +1,20 @@
 <script setup>
 /**
- * Карточка с причинами штрафов артикула — открывается по «N причин» у суммы.
+ * The card with an article's penalty reasons — opened from «N причин» next to
+ * the amount.
  *
- * Причины раньше стояли строками в самой ячейке, и строка артикула вырастала
- * на пять-шесть строк текста: «Штраф МП. Невыполненный заказ (отправка товара
- * отличного от заявленного)» не сокращается. Теперь строка всегда одной
- * высоты, а причины — здесь. По клику, а не по наведению: текст длинный, его
- * читают, и рука не должна держать курсор на месте.
+ * The reasons used to sit as lines inside the cell itself, and the article's
+ * row grew by five or six lines of text: «Штраф МП. Невыполненный заказ
+ * (отправка товара отличного от заявленного)» does not abbreviate. Now the row
+ * is always one line high and the reasons live here. On click, not on hover:
+ * the text is long, people read it, and the hand should not have to hold the
+ * cursor still.
  *
- * Одна на таблицу и живёт в ней, а не в ячейке: PrimeVue перерисовывает ячейку
- * на клик по строке, и карточка внутри неё закрывалась, едва открывшись.
- * Вынесена в `<body>` и держится внутри видимой части таблицы
- * (`core/utils/tipFit`). Закрывается кликом мимо, Esc и прокруткой — она
- * `fixed` и иначе осталась бы висеть над чужой строкой.
+ * One per table and owned by it, not by the cell: PrimeVue re-renders the cell
+ * on a row click, and a card inside it closed the moment it opened. Teleported
+ * to `<body>` and kept inside the visible part of the table
+ * (`core/utils/tipFit`). Closes on an outside click, Esc and scroll — it is
+ * `fixed` and would otherwise stay hanging over someone else's row.
  */
 import { onBeforeUnmount, watch } from 'vue'
 
@@ -27,7 +29,7 @@ const emit = defineEmits(['close'])
 
 const close = () => emit('close')
 
-/** Клик мимо карточки. По самой «N причин» — нет: её клик решает сам. */
+/** A click outside the card. Not on «N причин» itself: its own click decides. */
 function onOutside(event) {
   if (!event.target.closest?.('.pnl-penalty-card, .pnl-penalty-more')) close()
 }

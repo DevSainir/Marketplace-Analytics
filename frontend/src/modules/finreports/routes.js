@@ -1,6 +1,7 @@
 /**
  * Route table owned by the finreports module; exported via the Public API.
  *
+ * `/finreports` is the P&L dashboard — the module's entry point. The dimensions
  * the claim is easiest to act on right after seeing how large that line is.
  */
 export const finreportsRoutes = [

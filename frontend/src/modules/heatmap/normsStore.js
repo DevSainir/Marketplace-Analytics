@@ -5,7 +5,7 @@
  * norms are read once, all of them, and a change repaints what is already on
  * screen. A save is optimistic — the cell recolours as the field is left — and
  * put back if the backend refuses it (a read-only manager, a card that left
- * the кабинет).
+ * the workspace).
  *
  * Every change is kept on an undo stack — Ctrl+Z puts the previous norm back,
  * Ctrl+Shift+Z re-applies it — the same keys as the monitoring matrix. An undo

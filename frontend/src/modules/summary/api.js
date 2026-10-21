@@ -29,7 +29,7 @@ export async function fetchSummary(params = {}, signal) {
 }
 
 /**
- * GET /v1/summary/span — the settled days this кабинет has.
+ * GET /v1/summary/span — the settled days this workspace has.
  *
  * Its own request because the period picker needs it before a window exists,
  * and because it is answered off the report headers rather than the settlement

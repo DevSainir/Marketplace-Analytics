@@ -43,7 +43,7 @@ export const useSummaryStore = defineStore('summary', () => {
   const dateTo = ref(initial.to)
 
   // --- presentation, answered without a request ---------------------------
-  // The seller's own price, not the after-СПП one: WB funds the СПП gap, so
+  // The seller's own price, not the after-SPP one: WB funds the SPP gap, so
   // this is the figure the payout is pegged to and the one a seller plans on.
   const revenueBase = ref('seller')
   const cut = ref('sku')

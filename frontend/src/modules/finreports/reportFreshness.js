@@ -38,7 +38,7 @@ const MONTHS = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'и�
 
 /**
  * The ⓘ beside «сформирован, ждём API». WB shows the report in the seller's own
- * кабинет hours before its API serves it (12.10.2026: on the site by 08:00,
+ * account hours before its API serves it (12.10.2026: on the site by 08:00,
  * absent from the API at 08:05), and a seller who sees it there and not here
  * reads a broken harvest unless the page says why.
  */
