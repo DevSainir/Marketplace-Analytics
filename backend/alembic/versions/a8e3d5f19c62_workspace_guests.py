@@ -1,4 +1,4 @@
-"""Workspaces: guest grants — a head reading another company's кабинет.
+"""Workspaces: guest grants — a head reading another company's workspace.
 
 Adds ``workspaces.workspace_guests``: one row opens one workspace, read-only,
 to one account holding the ``head`` platform role. Grants are managed by a dev
@@ -29,7 +29,7 @@ down_revision: str | None = "b5d2e8f41c93"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-#: The кабинет opened, in both scripts, compared upper-cased.
+#: The workspace opened, in both scripts, compared upper-cased.
 _VIA = ("NEVA", "НЕВА")
 
 

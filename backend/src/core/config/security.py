@@ -97,10 +97,10 @@ class SecuritySettings(BaseSettings):
     row_level_security_enabled: bool = Field(default=False)
 
     # --- Diagnostics (see `src/core/diagnostics.py`) ---
-    # The кабинет a one-off probe against production may read. Empty means the
+    # The workspace a one-off probe against production may read. Empty means the
     # constant in that module — the operator's own — which is what makes the
     # gate work on a box nobody configured. Set it only to point another
-    # deployment at its own кабинет; it can never widen the gate, because the
+    # deployment at its own workspace; it can never widen the gate, because the
     # value is one workspace and there is no "all".
     diagnostic_workspace_id: str = Field(default="")
 
@@ -125,7 +125,7 @@ class SecuritySettings(BaseSettings):
     # already generous; thousands means something is generating them.
     max_ab_tests_per_workspace: int = Field(default=500, ge=1)
     # Heatmap groups are named hand-picked sets of articles («спандекс_двойка»).
-    # A кабинет has tens of product lines at most; a thousand means a script.
+    # A workspace has tens of product lines at most; a thousand means a script.
     max_sku_groups_per_workspace: int = Field(default=200, ge=1)
     # Comments are bounded by DATE rather than by count, because they carry no
     # workspace column to count against (they are keyed on `nm_id`, which

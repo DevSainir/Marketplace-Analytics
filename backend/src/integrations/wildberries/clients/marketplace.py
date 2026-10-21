@@ -2,14 +2,13 @@
 
 Wraps the two seller-warehouse endpoints on
 ``marketplace-api.wildberries.ru``. Both were verified live on 2026-08-13 with
-a real «Маркетплейс» token; see ``.claude/skills/wildberries-api`` for the
-observed envelopes.
+a real «Маркетплейс» token.
 
 Two behaviours that no amount of reading the docs would have told us:
 
 * **The token category is the whole gate.** Every other scope answers this host
-  with ``401 {"detail": "token scope not allowed"}`` — including Поставки,
-  whose own ``/api/v1/warehouses`` returns WB's acceptance directory and looks
+  with ``401 {"detail": "token scope not allowed"}`` — including «Поставки»
+  (Supplies), whose own ``/api/v1/warehouses`` returns WB's acceptance directory and looks
   deceptively like the answer.
 * **A read-only token is enough**, even though the stocks read is an HTTP POST.
 """

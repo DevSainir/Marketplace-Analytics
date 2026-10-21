@@ -1,7 +1,7 @@
-"""Workspaces: the «Промо-бонусы» switch becomes the кабинет's setting.
+"""Workspaces: the «Промо-бонусы» switch becomes the workspace's setting.
 
 «Реклама» used to remember the switch per browser. A seller either has WB's
-promo bonuses or does not, so the choice is made once for the кабинет and
+promo bonuses or does not, so the choice is made once for the workspace and
 everyone in it sees the same page. On by default, as the per-browser switch
 was.
 
@@ -23,7 +23,7 @@ depends_on: str | None = None
 
 
 def upgrade() -> None:
-    """Add the switch, on for every кабинет."""
+    """Add the switch, on for every workspace."""
     op.add_column(
         "workspaces",
         sa.Column("ads_show_bonus", sa.Boolean(), server_default=sa.true(), nullable=False),

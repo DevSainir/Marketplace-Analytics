@@ -9,7 +9,7 @@ out of WB's payload, so that a caller cannot arrive at its own answer:
   which of our users is looking at which card, from inside our own page.
 * Anything that ever **fetches** one is doing so at a host an upstream named,
   however well authenticated that upstream was, which is SSRF unless the host is
-  checked here first. The A/Б module used to, downloading a card's main photo as
+  checked here first. The A/B module used to, downloading a card's main photo as
   a test's baseline; that was dropped — see
   :mod:`src.modules.ab_tests.services.variants` — and the rule outlives it.
 """

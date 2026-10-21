@@ -1,4 +1,4 @@
-"""Open another company's кабинет to an account, read-only — from the shell.
+"""Open another company's workspace to an account, read-only — from the shell.
 
 The same grant as ``POST /v1/workspaces/guests`` (``src.modules.workspaces.guests``),
 for when there is no dev session at hand: the account is promoted to ``head``,
@@ -6,7 +6,7 @@ a row lands in ``workspaces.workspace_guests``, and ``WORKSPACE_GUEST_GRANTED``
 is written to the audit log with ``--by`` as the actor, in one transaction.
 
 What the grant does NOT give is a way in: the guest still needs an organisation
-of their own with a live subscription (``require_member``), or the кабинет is
+of their own with a live subscription (``require_member``), or the workspace is
 listed and every request answers 403.
 
 Run from the ``backend`` directory::
@@ -14,7 +14,7 @@ Run from the ``backend`` directory::
     python -m scripts.grant_guest --email someone@example.com --workspace NEVA \\
         --by you@example.com --dry-run
 
-On prod, in the worker container (the interpreter with the dependencies)::
+In production, in the worker container (the interpreter with the dependencies)::
 
     docker exec marketplace-service-worker-1 /app/.venv/bin/python \\
         -m scripts.grant_guest --email … --workspace … --by …

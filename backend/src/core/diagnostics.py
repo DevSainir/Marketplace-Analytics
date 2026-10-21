@@ -2,10 +2,10 @@
 
 A one-off probe against production runs in the worker container, and the worker
 connects as the table OWNER: row-level security does not apply to it, no route
-guard is in the path, and nothing asks which кабинет is being read. That is
+guard is in the path, and nothing asks which workspace is being read. That is
 correct for the fleet-wide harvests — they legitimately cross tenants — and it
 means an ad-hoc script inherits the same reach by accident. On 2026-09-17 a
-performance probe did exactly that: it picked "the кабинет with the most rows",
+performance probe did exactly that: it picked "the workspace with the most rows",
 which was a **paying customer's**, and printed that customer's revenue into a
 transcript.
 
@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 
-#: The one кабинет a diagnostic may read: «Демо», the operator's own.
+#: The one workspace a diagnostic may read: «Демо», the operator's own.
 #:
 #: A constant rather than an environment variable, so the gate works on a box
 #: nobody has configured — a probe that fell back to "no restriction" when the
@@ -67,7 +67,7 @@ class DiagnosticGateError(RuntimeError):
 
 
 def diagnostic_workspace() -> uuid.UUID:
-    """Return the кабинет diagnostics are allowed to read.
+    """Return the workspace diagnostics are allowed to read.
 
     Raises:
         DiagnosticGateError: The override is set to something that is not a
@@ -87,7 +87,7 @@ async def diagnostic_session() -> AsyncIterator[AsyncSession]:
     """Open a read-only session pinned to :func:`diagnostic_workspace`.
 
     Yields:
-        A session that can read one кабинет and write nothing.
+        A session that can read one workspace and write nothing.
 
     Raises:
         DiagnosticGateError: The restricted role's name is not a plain

@@ -22,7 +22,7 @@
 # possible at all: certbot writes on the host, nginx reads in the container, and
 # a webroot inside the image would be one certbot could never reach.
 #
-# Run ON THE SERVER, as root:
+# Run on the host, as root:
 #     bash backend/scripts/tls/issue_certificate.sh
 set -euo pipefail
 

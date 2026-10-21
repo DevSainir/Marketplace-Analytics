@@ -28,7 +28,7 @@ class SmokeReport:
         cards: The SKU cards picked to open, busiest first. Empty means the
             probe had nothing to check, which the entrypoint fails on.
         rendered: Per page, how many rows it rendered. The count is what shows
-            the page ran on real rows rather than on an empty кабинет.
+            the page ran on real rows rather than on an empty workspace.
         skipped: Pages deliberately not opened, each with the reason. Printed,
             so a page that was not checked never reads as one that passed.
         failures: ``"<what>: <ExcType>: <message>"`` per page that broke.

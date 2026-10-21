@@ -247,7 +247,7 @@ def _file_handler_config() -> dict[str, Any]:
     """Build the rotating-file handler's dictConfig entry, or an empty mapping.
 
     **Rotation exists twice, and this is the second copy.** The layer that
-    actually protects the VPS disk is Docker's ``json-file`` driver, capped per
+    actually protects the host's disk is Docker's ``json-file`` driver, capped per
     service in ``docker-compose.yml`` — because a container's stdout is written
     by the daemon, not by this process, and nothing Python does can bound a
     file it does not own.

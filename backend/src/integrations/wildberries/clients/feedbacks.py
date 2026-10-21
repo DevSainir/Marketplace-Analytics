@@ -2,9 +2,9 @@
 
 What each source can and cannot say is in
 :mod:`src.integrations.wildberries.schemas.feedbacks`. This module only fetches
-them: one page of reviews at a time, and one склейка's summary at a time. Both
+them: one page of reviews at a time, and one card group's summary at a time. Both
 are deliberately one call per method so the caller decides the pace and the
-memory — a large кабинет holds ~150k reviews, which must never be in memory at
+memory — a large workspace holds ~150k reviews, which must never be in memory at
 once on a 768 MiB worker.
 """
 
@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 #: The seller API's review list. ``take`` is capped by WB at 5000.
 FEEDBACKS_PATH = "/api/v1/feedbacks"
 
-#: The storefront summary is addressed per склейка; every request is paced on
+#: The storefront summary is addressed per card group; every request is paced on
 #: this one key instead (see :func:`storefront_feedbacks_rate_gate`).
 STOREFRONT_RATE_KEY = "/feedbacks/v2"
 
@@ -121,7 +121,7 @@ class WBFeedbacksClient(BaseWBClient):
 
 
 class WBStorefrontFeedbacksClient(BaseWBClient):
-    """The public storefront's rating summary for one склейка. No token."""
+    """The public storefront's rating summary for one card group. No token."""
 
     WB_SURFACE = "storefront_feedbacks"
 
@@ -139,7 +139,7 @@ class WBStorefrontFeedbacksClient(BaseWBClient):
             token="",
             timeout=settings.wb_http_timeout_seconds,
             # One retry: a storefront that refuses is not going to change its
-            # mind inside the backoff ladder, and the next склейка is waiting.
+            # mind inside the backoff ladder, and the next card group is waiting.
             max_retries=1,
             backoff_base_seconds=settings.wb_retry_backoff_seconds,
             backoff_max_seconds=settings.wb_retry_max_backoff_seconds,
@@ -147,10 +147,10 @@ class WBStorefrontFeedbacksClient(BaseWBClient):
         )
 
     async def fetch_rating(self, imt_id: int) -> WBStorefrontRating | None:
-        """Fetch one склейка's rating summary.
+        """Fetch one card group's rating summary.
 
         Args:
-            imt_id: The склейка, from a review's ``productDetails.imtId``.
+            imt_id: The card group, from a review's ``productDetails.imtId``.
 
         Returns:
             The summary, or ``None`` when WB answered with an empty body.

@@ -7,8 +7,8 @@ the seller APIs in :mod:`src.core.config.wildberries`.
 
 **The host moved on 2026-09-22.** ``card.wb.ru`` went to 403 for every caller
 from everywhere — real Chrome included — and the storefront now reads the same
-``/cards/v4/detail`` through its own domain. See
-``.claude/skills/wildberries-api/references/storefront-card.md``.
+``/cards/v4/detail`` through its own domain (see
+:mod:`src.integrations.wildberries.clients.card`).
 
 Every default below is a measurement rather than a preference; the comments
 record what was measured and when, because each one has already been set the
@@ -29,7 +29,7 @@ class StorefrontSettings(BaseSettings):
 
     # --- Card endpoint (final customer price) ---
     # Public storefront card endpoint — the final customer price after ALL
-    # discounts incl. WB loyalty (СПП). Unauthenticated.
+    # discounts incl. WB loyalty (SPP, WB's customer discount). Unauthenticated.
     wb_card_base_url: str = Field(default="https://www.wildberries.ru")
     # The path is a SETTING, not a constant, for the same reason the removed
     # live-position probe's was (docs/monitoring/LIVE_POSITION.md §3): WB
@@ -46,7 +46,7 @@ class StorefrontSettings(BaseSettings):
     # The delivery regions that ``wb_card_dest`` above corresponds to, used to
     # pick the comparable rows when the customer price is read from the order
     # feed instead of the storefront. Measured 2026-09-22: that dest returns
-    # prices identical to the Moscow code the storefront itself sends, and СПП
+    # prices identical to the Moscow code the storefront itself sends, and SPP
     # is regional — one value per (day, SKU, region) in 87,6 % of cases against
     # 27,1 % across regions. Orders from elsewhere are a fallback, not an equal.
     wb_card_regions: tuple[str, ...] = Field(default=("Москва", "Московская область"))

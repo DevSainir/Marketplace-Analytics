@@ -20,9 +20,8 @@ live payload rather than taken from WB's documentation:
 * **``delivery_amount`` and ``return_amount`` are COUNTS, not money.** On a
   «Логистика» row exactly one of them is 1 (5 103 forward vs 3 697 return rows in
   the sample week), which is what splits ``delivery_rub`` into «логистика к
-  клиенту» and «обратная логистика». Reading them as ₽ silently doubles logistics.
-
-billed on WB's inflated volume.
+  клиенту» (to the customer) and «обратная логистика» (return). Reading them as
+  ₽ silently doubles logistics.
 """
 
 from __future__ import annotations
@@ -82,7 +81,7 @@ class WBReportDetailRow(RawBase):
     office_name: str = ""
 
     # Catalogue identity — WB names the product on the settlement row itself, so
-    # a P&L can be grouped by предмет/бренд without joining the content cards.
+    # a P&L can be grouped by subject/brand without joining the content cards.
     subject_name: str = ""
     brand_name: str = ""
 
@@ -114,23 +113,23 @@ class WBReportDetailRow(RawBase):
     # --- Revenue side -------------------------------------------------------
     #: Price on the card before the seller's own discount.
     retail_price: Decimal = Field(default=Decimal(0))
-    #: What the buyer actually paid (``retail_price_withdisc_rub`` less СПП).
+    #: What the buyer actually paid (``retail_price_withdisc_rub`` less SPP).
     retail_amount: Decimal = Field(default=Decimal(0))
-    #: Price after the seller's discount, before WB's own СПП.
+    #: Price after the seller's discount, before WB's own SPP.
     retail_price_withdisc_rub: Decimal = Field(default=Decimal(0))
     sale_percent: Decimal = Field(default=Decimal(0))
     commission_percent: Decimal = Field(default=Decimal(0))
 
     # --- WB's cut and the payout -------------------------------------------
-    #: К перечислению продавцу for this row — the settled bottom line.
+    #: The payout to the seller for this row — the settled bottom line.
     ppvz_for_pay: Decimal = Field(default=Decimal(0))
     #: WB's reward net of VAT (negative when WB co-finances the discount).
     ppvz_vw: Decimal = Field(default=Decimal(0))
     #: VAT charged on that reward.
     ppvz_vw_nds: Decimal = Field(default=Decimal(0))
-    #: Reward before the поверенный's services are deducted, when applicable.
+    #: Reward before the agent's services are deducted, when applicable.
     ppvz_sales_commission: Decimal = Field(default=Decimal(0))
-    #: Вознаграждение поверенного (ВВ) — zero on this account, kept for parity.
+    #: The agent's fee (ВВ) — zero on this account, kept for parity.
     ppvz_reward: Decimal = Field(default=Decimal(0))
     ppvz_spp_prc: Decimal = Field(default=Decimal(0))
     ppvz_kvw_prc_base: Decimal = Field(default=Decimal(0))
@@ -149,7 +148,7 @@ class WBReportDetailRow(RawBase):
     cashback_amount: Decimal = Field(default=Decimal(0))
     cashback_discount: Decimal = Field(default=Decimal(0))
     cashback_commission_change: Decimal = Field(default=Decimal(0))
-    #: НДС агента — reported alongside, NOT part of ``ppvz_for_pay``.
+    #: The agent's VAT — reported alongside, NOT part of ``ppvz_for_pay``.
     agency_vat: Decimal = Field(default=Decimal(0))
 
     # --- Charges withheld from the payout -----------------------------------
@@ -162,7 +161,7 @@ class WBReportDetailRow(RawBase):
     acceptance: Decimal = Field(default=Decimal(0))
     deduction: Decimal = Field(default=Decimal(0))
 
-    #: DBS («доставка силами продавца») rows settle differently — kept so the
+    #: DBS (delivery by the seller) rows settle differently — kept so the
     #: P&L can tell them apart from ordinary FBO rows if that ever matters.
     srv_dbs: bool = False
 
@@ -179,7 +178,7 @@ class WBFinanceReportRow(WBReportDetailRow):
     change.** `ingestion/rows.py::settlement_row` maps sixty attributes onto
     `logistics_transaction`, and every column keeps its name; putting the
     translation in aliases here means that function, the model, the
-    repositories, the P&L and the claim are untouched by the migration.
+    repositories and the P&L are untouched by the migration.
 
     **The renames are NOT derivable from camelCase.** Some `ppvz_` prefixes
     survived (`ppvzReward`, `ppvzSalesCommission`) and some were dropped
@@ -222,7 +221,7 @@ class WBFinanceReportRow(WBReportDetailRow):
     #: WB's own name for the product, new on this surface. Today the P&L joins
     #: the content cards for it; nothing reads this yet.
     title: str = ""
-    #: The warehouse's logistics coefficient, also new — and directly the
+    #: The warehouse's logistics coefficient, also new; nothing reads it yet.
     warehouse_logistics_coeff: Decimal | None = Field(default=None, alias="warehouseLogisticsCoeff")
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True, alias_generator=_camel)

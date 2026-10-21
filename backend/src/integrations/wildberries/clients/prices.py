@@ -2,7 +2,7 @@
 
 The Prices & Discounts surface is the authoritative source for the account's
 *seller* prices — specifically ``discountedPrice`` (the price after the seller's
-own discount), which the monitoring СПП and order/buyout ₽ volumes are computed
+own discount), which the monitoring SPP and order/buyout ₽ volumes are computed
 from. Authenticated with a dedicated "Цены и скидки" token.
 """
 

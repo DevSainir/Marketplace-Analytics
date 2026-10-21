@@ -2,7 +2,8 @@
 
 Widens ``finreports.logistics_transaction`` from the logistics-only subset it
 carried to the whole settlement row WB publishes, so the module can produce a
-for the one input WB cannot supply.
+P&L, and adds ``finreports.product_cost_price`` for the one input WB cannot
+supply.
 
 Two things worth knowing before running this:
 

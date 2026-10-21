@@ -20,7 +20,6 @@
 -- tenants still can. Applied in the other order, nothing happens until step 1,
 -- which is safe but means the control is not live when you think it is.
 --
---   ssh marketplace-prod
 --   docker exec -i marketplace-service-postgres-1 \
 --     psql -U marketplace -d marketplace < row_level_security.sql
 --

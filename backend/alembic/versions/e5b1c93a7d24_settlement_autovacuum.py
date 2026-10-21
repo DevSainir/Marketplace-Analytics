@@ -9,7 +9,7 @@ cache affordable at all. «Index-only» holds only while the pages the index
 points at are marked all-visible, and a harvest upserts ~100 k rows a day, which
 un-marks them.
 
-Measured on the largest кабинет, one day after the last autovacuum: 268 863 heap
+Measured on the largest workspace, one day after the last autovacuum: 268 863 heap
 fetches on that scan, 105 737 dead tuples, and the check cost 4.0 s instead of
 the 0.7 s it costs on a freshly vacuumed table. That difference IS the wait a
 seller sees on «Вся история», because the aggregate it guards takes 14 ms.

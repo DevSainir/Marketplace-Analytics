@@ -53,7 +53,7 @@ class WBAdvCampaignStats(RawBase):
     ``currency`` is the unit of every ``sum``/``sum_price``/``cpc`` under it,
     and it is the CAMPAIGN's: fixed when the campaign was created, so campaigns
     from before WB moved the ad account to KGS on 2026-08-20 still answer RUB
-    (verified live 2026-09-29 on all five кабинеты). ``""`` if WB omits it.
+    (verified live 2026-09-29 on all five workspaces). ``""`` if WB omits it.
     """
 
     campaign_id: int = Field(alias="advertId")
@@ -96,8 +96,8 @@ class WBCampaign(RawBase):
 # Verified live shape (2026-07): {"adverts": [{"id": .., "bid_type": ..,
 # "status": .., "nm_settings": [{"nm_id": .., ...}], "settings": {"name": ..,
 # "payment_type": .., "placements": {"search": bool, "recommendations": bool}},
-# "timestamps": {...}}]}. ``bid_type`` is ``"unified"`` (единая ставка, always
-# both placements) or ``"manual"`` (ручная ставка, per-placement toggles).
+# "timestamps": {...}}]}. ``bid_type`` is ``"unified"`` (unified bid, always
+# both placements) or ``"manual"`` (manual bid, per-placement toggles).
 # --------------------------------------------------------------------------- #
 
 
@@ -148,7 +148,7 @@ class WBAdvertV2(RawBase):
 # "clicks": .., "atbs": .., "orders": .., "shks": .., "spend": ..,
 # "avgPos": .., ...}}, ...one entry per day x cluster...]}]}.
 # This is the SEARCH display zone only (no order revenue field), which lets the
-# analytics layer split unified-bid campaigns: полки = fullstats - search.
+# analytics layer split unified-bid campaigns: shelves = fullstats - search.
 # --------------------------------------------------------------------------- #
 
 
@@ -209,7 +209,8 @@ class WBNormQueryItem(RawBase):
 #
 # * `updNum` is **0 on every cashback row** (it is an invoice-document number,
 #   and a bonus write-off has no invoice). Deduplicating on it collapses a
-#   month of cashback into a single row — measured: 169 000 KGS read as 500.
+#   month of cashback into a single row — measured: a month of cashback read
+#   as one write-off.
 # * `currency` VARIES INSIDE ONE WINDOW. August-September 2026 returned 96
 #   «Баланс» rows in RUB against 223 in KGS on the same account. Summing
 #   `updSum` without splitting by currency adds unlike units.

@@ -6,7 +6,7 @@ Verified doc shape (2026-07): {"data": {"listGoods": [ {"nmID": ..,
 "vendorCode": .., "sizes": [ {"sizeID": .., "price": .., "discountedPrice": ..,
 "clubDiscountedPrice": .., "techSizeName": ..} ], "discount": ..,
 "clubDiscount": ..} ]}}. ``discountedPrice`` is the price AFTER the seller's
-own discount — the value the СПП and order/buyout ₽ volumes are computed from.
+own discount — the value the SPP and order/buyout ₽ volumes are computed from.
 Sizes normally share one price; we take a representative size.
 """
 
@@ -29,7 +29,7 @@ class WBPriceGood(RawBase):
 
     nm_id: int = Field(alias="nmID")
     discount: int = Field(default=0)
-    #: The currency the prices are in, as WB names it. NOT the кабинет's
+    #: The currency the prices are in, as WB names it. NOT the workspace's
     #: settlement currency: «Демо» settles in KGS and this said RUB on every
     #: card when checked live on 2026-09-28.
     currency: str = Field(default="", alias="currencyIsoCode4217")

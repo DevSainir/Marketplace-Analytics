@@ -82,7 +82,7 @@ class ObservabilitySettings(BaseSettings):
     #: When set, every line ALSO goes to this file through a size-capped
     #: rotating handler. Empty (the default, and what the containers run) means
     #: stdout only: Docker's json-file driver rotates it, which is the layer
-    #: that actually protects the VPS disk — see the `logging:` block every
+    #: that actually protects the host's disk — see the `logging:` block every
     #: service carries in docker-compose.yml.
     log_file: str = Field(default="")
     #: Per-file ceiling. 20 MB is the top of the 10-20 MB band the disk budget

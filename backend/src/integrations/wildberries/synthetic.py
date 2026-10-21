@@ -18,7 +18,8 @@ Two properties are load-bearing:
   identical between local and prod.
 
 Deliberately synthesised: funnel history, stocks, seller prices, and customer
-(storefront) prices — the facts that drive «Заказы»/«Выкупы»/«Остатки»/«СПП».
+(storefront) prices — the facts that drive «Заказы»/«Выкупы»/«Остатки»/«СПП»
+(orders, buyouts, stock, SPP).
 Deliberately empty: advertising and the account-wide sales feed (their absence
 is a valid state the pipeline already tolerates) and the buyout-cohort aggregate
 (WB serves it catalogue-wide with no SKU filter, so a DB-free client cannot know
@@ -366,7 +367,7 @@ class SyntheticCardClient(_SyntheticWBClient, WBCardClient):
 
     async def fetch_customer_prices(self, nm_ids: list[int]) -> list[WBCardProduct]:
         """A storefront node per SKU, priced ~10% under the seller price (in
-        kopecks, as the real endpoint returns), giving a positive СПП."""
+        kopecks, as the real endpoint returns), giving a positive SPP."""
         products: list[WBCardProduct] = []
         for nm_id in nm_ids:
             kopecks = round(_seller_price(nm_id) * 0.9 * 100)

@@ -14,9 +14,9 @@ opens, and serialises every answer the way a response is (``scripts/smoke/``):
 * «Тепловая карта» — the grid and its catalogue, for the default thirty days;
 * «A/Б-тесты» — the list, and the newest test.
 
-Only for the one кабинет a diagnostic may read: the session is
+Only for the one workspace a diagnostic may read: the session is
 `diagnostic_session()` — read-only at the transaction level and pinned to
-«Демо» by row-level security — so the rows below are that кабинет's and
+«Демо» by row-level security — so the rows below are that workspace's and
 nobody else's. It prints counts and status, never figures.
 
 Read-only is enforced, not intended, which decides two things. A page whose read
@@ -26,8 +26,9 @@ stale rollup is the ordinary state after a harvest. And each page runs under its
 own savepoint, so a page that breaks the transaction does not take every page
 after it down too and hide which one it was.
 
-Run by the deploy inside the freshly rotated api container. Any non-zero exit
-fails the deploy before worker and beat are updated; it does NOT roll back —
+Meant to run right after a deploy, inside the freshly rotated api container. A
+non-zero exit should stop the rollout before worker and beat are updated; it
+does NOT roll back —
 that is a human's call (scripts/deploy/rollback.sh). Exit 3 means it could not
 check at all — no cards to open — and still fails, because a guard that skips
 itself must not look like a pass.
@@ -42,7 +43,7 @@ from pathlib import Path
 from src.core.diagnostics import diagnostic_session, diagnostic_workspace
 
 if not __package__:
-    # The deploy runs this by PATH (`python /app/scripts/smoke_after_deploy.py`),
+    # A deploy runs this by PATH (`python /app/scripts/smoke_after_deploy.py`),
     # and that puts scripts/ itself on the import path rather than the backend
     # root, so `scripts.smoke` would not resolve and every deploy would fail on
     # a ModuleNotFoundError. This is the root `python -m` from /app would add.

@@ -102,8 +102,8 @@ celery_app.conf.update(
 #   05:20              buyout cohorts (after the harvest's rows)  ≤ 35 min → 05:55
 #
 # which leaves 35 minutes before the deadline for the harvest and the cohort pass
-# to grow into; both walk every кабинет in turn, at roughly one and a half and
-# six minutes per кабинет, so that is about five more кабинеты.
+# to grow into; both walk every workspace in turn, at roughly one and a half
+# and six minutes per workspace, so that is about five more workspaces.
 #
 # 03:00-03:40 belongs to the backup (`scripts/backup/cron/marketplace-backup`)
 # and nothing here writes during it. On 2026-09-29 the reconciliation shared
@@ -191,7 +191,7 @@ celery_app.conf.beat_schedule = {
     # It was 58 ungated ticks a day, two `list` requests per seller each, to
     # find two or three reports. A report WB serves off-calendar — back-dated,
     # days late — is the 04:00 reconciliation's, which walks every seller
-    # ungated; «Обновить» and a new кабинет's first harvest are never gated.
+    # ungated; «Обновить» and a new workspace's first harvest are never gated.
     #
     # `harvest_all_workspaces` holds a Redis lock, so two entries firing in the
     # same minute run once. 03:00 belongs to the backup, 04:00 to the
@@ -278,14 +278,14 @@ celery_app.conf.beat_schedule = {
         "task": "workspaces.sweep_stalled_backfills",
         "schedule": crontab(minute="*/15"),
     },
-    # The review history: each склейка's rating and every review's state, so a
+    # The review history: each card group's rating and every review's state, so a
     # rating change can be explained after the fact (monitoring/models/reviews.py).
     # Earns nothing on the day, so it takes an hour nothing else wants: 19:40 MSK
     # is after the last daytime finance tick (18:00, 18:45 on a weekly-report
     # day), well clear of the 05:00-05:55 block and the 23:30 price top-up, and
     # the 21:00 header carry is a single UPDATE. Minute 40 keeps it off any
-    # minute-0 tick. A large кабинет's walk is ~150 paced pages, a few minutes;
-    # the storefront reads are one склейка every three seconds across the fleet.
+    # minute-0 tick. A large workspace's walk is ~150 paced pages, a few minutes;
+    # the storefront reads are one card group every three seconds across the fleet.
     # It steps aside for a first-run harvest (see the task).
     "evening-snapshot-reviews": {
         "task": "monitoring.snapshot_reviews",

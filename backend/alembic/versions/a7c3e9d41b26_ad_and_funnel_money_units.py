@@ -1,8 +1,8 @@
 """Monitoring: the currency of ad spend, and the funnel's own money.
 
-Two facts WB states and we used to drop, both for the same reason: a кабинет
-that settles in KGS holds money in more than one currency (wildberries-api,
-``references/currencies.md``, verified 2026-09-29 on all five кабинеты).
+Two facts WB states and we used to drop, both for the same reason: a workspace
+that settles in KGS holds money in more than one currency (verified
+2026-09-29 on all five workspaces).
 
 * ``advertising_stat_daily.currency`` — fullstats names each campaign's
   currency, and it is the campaign's own: RUB for campaigns created before WB

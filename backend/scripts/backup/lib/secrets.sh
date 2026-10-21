@@ -17,7 +17,7 @@
 #
 # Why nothing here can read it back. The bundle is encrypted to the offline
 # recipient only, so this box cannot decrypt what it just wrote. That is the
-# entire point: whoever takes the VPS and downloads this object holds a file
+# entire point: whoever takes the host and downloads this object holds a file
 # they cannot open. The cost is that "it decrypts" is not a claim any machine
 # here can make — the gates below check what is checkable, and the rest is a
 # human drill with the key from the password manager.

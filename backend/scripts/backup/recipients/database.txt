@@ -10,7 +10,7 @@
 # Order is not significant. Comments and blank lines are ignored by age.
 
 # online — the private half lives in BACKUP_ENCRYPTION_IDENTITY in backend/.env
-# on the VPS. It exists so the Sunday restore rehearsal can still decrypt the
+# on the host. It exists so the Sunday restore rehearsal can still decrypt the
 # artifact unattended. Anyone with a shell on the box can read any archive with
 # it; that is the accepted cost of keeping gate 6.
 age1sjqf6h5graeeeex7ervydu284rxqfxhpydcfskh788la77n9fx4s72pdhf

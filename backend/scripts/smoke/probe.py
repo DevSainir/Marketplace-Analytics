@@ -14,7 +14,7 @@ from scripts.smoke.report import SmokeReport
 
 
 async def smoke(session: AsyncSession, *, workspace_id: uuid.UUID) -> SmokeReport:
-    """Open the main pages of one кабинет on the session given; collect what happened.
+    """Open the main pages of one workspace on the session given; collect what happened.
 
     Monitoring first: its busiest cards are what the entrypoint insists on
     having found, and the pages after it are opened whether or not it broke.

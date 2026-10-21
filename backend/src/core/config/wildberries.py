@@ -44,9 +44,9 @@ class WildberriesSettings(BaseSettings):
     # Feedbacks surface: reviews and buyer questions. Needs the «Вопросы и
     # отзывы» scope; every other category answers it 403.
     wb_feedbacks_base_url: str = Field(default="https://feedbacks-api.wildberries.ru")
-    # The public storefront's review summary for one склейка — `valuation`,
+    # The public storefront's review summary for one card group — `valuation`,
     # `valuationSum` and the score distribution WB rates the card from. No
-    # token. `feedbacks1` answered for all 31 cards of «Демо» on 2026-10-02.
+    # token. `feedbacks1` answered for every card of «Демо» on 2026-10-02.
     wb_storefront_feedbacks_base_url: str = Field(default="https://feedbacks1.wb.ru")
     # Every FBS warehouse WB lists for the seller is discovered and read, so a
     # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
@@ -54,9 +54,9 @@ class WildberriesSettings(BaseSettings):
     # Search clusters («Поиск по кластерам»): the per-cluster grain of the SAME
     # ``normquery`` response the search-ZONE split is built from, so switching
     # it off saves no WB request — only the writes into
-    # ``monitoring.advertising_cluster_stat_daily``. On for EVERY кабинет, not
+    # ``monitoring.advertising_cluster_stat_daily``. On for EVERY workspace, not
     # only the ones whose ``search_clusters_enabled`` shows the block: the rows
-    # are what is read from the database directly, and a кабинет that gets the
+    # are what is read from the database directly, and a workspace that gets the
     # block later finds its history already there.
     #
     # It was off from 2026-09-09 to 2026-10-10 — hidden with the UI, then left
@@ -64,8 +64,8 @@ class WildberriesSettings(BaseSettings):
     # a block with nothing after 08.09. Those days were walked back from WB on
     # 2026-10-10: WB serves cluster history (full daily stats ~347 days back,
     # probed 2026-09-12), bounded by the 31-day window rather than its memory.
-    # Why it once looked unbackfillable is in `references/advertising.md`: the
-    # endpoint answers "nothing" in two different shapes and neither is an error.
+    # It once looked unbackfillable because the endpoint answers "nothing" in
+    # two different shapes and neither is an error.
     wb_search_cluster_harvest_enabled: bool = True
     # Column headers by warehouse id, written «<точка> - <город> (FBS)»: the
     # warehouse's own name first, because that is what distinguishes it from
@@ -183,7 +183,7 @@ class WildberriesSettings(BaseSettings):
     # before loosening it.
     wb_feedbacks_bucket_capacity: int = Field(default=3, ge=1)
     wb_feedbacks_bucket_refill_seconds: float = Field(default=1.0, gt=0)
-    # The public storefront review summary: one склейка every few seconds. It
+    # The public storefront review summary: one card group every few seconds. It
     # is unauthenticated, so nothing tells us its limit, and the storefront's
     # edges have blocked whole hosts before (card.wb.ru, 2026-09-22). A slow,
     # steady reader is the one least likely to be noticed.

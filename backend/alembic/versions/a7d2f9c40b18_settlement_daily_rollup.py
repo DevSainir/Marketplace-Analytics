@@ -3,7 +3,7 @@
 The settlement detail is 1 459 394 rows and 870 MB against a 128 MB
 ``shared_buffers``, so any window covering most of it is a parallel seq scan —
 714 MB off disk, ~7 s per pass. The same rows collapse to 27 857 groups on
-(кабинет, отчёт, день, артикул): a 40-fold reduction, small enough to stay cached.
+(workspace, report, day, article): a 40-fold reduction, small enough to stay cached.
 
 Created EMPTY. A rollup nobody has built yet is simply a cache that misses, and
 the read path rebuilds what it finds missing — filling it here would mean this
@@ -86,7 +86,7 @@ def upgrade() -> None:
         ),
         schema="finreports",
     )
-    # Every read is «this кабинет, this window», and the primary key leads with
+    # Every read is "this workspace, this window", and the primary key leads with
     # exactly that pair — so no second index earns its write cost here.
 
     # The truncate guard is attached per TABLE, so a new one starts unguarded.

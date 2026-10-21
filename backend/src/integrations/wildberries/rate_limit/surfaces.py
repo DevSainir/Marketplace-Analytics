@@ -28,8 +28,7 @@ from src.integrations.wildberries.rate_limit.gates import (
 
 #: Advertising endpoints WB meters far more generously than ``/adv/v3/fullstats``,
 #: whose 3-per-minute budget the surface default is sized from. Source: WB's own
-#: published table, transcribed in
-#: ``.claude/skills/wildberries-api/references/advertising.md``.
+#: published rate-limit table.
 #:
 #: Only the two campaign-discovery calls are listed. They are the ones a backfill
 #: makes on the way to every fullstats call, and pacing them at the fullstats rate
@@ -406,7 +405,7 @@ def feedbacks_rate_gate(settings: Settings, *, token: str) -> RateGate:
 
 
 #: The bucket "token" of the public storefront. There is no seller credential
-#: there, so every кабинет's reads share ONE bucket — which is the point: the
+#: there, so every workspace's reads share ONE bucket — which is the point: the
 #: storefront sees one reader at our address, however many sellers it serves.
 STOREFRONT_BUCKET_TOKEN = "storefront-public"  # noqa: S105 - a bucket name, not a secret
 
@@ -416,7 +415,7 @@ def storefront_feedbacks_rate_gate(settings: Settings) -> RateGate:
 
     One token, refilled every few seconds, shared across the whole fleet (see
     :data:`STOREFRONT_BUCKET_TOKEN`). The caller keys every request on one
-    ``rate_key`` rather than on the per-склейка path, or each ``imtId`` would get
+    ``rate_key`` rather than on the per-card-group path, or each ``imtId`` would get
     a fresh bucket and nothing would be paced.
 
     Args:

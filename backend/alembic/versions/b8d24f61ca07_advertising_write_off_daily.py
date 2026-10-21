@@ -12,8 +12,8 @@ write-off carries no invoice document, so no «Оказание услуг «WB 
 документ №…» row is ever raised for it.
 
 The consequence, measured on the `Демо` workspace for 2026-09-01..15: WB
-funded 123 291 of 392 003 KGS of write-offs (38 %), and the per-SKU report
-counted every сом of it as the seller's own spend. One SKU read ROI -61.5 %
+funded 38 % of the write-offs, and the per-SKU report counted every som of it
+as the seller's own spend. One SKU read ROI -61.5 %
 where the real figure was +1.6 %.
 
 ``GET /adv/v1/upd`` is the only surface that names the funding source. This

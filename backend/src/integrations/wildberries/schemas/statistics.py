@@ -4,7 +4,7 @@ Statistics — sale-date attributed buyouts / returns:
 ``GET https://statistics-api.wildberries.ru/api/v1/supplier/sales``.
 
 Verified live shape (2026-07): a flat list of per-item operations. ``saleID``
-is prefixed ``S`` for a buyout (продажа) and ``R`` for a return (возврат);
+is prefixed ``S`` for a buyout (sale) and ``R`` for a return;
 ``date`` is the operation's SALE date (when the customer accepted / returned
 the item — NOT the order date), ``lastChangeDate`` drives incremental
 pagination (``dateFrom`` filters on it with ``flag=0``). ``finishedPrice``
@@ -50,9 +50,9 @@ class WBOrderPrice(RawBase):
     ordered_at: datetime = Field(alias="date")
     last_change_date: datetime = Field(alias="lastChangeDate")
     is_cancel: bool = Field(default=False, alias="isCancel")
-    #: What the customer was charged, WB's СПП already applied.
+    #: What the customer was charged, WB's SPP already applied.
     finished_price: float = Field(default=0.0, alias="finishedPrice")
-    #: The seller's own price after the seller's discount, before СПП.
+    #: The seller's own price after the seller's discount, before SPP.
     price_with_disc: float = Field(default=0.0, alias="priceWithDisc")
     #: WB's loyalty discount, whole-number percent (12 for a measured 12,4 %).
     spp: float = Field(default=0.0)

@@ -182,10 +182,10 @@ else
 fi
 
 # --- Local housekeeping -----------------------------------------------------
-# Recent artifacts are kept on the VPS so a same-week restore does not need a
+# Recent artifacts are kept on the host so a same-week restore does not need a
 # download; the buckets remain the actual backup.
 # Both extensions, deliberately. Sweeping only `.age` would leave every
-# pre-2026-09-21 `.gpg` artifact on the disk for ever, and this VPS has gone
+# pre-2026-09-21 `.gpg` artifact on the disk for ever, and this host has gone
 # read-only from a slow disk leak before (see lib/verify_restore.sh).
 { ls -1t "${BACKUP_ARTIFACT_DIR}"/marketplace-*.sql.gz.age \
     "${BACKUP_ARTIFACT_DIR}"/marketplace-*.sql.gz.gpg 2>/dev/null || true; } |

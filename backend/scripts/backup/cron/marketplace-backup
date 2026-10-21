@@ -1,6 +1,6 @@
 # /etc/cron.d/marketplace-backup — nightly PostgreSQL backup.
 #
-# Install on the VPS with:
+# Install on the host with:
 #   install -m 644 -o root -g root \
 #     backend/scripts/backup/cron/marketplace-backup /etc/cron.d/marketplace-backup
 #

@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application startup and shutdown.
 
     Configures logging on startup; disposes of the async engine's connection
-    pool, the shared Redis client and the A/Б media client on shutdown so the
+    pool, the shared Redis client and the A/B media client on shutdown so the
     process exits cleanly.
     """
     configure_logging()
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
     await dispose_engine()
     await close_redis()
-    # The A/Б media store holds one S3 connection open for the life of this
+    # The A/B media store holds one S3 connection open for the life of this
     # loop — that is what stops nine photos on one page from paying nine TLS
     # handshakes. This is the only place that knows the loop is ending.
     await close_media_store()

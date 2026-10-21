@@ -65,7 +65,7 @@ async def busiest_cards(session: AsyncSession, *, limit: int = CARDS) -> list[in
     """The cards with the most orders in the last 30 days, busiest first.
 
     Through ``product_card``, which row-level security covers — the funnel table
-    carries no workspace, so selecting from it alone would reach every кабинет.
+    carries no workspace, so selecting from it alone would reach every workspace.
     """
     since = moscow_today() - timedelta(days=30)
     rows = await session.execute(

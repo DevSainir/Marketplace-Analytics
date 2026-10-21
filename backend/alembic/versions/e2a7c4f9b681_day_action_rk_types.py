@@ -1,16 +1,16 @@
-"""sku_day_action: РК slots hold a campaign type, not a yes/no
+"""sku_day_action: ad campaign slots hold a campaign type, not a yes/no
 
 Revision ID: e2a7c4f9b681
 Revises: c1d5b3e8a746
 Create Date: 2026-07-21
 
-The two РК questions changed from «Включали РК единая/ручная?» (a boolean) to
+The two ad campaign questions changed from «Включали РК единая/ручная?» (a boolean) to
 «Первая/Вторая РК» — each a campaign TYPE picked from a synced dropdown
 (uni / manual_search / manual_shelves / cpc). «Меняли цену?» loses its «Нет»
 option; an unmoved price is now simply left unanswered.
 
 Existing manager rows are migrated best-effort:
-* ``uni_rk_enabled = true``  -> ``first_rk_type = 'uni'`` (Единая).
+* ``uni_rk_enabled = true``  -> ``first_rk_type = 'uni'`` («Единая», unified).
 * ``manual_rk_enabled = true`` -> ``second_rk_type = 'manual_search'`` — the old
   flag did not say which manual placement, so it lands on the primary search
   zone; the manager can re-pick to «Руч. полки» if it was shelves.

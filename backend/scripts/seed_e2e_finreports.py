@@ -3,8 +3,9 @@
 Split out of `seed_e2e_fixtures` when that script passed the 500-line ceiling.
 It is a responsibility of its own: everything else there provisions the ACCOUNT
 and its tenancy, while this builds one week of settlement data complete enough
-the part with the domain knowledge in it, and the part that made an empty
-database look like a broken page.
+for the P&L to show non-zero figures — which is the part with the domain
+knowledge in it, and the part that made an empty database look like a broken
+page.
 """
 
 from __future__ import annotations
@@ -16,14 +17,8 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.finreports.constants import (
-    LOGISTICS_OPER,
-    PENALTY_OPER,
-)
-from src.modules.finreports.models import (
-    FinancialReport,
-    LogisticsTransaction,
-)
+from src.modules.finreports.constants import LOGISTICS_OPER, PENALTY_OPER
+from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 from src.modules.monitoring.models import ProductCard
 
 __all__ = ["ensure_finreports_week"]
@@ -34,35 +29,29 @@ __all__ = ["ensure_finreports_week"]
 _FIXTURE_REPORT_ID = 990_000_001
 _FIXTURE_RRD_LOGISTICS = 990_000_101
 _FIXTURE_RRD_PENALTY = 990_000_102
-_FIXTURE_DIM_ID = 990_000_201
 _FIXTURE_GI_ID = 990_000_301
-_FIXTURE_CHRT_ID = 990_000_401
 
 #: The fixture SKU when the catalogue is empty (normally a real seeded nm_id is
 #: adopted instead, so the report links to a card the UI can also open).
 _FALLBACK_NM_ID = 990_000_501
 
-#: load-bearing: WB bills 20 litres for a box the seller measured at 10, so the
-_DECLARED_VOLUME_L = Decimal("10.000")
-_BILLED_VOLUME_L = Decimal("20.000")
+#: The week's two charges: one «Логистика» (delivery) row and one «Штраф»
+#: (penalty) row, so the statement's logistics and penalty lines both show.
 _LOGISTICS_BILLED_KGS = Decimal("278.00")
-_BOX_DELIVERY_BASE = Decimal("46.00")
-_BOX_DELIVERY_LITER = Decimal("14.00")
+_PENALTY_KGS = Decimal("400.00")
+_PENALTY_REASON = "E2E fixture"
 _FIXTURE_WAREHOUSE = "Коледино"
 
 
 async def ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID) -> bool:
+    """Create one internally consistent week of settlement data.
 
-    Six tables have to agree before the report shows a single number, and each
-    one answers a different question:
+    Two tables have to agree before the P&L shows a single number:
 
     * ``financial_report`` — which weeks the period selector may offer at all.
     * ``logistics_transaction`` — what WB actually billed. Two rows: the
-      «Логистика» charge, and the «Штраф» whose ``bonus_type_name`` is the
-      ``source="seller"`` so it outranks any card-derived row.
-      Without it the service falls back to defaults and flags the total as
-      resting on an assumed tariff.
-      empty-database failure look like a broken page.
+      «Логистика» charge and a «Штраф» (penalty); the statement keys off those
+      exact WB operation labels.
 
     The window is anchored to last week rather than a fixed calendar date, so
     the fixture stays inside any default settlement window the API applies.
@@ -102,6 +91,7 @@ async def ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID)
     date_to = today - timedelta(days=7)
     date_from = date_to - timedelta(days=6)
 
+    # Prefer a real catalogue SKU: the settlement rows then name a card the SKU
     # search and the matrix can also open, so a failure is traceable across
     # both journeys instead of pointing at an id that exists nowhere else.
     nm_id = await session.scalar(
@@ -147,43 +137,9 @@ async def ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID)
         LogisticsTransaction(
             rrd_id=_FIXTURE_RRD_PENALTY,
             supplier_oper_name=PENALTY_OPER,
+            bonus_type_name=_PENALTY_REASON,
+            penalty=_PENALTY_KGS,
             **common,
-        )
-    )
-    session.add(
-            nm_id=nm_id,
-            snapshot_date=date_from,
-            source="seller",
-            vendor_code=sa_name,
-            volume_l=_DECLARED_VOLUME_L,
-            workspace_id=workspace_id,
-        )
-    )
-    session.add(
-            observed_date=date_to,
-            warehouse_name=_FIXTURE_WAREHOUSE,
-            gi_id=_FIXTURE_GI_ID,
-            chrt_id=_FIXTURE_CHRT_ID,
-            nm_id=nm_id,
-            volume_l=_BILLED_VOLUME_L,
-        )
-    )
-    session.add(
-            snapshot_date=date_from,
-            warehouse_name=_FIXTURE_WAREHOUSE,
-            box_delivery_base=_BOX_DELIVERY_BASE,
-            box_delivery_liter=_BOX_DELIVERY_LITER,
-        )
-    )
-    session.add(
-            nm_id=nm_id,
-            dim_id=_FIXTURE_DIM_ID,
-            dt_bonus=date_to,
-            subject_name="E2E fixture",
-            volume_sup=_DECLARED_VOLUME_L,
-            volume=_BILLED_VOLUME_L,
-            is_valid=True,
-            workspace_id=workspace_id,
         )
     )
     return True

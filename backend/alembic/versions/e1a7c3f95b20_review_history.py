@@ -3,7 +3,7 @@
 Three tables (see src/modules/monitoring/models/reviews.py for why these three
 and not a daily copy of every review):
 
-* monitoring.rating_snapshot — one row per склейка per day, append-only.
+* monitoring.rating_snapshot — one row per card group per day, append-only.
 * monitoring.review_state    — one row per review, upserted by the daily walk.
 * monitoring.review_event    — what changed about an existing review.
 

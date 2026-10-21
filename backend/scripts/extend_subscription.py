@@ -17,7 +17,7 @@ Run from the ``backend`` directory::
     python -m scripts.extend_subscription --email owner@example.com --days 14 \\
         --by you@example.com --dry-run
 
-On prod, in the worker container (the interpreter with the dependencies)::
+In production, in the worker container (the interpreter with the dependencies)::
 
     docker exec marketplace-service-worker-1 /app/.venv/bin/python \\
         -m scripts.extend_subscription --email … --days 14 --by …

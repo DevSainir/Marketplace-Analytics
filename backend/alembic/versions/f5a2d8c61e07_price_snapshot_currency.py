@@ -1,6 +1,6 @@
 """Monitoring: the currency WB states for a price snapshot.
 
-The heatmap labelled every money figure with the кабинет's settlement currency,
+The heatmap labelled every money figure with the workspace's settlement currency,
 which is wrong for prices: «Демо» settles in KGS, but the prices API answers
 ``currencyIsoCode4217: RUB`` on every card (checked live 2026-09-28), and the
 settlement's own per-unit price runs ~1.1x ours before 20.08 — a conversion,

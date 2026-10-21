@@ -13,7 +13,7 @@ Three additions backing the monitoring matrix's «Тип рекламной ко
 * New ``monitoring.advertising_search_stat_daily`` fact table — the daily
   SEARCH-zone slice per (date, campaign, SKU) from ``/adv/v1/normquery/stats``,
   which lets the analytics layer split unified-bid campaigns into
-  Поиск / Полки (полки = fullstats - search).
+  search / shelves (shelves = fullstats - search).
 
 Revision ID: f3b9c4d17e5a
 Revises: c9e3a7b1d5f2

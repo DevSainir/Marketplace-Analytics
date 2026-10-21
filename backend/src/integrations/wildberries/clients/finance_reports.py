@@ -88,7 +88,7 @@ class WBFinanceReportsClient(BaseWBClient):
 
     #: Named rather than derived from the class name, which would give
     #: «financereports». The metric label and the rate bucket's surface key
-    #: have to read as the same thing, and WB calls it Финансы.
+    #: have to read as the same thing, and WB calls it «Финансы».
     WB_SURFACE = "finance"
 
     #: Rows asked for per request. WB's documented maximum, and affordable only

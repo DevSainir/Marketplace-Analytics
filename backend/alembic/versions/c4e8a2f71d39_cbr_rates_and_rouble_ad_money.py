@@ -1,13 +1,12 @@
-"""Monitoring: Bank of Russia rates, and rouble ad money converted to the кабинет's currency.
+"""Monitoring: Bank of Russia rates, and rouble ad money converted to the workspace's currency.
 
-WB moved every ad account from RUB to KGS on 2026-08-20. A Kyrgyz кабинет's
+WB moved every ad account from RUB to KGS on 2026-08-20. A Kyrgyz workspace's
 advertising before that day — and the tail of campaigns created before it,
 which kept billing in roubles until 2026-09-22 — is stored by WB in RUB, while
 everything it is compared with (the funnel's order sums, the settlement) is in
 KGS. This converts it where it is stored, at the rate WB itself converts at:
 the Bank of Russia's, of the row's own day (checked to five decimals against
-WB's conversions on 11.07, 08.08, 19.08, 03.09 and 12.09.2026 — see
-wildberries-api/references/currencies.md).
+WB's conversions on 11.07, 08.08, 19.08, 03.09 and 12.09.2026).
 
 * monitoring.cbr_rate — the KGS rates 2023-01-10 .. 2026-10-02, loaded once
   from alembic/data/cbr_kgs_rates.csv (XML_dynamic.asp, R01370).
@@ -18,9 +17,9 @@ wildberries-api/references/currencies.md).
   repos/ad_money.py as of this revision, frozen here on purpose: the
   harvest runs the module's copy on what it writes from now on.
 
-A кабинет is converted only if its funnel answers in KGS (read per кабинет, so
+A workspace is converted only if its funnel answers in KGS (read per workspace, so
 a card delisted before WB valued the funnel is converted with the rest); a
-rouble кабинет's rouble ads stay as they are. The downgrade drops the marks and the table but
+rouble workspace's rouble ads stay as they are. The downgrade drops the marks and the table but
 cannot restore WB's roubles — amount / fx_rate recovers them to the kopeck.
 
 Revision ID: c4e8a2f71d39

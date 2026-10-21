@@ -29,7 +29,7 @@ account. Everyone else becomes a manager — **including the ``dev`` account**.
 That last part is not a formality. The ``dev`` role elevates what a caller may
 DO; it does not supply a tenant to do it in, and every data route resolves its
 workspace through the caller's organisation. A dev with no membership therefore
-cannot open Мониторинг, Графики or Прибыли и убытки at all — the platform role
+cannot open «Мониторинг», «Графики» or «Прибыли и убытки» at all — the platform role
 would let them past the role checks and the workspace lookup would then find
 nothing of theirs. So the dev joins the primary organisation like everyone else
 and keeps seeing every internal feature through their role.
@@ -99,6 +99,7 @@ def upgrade() -> None:
     )
     # "At most one primary organisation" as a database fact — a second row
     # carrying the flag would silently hand another company our internal-only
+    # surfaces (A/B tests, labs).
     op.create_index(
         "uq_organizations_single_primary",
         "organizations",

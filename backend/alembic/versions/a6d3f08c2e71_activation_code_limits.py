@@ -1,4 +1,4 @@
-"""Organizations: an activation code carries the кабинет and manager caps it sells.
+"""Organizations: an activation code carries the workspace and manager caps it sells.
 
 Until now every redeemed code started an unlimited subscription, because the
 code had nowhere to say otherwise. Both columns are nullable and ``NULL`` means

@@ -2,7 +2,7 @@
 
 The cluster block on the SKU page was hidden for everyone on 2026-09-09. It
 comes back as a per-workspace switch, ``search_clusters_enabled``, off by
-default, and this revision turns it on for the one кабинет that asked: NEVA.
+default, and this revision turns it on for the one workspace that asked: NEVA.
 
 Matched by name because that is the only handle a migration shares with every
 environment; names are unique platform-wide. Both spellings are accepted, the
@@ -26,7 +26,7 @@ down_revision: str | None = "e4b8c1f07a2d"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-#: The кабинет the block is shown to, in both scripts, compared upper-cased.
+#: The workspace the block is shown to, in both scripts, compared upper-cased.
 _ENABLED_FOR = ("NEVA", "НЕВА")
 
 

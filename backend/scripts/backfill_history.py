@@ -52,7 +52,7 @@ Run from the ``backend`` directory (``.env`` populated, migrations applied)::
     python -m scripts.backfill_history --funnel-days 180 --skip-advertising
     python -m scripts.backfill_history --workspace "Main"    # one workspace
 
-On prod (container has no shell niceties)::
+In production (the container has no shell niceties)::
 
     docker compose exec api python -m scripts.backfill_history
 """

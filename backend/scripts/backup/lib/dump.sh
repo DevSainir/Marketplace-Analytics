@@ -79,7 +79,7 @@ Log: ${BACKUP_LOG_FILE:-<none>}"
 }
 
 file_size() {
-    # Linux coreutils on the VPS, BSD stat on a developer's Mac.
+    # Linux coreutils on the host, BSD stat on a developer's Mac.
     stat -c %s "$1" 2>/dev/null || stat -f %z "$1"
 }
 

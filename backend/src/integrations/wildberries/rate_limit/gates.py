@@ -342,7 +342,7 @@ class TokenBucketRateGate:
         most of every quarter of an hour, on finance-api it is a refill minute
         or a penalty block — a click would otherwise queue a harvest whose first
         act is to sit still. Knowing the number here turns that into an
-        immediate «попробуйте через N минут».
+        immediate «попробуйте через N минут» ("try again in N minutes").
 
         Read-only by construction. A peek that took a token would spend the
         harvest's budget every time somebody looked at the page, which is the

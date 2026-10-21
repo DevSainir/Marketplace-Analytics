@@ -4,7 +4,7 @@ Not a shape change: indexes only.
 
 The settlement aggregates come from the rollup now, but two queries on the same
 page still read the detail directly, and both were measured at seconds on the
-largest кабинет's full history (671 k rows):
+largest workspace's full history (671 k rows):
 
 * ``sku_penalties`` — 3.4-4.2 s — splits each article's fines by WB's reason. It
   reads a column that is non-zero on **6 104 rows of 1 459 394** (0.4 %), so a

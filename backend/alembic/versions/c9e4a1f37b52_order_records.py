@@ -1,7 +1,7 @@
 """Ordered item lines from the WB Statistics API.
 
 `monitoring.sales_funnel_daily` only goes back as far as the day this service
-started harvesting a кабинет — 17.07.2025 for the oldest one, against
+started harvesting a workspace — 17.07.2025 for the oldest one, against
 settlements from 2024. `supplier/orders` answers from any `dateFrom`, so the
 whole ordering history is reachable; this is where it lands.
 
@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("srid", name="pk_order_record"),
         schema="monitoring",
     )
-    # Every read is «this кабинет's SKUs over a window», and the кабинет arrives
+    # Every read is "this workspace's SKUs over a window", and the workspace arrives
     # as a semijoin on `product_card` — so the index that matters is (nm_id, day).
     op.create_index(
         "ix_order_record_nm_id_order_date",

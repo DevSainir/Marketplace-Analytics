@@ -2,7 +2,7 @@
 
 The public ``/cards/v4/detail`` endpoint is the only source for the *final
 customer price* — what a shopper actually pays after ALL discounts, including
-the WB loyalty discount (СПП). It is unauthenticated and returns prices in
+the WB loyalty discount (SPP). It is unauthenticated and returns prices in
 kopecks.
 
 **The host moved on 2026-09-22, and the old explanation of this file was
@@ -16,8 +16,7 @@ the SPA's own network log on a live product card:
 
     https://www.wildberries.ru/__internal/u-card/cards/v4/detail
 
-What that move changed, all measured the same day (see
-``.claude/skills/wildberries-api/references/storefront-card.md``):
+What that move changed, all measured the same day:
 
 * **One header gates it.** Sending each of the SPA's three headers alone,
   ``deviceid`` turns 403 into 200 while ``x-requested-with`` and
@@ -50,7 +49,7 @@ and empty-by-default rather than ripped out while the picture is still moving.
 
 > Unofficial endpoint, used deliberately as the sole source of the post-loyalty
 > customer price. Failures are tolerated by the harvest (the customer price /
-> СПП just stay empty for the day).
+> SPP just stay empty for the day).
 """
 
 from __future__ import annotations
@@ -95,8 +94,8 @@ class WBCardClient:
     #: CONNECT with its own `response 472`. Ten runs from the worker on
     #: 2026-09-07: sequential and 2-concurrent came back 200 in ~0.5-1.4 s;
     #: 4-concurrent lost one batch of four; 8-concurrent lost two and dragged
-    #: two more out to 24-27 s. At four this cost a real seller 86 of 231
-    #: customer prices on their first harvest — one whole batch, dropped after
+    #: two more out to 24-27 s. At four this cost a seller over a third of
+    #: their customer prices on their first harvest — one whole batch, dropped after
     #: its retries, indistinguishable downstream from a SKU WB has no price for.
     _MAX_CONCURRENCY = 2
 

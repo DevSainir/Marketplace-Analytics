@@ -57,7 +57,7 @@ load_env_file() {
 }
 
 # Every knob the job needs, with the defaults that make it work unchanged on
-# the VPS. Anything genuinely deployment-specific has no default and is
+# the host. Anything genuinely deployment-specific has no default and is
 # checked by require_config below.
 apply_backup_defaults() {
     : "${BACKUP_TZ:=Europe/Moscow}"

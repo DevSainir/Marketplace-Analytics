@@ -5,7 +5,7 @@ Storefront card detail — ``GET https://card.wb.ru/cards/v4/detail``.
 Verified doc/community shape (2026-07): {"data": {"products": [ {"id": nmId,
 "sizes": [ {"price": {"basic": .., "product": .., "total": ..}} ]} ]}}. Prices
 are in KOPECKS. ``product`` is the final customer price after ALL discounts
-(incl. WB loyalty / СПП); ``basic`` is before them. Unauthenticated endpoint.
+(incl. WB loyalty / SPP); ``basic`` is before them. Unauthenticated endpoint.
 """
 
 from __future__ import annotations

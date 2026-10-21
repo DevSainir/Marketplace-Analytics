@@ -155,7 +155,7 @@ async def get_current_family_id(
 
     Which session am I? Every other check in this module asks "is this token
     still good"; this one asks "which of my sessions is holding it", which is
-    what a session list needs to mark one row «этот» and what changing a
+    what a session list needs to mark one row «этот» ("this one") and what changing a
     password needs to know so it ends the others and not this one.
 
     Answers ``None`` for a token minted before the ``fam`` claim existed, and

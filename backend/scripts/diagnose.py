@@ -2,13 +2,14 @@
 
 The sanctioned way to look at live rows. It executes the file it is given with
 one name pre-bound — ``session``, already read-only and already pinned to the
-one кабинет diagnostics may read — and nothing else. A probe that opens its own
+one workspace diagnostics may read — and nothing else. A probe that opens its own
 session is not using this script, and that is the thing to notice in review.
 
-    scp probe.py marketplace-prod:/root/probe.py
-    ssh marketplace-prod 'docker cp /root/probe.py marketplace-service-worker-1:/app/ && \
-      docker exec marketplace-service-worker-1 /app/.venv/bin/python \
-      /app/scripts/diagnose.py /app/probe.py'
+In production, copy the probe into the worker container and run it there::
+
+    docker cp probe.py marketplace-service-worker-1:/app/
+    docker exec marketplace-service-worker-1 /app/.venv/bin/python \
+      /app/scripts/diagnose.py /app/probe.py
 
 The probe itself is a plain async body, written as if it were the inside of a
 function::

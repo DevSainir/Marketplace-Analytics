@@ -5,12 +5,11 @@ Revises: d1a4f7c92b60
 Create Date: 2026-09-10
 
 On 2026-09-10 at 01:30 UTC the nightly end-to-end tier — which runs on the
-production VPS's own runner — called ``backend/scripts/load_seed.sh``, and that
+production host's own runner — called ``backend/scripts/load_seed.sh``, and that
 script reached for a postgres container by NAME. The name it defaulted to was
 production's. Every table in ``monitoring`` was truncated and replaced with the
-committed browser-tier fixture; the pins, the per-day comments and actions, and
-seven weeks of harvested history went with it. The full account is in
-docs/security/HARDENING.md.
+browser-tier seed fixture; the pins, the per-day comments and actions, and
+seven weeks of harvested history went with it.
 
 The script has been fixed. This is the layer underneath it, for the next caller
 that has not been: the data schemas now refuse TRUNCATE outright unless the

@@ -1,6 +1,6 @@
 """Heatmap: the ``heatmap`` schema and its seller-defined article groups.
 
-``heatmap.sku_group`` is a named set of one кабинет's articles and
+``heatmap.sku_group`` is a named set of one workspace's articles and
 ``heatmap.sku_group_item`` its members. Both carry ``workspace_id`` — the item
 table too, so it can carry a row-level-security policy of its own.
 

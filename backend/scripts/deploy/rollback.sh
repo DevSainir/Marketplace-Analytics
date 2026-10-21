@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Put production back on the build that was serving before the last deploy.
 #
-#   ssh marketplace-prod 'bash /srv/marketplace_service/backend/scripts/deploy/rollback.sh < /dev/null'
+# Run from the deployment's checkout:
 #
-# The deploy (.github/workflows/deploy.yml) leaves two things behind for this:
+#   bash backend/scripts/deploy/rollback.sh < /dev/null
+#
+# A deploy is expected to leave two things behind for this:
 #
 #   * marketplace-service-{api,worker}:previous — the images the RUNNING
 #     containers were created from, tagged before the new build. Taken off the

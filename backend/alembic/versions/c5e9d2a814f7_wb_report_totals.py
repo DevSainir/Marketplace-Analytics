@@ -11,8 +11,8 @@ totals answer it for nothing — one list request covers every report in the
 window at once, and only a report whose totals MOVED needs its rows re-read.
 The comparison is WB's figure against WB's earlier figure, so our own
 classification of operations never enters it: `record_publication_spread` shows
-why that matters, since our reconstruction of ``forPaySum`` is knowingly 128.26
-KGS out on report 989286628 and the reason is how we bucket «Коррекция продаж»,
+why that matters, since our reconstruction of ``forPaySum`` is knowingly a little
+out on one report and the reason is how we bucket «Коррекция продаж»,
 not the data.
 
 **A standing oracle.** `docs/finreports/PNL.md` warns that most ways to get a

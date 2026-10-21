@@ -2,7 +2,7 @@
 
 Until 2026-09-29 the harvest dropped the ``currency`` fullstats states on each
 campaign, so every older ``advertising_stat_daily`` row is a number without a
-unit — and on a KGS кабинет that unit is RUB for campaigns created before WB
+unit — and on a KGS workspace that unit is RUB for campaigns created before WB
 moved the ad account on 2026-08-20 and KGS after. This phase asks WB once per
 batch of campaigns (``plan_currency_probes``) and labels their unlabelled rows.
 

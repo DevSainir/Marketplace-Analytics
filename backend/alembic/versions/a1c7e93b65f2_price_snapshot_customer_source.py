@@ -1,4 +1,4 @@
-"""Record WHICH measurement a customer price is, and its СПП when stated.
+"""Record WHICH measurement a customer price is, and its SPP when stated.
 
 ``customer_price`` had one source since it existed: the public storefront card,
 read with a fixed ``dest`` — the shelf price for one region at one moment of the
@@ -33,7 +33,7 @@ depends_on: str | None = None
 
 
 def upgrade() -> None:
-    """Add the СПП and source columns, dating existing rows to the storefront."""
+    """Add the SPP and source columns, dating existing rows to the storefront."""
     op.add_column(
         "price_snapshot",
         sa.Column("customer_spp", sa.Numeric(5, 2), nullable=True),

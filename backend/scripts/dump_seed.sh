@@ -8,7 +8,7 @@
 #
 # Produces backend/seed/monitoring_seed.sql.gz — data-only COPY statements for
 # the whole `monitoring` schema (facts + dimensions + saved matrix edits),
-# gzipped (the raw dump is a few MB; compressed it stays small enough to commit).
+# gzipped (the raw dump is a few MB; compressed it stays small).
 # The auth schema is deliberately NOT dumped: register accounts on the target
 # host with the invite code instead of copying dev credentials around.
 #
@@ -16,10 +16,10 @@
 set -euo pipefail
 
 # Derived from the compose project, like load_seed.sh's — a bare container name
-# aimed the loader at production once (docs/security/HARDENING.md), and the
-# direction this script runs in is the other half of that mistake: pointed at a
-# live stack it would write real sellers' catalogue data into a committed
-# fixture.
+# aimed the loader at production once (see load_seed.sh), and the direction
+# this script runs in is the other half of that mistake: pointed at a live
+# stack it would write real sellers' catalogue data into a seed file meant to
+# be shared.
 PROJECT="${COMPOSE_PROJECT_NAME:-marketplace-service}"
 CONTAINER="${SEED_PG_CONTAINER:-${PROJECT}-postgres-1}"
 DB_USER="${POSTGRES_USER:-marketplace}"

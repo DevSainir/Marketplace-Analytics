@@ -34,7 +34,6 @@
 -- with -v so it does not reach the file or the shell history of anyone reading
 -- this later:
 --
---   ssh marketplace-prod
 --   docker exec -i marketplace-service-postgres-1 \
 --     psql -U marketplace -d marketplace \
 --          -v app_password="$(read -rs P; echo "$P")" \

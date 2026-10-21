@@ -27,7 +27,7 @@ class AbTestsSettings(BaseSettings):
     # browsable when an upload has to be inspected by hand.
     ab_tests_media_prefix: str = Field(default="ab-tests")
     # Bucket and endpoint. Defaults point at the Hoster bucket already
-    # configured for this deployment: same provider as the VPS, so a rotation
+    # configured for this deployment: same provider as the app host, so a rotation
     # reading a photo back does not cross a border on every swap.
     # Each falls back to the S3_HOSTER_* variables this deployment already
     # carries, so the bucket needs no new environment entry — and can still be

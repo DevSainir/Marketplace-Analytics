@@ -33,7 +33,7 @@ from src.modules.ab_tests.services.storage import build_media_store
 async def check_ab_tests(
     session: AsyncSession, report: SmokeReport, *, workspace_id: uuid.UUID
 ) -> None:
-    """Open the A/Б list, then the newest test on it."""
+    """Open the A/B list, then the newest test on it."""
     service = get_catalog_service(
         tests=AbTestRepository(session),
         variants=VariantRepository(session),

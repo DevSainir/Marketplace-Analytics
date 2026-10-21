@@ -2,7 +2,7 @@
 # Pushing the artifact to Cloudflare R2 and Hoster S3.
 #
 # aws-cli runs from its official image rather than being installed on the host:
-# the VPS has no unzip (the native installer needs it), the version is pinned
+# the host has no unzip (the native installer needs it), the version is pinned
 # and reproducible, and nothing about the backup job survives on the host but
 # this repository. Credentials are handed to the container by name (-e VAR),
 # never as `docker run` arguments, so they never appear in `ps`.

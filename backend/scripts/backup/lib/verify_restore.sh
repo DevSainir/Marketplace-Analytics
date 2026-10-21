@@ -10,7 +10,7 @@
 #
 # The rehearsal happens in a scratch container on --network none: it can never
 # reach the live stack, and it is capped in memory and CPU so it cannot starve
-# the running services on a 3.8 GB VPS.
+# the running services on a 3.8 GB host.
 
 RESTORE_CONTAINER="marketplace-backup-restore-check"
 
@@ -18,12 +18,12 @@ RESTORE_CONTAINER="marketplace-backup-restore-check"
 # reason. postgres:16-alpine declares `VOLUME /var/lib/postgresql/data`, so
 # every plain `docker run` mints an anonymous volume that `docker rm -f` leaves
 # behind — the rehearsal would quietly abandon ~1.2 GB every Sunday, and this
-# VPS has previously gone read-only, taking the whole site down, from exactly
+# host has previously gone read-only, taking the whole site down, from exactly
 # that kind of slow disk leak. A fixed name bounds the damage at one volume no
 # matter how the run dies, and cleanup removes it at both ends of the check.
 RESTORE_VOLUME="marketplace-backup-restore-data"
 
-# GNU coreutils' `timeout`, when the host has it. The VPS does; a developer's
+# GNU coreutils' `timeout`, when the host has it. The production host does; a developer's
 # Mac does not, and a missing wall-clock guard is no reason for the rehearsal
 # to be unrunnable on a laptop.
 with_timeout() {

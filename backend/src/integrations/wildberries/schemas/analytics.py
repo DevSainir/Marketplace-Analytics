@@ -70,8 +70,8 @@ class WBFunnelHistoryRow(RawBase):
     """One product node holding its full per-day funnel ``history``.
 
     ``currency`` sits on the node beside ``product`` and is the unit of every
-    sum in its history: the кабинет's SETTLEMENT currency (KGS on all five
-    кабинеты, 2026-09-29) — WB converts the RUB order price at the Bank of
+    sum in its history: the workspace's SETTLEMENT currency (KGS on all five
+    workspaces, 2026-09-29) — WB converts the RUB order price at the Bank of
     Russia rate of the order day before summing.
     """
 

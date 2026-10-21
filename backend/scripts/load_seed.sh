@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Load backend/seed/monitoring_seed.sql into the compose postgres.
 #
-# Run on the TARGET host (e.g. the VPS) AFTER the stack is up — the migrate
+# Run on the TARGET host (e.g. a deployed one) AFTER the stack is up — the migrate
 # service must have applied the schema first:
 #
 #   make up
@@ -30,12 +30,12 @@ die() {
 # WHICH DATABASE THIS EMPTIES, and why the default is no longer a bare name.
 #
 # On 2026-09-10 this script truncated production's `monitoring` schema. The
-# nightly end-to-end tier runs on the production VPS's own runner and isolates
+# nightly end-to-end tier runs on the production host's own runner and isolates
 # its stack through Compose — a separate project, separate ports, and a guard
 # step that refuses to start if either is lost. This script bypasses Compose
 # entirely: it reaches for a container BY NAME, and the name it defaulted to
 # was production's. Every Compose-level guard held, and the seed still landed
-# on the live database. See docs/security/HARDENING.md.
+# on the live database.
 #
 # So the target is derived from the compose project instead: the e2e tier
 # exports COMPOSE_PROJECT_NAME=marketplace-e2e, which now names its own

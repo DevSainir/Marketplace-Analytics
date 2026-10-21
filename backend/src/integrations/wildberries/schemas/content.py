@@ -5,8 +5,8 @@ Content — product cards: ``POST /content/v2/get/cards/list``.
 Verified live shape (2026-07): {"cards": [ {nmID, vendorCode, title,
 brand, sizes: [{chrtID, techSize, wbSize, skus}], ...}, ... ],
 "cursor": {updatedAt, nmID, total}}. This is the authoritative source for
-the human-readable vendor code (``Артикул продавца``) and size label
-(``Размер вещи`` == ``techSize``); the stocks endpoint carries only chrtID.
+the human-readable vendor code (the portal's «Артикул продавца») and size label
+(«Размер вещи» == ``techSize``); the stocks endpoint carries only chrtID.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class WBCardDimensions(RawBase):
 class WBCardSize(RawBase):
     """One size variant of a product card.
 
-    ``tech_size`` is WB's human size label (the seller-portal "Размер вещи"
+    ``tech_size`` is WB's human size label (the seller-portal «Размер вещи»
     column, e.g. ``"52/170-177"`` / ``"L"`` / ``"42"``); ``wb_size`` is WB's
     alternate scale (e.g. ``"2XL/ 170-177"`` / ``"46"``). ``chrt_id`` is the
     join key back to the label-less stock rows.
@@ -63,7 +63,7 @@ class WBCardPhoto(RawBase):
     ``c246x328``, ``square`` and ``tm`` all answered ``200 image/webp``. A URL
     being present therefore says nothing about the file existing, and ``big`` —
     68-118 KB, the largest that does — is what to take. Preferring ``hq``
-    because it sounds bigger cost a silent capture failure: the A/Б module reads
+    because it sounds bigger cost a silent capture failure: the A/B module reads
     a failed fetch as "this card has no baseline", so every test would have
     quietly run without one.
     """
@@ -95,7 +95,7 @@ class WBCard(RawBase):
     nm_id: int = Field(alias="nmID")
     vendor_code: str = Field(default="", alias="vendorCode")
     title: str = Field(default="", alias="title")
-    #: WB's «Предмет» (e.g. «Костюмы»). What the heatmap's «Категории» filter
+    #: WB's «Предмет», the subject (e.g. «Костюмы»). What the heatmap's «Категории» filter
     #: and «По категории» cut group by; blank when WB returns none.
     subject_name: str = Field(default="", alias="subjectName")
     brand: str = Field(default="", alias="brand")

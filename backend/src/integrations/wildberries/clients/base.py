@@ -128,7 +128,7 @@ class BaseWBClient(StreamingJSONMixin):
         # header is absent, and a client-level default is never absent. A
         # default of `application/json` therefore mislabelled every multipart
         # upload, which is one endpoint: `POST /content/v3/media/file`, the only
-        # write the A/Б photo rotation makes. WB answered 400 to all of them.
+        # write the A/B photo rotation makes. WB answered 400 to all of them.
         # Measured live on 2026-09-05 — same client, same bytes, same token,
         # eight seconds apart: 400 with the header, 200 without it.
         headers = {"Accept": "application/json"}

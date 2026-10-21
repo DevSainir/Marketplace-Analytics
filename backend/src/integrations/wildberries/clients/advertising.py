@@ -75,7 +75,7 @@ class WBAdvertisingClient(BaseWBClient):
         * WB **does** serve current-day statistics, and the counters are
           cumulative since Moscow midnight. (This docstring said the opposite
           until 2026-09-10, when a 20-second probe found all 29 intervals
-          gaining — see the ``wildberries-api`` skill. The rotation poller in
+          gaining. The rotation poller in
           ``ab_tests`` has been reading today all along; the note was stale,
           not the behaviour.) A reading can go *down* as WB restates a recent
           day, so a difference between two readings must be clamped at zero.
@@ -176,10 +176,10 @@ class WBAdvertisingClient(BaseWBClient):
         this account has finished (status 7) answers ``total: 0`` with an empty
         ``currency`` — which on its own is indistinguishable from an endpoint
         that simply does not work for our campaign types. Measured live
-        2026-09-07 across statuses: running campaigns (status 9) answered 3818,
-        3504 and 14929 KGS, and a paused one (11) answered 350. So the endpoint
-        reports real numbers and ``0`` means the budget is spent, which is what
-        lets the A/Б rotation stop on it.
+        2026-09-07 across statuses: running campaigns (status 9) and a paused one
+        (11) all answered non-zero budgets. So the endpoint reports real numbers
+        and ``0`` means the budget is spent, which is what lets the A/B rotation
+        stop on it.
 
         Args:
             campaign_id: WB advert id.
@@ -276,8 +276,8 @@ class WBAdvertisingClient(BaseWBClient):
         the limiter allows ~10 requests/min. Each response item carries one
         ``dailyStats`` entry per day x search cluster; summing clusters per day
         yields the campaign's search-zone slice, which the analytics layer
-        subtracts from fullstats totals to derive the recommendations («полки»)
-        zone for unified-bid campaigns.
+        subtracts from fullstats totals to derive the recommendations («полки»,
+        shelves) zone for unified-bid campaigns.
 
         Args:
             pairs: ``(campaign_id, nm_id)`` pairs to request.

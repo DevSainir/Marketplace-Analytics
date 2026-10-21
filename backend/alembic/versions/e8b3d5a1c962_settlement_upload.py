@@ -1,6 +1,6 @@
 """Hand-uploaded weekly reports: ``finreports.settlement_upload`` and its row ids.
 
-A seller can upload the weekly report WB already shows in its кабинет while the
+A seller can upload the weekly report WB already shows in its seller portal while the
 API holds it back; its rows stand in the P&L until the API serves the same
 report. See :mod:`src.modules.finreports.models.settlement_upload`.
 

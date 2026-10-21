@@ -2,7 +2,7 @@
 
 The browser tier drives a REAL stack, so it needs three things to exist before
 Playwright opens a page — and none of them are supplied by the schema, the
-migrations, or ``seed/monitoring_seed.sql.gz``:
+migrations, or a seed dump loaded by ``load_seed.sh``:
 
 1. **An account it can log in as.** ``dump_seed.sh`` deliberately never dumps
    the ``auth`` schema (dev credentials must not travel between hosts), and the
@@ -11,16 +11,17 @@ migrations, or ``seed/monitoring_seed.sql.gz``:
    and the header is rejected unless the workspace row exists. Two, not one, so
    the "switching workspace re-scopes every request" journey has somewhere to
    switch to instead of skipping itself.
-3. **SKUs the account can actually see.** This is the subtle one. The committed
-   seed dump predates multi-tenancy: its ``COPY monitoring.product_card`` names
+3. **SKUs the account can actually see.** This is the subtle one. A seed dump
+   from before multi-tenancy is a problem: its ``COPY monitoring.product_card`` names
    only ``(nm_id, vendor_code, title, synced_at)``. Loading it leaves every
    card with ``workspace_id IS NULL``, and ``workspace_sku_select()`` filters
    those out of every query — so the catalogue is present in the database and
    invisible to the entire application. The SKU-search journey then finds
    nothing, for a reason no error message would explain.
-   weeks to offer, renders «0 недель» with the export button disabled, and its
-   journey fails on a page that is working exactly as designed. The facts are
-   spread over six tables that only mean something together — see
+   weeks to offer, renders «0 недель» ("0 weeks") with the export button
+   disabled, and its journey fails on a page that is working exactly as
+   designed. The facts are spread over six tables that only mean something
+   together — see
    :func:`_ensure_finreports_week`.
 
 Unlike ``seed_workspace.py`` / ``seed_harvest.py`` this script is **fully

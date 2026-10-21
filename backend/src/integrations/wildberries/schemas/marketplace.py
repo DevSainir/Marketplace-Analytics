@@ -3,7 +3,7 @@
 FBS is the fulfilment mode where stock sits in the **seller's own** warehouse
 rather than WB's. It is a different API surface with its own token category
 («Маркетплейс»), and — verified live on 2026-08-13 — it is the ONLY one that
-reports that stock: the Поставки surface answers with WB's acceptance
+reports that stock: the «Поставки» (Supplies) surface answers with WB's acceptance
 directory, and the analytics remains report excludes FBS entirely — its
 grand-total row matched the sum of the FBO warehouses to the unit, so FBS
 contributes nothing there rather than being merely unlabelled.

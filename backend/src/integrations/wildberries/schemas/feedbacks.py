@@ -8,8 +8,8 @@ Two sources answer two different questions, and neither answers both:
   counts a review in the card's rating.
 * The storefront (``feedbacks1.wb.ru/feedbacks/v2/{imtId}``) carries the rating
   itself — ``valuation``, ``valuationSum`` and the score distribution over the
-  склейка, which are complete — and a PARTIAL list of reviews (456 of 1259 on the
-  card that prompted this, skewed toward text reviews) whose items say whether WB
+  card group, which are complete — and a PARTIAL list of reviews (456 of 1259 on
+  the card that prompted this, skewed toward text reviews) whose items say whether WB
   excludes each one from the rating. Never average that list.
 
 Only the fields the review history reads are modelled; WB's text, photos and
@@ -73,7 +73,7 @@ class WBStorefrontFeedback(RawBase):
 
 
 class WBStorefrontRating(RawBase):
-    """The storefront's rating summary for one склейка (``imtId``).
+    """The storefront's rating summary for one card group (``imtId``).
 
     ``valuation`` is WB's rounded stars — the plain mean of the counted scores,
     rounded half-up to 0.1 (31/31 cards, 2026-10-02). ``valuation_sum`` over the
