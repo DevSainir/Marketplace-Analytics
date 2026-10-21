@@ -55,6 +55,35 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/healthz/alerts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Whether alerts reach Telegram
+     * @description Report whether the alert path works, for a checker outside the box.
+     *
+     *     No guard, and on purpose: the caller is an uptime checker with no
+     *     session, the answer is one word about our own plumbing, and it touches
+     *     no tenant data. A flood reaches Alertmanager at most once per cache
+     *     window — :mod:`src.core.observability.alert_path` has the reasoning.
+     *
+     *     Returns:
+     *         200 ``alerts-ok`` or 503 ``alerts-down``. Never the reason, which
+     *         goes to the log.
+     */
+    get: operations['healthz_alerts_healthz_alerts_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/auth/register': {
     parameters: {
       query?: never
@@ -755,15 +784,38 @@ export interface paths {
     }
     /**
      * List Guest Grants
-     * @description Every standing grant — who may read which кабинет of another company.
+     * @description Every standing grant — who may read which workspace of another company.
      */
     get: operations['list_guest_grants_api_v1_workspaces_guests_get']
     put?: never
     /**
      * Grant Guest Access
-     * @description Open a кабинет to an account, read-only; the account becomes ``head``.
+     * @description Open a workspace to an account, read-only; the account becomes ``head``.
      */
     post: operations['grant_guest_access_api_v1_workspaces_guests_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/workspaces/guests/workspaces': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Grantable
+     * @description Every workspace on the platform, id and name only, for the grant form.
+     *
+     *     ``DevAccess``: the list names every customer, which is a platform fact no
+     *     tenant may see — and the dev who may grant any of them already can.
+     */
+    get: operations['list_grantable_api_v1_workspaces_guests_workspaces_get']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -801,7 +853,7 @@ export interface paths {
      * List Workspaces
      * @description List the workspaces the caller may switch between.
      *
-     *     For a head, that is their own company's кабинеты followed by the ones a
+     *     For a head, that is their own company's workspaces followed by the ones a
      *     dev opened to them in other companies, flagged ``is_guest``.
      */
     get: operations['list_workspaces_api_v1_workspaces_get']
@@ -832,7 +884,7 @@ export interface paths {
     head?: never
     /**
      * Update Workspace Settings
-     * @description Change what the кабинет shows to everyone in it.
+     * @description Change what the workspace shows to everyone in it.
      *
      *     ``WritingAccess``, not ``MemberAccess``: the setting changes the page for
      *     every member, so a read-only manager must not flip it for the owner. Not
@@ -840,9 +892,9 @@ export interface paths {
      *     credentials or bill, and the managers who read advertising are the ones
      *     who know whether the seller has bonuses.
      *
-     *     The кабинет is the active one, from ``X-Workspace-Id``
+     *     The workspace is the active one, from ``X-Workspace-Id``
      *     (``CurrentWorkspaceId``), not a path id, whose binder is owner-only. That
-     *     binder answers 404 for another company's кабинет and lets a guest only
+     *     binder answers 404 for another company's workspace and lets a guest only
      *     read. Not audited: the setting hides or shows a figure and moves no money
      *     and no access.
      */
@@ -921,7 +973,11 @@ export interface paths {
      *     the answer to «почему тут пусто», and a manager who cannot see it is left
      *     with a blank product page and no explanation. It exposes only counters and
      *     a Russian status line — no token, no WB response, nothing tenant-specific
-     *     beyond the workspace the caller was already proved to belong to.
+     *     beyond the workspace the caller was already proved to belong to. A head may
+     *     read it in a workspace granted to them, for the same reason.
+     *
+     *     ``MemberPathWorkspaceId``, not ``PathWorkspaceId``: the latter is owner-only,
+     *     and until 2026-10-17 it refused every manager here despite this guard.
      *
      *     Returns an empty lane list for a workspace that has never been backfilled,
      *     rather than 404: "nothing is running" is the honest answer for every
@@ -1270,7 +1326,8 @@ export interface paths {
      * @description Save one day's «Действия» row on a SKU (shared by everyone).
      *
      *     The body is the WHOLE day state (last write wins); a body with every
-     *     answer null clears the day's row.
+     *     answer null clears the day's row. The writer is recorded in the day's
+     *     history alongside the answers before and after.
      */
     put: operations['set_day_action_api_v1_monitoring_skus__nm_id__actions__action_date__put']
     post?: never
@@ -1355,9 +1412,9 @@ export interface paths {
      * List Weeks
      * @description List the WB weekly report periods the seller has data for.
      *
-     *     it is what every finreports page's period selector is built from: the SPA
-     *     reads the full settlement span from this to pick a default window and to
-     *     with them left a customer's P&L unable to choose a period at all.
+     *     Every finreports page's period selector is built from this: the SPA reads
+     *     the full settlement span from it to pick a default window and to bound the
+     *     date picker.
      */
     get: operations['list_weeks_api_v1_finreports_weeks_get']
     put?: never
@@ -1405,6 +1462,7 @@ export interface paths {
      * @description Return the per-SKU P&L cut for an arbitrary settlement-date window.
      *
      *     Three things come from the monitoring module, resolved here through its
+     *     contract:
      *     orders from the funnel history, per-SKU advertising from the Promotion API
      *     statistics, and the card thumbnails — the settlement report carries an
      *     article string and no catalogue at all.
@@ -1566,57 +1624,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     */
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Get Sku Evidence
-     */
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     *
-     *     the printable per-report summary, the line-by-line ledger with the
-     */
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/v1/finreports/balance': {
     parameters: {
       query?: never
@@ -1709,8 +1716,8 @@ export interface paths {
      *
      *     So the click walks the reconciliation span: the days behind our coverage as
      *     well as the ones after it, whatever the gate says. That is the only shape
-     *     that answers the question actually being asked, which is not «есть ли что-то
-     *     новее» but «догони то, что у WB уже есть, а у нас нет». It costs more — a
+     *     that answers the question actually being asked, which is not "is there anything
+     *     newer" but "catch up on what WB already has and we do not". It costs more — a
      *     fortnight was three windows of the old endpoint's quarter-hourly budget, and
      *     is a few one-a-minute requests on finance-api — and it is spent on
      *     the caller's own workspace, once, because a person asked.
@@ -1726,7 +1733,7 @@ export interface paths {
      *     old settlement report at one request per ~15 minutes, so a click shortly
      *     after the hourly tick used to enqueue a harvest whose first act was to sit still
      *     for most of that window — seven minutes of «Обновляем…» during which nothing
-     *     could possibly happen (prod 2026-09-09). The bucket already knows, in shared
+     *     could possibly happen (observed 2026-09-09). The bucket already knows, in shared
      *     Redis, so that case is now refused here with the wait attached instead of
      *     being discovered minutes later on a worker.
      *
@@ -1736,7 +1743,7 @@ export interface paths {
      *     could do differently until the bucket reopens.
      *
      *     Order matters — a run in flight is reported ahead of the rate limit. The
-     *     running harvest is very often what emptied the bucket, and "уже идёт" is the
+     *     running harvest is very often what emptied the bucket, and "already running" is the
      *     more useful half of that pair: it says the work is happening, where the rate
      *     limit alone would say only that it cannot start.
      *
@@ -1752,6 +1759,60 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/finreports/settlement-uploads': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Upload Settlement Report
+     * @description Queue a hand-uploaded weekly report.
+     *
+     *     Guard: the module's router-level P&L grant, plus ``WritingAccess`` — the
+     *     upload writes settlement rows into the workspace's statement, which a
+     *     read-only member may not do. Scoped by ``CurrentWorkspaceId``, which
+     *     validates the header against the caller's organisation and binds the tenant
+     *     for row-level security; the worker writes for that workspace and no other.
+     *
+     *     Bounded three ways: the body is read capped, the archive's declared size is
+     *     checked before anything is parsed, and a workspace has one upload in flight at
+     *     a time.
+     */
+    post: operations['upload_settlement_report_api_v1_finreports_settlement_uploads_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/finreports/settlement-uploads/{upload_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Settlement Upload
+     * @description Report how an upload ended, for the page polling it.
+     *
+     *     Guard: the module's router-level P&L grant. Scoped by ``CurrentWorkspaceId``
+     *     and read by ``(workspace_id, id)`` — another workspace's upload is a 404, the
+     *     same as one that does not exist.
+     */
+    get: operations['get_settlement_upload_api_v1_finreports_settlement_uploads__upload_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/finreports/currency': {
     parameters: {
       query?: never
@@ -1761,11 +1822,11 @@ export interface paths {
     }
     /**
      * Get Settlement Currency
-     * @description Return the currency WB settles the active кабинет in.
+     * @description Return the currency WB settles the active workspace in.
      *
-     *     Membership, not the P&L grant: monitoring and the A/Б tests print money in
+     *     Membership, not the P&L grant: monitoring and the A/B tests print money in
      *     this unit for managers who cannot open the P&L. Nothing weaker either —
-     *     ``MemberAccess`` is the paywall, and a bare account has no кабинет to ask
+     *     ``MemberAccess`` is the paywall, and a bare account has no workspace to ask
      *     about.
      */
     get: operations['get_settlement_currency_api_v1_finreports_currency_get']
@@ -2027,7 +2088,7 @@ export interface paths {
     }
     /**
      * Get Summary Span
-     * @description Return the days this кабинет has data for.
+     * @description Return the days this workspace has data for.
      *
      *     Its own route rather than a field on the summary because the picker needs it
      *     BEFORE a window is chosen, and because it is answered off the report headers
@@ -2063,7 +2124,7 @@ export interface paths {
      *     rollup for the days it did not already cover — a cache that verifies itself
      *     against the detail's own row counts and rebuilds whatever disagrees. Nothing
      *     a caller sends decides what is written: the content is derived from the
-     *     кабинет's own settlement rows, and the tenant is bound by
+     *     workspace's own settlement rows, and the tenant is bound by
      *     :data:`CurrentWorkspaceId` exactly as for the read.
      *
      *     Otherwise read-only; the guard lives on the aggregating router
@@ -2087,13 +2148,13 @@ export interface paths {
     }
     /**
      * List Groups
-     * @description Return every group of the кабинет, by name.
+     * @description Return every group of the workspace, by name.
      */
     get: operations['list_groups_api_v1_heatmap_groups_get']
     put?: never
     /**
      * Create Group
-     * @description Create a group of the кабинет's articles.
+     * @description Create a group of the workspace's articles.
      */
     post: operations['create_group_api_v1_heatmap_groups_post']
     delete?: never
@@ -2114,7 +2175,7 @@ export interface paths {
      * Update Group
      * @description Replace a group's name and members.
      *
-     *     A group of another кабинет is reported as missing, not forbidden — a guessed
+     *     A group of another workspace is reported as missing, not forbidden — a guessed
      *     id must not confirm that the group exists.
      */
     put: operations['update_group_api_v1_heatmap_groups__group_id__put']
@@ -2129,6 +2190,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/heatmap/catalog': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Catalog
+     * @description Return the workspace's cards and subjects, for «Категории», «Артикулы» and the group editor.
+     *
+     *     Its own route because the filters need it before a grid exists. The window
+     *     only orders the cards — most-ordered first — so it is bounded the same way
+     *     as the grid's.
+     */
+    get: operations['get_catalog_api_v1_heatmap_catalog_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/heatmap/norms': {
     parameters: {
       query?: never
@@ -2138,7 +2223,7 @@ export interface paths {
     }
     /**
      * List Norms
-     * @description Return every norm the кабинет has set — bounded by its cards times the metrics.
+     * @description Return every norm the workspace has set — bounded by its cards times the metrics.
      */
     get: operations['list_norms_api_v1_heatmap_norms_get']
     put?: never
@@ -2190,35 +2275,12 @@ export interface paths {
      *     caller sends decides what is written; the tenant is bound by
      *     :data:`CurrentWorkspaceId` exactly as for the read.
      *
-     *     The monitoring grant is on the aggregating router
-     *     (:mod:`src.modules.heatmap.routers`); a finance metric also needs P&L,
-     *     checked here because only this route reads the settlement.
+     *     The «Тепловая карта» grant is attached where the router is included
+     *     (:mod:`src.modules.heatmap.routers`), and it opens every metric: the money
+     *     ones stopped asking for P&L as well on 2026-10-12, when each page became a
+     *     grant of its own.
      */
     get: operations['get_heatmap_api_v1_heatmap_get']
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/v1/heatmap/catalog': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Get Catalog
-     * @description Return the кабинет's cards and subjects, for «Категории», «Артикулы» and the group editor.
-     *
-     *     Its own route because the filters need it before a grid exists. The window
-     *     only orders the cards — most-ordered first — so it is bounded the same way
-     *     as the grid's.
-     */
-    get: operations['get_catalog_api_v1_heatmap_catalog_get']
     put?: never
     post?: never
     delete?: never
@@ -2236,7 +2298,7 @@ export interface paths {
     }
     /**
      * Get Advertising Span
-     * @description Return the days this кабинет has advertising for, before a window is chosen.
+     * @description Return the days this workspace has advertising for, before a window is chosen.
      */
     get: operations['get_advertising_span_api_v1_advertising_span_get']
     put?: never
@@ -2260,7 +2322,7 @@ export interface paths {
      *
      *     **This GET may write, as «Сводка»'s does**: reading settled sales fills the
      *     settlement rollup for days it did not already cover. Nothing the caller
-     *     sends decides what is written — it is derived from the кабинет's own
+     *     sends decides what is written — it is derived from the workspace's own
      *     settlement rows, under the tenant :data:`CurrentWorkspaceId` binds.
      */
     get: operations['get_advertising_api_v1_advertising_get']
@@ -2480,7 +2542,7 @@ export interface components {
      *     the test already has. The bound rule is checked against the *resolved*
      *     mode — the one in the body if it names one, otherwise the stored one — so
      *     "set slot_minutes on a test that is still counting impressions" is refused
-     *     even though the body never mentions a mode, while a test in режиме
+     *     even though the body never mentions a mode, while a test in mode
      *     «either» takes either field on its own. That check needs the stored test, so it
      *     happens in the service rather than here.
      */
@@ -2872,7 +2934,7 @@ export interface components {
     }
     /**
      * AdvertisingSpan
-     * @description The days the кабинет has advertising for, for the period picker.
+     * @description The days the workspace has advertising for, for the period picker.
      */
     AdvertisingSpan: {
       /** Date From */
@@ -3169,6 +3231,14 @@ export interface components {
       /**
        * File
        * @description Cost sheet (.xlsx, .xls or .csv) with costs filled in.
+       */
+      file: string
+    }
+    /** Body_upload_settlement_report_api_v1_finreports_settlement_uploads_post */
+    Body_upload_settlement_report_api_v1_finreports_settlement_uploads_post: {
+      /**
+       * File
+       * @description WB's weekly detailed report: the .zip, or its .xlsx.
        */
       file: string
     }
@@ -3493,124 +3563,6 @@ export interface components {
       saved: number
     }
     /**
-     * @description Dispute-ready evidence bundle for one SKU.
-     */
-      /** Nm Id */
-      nm_id: number
-      /** Sa Name */
-      sa_name: string
-      /**
-       * Date From
-       * Format: date
-       */
-      date_from: string
-      /**
-       * Date To
-       * Format: date
-       */
-      date_to: string
-      /** Declared Volume L */
-      declared_volume_l: string | null
-      /** Volume Ratio */
-      volume_ratio: string | null
-      /** Transactions */
-      transactions: components['schemas']['LogisticsTxnItem'][]
-    }
-    /**
-     *
-     *     so only the penalty component is known for that SKU.
-     */
-      /** Nm Id */
-      nm_id: number
-      /** Sa Name */
-      sa_name: string
-      /** Currency */
-      currency: string
-      /** Declared Volume L */
-      declared_volume_l: string | null
-      /** Volume Ratio */
-      volume_ratio: string | null
-      /** Logistics Billed */
-      logistics_billed: string
-      /** Logistics Fair */
-      logistics_fair: string
-      /** Logistics Overpay */
-      logistics_overpay: string
-      /** Cost Ratio */
-      cost_ratio: string | null
-      /**
-       * Storage Billed
-       * @default 0
-       */
-      storage_billed: string
-      /**
-       * Storage Overpay
-       * @default 0
-       */
-      storage_overpay: string
-      /** Gabarit Penalty */
-      total_damage: string
-      /** Delivery Units */
-      delivery_units: number
-      /** Logistics Rows */
-      logistics_rows: number
-      /** Has Measurement */
-      has_measurement: boolean
-      /** Remeasure Provable */
-    }
-    /**
-     */
-      /**
-       * Date From
-       * Format: date
-       */
-      date_from: string
-      /**
-       * Date To
-       * Format: date
-       */
-      date_to: string
-      /** Skus */
-      /** Notes */
-      notes: string[]
-    }
-    /**
-     * @description Window-level totals across all SKUs.
-     */
-      /** Currency */
-      currency: string
-      /** Logistics Billed */
-      logistics_billed: string
-      /** Logistics Fair */
-      logistics_fair: string
-      /** Logistics Overpay */
-      logistics_overpay: string
-      /**
-       * Storage Billed
-       * @default 0
-       */
-      storage_billed: string
-      /**
-       * Storage Fair
-       * @default 0
-       */
-      storage_fair: string
-      /**
-       * Storage Overpay
-       * @default 0
-       */
-      storage_overpay: string
-      /**
-       * Storage Days
-       * @default 0
-       */
-      storage_days: number
-      /** Gabarit Penalty */
-      total_damage: string
-      /** Overpay Ratio */
-      overpay_ratio: string | null
-    }
-    /**
      * DayActionResponse
      * @description One SKU-day's stored action state after a save.
      *
@@ -3760,7 +3712,7 @@ export interface components {
      * @description What one turn earned from one campaign.
      *
      *     Absent for a campaign that earned nothing in the turn — the timeline reads
-     *     «эта РК работала в этом круге» off the presence of an entry.
+     *     "this ad campaign ran in this lap" off the presence of an entry.
      */
     ExposureCampaignCounts: {
       /** Campaign Id */
@@ -4027,7 +3979,7 @@ export interface components {
     }
     /**
      * GuestGrantRead
-     * @description One standing grant. Carries no token and nothing of the кабинет's data.
+     * @description One standing grant. Carries no token and nothing of the workspace's data.
      */
     GuestGrantRead: {
       /**
@@ -4052,9 +4004,9 @@ export interface components {
     }
     /**
      * GuestGrantRequest
-     * @description Open one кабинет, read-only, to one account (dev only).
+     * @description Open one workspace, read-only, to one account (dev only).
      *
-     *     Addressed by name because a dev knows the кабинет by its name and names
+     *     Addressed by name because a dev knows the workspace by its name and names
      *     are unique platform-wide; the id is not something anybody has to hand.
      */
     GuestGrantRequest: {
@@ -4068,6 +4020,19 @@ export interface components {
        * @description The кабинет to open.
        */
       workspace_name: string
+    }
+    /**
+     * GuestWorkspaceOption
+     * @description One workspace a dev may open to someone: its name, and nothing of its data.
+     */
+    GuestWorkspaceOption: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Name */
+      name: string
     }
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -4096,6 +4061,10 @@ export interface components {
        * @description Last day covered by WB's PROVISIONAL daily reports, when they reach past the settled weekly period; null otherwise. The statement includes these days, but no weekly settlement document covers them yet and whether WB revises a daily report is still being measured — so they are reported apart from `latest_settled` rather than folded into it.
        */
       provisional_through?: string | null
+      /** @description The weekly period after the newest report on file, once WB's calendar says its report is formed (the morning after the period ends); null while that period is still running. Derived from the calendar, not asked of WB: WB shows a report on its site hours before the API serves it, and this is what lets the page say so. */
+      awaited_report?: components['schemas']['ReportPeriodOut'] | null
+      /** @description The newest weekly report whose rows the seller uploaded by hand and WB's API has not yet served; null when none stands. Its rows are in the statement and are compared with the API's when it serves them. */
+      uploaded_report?: components['schemas']['ReportPeriodOut'] | null
       /** @description The last recorded freshness verdict, or null when there is none — never checked, expired, or an unreadable record. All three mean «мы не проверяли», which is the honest answer. */
       last_check?: components['schemas']['FreshnessCheckOut'] | null
     }
@@ -4123,7 +4092,7 @@ export interface components {
     }
     /**
      * HeatmapCatalogItem
-     * @description One card of the кабинет — a filter option and a group member candidate.
+     * @description One card of the workspace — a filter option and a group member candidate.
      */
     HeatmapCatalogItem: {
       /** Nm Id */
@@ -4146,7 +4115,7 @@ export interface components {
     }
     /**
      * HeatmapCatalogResponse
-     * @description The кабинет's catalogue, for the «Категории» and «Артикулы» filters.
+     * @description The workspace's catalogue, for the «Категории» and «Артикулы» filters.
      *
      *     Items come most-ordered first over the requested window.
      */
@@ -4443,40 +4412,14 @@ export interface components {
       harvested_at: string
     }
     /**
-     * LogisticsTxnItem
-     * @description One raw settlement row, for the SKU evidence drill-down.
-     */
-    LogisticsTxnItem: {
-      /** Rrd Id */
-      rrd_id: number
-      /** Rr Dt */
-      rr_dt: string | null
-      /** Supplier Oper Name */
-      supplier_oper_name: string
-      /** Bonus Type Name */
-      bonus_type_name: string
-      /** Office Name */
-      office_name: string
-      /** Gi Id */
-      gi_id: number | null
-      /** Delivery Amount */
-      delivery_amount: number
-      /** Delivery Rub */
-      delivery_rub: string
-      /** Penalty */
-      penalty: string
-      /** Currency Name */
-      currency_name: string
-    }
-    /**
      * MatrixAdBucketBase
      * @description The editable input facts of one ``(day, ad-bucket)`` cell.
      *
      *     Every metric here is the CAMPAIGN's, across all the nm_ids it delivered
-     *     for: an advertising column measures a рекламная кампания, so its spend, its
+     *     for: an advertising column measures an ad campaign, so its spend, its
      *     traffic and its conversions are the campaign's own — including the
      *     conversions WB booked on associated size/colour variants
-     *     («ассоциированные конверсии»), which are orders the campaign paid for and
+     *     (WB's "associated conversions"), which are orders the campaign paid for and
      *     brought.
      *
      *     ``order_sum`` is ``None`` for split (unified / dual-placement) campaigns
@@ -4550,7 +4493,7 @@ export interface components {
      * MatrixAdSkuBase
      * @description The viewed card's own share of an ad bucket's metrics.
      *
-     *     An advertising bucket is the whole кампания; these are the part of it
+     *     An advertising bucket is the whole campaign; these are the part of it
      *     booked on the card being viewed. «Общая» and «Органика» are built from
      *     them — the card's own day, and that day minus what the ads brought — and
      *     the carts/orders hover reports the rest as the associated share.
@@ -4668,7 +4611,7 @@ export interface components {
      * @description What each money cell of one day column is counted in.
      *
      *     Two sources, never merged: the order money («Заказы»/«Выкупы» in money) is
-     *     WB's own funnel sum — in the кабинет's settlement currency — or, on a day WB
+     *     WB's own funnel sum — in the workspace's settlement currency — or, on a day WB
      *     served none, the order count at the day's price, in the prices' currency.
      *     The spend is in whatever each campaign is billed in, fixed at its creation,
      *     so a bucket that folds two campaigns can hold two codes. ``""`` is a source
@@ -4710,7 +4653,6 @@ export interface components {
      *     orders): the order money then falls back to ``seller_price`` converted by
      *     ``price_rate`` — the Bank rate of the day, WB's own — into
      *     ``order_currency``, or, without a rate, stays in ``price_currency``.
-     *     See wildberries-api/references/currencies.md.
      */
     MatrixFunnelBase: {
       /**
@@ -4863,6 +4805,11 @@ export interface components {
        * @default false
        */
       can_issue_codes: boolean
+      /**
+       * Is Guest Only
+       * @default false
+       */
+      is_guest_only: boolean
       organization?: components['schemas']['OrganizationRead'] | null
       subscription?: components['schemas']['SubscriptionRead'] | null
     }
@@ -4975,15 +4922,19 @@ export interface components {
      * ModuleKey
      * @description The product surfaces a manager can be granted or denied.
      *
-     *     Deliberately coarser than the navigation. «Сводка» is not here, and for the
-     *     opposite reason to the page it replaced: it draws BOTH of the surfaces below
-     *     — the settlement's money and monitoring's demand — so it asks for both
-     *     grants rather than introducing a third switch that would have to agree with
-     *     them. Two switches that must always agree are a bug waiting for somebody to
-     *     set them apart.
+     *     **One per page of the header**, and a grant opens everything on its page.
+     *     «Сводка» and «Тепловая карта» used to borrow other pages' grants — the
+     *     first asked for both «Мониторинг» and P&L, the second for «Мониторинг» and,
+     *     for its money, P&L — and that is what locked a manager out of pages and
+     *     groups nobody meant to close. The owner now decides about each page they
+     *     can see in the header, and the page shows what is on it, money included,
+     *     exactly as «Реклама» always did.
+     *
+     *     Groups are not a page: they are a control on four of them, so their routes
+     *     open to anybody holding one of those four (:data:`GROUP_MODULES`).
      * @enum {string}
      */
-    ModuleKey: 'monitoring' | 'finreports' | 'ab_tests' | 'advertising'
+    ModuleKey: 'monitoring' | 'finreports' | 'ab_tests' | 'advertising' | 'summary' | 'heatmap'
     /**
      * OrganizationRead
      * @description The caller's own organisation.
@@ -5307,7 +5258,6 @@ export interface components {
       currency: string
       /** Rows */
       rows: components['schemas']['PnlSizeRow'][]
-      totals: components['schemas']['PnlSizeRow']
     }
     /**
      * PnlSkuReportResponse
@@ -5422,7 +5372,7 @@ export interface components {
      * @description The full statement for one window or one grouping bucket.
      *
      *     The blocks read top to bottom exactly as the numbers compose:
-     *     units → revenue → what WB kept → what WB withheld → к оплате → cost → profit.
+     *     units → revenue → what WB kept → what WB withheld → payable → cost → profit.
      */
     PnlStatement: {
       /** Key */
@@ -5578,6 +5528,24 @@ export interface components {
       message?: string | null
     }
     /**
+     * ReportPeriodOut
+     * @description The settlement period of one weekly report.
+     */
+    ReportPeriodOut: {
+      /**
+       * Date From
+       * Format: date
+       * @description First day of the period the report will cover.
+       */
+      date_from: string
+      /**
+       * Date To
+       * Format: date
+       * @description Last day of that period.
+       */
+      date_to: string
+    }
+    /**
      * SessionRead
      * @description One live login lineage, as its owner sees it.
      *
@@ -5629,7 +5597,7 @@ export interface components {
     }
     /**
      * SettlementCurrencyResponse
-     * @description The currency every money figure of the active кабинет is stated in.
+     * @description The currency every money figure of the active workspace is stated in.
      *
      *     One seller account is priced, advertised and paid in one currency, so the
      *     code WB settles it in is also the unit of its funnel sums, its prices and
@@ -5644,6 +5612,65 @@ export interface components {
       currency: string
     }
     /**
+     * SettlementUploadOut
+     * @description One uploaded weekly report file, and how it ended.
+     */
+    SettlementUploadOut: {
+      /**
+       * Id
+       * Format: uuid
+       * @description Upload id, to poll its status by.
+       */
+      id: string
+      /**
+       * Status
+       * @description 'queued'/'processing' while the worker reads it. 'written' — its rows stand in the P&L until WB's API serves the report; 'already_held' — we hold the same rows, nothing written; 'diverged' — we hold this period and it differs, nothing written; 'failed' — refused, see message. 'confirmed'/'replaced_diverged' — the API has since served the report.
+       * @enum {string}
+       */
+      status:
+        | 'queued'
+        | 'processing'
+        | 'written'
+        | 'already_held'
+        | 'diverged'
+        | 'failed'
+        | 'confirmed'
+        | 'replaced_diverged'
+      /**
+       * Message
+       * @description What to tell the seller, in Russian.
+       * @default
+       */
+      message: string
+      /**
+       * Report Id
+       * @description WB's report number.
+       */
+      report_id?: number | null
+      /**
+       * Date From
+       * @description First day of the period.
+       */
+      date_from?: string | null
+      /**
+       * Date To
+       * @description Last day of the period.
+       */
+      date_to?: string | null
+      /**
+       * Rows Total
+       * @description Data rows in the file.
+       * @default 0
+       */
+      rows_total: number
+      /**
+       * Rows Written
+       * @description Rows this upload put into the P&L.
+       * @default 0
+       */
+      rows_written: number
+    }
+    /**
      * SkuClusterItem
      * @description One search cluster's advertising totals for this SKU over the window.
      *
@@ -5652,9 +5679,9 @@ export interface components {
      *     as ranking last, so it must never render as 0.
      *
      *     The money is in what the cluster's campaigns' spend is stored in — the
-     *     кабинет's currency, rouble campaigns converted at the Bank rate of their day.
+     *     workspace's currency, rouble campaigns converted at the Bank rate of their day.
      *     A campaign the conversion could not reach (a day past the loaded rates)
-     *     would add roubles to сомы, so ``spend``/``cpc``/``cpm`` are ``None`` there.
+     *     would add roubles to soms, so ``spend``/``cpc``/``cpm`` are ``None`` there.
      */
     SkuClusterItem: {
       /**
@@ -5806,7 +5833,7 @@ export interface components {
     }
     /**
      * SkuGroupList
-     * @description Every group of the кабинет, by name.
+     * @description Every group of the workspace, by name.
      */
     SkuGroupList: {
       /** Items */
@@ -5878,7 +5905,7 @@ export interface components {
     }
     /**
      * SkuNormList
-     * @description Every norm the кабинет has set.
+     * @description Every norm the workspace has set.
      */
     SkuNormList: {
       /** Items */
@@ -6400,7 +6427,7 @@ export interface components {
     }
     /**
      * SummarySpan
-     * @description The days a кабинет has data for, for the period picker.
+     * @description The days a workspace has data for, for the period picker.
      *
      *     Every feed, not the settlement alone: orders and advertising arrive daily
      *     while WB calculates settlements weekly, so ending every preset on the last
@@ -6464,10 +6491,10 @@ export interface components {
      *     number a trigger fires on; what the refusal ignored is the failure the
      *     seller actually meets. A budget alone stalls a photo for days when the
      *     advertising slows, and a slot alone hands one photo a burst of traffic
-     *     another never saw. Naming both bounds the turn from both sides — «не дольше
-     *     20 минут и не больше 1 000 показов» — and every window records the exposure
-     *     a turn really got, so the result table divides by what was measured rather
-     *     than by what was budgeted.
+     *     another never saw. Naming both bounds the turn from both sides — "no longer
+     *     than 20 minutes and no more than 1 000 impressions" — and every window
+     *     records the exposure a turn really got, so the result table divides by what
+     *     was measured rather than by what was budgeted.
      * @enum {string}
      */
     TriggerMode: 'impressions' | 'time' | 'either'
@@ -6736,6 +6763,11 @@ export interface components {
     WeeksResponse: {
       /** Weeks */
       weeks: components['schemas']['WeekPeriod'][]
+      /**
+       * Provisional Through
+       * @description Last day the provisional daily reports cover, when it reaches past the newest weekly period; null otherwise. The statement shows those days, so the period picker must reach them too.
+       */
+      provisional_through?: string | null
     }
     /**
      * WorkspaceCreateRequest
@@ -6787,7 +6819,7 @@ export interface components {
     }
     /**
      * WorkspaceSettingsUpdate
-     * @description The кабинет's display settings a writer may change.
+     * @description The workspace's display settings a writer may change.
      *
      *     One setting today, so it is required rather than optional: a PATCH that
      *     names nothing would be a successful request that did nothing.
@@ -6881,6 +6913,33 @@ export interface operations {
         }
       }
       /** @description At least one dependency did not. */
+      503: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  healthz_alerts_healthz_alerts_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The Watchdog heartbeat is firing: alerts are getting out. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description It is not: an alert raised now would reach nobody. */
       503: {
         headers: {
           [name: string]: unknown
@@ -8057,6 +8116,40 @@ export interface operations {
       }
     }
   }
+  list_grantable_api_v1_workspaces_guests_workspaces_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['GuestWorkspaceOption'][]
+        }
+      }
+      /** @description Missing or invalid access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Developer role required. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
   revoke_guest_access_api_v1_workspaces_guests__grant_id__delete: {
     parameters: {
       query?: never
@@ -8428,6 +8521,13 @@ export interface operations {
       }
       /** @description Missing or invalid access token. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No organisation, or its subscription has lapsed. */
+      403: {
         headers: {
           [name: string]: unknown
         }
@@ -9699,132 +9799,6 @@ export interface operations {
       }
     }
   }
-    parameters: {
-      query?: {
-        /** @description Inclusive settlement-date start. */
-        date_from?: string | null
-        /** @description Inclusive settlement-date end. */
-        date_to?: string | null
-      }
-      header?: {
-        /** @description Active workspace id (UUID) the request operates in. */
-        'X-Workspace-Id'?: string | null
-      }
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-        }
-      }
-      /** @description Unauthorized access token. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-    parameters: {
-      query?: {
-        /** @description Inclusive settlement-date start. */
-        date_from?: string | null
-        /** @description Inclusive settlement-date end. */
-        date_to?: string | null
-      }
-      header?: {
-        /** @description Active workspace id (UUID) the request operates in. */
-        'X-Workspace-Id'?: string | null
-      }
-      path: {
-        nm_id: number
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-        }
-      }
-      /** @description Unauthorized access token. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-    parameters: {
-      query?: {
-        /** @description Inclusive settlement-date start. */
-        date_from?: string | null
-        /** @description Inclusive settlement-date end. */
-        date_to?: string | null
-      }
-      header?: {
-        /** @description Active workspace id (UUID) the request operates in. */
-        'X-Workspace-Id'?: string | null
-      }
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/zip': unknown
-        }
-      }
-      /** @description Unauthorized access token. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
   get_balance_api_v1_finreports_balance_get: {
     parameters: {
       query?: {
@@ -9984,6 +9958,102 @@ export interface operations {
       }
       /** @description Unauthorized access token. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  upload_settlement_report_api_v1_finreports_settlement_uploads_post: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_upload_settlement_report_api_v1_finreports_settlement_uploads_post']
+      }
+    }
+    responses: {
+      /** @description The file is WB's weekly report; it is queued for reading. */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettlementUploadOut']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Another upload of this кабинет is still being read. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Not WB's weekly report file, or too large. */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+    }
+  }
+  get_settlement_upload_api_v1_finreports_settlement_uploads__upload_id__get: {
+    parameters: {
+      query?: never
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path: {
+        upload_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Where the upload stands. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettlementUploadOut']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description No such upload in this кабинет. */
+      404: {
         headers: {
           [name: string]: unknown
         }
@@ -10965,6 +11035,57 @@ export interface operations {
       }
     }
   }
+  get_catalog_api_v1_heatmap_catalog_get: {
+    parameters: {
+      query?: {
+        /** @description Inclusive start. */
+        date_from?: string | null
+        /** @description Inclusive end. */
+        date_to?: string | null
+      }
+      header?: {
+        /** @description Active workspace id (UUID) the request operates in. */
+        'X-Workspace-Id'?: string | null
+      }
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Каталог кабинета для фильтров. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HeatmapCatalogResponse']
+        }
+      }
+      /** @description Unauthorized access token. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Нет ни одного раздела с группами. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   list_norms_api_v1_heatmap_norms_get: {
     parameters: {
       query?: never
@@ -11252,7 +11373,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Нет раздела «Мониторинг», или финансовая метрика без раздела P&L. */
+      /** @description Нет раздела «Тепловая карта». */
       403: {
         headers: {
           [name: string]: unknown
@@ -11265,57 +11386,6 @@ export interface operations {
           [name: string]: unknown
         }
         content?: never
-      }
-    }
-  }
-  get_catalog_api_v1_heatmap_catalog_get: {
-    parameters: {
-      query?: {
-        /** @description Inclusive start. */
-        date_from?: string | null
-        /** @description Inclusive end. */
-        date_to?: string | null
-      }
-      header?: {
-        /** @description Active workspace id (UUID) the request operates in. */
-        'X-Workspace-Id'?: string | null
-      }
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Каталог кабинета для фильтров. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HeatmapCatalogResponse']
-        }
-      }
-      /** @description Unauthorized access token. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Нет раздела «Мониторинг». */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
       }
     }
   }
