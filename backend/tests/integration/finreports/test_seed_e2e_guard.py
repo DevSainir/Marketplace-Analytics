@@ -3,7 +3,7 @@
 Regression guard for a real incident: a stray local ``make seed-e2e`` ran
 ``scripts.seed_e2e_fixtures`` against the *dev* database (the script uses the
 app's default session, so it follows ``.env``), and its fixture week — report
-990000001, a fake RUB «Логистика»+«Штраф» on a real SKU — landed in «Демо».
+990000001, a fake RUB «Логистика»+«Штраф» on a real SKU — landed in a developer's workspace.
 Because the report is settlement-date-based, that fake week then skewed every
 date window covering it, and its stray RUB row poisoned the currency selection.
 

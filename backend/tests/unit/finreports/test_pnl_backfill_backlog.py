@@ -109,7 +109,7 @@ def _we_hold(monkeypatch: pytest.MonkeyPatch, ids: Collection[int]) -> None:
 async def test_a_hole_in_the_middle_of_the_history_is_an_id_like_any_other(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """NEVA's bug, restated in the unit that replaced the one that had it.
+    """One workspace's bug, restated in the unit that replaced the one that had it.
 
     Its history was 51 days of rows spanning two years with a 715-day hole in
     the middle, and the span heuristic could not see it. A set difference has no
@@ -133,7 +133,7 @@ async def test_the_backlog_is_offered_newest_first(monkeypatch: pytest.MonkeyPat
     """A backfill is interrupted far more often than it is finished.
 
     What a seller needs from an interrupted one is this month's P&L, not the
-    archive. Walking the other way, NEVA was stopped holding 248 days of 2024 and
+    archive. Walking the other way, one workspace was stopped holding 248 days of 2024 and
     nothing at all from the summer.
     """
     listed = [_header(100 + n, NEWEST - timedelta(days=7 * n)) for n in range(4)]

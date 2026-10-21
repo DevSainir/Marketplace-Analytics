@@ -11,7 +11,7 @@ listed and every request answers 403.
 
 Run from the ``backend`` directory::
 
-    python -m scripts.grant_guest --email someone@example.com --workspace NEVA \\
+    python -m scripts.grant_guest --email someone@example.com --workspace "<workspace name>" \\
         --by you@example.com --dry-run
 
 In production, in the worker container (the interpreter with the dependencies)::

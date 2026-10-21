@@ -3,7 +3,7 @@
 Every counter the harvest owns measures what a run DID — rows per source,
 sources that failed — and a lost day moves none of them. On 2026-08-31 the walk
 succeeded, wrote exactly what it was asked for, and stopped asking about a day WB
-had not served yet; all five workspaces lost it and a person found it by reading
+had not served yet; every workspace lost it and a person found it by reading
 WB's own site nine days later.
 
 So the detector keys on **report periods, not rows**. "No settlement rows on day

@@ -180,7 +180,7 @@ celery_app.conf.beat_schedule = {
     # asks our own tables whether a seller is still owed anything today
     # (`finreports.tasks.harvest.due`) and spends WB requests only on those who
     # are. What a day brings is known in advance — the daily report for
-    # yesterday, served in the small hours (01:01, 03:06, 04:01 on «Демо»,
+    # yesterday, served in the small hours (01:01, 03:06, 04:01 on one workspace,
     # 09.2026), and a weekly report only the day after a Sunday or a month end
     # (142 of 142), served from about 10:00 (10:03, 10:04, 12:54, latest 18:30).
     #
@@ -262,7 +262,7 @@ celery_app.conf.beat_schedule = {
     },
     # The history backfill's watchdog. Every lane is a chain of self-enqueueing
     # ticks, and a tick that dies before its re-enqueue ends the whole walk with
-    # nothing scheduled to notice — which is exactly how NEVA's P&L lane spent
+    # nothing scheduled to notice — which is exactly how one workspace's P&L lane spent
     # eleven hours doing nothing on 2026-09-10. This is the second thread of
     # continuation; see `src.modules.workspaces.tasks`.
     #

@@ -64,7 +64,7 @@ class IngestionService:
         **It could not carry WB's own totals.** ``retailAmountSum``,
         ``forPaySum`` and ``bankPaymentSum`` are on the list entry and on no
         row, so a header built from rows had to leave them empty — which is
-        what every header on «Демо» still had on 2026-09-23. They are the
+        what every header of one workspace still had on 2026-09-23. They are the
         one figure the P&L can be checked against that does not come from our
         own arithmetic, and ``docs/finreports/PNL.md`` is explicit that most
         ways to get a settlement figure wrong produce a plausible statement

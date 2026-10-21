@@ -50,7 +50,7 @@ ADVERTISING_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #:
 #: **The surface default was the only number here until 2026-09-21, and it was
 #: not right for every endpoint we call.** Measured that day by bursting each
-#: one on «Демо» and reading WB's own headers:
+#: one from a single workspace and reading WB's own headers:
 #:
 #: ===================================== ======= ======= =======
 #: endpoint                              burst   reset   retry
@@ -105,7 +105,7 @@ STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     # Ten tokens, one back every minute. NOT ten a minute, which is how
     # `x-ratelimit-limit: 10` was read on 2026-09-12 and what this entry said
     # until 2026-09-21: burst and rate are different numbers, and only the
-    # 429 carries the second one. Measured on «Демо» that day —
+    # 429 carries the second one. Measured on one workspace that day —
     # `limit: 10, reset: 599, retry: 59` — so the refill is one per minute and
     # the old pacing of one per twenty seconds was three times WB's rate.
     "/api/v1/supplier/orders": (10, 60.0),
@@ -167,7 +167,7 @@ def analytics_rate_gate(settings: Settings, *, token: str) -> RateGate:
 #: can run at all.** At two it equalled :data:`BACKGROUND_RESERVE_SECONDS`, and
 #: a reserving caller waits the reserve PLUS whatever of the refill is left — so
 #: the gate slept its 120 s, was told it needed 120 s more, and refused its own
-#: request. Measured on NEVA 2026-09-23: «would need 240s of queueing (cap
+#: request. Measured on one workspace 2026-09-23: «would need 240s of queueing (cap
 #: 120s); not sending the request», on every tick, with nothing ever sent. The
 #: forward harvest never saw it because it does not reserve.
 #:
@@ -197,8 +197,8 @@ def finance_reports_rate_gate(settings: Settings, *, token: str) -> RateGate:
     No `shared_block`. The statistics settlement path shares one because five
     sellers were measured holding a single countdown there on 2026-09-17 — an
     endpoint WB had already switched off. Nothing suggests this surface behaves
-    that way, and sharing a block on no evidence stalls four sellers over a
-    refusal that costs the fifth nothing.
+    that way, and sharing a block on no evidence stalls every other seller over
+    a refusal that costs only one of them anything.
 
     Args:
         settings: Bucket parameters and the Redis DSN.
@@ -266,7 +266,7 @@ def statistics_rate_gate(settings: Settings, *, token: str) -> RateGate:
     from a different egress.
 
     No path here shares its penalty block across tokens any more. That was the
-    settlement report alone (``shared_block``, measured 2026-09-17: five sellers
+    settlement report alone (``shared_block``, measured 2026-09-17: several sellers
     holding block expiries 0.77 s apart), and it left this surface on
     2026-09-22. The mechanism stays in the gate for an endpoint that behaves
     that way again.

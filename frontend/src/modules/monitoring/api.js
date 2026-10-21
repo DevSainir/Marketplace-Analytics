@@ -255,7 +255,7 @@ export async function getRefreshStatus(taskId) {
  * Harvested history, so it answers instantly and covers only phrases the seller
  * PAID to appear for.
  *
- * Called only for workspaces with `search_clusters_enabled` set (NEVA); see
+ * Called only for workspaces with `search_clusters_enabled` set; see
  * `MonitoringView.vue`.
  *
  * @param {number|string} nmId WB SKU identifier.

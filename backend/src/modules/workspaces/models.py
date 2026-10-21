@@ -190,7 +190,7 @@ class Workspace(Base):
             seeded «ИП Иванов. И. И.»); new workspaces are never primary.
         search_clusters_enabled: Shows «Рекламные кластеры» on the SKU page.
             The block was hidden for everyone on 2026-09-09 as a product
-            decision and brought back for one workspace (NEVA) on 2026-09-26, so
+            decision and brought back for one workspace on 2026-09-26, so
             it is a per-workspace switch rather than a global one. Flipped by
             migration, not by any route — no caller can turn it on for itself.
             The harvester fills the cluster tables whatever this says.

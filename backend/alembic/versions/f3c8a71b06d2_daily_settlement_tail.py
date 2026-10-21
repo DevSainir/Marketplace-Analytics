@@ -6,7 +6,7 @@ service read only the weekly half until 2026-09-23. A day's report is served the
 following morning, so the tail is what lets the P&L reach yesterday instead of
 last Sunday.
 
-The rows themselves need no new table: measured on «Демо» over the closed
+The rows themselves need no new table: measured on one workspace over the closed
 week 14.09-20.09, the seven daily reports and weekly report 989438999 are the
 same 4 424 rows sharing their ``rrdId`` one for one, so they go into
 ``logistics_transaction`` like any others.

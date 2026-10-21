@@ -57,7 +57,7 @@ def test_every_lane_has_a_russian_label() -> None:
 def test_a_tick_that_learned_nothing_leaves_the_counter_alone() -> None:
     """A refused page must not reset the bar to zero and then jump it back.
 
-    Observed live 2026-09-11: NEVA's second P&L tick was answered with a 429
+    Observed live 2026-09-11: one workspace's second P&L tick was answered with a 429
     carrying a 48-minute penalty. The lane handled it correctly — no page, no
     cursor movement — but reported ``done=0``, which overwrote 1078 days of
     real progress. Flapping 1078 -> 0 -> 1078 reads as the walk restarting.

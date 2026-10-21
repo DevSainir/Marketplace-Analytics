@@ -25,7 +25,7 @@ def place_bonus(
     Each charge first covers its own day. What a day cannot hold goes to the
     days BEFORE it, newest first — a batch charged in the evening pays for
     impressions already served — and only then to the days after. So the bonus
-    shows up where it was actually spent (on «Демо» that is 13-25.09.2026,
+    shows up where it was actually spent (on one workspace that is 13-25.09.2026,
     not smeared over a month), no day's advertising goes negative, and the
     placed total is exactly ``min(Σ charged, Σ spend)``: a charge whose
     impressions fell outside the window is the only thing ever dropped.

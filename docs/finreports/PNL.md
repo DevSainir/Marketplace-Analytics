@@ -140,7 +140,7 @@ a disagreement raises the same alert. Code: `services/settlement_upload/`,
 
 WB serves `ppvz_for_pay` positive on every row. The direction lives in `doc_type_name`: rows
 of type **«Возврат» subtract, all others add**. That is exactly WB's `forPaySum` from
-`sales-reports/list`, to the kopeck, on every report in the history of «Демо» (checked
+`sales-reports/list`, to the kopeck, on every report in one workspace's history (checked
 24.09.2026).
 
 The operation name does not decide the direction. The same operations arrive with both
@@ -482,7 +482,7 @@ invent facts it never harvested. They were filled by `scripts/backfill_pnl_colum
 re-requested the history in windows and upserted by `rrd_id`.
 
 **The script was deleted on 2026-09-24**, together with the "header from rows" path that only
-it used. It had done its job: on «Демо» no «Продажа» row was left without revenue (checked
+it used. It had done its job: on the workspace checked, no «Продажа» row was left without revenue (checked
 2026-09-24), and a new workspace gets its history through the ordinary backfill, which writes
 every column at once. Keeping a manual date walk that no scheduler calls would have meant
 keeping a second write path for money without a single test.
@@ -620,12 +620,12 @@ The same set of settlement rows, grouped by `ts_name` within one SKU. It exists 
 "on average profitable" SKU is a common description of a size grid where half the sizes carry
 the rest, and the SKU row does not show it.
 
-* **Every row WB bills carries a size.** Measured on «Демо» over a quarter: every
+* **Every row WB bills carries a size.** Measured on one workspace over a quarter: every
   «Логистика», «Продажа» and «Возврат» row carries `ts_name`; only a few account-level
   «Хранение» / «Удержание» rows arrive without a size, and those do not belong to a SKU anyway.
   So the breakdown is a regrouping of the SKU's own rows, not an allocation: **Σ sizes = the SKU
   row, with no tolerance** (`test_sizes_match_the_article` — two copies of the SQL on the same
-  rows; on 10.10.2026 the same was checked on «Демо» over several windows from a week to a
+  rows; on 10.10.2026 the same was checked on the same workspace over several windows from a week to a
   quarter, every money and unit column to the kopeck). A size's «К перечислению» is computed by
   THE SAME formula as the SKU's — otherwise the sum would only match by eye.
 * **A size's «Выкуп» is measured by logistics legs, not orders.** The funnel has no size at
@@ -662,7 +662,7 @@ the rest, and the SKU row does not show it.
 
 ## 18. WB bonuses: advertising the seller did not pay for
 
-**Verified live on 2026-09-15 on the `Демо` workspace.** WB pays for part of the advertising
+**Verified live on 2026-09-15 on one workspace.** WB pays for part of the advertising
 out of a bonus pool («Кэшбэк», up to 50 % of a write-off), and until this change such
 impressions were counted as the seller's money — DRR was overstated, ROI and margin
 understated.

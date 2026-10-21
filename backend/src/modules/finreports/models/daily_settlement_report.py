@@ -7,7 +7,7 @@ only half of the surface until 2026-09-23. A daily report is stamped
 ``date_to + 1`` and WB serves it that morning, so yesterday's settled money is
 readable today instead of waiting the one to eight days a weekly report takes.
 
-Measured on «Демо» for the closed week 14.09-20.09: the seven daily reports
+Measured on one workspace for the closed week 14.09-20.09: the seven daily reports
 and the weekly report `989438999` are the **same 4 424 rows**, sharing their
 ``rrdId`` one for one, with every money column summing to the same figure and no
 row present in one lane and absent from the other.

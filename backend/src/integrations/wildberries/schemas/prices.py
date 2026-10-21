@@ -30,7 +30,7 @@ class WBPriceGood(RawBase):
     nm_id: int = Field(alias="nmID")
     discount: int = Field(default=0)
     #: The currency the prices are in, as WB names it. NOT the workspace's
-    #: settlement currency: «Демо» settles in KGS and this said RUB on every
+    #: settlement currency: one workspace settles in KGS and this said RUB on every
     #: card when checked live on 2026-09-28.
     currency: str = Field(default="", alias="currencyIsoCode4217")
     sizes: list[WBPriceSize] = Field(default_factory=list)

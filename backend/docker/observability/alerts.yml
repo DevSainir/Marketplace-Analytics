@@ -258,7 +258,7 @@ groups:
       # keep happening. Two consecutive hours of them means the next tick did
       # not recover it, which is the state a person is needed for. Measured on
       # 2026-09-13/14: every real firing lasted 55 minutes and cleared on its
-      # own, three pages for contention between NEVA's P&L backfill and the
+      # own, three pages for contention between one workspace's P&L backfill and the
       # hourly harvest over WB's one-request-per-15-minutes settlement
       # endpoint (retired 2026-09-22). None of them would survive this.
       - alert: SettlementWalkIncomplete
@@ -278,7 +278,7 @@ groups:
       # WB's own forPaySum against ours, taken the moment a report is booked —
       # rows and total from the same fetch, so a gap is ours: a report cut
       # short, or an operation signed the wrong way. The rule behind "ours" is
-      # REFUND_DOC_TYPE; it matched all 143 reports of «Демо» to the kopeck
+      # REFUND_DOC_TYPE; it matched all 143 reports of one workspace to the kopeck
       # on 2026-09-24, so anything from a rouble up is news. A report that does
       # not add up is re-fetched every tick (incomplete_report_ids) and is
       # observed again each time, which is what keeps this firing until fixed.
@@ -701,7 +701,7 @@ groups:
   # A new org's history arrives as four lanes of self-enqueueing ticks, and a
   # tick that dies before its re-enqueue ends the walk with nothing scheduled
   # to notice: no exception reaches a caller, no work-done counter moves, the
-  # lane simply stops. On 2026-09-10 NEVA's P&L lane died on its first tick and
+  # lane simply stops. On 2026-09-10 one workspace's P&L lane died on its first tick and
   # sat there for eleven hours until a person happened to look.
   #
   # So these rules alert on the ABSENCE of progress, which is the only shape

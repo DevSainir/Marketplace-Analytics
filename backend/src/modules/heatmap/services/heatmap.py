@@ -190,7 +190,7 @@ def _sql_narrowing(
     Naming them is a plan, not a scope: the tenant semijoin is there either way.
     The fact tables hold every workspace's articles, and against the semijoin
     alone Postgres reads the whole window of all of them — measured on
-    «Демо» (64 cards, 180 days, 2026-09-30) advertising was a cold
+    one workspace (64 cards, 180 days, 2026-09-30) advertising was a cold
     sequential scan of 5 459 pages in 2.05 s. Named, it is a bitmap scan of the
     (nm_id, stat_date) index: 762 pages, 14 ms.
     """

@@ -120,7 +120,7 @@ describe('the unit on the matrix', () => {
   }
 
   it('signs spend with the currency the detail states for the campaigns', async () => {
-    // «Демо» settles in KGS but is priced in RUB, and its campaigns bill in
+    // One workspace settles in KGS but is priced in RUB, and its campaigns bill in
     // KGS since 20.08.2026 — one workspace-wide unit misstated one of the two.
     fetchSkuDetail.mockResolvedValue(WITH_MATRIX)
 

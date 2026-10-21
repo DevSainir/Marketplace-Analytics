@@ -44,7 +44,7 @@ import openpyxl
 
 from src.core.exceptions import ValidationError
 
-#: Rows one upload may hold. NEVA's largest week was 71 539; twice that is room.
+#: Rows one upload may hold. The largest week seen was 71 539; twice that is room.
 MAX_ROWS = 150_000
 #: Uncompressed bytes an archive may declare — about 3.7 KB of sheet XML a row.
 MAX_DECOMPRESSED_BYTES = 640 * 1024 * 1024

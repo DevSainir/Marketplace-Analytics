@@ -56,7 +56,7 @@ logger = get_logger(__name__)
 # ``asyncio.run`` loop, so with one client per process, the first task that
 # contended bound the lock and every later task in that process that contended
 # died with ``<asyncio.locks.Lock …> is bound to a different event loop``. That
-# emptied «Демо»'s price snapshot for 2026-09-27: the finance tick harvests
+# emptied one workspace's price snapshot for 2026-09-27: the finance tick harvests
 # three sellers at once and bound it, and the monitoring harvest's sources reach
 # their rate buckets together. A client per loop has nothing to carry over, so
 # the number or the concurrency of tasks no longer matters. The API runs on one

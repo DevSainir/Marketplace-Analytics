@@ -42,7 +42,7 @@ def settlement_frontier(*, watermark: date | None, covered_through: date | None)
       **empty** completes like any other. WB forms a week's report the day
       *after* the week ends, so every Sunday-night tick asks about the open week,
       is told nothing, and certifies the whole week as settled. On 2026-09-14
-      that is precisely what had happened to three of five workspaces: watermark
+      that is precisely what had happened to several workspaces: watermark
       13.09, newest report ending 06.09, report 985672101 (07.09-13.09, formed
       14.09) published into a window nothing would ever ask about again. The
       hourly gate answered «settled through 13.09 — nothing newer can exist yet»
@@ -91,8 +91,8 @@ def reconciliation_slice(
     not of work: the walk's two windows queued 633.8 s and 944.5 s, and the
     requests themselves took seconds. A three-window span is therefore ~45
     minutes for one workspace — and `_harvest_all_workspaces` walks workspaces
-    in sequence, so the fleet cost is the sum, not the maximum. Five sellers
-    would be three to four hours holding the platform-wide harvest lock, and it
+    in sequence, so the fleet cost is the sum, not the maximum. A handful of
+    sellers would be three to four hours holding the platform-wide harvest lock, and it
     grows with every seller added.
 
     Running them concurrently is not the way out: a 10 000-row page costs about

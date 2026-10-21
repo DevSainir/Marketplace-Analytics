@@ -19,9 +19,9 @@
 > **A correction, recorded because the mistake is instructive.** This note first said
 > `workspaces.workspace_backfill` "held no rows at all, fleet-wide" — read off a `diagnose.py`
 > probe that came back empty. The table carries a tenancy policy, so that probe could only ever
-> see «Демо», which has no lane row; the inference "therefore nobody has one" needed the
+> see the diagnostic workspace, which has no lane row; the inference "therefore nobody has one" needed the
 > opposite assumption about the table and had no more evidence than the one that was made.
-> NEVA's lane row was there all along, seeded earlier with a pre-rewrite cursor. It was
+> Another workspace's lane row was there all along, seeded earlier with a pre-rewrite cursor. It was
 > rejected cleanly the next day, which is what the tolerant parser is for — but the claim was
 > false when it was written.
 >
@@ -47,7 +47,7 @@
 > itself was not about the operation at all: the sign of `ppvz_for_pay` comes from
 > `doc_type_name` — «Возврат» subtracts, anything else adds (`REFUND_DOC_TYPE` in
 > `finreports/constants.py`) — and that rule matches WB's `forPaySum` to the kopeck on every
-> report of «Демо». A rule tried first the same day, "always subtract «Коррекция продаж»", was
+> report of one workspace's history. A rule tried first the same day, "always subtract «Коррекция продаж»", was
 > wrong and was replaced within hours. [`PNL.md`](PNL.md), "The payout's sign comes from the
 > document type, not the operation", has the reasoning.
 >
@@ -65,7 +65,7 @@ the code now except the shared-block mechanism, kept in the rate gate for an end
 behaves that way again.
 
 The replacement is three methods on the Finance surface. All three answer on the «Финансы»
-token we already hold — verified live on «Демо», 2026-09-22.
+token we already hold — verified live on one workspace, 2026-09-22.
 
 | method | purpose | limit |
 | --- | --- | --- |
@@ -217,14 +217,14 @@ the lane's unit became a `reportId` like the harvest's:
 * `span.py` — the gap-finder that inferred holes from stored settlement days, with a
   fourteen-day tolerance — is gone, replaced by `discovery.py`: a set difference against
   `list`. So is `PNL_EMPTY_STOP`, whose whole subject was an ambiguity `list` removes.
-* Two measurements on «Демо» made the shape obvious. **One `list` request covers the whole
+* Two measurements on one workspace made the shape obvious. **One `list` request covers the whole
   history at any width** — a three-year and a decade-wide window returned the same complete
   set of reports — and **one report is one request**, since even the largest weekly report
   fits well inside a 100 000-row page. So a tick re-lists rather than caching a backlog, and
   full history is 1 + N requests.
   *Superseded the same week:* a contiguous run of owed reports is now fetched by PERIOD
   through `stream_rows_by_period` (`tasks/settlement/window.py`), many reports to a page, and
-  only a scattered backlog goes report by report. Full history on «Демо» became a handful of
+  only a scattered backlog goes report by report. Full history on that workspace became a handful of
   requests instead of one per report. The window books nothing until every page has landed; a
   window too long for one tick hands back its `rrdId` cursor and the next tick continues it.
 * A tick now walks up to twelve reports, bounded by a ten-minute deadline inside a
@@ -252,7 +252,7 @@ ceiling moves below every report a tick attempted, so a report WB lists and serv
 — which writes no header and therefore never stops being missing — cannot be asked for once a
 minute for ever. And a sweep that shrinks the backlog by nothing ends the lane, while one that
 achieved something goes round again for whatever it lost to a timeout. The rule those two
-encode is the one NEVA's long history gap came from: a lane may only end on evidence that
+encode is the one a workspace's long history gap came from: a lane may only end on evidence that
 nothing is owed, never on the exhaustion of its own reach.
 
 One thing deliberately not done at first: `scripts/backfill_pnl_columns.py` still walked date
@@ -315,7 +315,7 @@ What landed:
    phase 2, which is why phase 2 is not optional and not a spot check.
 2. **Type surprises on values the sample row had as zero.** Same mitigation; the probe must
    report type divergence, not only value divergence.
-3. **Tokens.** «Демо» holds a per-surface «Финансы» token. The other workspaces hold `unified`
+3. **Tokens.** One workspace holds a per-surface «Финансы» token. The others hold `unified`
    tokens, which should cover Finance — but that is an assumption, and it must be checked per
    workspace before cutover, not during it.
 4. **`reportType`.** `list` returns `reportType: 1` and the docs mention daily as well as
@@ -325,7 +325,7 @@ What landed:
    report id avoids the problem entirely — which is another reason phase 4 prefers it.
 
 > **Risk 5, measured 2026-09-23 and not reproduced.** One by-period request over an
-> eight-report window on «Демо» returned exactly our row count for that window and all eight
+> eight-report window on one workspace returned exactly our row count for that window and all eight
 > reports, with zero `rrd_id` descents and each report contiguous and in date order — a report
 > WB had served late sat correctly among them. That does not disprove the claim for re-issued
 > or month-split reports, which were not in the sample, but it does mean the by-period form is

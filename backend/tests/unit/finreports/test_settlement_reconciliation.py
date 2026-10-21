@@ -76,7 +76,7 @@ def test_a_reconciliation_run_takes_exactly_one_workspace() -> None:
 
     The walk's two windows queued 633.8 s and 944.5 s while the requests
     themselves took seconds, so a three-window span is ~45 minutes — and the
-    workspaces are walked in sequence, making the fleet cost a sum. Five sellers
+    workspaces are walked in sequence, making the fleet cost a sum. A handful of sellers
     would hold the platform-wide harvest lock for three to four hours, growing
     with every seller added.
     """

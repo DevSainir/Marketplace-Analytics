@@ -9,7 +9,7 @@ rather than guessed at.
 
 Three measurements shape what is left, all taken on prod:
 
-* **One list request covers the whole history** (2026-09-23, «Демо»). A
+* **One list request covers the whole history** (2026-09-23, one workspace). A
   1095-day window returned all 143 reports, so discovery is one cheap request
   on its own bucket rather than something to ration.
 * **One report is one request** by id — the largest of those 143 held 16 801
@@ -110,8 +110,8 @@ async def _next_page_delay(tokens: WorkspaceTokenBundle) -> int:
 
     Takes the whole bundle rather than a token string, and that is the fix for a
     bug rather than a tidying. It read `tokens.statistics` while building a
-    FINANCE gate, so it asked a bucket nothing writes to: on «Демо», which
-    holds per-surface tokens, the answer was always «open» and the lane paced
+    FINANCE gate, so it asked a bucket nothing writes to: on the one workspace
+    that holds per-surface tokens, the answer was always «open» and the lane paced
     itself on the spin guard. Every other workspace resolves both fields to the
     same `unified` token, which is why it never showed. A function that is
     handed the bundle cannot be given the wrong half of it.

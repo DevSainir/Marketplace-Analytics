@@ -26,10 +26,10 @@ to resume after a rate-limit interruption.
 Run from the ``backend`` directory (``.env`` populated, migrations applied)::
 
     python -m scripts.seed_workspace                       # every workspace
-    python -m scripts.seed_workspace --workspace "Олег"    # just one
+    python -m scripts.seed_workspace --workspace "Демо"    # just one
     python -m scripts.seed_workspace --verify-only         # report, fetch nothing
 
-    docker compose exec api python -m scripts.seed_workspace --workspace "Олег"
+    docker compose exec api python -m scripts.seed_workspace --workspace "Демо"
 
 **Transaction boundaries.** Each phase commits its own work; the run is NOT one
 database transaction. That is deliberate: the phases span minutes of

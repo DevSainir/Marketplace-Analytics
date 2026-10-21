@@ -7,7 +7,7 @@ expensive one, and both halves of it were learned in production:
   every row in its span — twelve scattered reports span most of a seller's
   history, and the extra is pages rather than bandwidth. A scattered backlog
   walks report by report, which is what scatter costs.
-* **A run too wide for one tick is paused, not abandoned.** NEVA sat on a
+* **A run too wide for one tick is paused, not abandoned.** One workspace sat on a
   300 000-row window it re-fetched from zero every sweep; the walk now hands
   back its ``rrdId`` and the next tick continues the same span.
 
@@ -79,7 +79,7 @@ def _contiguous_run(
     history, and the extra is not bandwidth but PAGES, which are the thing WB
     rates.
 
-    Measured on NEVA 2026-09-24, which is how this was found. With fifteen
+    Measured on one workspace 2026-09-24, which is how this was found. With fifteen
     reports left, scattered, the span reached across the archive, the walk ran
     past the task's 900 s soft limit, and the tick died to
     `SoftTimeLimitExceeded` — which the lane does not catch, so it recorded
@@ -151,7 +151,7 @@ async def fetch_batch(
     Two walks, chosen by how much is owed.
 
     **More than one report: one paged walk over their span.** WB serves the same
-    rows by period, several reports to a page — ~21 on «Демо», ~8 on NEVA —
+    rows by period, several reports to a page — ~21 on one workspace, ~8 on another —
     so a history that costs 143 requests one report at a time costs about seven
     this way. The window is then the unit: it books nothing unless the whole
     span landed, and a failure re-fetches all of it. Rows are upserted by
@@ -209,7 +209,7 @@ async def fetch_batch(
             # caller wait for a token free for 120 s, and `acquire` accumulates
             # that wait across pages: a second page asked for 360 s against a
             # 240 s cap and the window was discarded with 100 000 rows already
-            # committed (NEVA, 2026-09-23). Ordering against the harvest is the
+            # committed (one workspace, 2026-09-23). Ordering against the harvest is the
             # harvest lock's job, which this lane stands aside for explicitly.
             cursor=in_flight.cursor if in_flight else 0,
             deadline=time.monotonic() + _TICK_WORK_BUDGET_SECONDS,
@@ -218,7 +218,7 @@ async def fetch_batch(
             # Out of tick with the window still open. Nothing attempted,
             # nothing booked, and the span goes back into the cursor so the
             # next tick continues it instead of starting over — which is what
-            # threw away 300 000 rows a tick on NEVA, every sweep, 2026-09-24.
+            # threw away 300 000 rows a tick on one workspace, every sweep, 2026-09-24.
             span_from = min(
                 report.header.date_from if report.header else report.date_to for report in run
             )

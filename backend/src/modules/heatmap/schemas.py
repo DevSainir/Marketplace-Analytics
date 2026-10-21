@@ -109,12 +109,12 @@ class HeatmapResponse(BaseModel):
     #: the first report.
     currency: str
     #: The currency WB states for the prices — both prices are in it. NOT the
-    #: settlement's: «Демо» settles in KGS and is priced in RUB. ``""``
+    #: settlement's: one workspace settles in KGS and is priced in RUB. ``""``
     #: until a price snapshot has recorded it.
     price_currency: str = ""
     #: The currencies the advertising account billed in over the window. Each
     #: spend cell names its own in :attr:`HeatmapRow.units`; a cell over two
-    #: currencies has no figure (on «Демо», RUB until 20.08.2026, KGS after).
+    #: currencies has no figure (on one workspace, RUB until 20.08.2026, KGS after).
     ad_currencies: list[str] = Field(default_factory=list)
     #: What «Заказы, деньги» is in — WB's funnel sums, the settlement currency.
     order_currency: str = ""

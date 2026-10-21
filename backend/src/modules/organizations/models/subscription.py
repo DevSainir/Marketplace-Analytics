@@ -112,8 +112,8 @@ class Subscription(Base):
 # There is no renewal screen: a renewal is done by hand, and until 2026-10-06
 # "by hand" meant an `UPDATE` in psql. That moved `expires_at` and nothing else
 # — the ORM's `onupdate` never ran, so `updated_at` still said the activation
-# day, and no audit row was written — so when NEVA's term ran out a week early by
-# the customer's count, the database could not say it had ever been extended.
+# day, and no audit row was written — so when a customer's term ran out a week early by
+# their own count, the database could not say it had ever been extended.
 #
 # So the record is a trigger rather than a call in a service: it fires for the
 # renewal script, for the ORM, and for the next person at a psql prompt alike.

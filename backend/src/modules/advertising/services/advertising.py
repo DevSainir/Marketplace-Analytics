@@ -69,7 +69,7 @@ class AdvertisingService:
         settled_to = min(settled[1], date_to) if settled and settled[1] >= date_from else None
         # The lean cut: sales alone. The full SKU-day cut builds forty columns
         # and a cost per cell and was most of this page's load time over a
-        # long window (1.2 s of 2.1 s on «Демо»'s whole history).
+        # long window (1.2 s of 2.1 s on one workspace's whole history).
         sales = (
             [
                 SaleDay(cell.nm_id, cell.day, cell.revenue_seller)

@@ -14,7 +14,7 @@ directions, so fixing either one alone moves the failure rather than ending it.
 
 On 2026-09-14 the second one cost the week: watermark 13.09, newest report
 ending 06.09, and the 07.09-13.09 report (formed 14.09) was published into a
-window nothing would ever ask about again. Three of five workspaces were short
+window nothing would ever ask about again. Several workspaces were short
 the entire week while the hourly gate answered «settled through 13.09 — nothing
 newer can exist yet» to every tick, «Обновить» included. No counter moved and no
 alert fired, because a run that skips looks exactly like a week WB was quiet.
@@ -327,7 +327,7 @@ async def test_an_empty_walk_cannot_certify_days_no_report_covers(certified) -> 
 async def test_a_week_held_one_page_deep_leaves_the_mark_where_the_walk_stopped(
     certified,
 ) -> None:
-    """NEVA, 2026-09-14 — and why reading the minimum was not enough on its own.
+    """The 2026-09-14 incident — and why reading the minimum was not enough on its own.
 
     The walk fetched one 10 000-row page of the week and the second was refused,
     so it certified nothing. The header, written from that first page, already

@@ -40,7 +40,7 @@ DEFAULT_WINDOW_DAYS = 30
 
 #: Longest window, inclusive: a year. It has to exist — a window is a scan of
 #: every SKU-day in it, and an unbounded one is a cheap way for one caller to
-#: make Postgres work for a minute. Measured on NEVA (262 cards, 2026-09-28) at
+#: make Postgres work for a minute. Measured on one workspace (262 cards, 2026-09-28) at
 #: 180 days: 1.4-3.8 s and ~0.5 MB, so a year stays within seconds. It was the
 #: reference tool's 180 until the owner asked for more.
 MAX_WINDOW_DAYS = 366

@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 
-#: The one workspace a diagnostic may read: «Демо», the operator's own.
+#: The one workspace a diagnostic may read: the operator's own.
 #:
 #: A constant rather than an environment variable, so the gate works on a box
 #: nobody has configured — a probe that fell back to "no restriction" when the

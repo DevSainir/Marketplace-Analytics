@@ -12,7 +12,7 @@ Every case here is a transcription of something production did.
   remainder of a window WB is free to extend: measured 2026-09-09, a 1594 s
   block still had 694 s left after 900 s.
 * A refusal arriving with no block of ours standing must escalate. On
-  2026-09-17 «Демо» went 28 197 -> 18 624 -> 302 940 s in three steps,
+  2026-09-17 one workspace went 28 197 -> 18 624 -> 302 940 s in three steps,
   every one of them served for exactly as long as WB asked.
 * A block earned on one token must shut the endpoint for all of them. Five
   distinct fingerprints ended that day holding expiries 0.77 s apart — one
@@ -206,7 +206,7 @@ async def test_only_the_named_endpoint_shares_its_block(redis_client: Any) -> No
     """The sharing is one endpoint's rule, and must not spread to its surface.
 
     The evidence for sharing is about `reportDetailByPeriod` and nothing else:
-    five sellers holding one countdown there on 2026-09-17. Everything
+    several sellers holding one countdown there on 2026-09-17. Everything
     measured since says the surface at large does not behave that way — the
     ordinary bucket is not keyed on the egress address (2026-09-22, a bucket
     emptied from one address stayed empty for the same token from another),

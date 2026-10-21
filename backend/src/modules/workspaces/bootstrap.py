@@ -89,7 +89,7 @@ _BACKFILL_DELAY_SECONDS = 10 * 60
 #: set — «Вопросы и отзывы», «Чат», «Поставки» and the rest — unlocks nothing
 #: either harvest or any backfill lane could use.
 #:
-#: Observed on 2026-10-02: a `feedback` token added to «Демо», a workspace
+#: Observed on 2026-10-02: a `feedback` token added to a workspace
 #: whose history had loaded weeks earlier, reset all four lanes to «В очереди…»
 #: and re-walked the whole history — the shared WB budget and the worker's
 #: 768 MiB spent on rows already held.

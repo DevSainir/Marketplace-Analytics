@@ -331,7 +331,7 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
     ONE campaign batch per tick, not one window — and the difference is a lane
     that dies. ``fetch_full_stats`` splits its ids into requests of 50, each
     paced at ~20 s by the shared gate, so a window for an account with several
-    hundred campaigns is eight or more gated calls inside a single task. NEVA has
+    hundred campaigns is eight or more gated calls inside a single task. One workspace has
     ~360: measured live 2026-09-11, its advertising tick spent 160 s+ purely
     waiting on the gate and was killed by the 300 s soft limit
     (`SoftTimeLimitExceeded`), which ends the chain exactly as it ended the P&L

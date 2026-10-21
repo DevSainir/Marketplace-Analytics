@@ -56,7 +56,7 @@ if tokens == nil or ts == nil then
   -- Written NOW, before the reserve is tested, because the reserve is measured
   -- from `ts`. Left in a local the key stays absent on the refusal path below,
   -- so the next caller starts the clock again from ITS own `now` and the
-  -- reserve never elapses. That is not theoretical: it put NEVA's lane in a
+  -- reserve never elapses. That is not theoretical: it put one workspace's lane in a
   -- 30-second refusal loop on 2026-09-15 that could not have ended.
   redis.call('HSET', KEYS[1], 'tokens', tokens, 'ts', ts)
 end

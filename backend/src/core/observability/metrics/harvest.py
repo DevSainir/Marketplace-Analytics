@@ -59,7 +59,7 @@ HARVEST_PARTIAL: Final[Counter] = Counter(
 #: history arrives as four lanes of self-enqueueing ticks, and a tick that dies
 #: before its re-enqueue ends the whole walk with NOTHING scheduled to notice:
 #: no exception reaches a caller, no counter of work-done moves, and the lane
-#: simply stays at whatever it had reached. NEVA's P&L lane died on its first
+#: simply stays at whatever it had reached. One workspace's P&L lane died on its first
 #: tick and sat there for eleven hours; the only reason anyone found out is that
 #: a person happened to look.
 #:

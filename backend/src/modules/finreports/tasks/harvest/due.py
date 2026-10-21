@@ -5,7 +5,7 @@ A scheduled tick used to ask WB about every seller on every run: two
 reports a day actually brings. But what a day can bring is known in advance:
 
 * **a daily report for yesterday**, served in the small hours (seen at 01:01,
-  03:06 and 04:01 on «Демо», 09.2026);
+  03:06 and 04:01 on one workspace, 09.2026);
 * **a weekly report only after a period closes** — a Sunday or a month end,
   created the next day (142 of 142 reports) and served from about 10:00.
 

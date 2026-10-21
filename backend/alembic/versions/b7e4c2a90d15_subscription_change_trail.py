@@ -4,7 +4,7 @@ Revision ID: b7e4c2a90d15
 Revises: a6d3f08c2e71
 Create Date: 2026-10-06
 
-NEVA's term ended on 05.10 although the customer had been extended once by
+A customer's term ended on 05.10 although it had been extended once by
 hand: the extension was an ``UPDATE`` in psql, which bypassed the ORM's
 ``updated_at`` and wrote no audit row, so nothing in the database showed it
 had happened. This trigger records every UPDATE and DELETE of

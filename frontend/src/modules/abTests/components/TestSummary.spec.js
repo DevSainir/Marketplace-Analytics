@@ -63,7 +63,7 @@ describe('TestSummary', () => {
   })
 
   it('prints the spend bare while the currency is unknown', () => {
-    // «Демо» is advertised in KGS; the panel used to print a rouble sign.
+    // A workspace may advertise in KGS; the panel used to print a rouble sign.
     const unknown = mount(TestSummary, { props: { test: test() } })
 
     expect(plain(unknown.get('[data-testid="summary-spend"]').text())).toBe('3 050')

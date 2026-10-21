@@ -7,7 +7,7 @@ starts it again. No retry catches it either, and deliberately so: on the
 settlement endpoint a retry ladder walks straight back into WB's fifteen-minute
 block and extends it.
 
-That is not theoretical. On 2026-09-10 NEVA's P&L lane died on its FIRST tick —
+That is not theoretical. On 2026-09-10 one workspace's P&L lane died on its FIRST tick —
 the lane asked the rate gate for a token, the gate answered "waiting 956 s",
 and Celery's 300 s soft limit killed the task. `SoftTimeLimitExceeded` is not
 an `IntegrationError`, so the lane's own "window still shut" branch never ran,
@@ -24,7 +24,7 @@ It is free to be wrong about whether a lane is dead, and that freedom is
 restart claims the lane's chain token, so a tick the sweep was wrong about
 retires itself when it next wakes instead of walking alongside the replacement.
 Without that the sweep bought its safety net at the price of forking the lane —
-NEVA ran two P&L chains for three hours on 2026-09-12, each at half of WB's
+One workspace ran two P&L chains for three hours on 2026-09-12, each at half of WB's
 budget, and each in turn declared the lane complete.
 """
 
@@ -67,7 +67,7 @@ LANE_TASKS: dict[BackfillLane, str] = {
 #: Only the P&L lane has one, and it is not politeness — it is the cheapest
 #: option available. A restart cannot know how much of WB's window the tick it
 #: replaces had already spent, so it assumes none of it: three deploys in half
-#: an hour each fired an immediate tick, and that is how NEVA drew
+#: an hour each fired an immediate tick, and that is how one workspace drew
 #: ``429 ... demands a 2762s wait`` on 2026-09-12 from a request 13 minutes
 #: after the previous one.
 #:

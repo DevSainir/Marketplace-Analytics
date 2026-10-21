@@ -90,14 +90,14 @@ SETTLEMENT_BLOCK_THRESHOLD_SECONDS: float = 120.0
 #:
 #: The cost is now one request per report at one request a minute, and a seller
 #: forms about 52 reports a year whatever their size — so a full history is
-#: ~52 minutes per year of trading. «Демо»'s two and a half years is ~143
+#: ~52 minutes per year of trading. Two and a half years of history is ~143
 #: requests; five years of trading would be ~260, or four and a half hours,
 #: against an advertising lane that takes ~7 h on the same signup. The P&L is
 #: no longer the thing a new seller waits for, at any depth, so there is
 #: nothing left for a floor to buy.
 #:
 #: A date rather than a day count because it is not a window: it is «before any
-#: report can exist». Verified live on «Демо» 2026-09-23 — `list` accepts an
+#: report can exist». Verified live on one workspace 2026-09-23 — `list` accepts an
 #: 11.7-year window and answers with the account's own history, 143 reports from
 #: its first week, rather than refusing or truncating.
 WB_REPORTS_EPOCH = date(2015, 1, 1)
@@ -230,7 +230,7 @@ COMPENSATION_OPERS: tuple[str, ...] = (
 #: ущерба», «Добровольная компенсация при возврате» and «Частичная компенсация
 #: брака» each arrive under both document types. WB's own ``forPaySum`` is
 #: exactly Σ ``ppvz_for_pay`` with this document type negated — to the kopeck on
-#: all 143 reports of «Демо»'s history (2026-09-24). A rule by operation
+#: all 143 reports of one workspace's history (2026-09-24). A rule by operation
 #: name matched 121 of them; the one that always subtracted «Коррекция продаж»
 #: was right about report 989286628 and wrong about 37 other rows.
 REFUND_DOC_TYPE: str = "Возврат"

@@ -153,7 +153,7 @@ def test_run_task_drains_the_redis_pool_even_when_the_task_fails(
 # 2026-09-23, when the finance tick started harvesting three sellers at once,
 # worker processes carried a lock bound to a finance tick's dead loop, and the
 # morning monitoring harvest, whose sources start together, died on it:
-# «Демо» has no prices at all for 2026-09-27.
+# one workspace has no prices at all for 2026-09-27.
 #
 # These go through the REAL accessor rather than ``app_redis_is``: which client a
 # loop is handed is exactly what is under test, so patching ``get_redis`` would

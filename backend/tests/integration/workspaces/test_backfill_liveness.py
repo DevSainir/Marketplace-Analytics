@@ -8,7 +8,7 @@ quarter of an hour for it.
 The trap is that the commonest HEALTHY tick changes nothing. A lane waiting out
 WB's window records the same message it recorded last time, and an ORM that
 stamps `updated_at` via `onupdate` emits no UPDATE at all when no value differs.
-Observed on NEVA 2026-09-15: a lane that had ticked twenty seconds earlier
+Observed on one workspace 2026-09-15: a lane that had ticked twenty seconds earlier
 reported `updated_at` 2h51m old.
 """
 

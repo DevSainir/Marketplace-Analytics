@@ -72,7 +72,7 @@ async def ensure_finreports_week(session: AsyncSession, workspace_id: uuid.UUID)
     # non-fixture settlement rows and the guard is a no-op. A developer's dev DB
     # (or prod) holds hundreds of thousands of real rows; injecting a fake demo
     # "week" onto a real SKU there silently skews the P&L. That accident happened
-    # once (report 990000001 landed in «Демо» via a stray local `make
+    # once (report 990000001 landed in a developer's workspace via a stray local `make
     # seed-e2e`), so this refuses outright rather than trusting the .env target.
     real_rows = await session.scalar(
         select(func.count())

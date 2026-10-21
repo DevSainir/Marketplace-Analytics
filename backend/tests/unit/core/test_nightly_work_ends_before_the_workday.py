@@ -45,7 +45,7 @@ _MORNING_PREPARATION = frozenset({"monitoring.harvest_all", "monitoring.refresh_
 
 #: Worst measured runtime per task, 2026-09-21..28, rounded up to the minute.
 _WORST_CASE: dict[str, timedelta] = {
-    # 582 s worst for six workspaces, walked one after another.
+    # 582 s worst for every workspace, walked one after another.
     "monitoring.harvest_all": timedelta(minutes=10),
     # 2 078 s worst; ~22 paced requests per workspace, walked one after another —
     # plus, since 2026-10-02, up to two funnel-gap re-reads per workspace at ~21 s

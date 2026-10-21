@@ -339,7 +339,7 @@ async def test_a_reserving_caller_on_a_fresh_bucket_eventually_gets_through(
     exist yet, `acquire` invented `ts = now`, refused, and wrote nothing — so the
     next caller invented `ts = now` again and the wait restarted for ever.
 
-    Live on 2026-09-15: NEVA's lane re-enqueued itself every 30 seconds, each tick
+    Live on 2026-09-15: one workspace's lane re-enqueued itself every 30 seconds, each tick
     refused in 0.07 s, never sending a single request. Cheap per tick, and
     permanent.
     """

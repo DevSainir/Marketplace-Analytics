@@ -166,7 +166,7 @@ describe('StockCompareTable', () => {
   })
 
   describe('a seller with one warehouse', () => {
-    // Every day runs off at most one warehouse (NEVA: one WB warehouse). «Всего»
+    // Every day runs off at most one warehouse (a seller with a single WB warehouse). «Всего»
     // would only repeat that column, and two one-column days across the screen
     // are two numbers with a gulf between them.
     const oneWarehouse = () =>

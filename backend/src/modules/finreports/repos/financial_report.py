@@ -148,7 +148,7 @@ class FinancialReportRepository(BaseRepository):
 
         **Keyed on report PERIODS, not on rows.** "No settlement rows on day D"
         is not evidence of anything — a small seller genuinely has days with no
-        sales, and Марат's whole 31.08 report was 45 rows. What is evidence is
+        sales, and one seller's whole 31.08 report was 45 rows. What is evidence is
         a day that falls inside the harvested range while belonging to no
         report we hold: WB's periods tile the calendar, so a hole in them is a
         report that is missing rather than a week that was quiet.
@@ -224,7 +224,7 @@ class FinancialReportRepository(BaseRepository):
         presence of a header — and that is only as true as the thing that writes
         headers. Until 2026-09-23 one was written with the first batch of rows,
         so a fetch that died half-way left a header over a fraction of a report
-        and nothing ever asked again. Measured on NEVA 2026-09-24: 14 of 107
+        and nothing ever asked again. Measured on one workspace 2026-09-24: 14 of 107
         reports short, one holding 13.8 % of its own money, and the seller's
         August showing nine days of nothing.
 
@@ -238,7 +238,7 @@ class FinancialReportRepository(BaseRepository):
 
         The decomposition is WB's and the statement's alike — every row's
         ``ppvz_for_pay``, negated where :data:`REFUND_DOC_TYPE` says so — and it
-        agrees to the kopeck on all 143 reports of «Демо»'s history. It used
+        agrees to the kopeck on all 143 reports of one workspace's history. It used
         to count four named operations and drop the rest, which would have left
         a report carrying a damage compensation short for ever and re-fetched on
         every tick.
@@ -248,7 +248,7 @@ class FinancialReportRepository(BaseRepository):
             tolerance: Relative difference treated as agreement. Not zero, and
                 the reason is termination rather than sloppiness: WB restates a
                 settled week, and a report that could never match exactly would
-                be re-fetched on every sweep for ever. Measured on NEVA the two
+                be re-fetched on every sweep for ever. Measured on one workspace the two
                 populations separate cleanly — 20 reports inside 0.5 %, the
                 worst genuine shortfall at 1.2 %.
 

@@ -18,7 +18,7 @@ Three consequences, all deletions:
   not, and the settlement walk books its header only in the first case.
 * **An empty answer is no longer ambiguous.** ``PNL_EMPTY_STOP`` existed because
   WB answered an exhausted window and a window it was briefly not serving with
-  the same ``204``, and believing the first one cost NEVA two years of P&L. The
+  the same ``204``, and believing the first one cost one workspace two years of P&L. The
   list says outright which reports exist; a fetch that brings nothing back is
   not evidence about the history's shape.
 * **Progress is counted in reports rather than days**, so the walk no longer
@@ -205,7 +205,7 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
     1/min load on an endpoint that answers with penalty blocks.
 
     It says «забрать не удалось», not «Wildberries их не отдаёт», and the
-    distinction was paid for. On NEVA 2026-09-23 a pass fetched over a hundred
+    distinction was paid for. On one workspace 2026-09-23 a pass fetched over a hundred
     thousand rows and booked none of them — every window died on its second
     page — so the backlog did not move and the lane announced that WB was
     withholding 63 reports it had in fact served. A backlog that has not shrunk

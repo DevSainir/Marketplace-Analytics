@@ -83,7 +83,7 @@ async def _ingest_one_streamed_page(
     ceiling is the batch and WB's own maximum of 100 000 becomes affordable.
 
     On an endpoint serving roughly four requests an hour that is the whole
-    schedule rather than an efficiency: NEVA's remaining backfill was 33 requests
+    schedule rather than an efficiency: one workspace's remaining backfill was 33 requests
     at 10 000 rows and 4 at 100 000. The hourly tick kept the buffered path for
     two days longer than the backfill did, which is how it came to ask for a
     week it could not afford to decode on a worker already at 500 MB.

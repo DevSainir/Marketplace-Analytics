@@ -44,7 +44,7 @@ SALES_REPORTS_DETAILED_PATH = "/api/finance/v1/sales-reports/detailed/{id}"
 
 
 #: Detail rows by PERIOD rather than by report. Same payload, and a budget of
-#: its own at WB: measured on «Демо» 2026-09-26, a by-period request right
+#: its own at WB: measured on one workspace 2026-09-26, a by-period request right
 #: after a by-id one answered 200, while a second by-id request two seconds
 #: later answered 429 (`x-ratelimit-retry: 58`). So it is paced on a bucket of
 #: its own here too. The history backfill uses it for a run of consecutive owed

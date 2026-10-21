@@ -1,7 +1,7 @@
 """When the P&L lane may say «История P&L собрана», and when it may not.
 
 This file replaces ``test_pnl_backfill_roll``, and it exists for the same
-reason that one did. NEVA's lane walked the three years that predate its account,
+reason that one did. One workspace's lane walked the three years that predate its account,
 got the answer that correctly concludes that stretch, and reported the history
 complete over a 715-day hole — 1033/1033, a green lane, a Telegram message
 announcing success, and not one settlement row fetched in thirteen hours. The
@@ -145,7 +145,7 @@ def _fetch_window(
 async def test_a_sweep_that_ran_out_of_reach_does_not_end_a_lane_that_is_owed_reports(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """NEVA's failure, as an assertion.
+    """One workspace's failure, as an assertion.
 
     The ceiling has passed everything, so this sweep has nothing left to fetch —
     and two reports are still missing. A lane that reports ``finished`` here is

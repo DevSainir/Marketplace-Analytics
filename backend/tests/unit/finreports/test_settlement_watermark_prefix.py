@@ -7,7 +7,7 @@ mislead a dashboard — it closes the door on the missing days permanently.
 
 That is not hypothetical. On 2026-09-07 the mark was read from
 `max(financial_report.date_to)`, the period WB *states* on the header, which is
-written from the first page that lands. Four of five workspaces held one day of
+written from the first page that lands. Most workspaces held one day of
 the 01.09-06.09 week while the header claimed all six; the gate then probed
 07.09, found nothing, and skipped. «К перечислению» showed a small fraction of
 WB's own figure and nothing raised.

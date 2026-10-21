@@ -314,7 +314,7 @@ class BackfillRepository:
         # just its content. Left to ``onupdate`` it fires only when some column
         # actually changes value — and the commonest healthy tick changes none
         # of them: a lane waiting out WB's window writes the same message every
-        # time. Observed on NEVA 2026-09-15, a lane that had ticked twenty
+        # time. Observed on one workspace 2026-09-15, a lane that had ticked twenty
         # seconds earlier reported ``updated_at`` 2h51m old.
         #
         # Everything that judges whether a lane is alive reads this column. The

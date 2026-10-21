@@ -296,8 +296,8 @@ def build_sku_report(
     #
     # «Итого» is the invoice: what WB billed the workspace is the total, by the
     # owner's decision of 2026-10-02 (the burn differs from it by when it is
-    # dated — a week's invoice was 0.77..1.13 of that week's burn on «Демо»
-    # in September, 0.96 over five weeks — and, before 20.08.2026, by the rate:
+    # dated — a week's invoice was 0.77..1.13 of that week's burn on one
+    # workspace in September, 0.96 over five weeks — and, before 20.08.2026, by the rate:
     # WB converted the rouble invoices at the document day's rate, the burn is
     # converted at each impression day's). The invoice is already inside «к
     # перечислению», so the profit is the payout less the goods, and nothing is

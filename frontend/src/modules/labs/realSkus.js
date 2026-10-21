@@ -1,5 +1,5 @@
 /**
- * Three sample cards of «Демо» — the cards the sandbox opens on.
+ * Three sample cards — the cards the sandbox opens on.
  *
  * Fixed per card: the nm IDs, vendor codes, titles, buyer ratings, sizes (with
  * WB-style chrt IDs) and one campaign ID per traffic group for the week
@@ -14,7 +14,7 @@
  */
 
 /**
- * The currency «Демо» is settled in, so the sandbox's money labels are as
+ * The settlement currency of the sample cards, so the sandbox's money labels are as
  * wide as the real page's — label width is part of what the sandbox compares.
  */
 export const REAL_CURRENCY = 'KGS'

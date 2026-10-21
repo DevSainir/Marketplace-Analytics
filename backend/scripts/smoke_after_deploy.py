@@ -1,4 +1,4 @@
-"""Open «Демо»'s main pages on the code that was just deployed.
+"""Open the diagnostic workspace's main pages on the code that was just deployed.
 
 The deploy's own health checks prove the containers are up and nginx answers
 200 — and on 2026-09-29 both were true for three hours while every SKU card
@@ -16,7 +16,7 @@ opens, and serialises every answer the way a response is (``scripts/smoke/``):
 
 Only for the one workspace a diagnostic may read: the session is
 `diagnostic_session()` — read-only at the transaction level and pinned to
-«Демо» by row-level security — so the rows below are that workspace's and
+it by row-level security — so the rows below are that workspace's and
 nobody else's. It prints counts and status, never figures.
 
 Read-only is enforced, not intended, which decides two things. A page whose read

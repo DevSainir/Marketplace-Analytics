@@ -1,7 +1,7 @@
 """Per-size aggregation of one SKU's settlement rows.
 
 WB publishes no size in any of its report AGGREGATES, but it stamps ``ts_name``
-on every settlement row it bills — measured over «Демо»'s last quarter, all
+on every settlement row it bills — measured over one workspace's last quarter, all
 76 017 «Логистика», 13 101 «Продажа» and 1 560 «Возврат» rows carry one, and the
 only rows without are the 126 account-level «Хранение»/«Удержание» lines that
 belong to no article either. So a size cut of one article is a regrouping of the

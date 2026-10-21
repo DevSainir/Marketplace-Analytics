@@ -33,7 +33,7 @@ class _StubPnlService:
         self.asked: list[uuid.UUID] = []
 
     async def settlement_currency(self, *, workspace_id: uuid.UUID) -> str:
-        """Return the currency «Демо» is settled in."""
+        """Return the workspace's settlement currency."""
         self.asked.append(workspace_id)
         return "KGS"
 

@@ -35,7 +35,7 @@ export const useMembersStore = defineStore('members', () => {
   // routes and the nav link were open to every signed-in customer — the pages
   // rendered, and only the XHR behind them came back 403.
   const internalFeatures = ref(false)
-  //: «Ключи активации»: a dev, or the owner of «Демо». The API refuses
+  //: «Ключи активации»: a dev, or the owner of the primary organisation. The API refuses
   //: everyone else (`require_code_issuer`); this only decides what is drawn.
   const canIssueCodes = ref(false)
   /** Whether the caller's role writes — false for a read-only manager. */

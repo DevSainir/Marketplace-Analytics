@@ -25,9 +25,9 @@ DEFAULT_WINDOW_DAYS = 29
 #: Hard cap on one request — sized to «Вся история», like «Сводка»'s.
 #:
 #: WB keeps advertising statistics for a campaign's whole life (no retention
-#: cliff; «Демо» goes back to 2023-10-24), so a cap below the workspace's own
+#: cliff; one seller goes back to 2023-10-24), so a cap below the workspace's own
 #: history would make the «Вся история» button an error. Measured 2026-10-05:
-#: that whole span answers in ~1 s on «Демо». The bound still has to exist —
+#: that whole span answers in ~1 s for that seller. The bound still has to exist —
 #: an unbounded window is a cheap way for one caller to keep Postgres busy.
 MAX_WINDOW_DAYS = 1200
 

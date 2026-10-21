@@ -45,7 +45,7 @@ class WildberriesSettings(BaseSettings):
     wb_feedbacks_base_url: str = Field(default="https://feedbacks-api.wildberries.ru")
     # The public storefront's review summary for one card group — `valuation`,
     # `valuationSum` and the score distribution WB rates the card from. No
-    # token. `feedbacks1` answered for every card of «Демо» on 2026-10-02.
+    # token. `feedbacks1` answered for every card of one workspace on 2026-10-02.
     wb_storefront_feedbacks_base_url: str = Field(default="https://feedbacks1.wb.ru")
     # Every FBS warehouse WB lists for the seller is discovered and read, so a
     # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
@@ -59,8 +59,8 @@ class WildberriesSettings(BaseSettings):
     # block later finds its history already there.
     #
     # It was off from 2026-09-09 to 2026-10-10 — hidden with the UI, then left
-    # off by mistake when the block came back for NEVA on 2026-09-26, so NEVA saw
-    # a block with nothing after 08.09. Those days were walked back from WB on
+    # off by mistake when the block came back for one workspace on 2026-09-26, so
+    # that workspace saw a block with nothing after 08.09. Those days were walked back from WB on
     # 2026-10-10: WB serves cluster history (full daily stats ~347 days back,
     # probed 2026-09-12), bounded by the 31-day window rather than its memory.
     # It once looked unbackfillable because the endpoint answers "nothing" in

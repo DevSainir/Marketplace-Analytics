@@ -390,7 +390,7 @@ async def test_a_completed_report_is_booked_from_wb_s_own_list_entry(
 
     `retailAmountSum` / `forPaySum` / `bankPaymentSum` live on the list entry
     and nowhere else, so a header built from rows had to leave them empty —
-    which is what every header on «Демо» still was on 2026-09-23. They are
+    which is what every header of one workspace still was on 2026-09-23. They are
     the only figure the P&L can be checked against that is not our own
     arithmetic.
     """

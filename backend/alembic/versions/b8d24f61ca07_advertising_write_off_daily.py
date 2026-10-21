@@ -11,7 +11,7 @@ those charges never reach the weekly settlement report either — a bonus
 write-off carries no invoice document, so no «Оказание услуг «WB Продвижение»,
 документ №…» row is ever raised for it.
 
-The consequence, measured on the `Демо` workspace for 2026-09-01..15: WB
+The consequence, measured on one workspace for 2026-09-01..15: WB
 funded 38 % of the write-offs, and the per-SKU report counted every som of it
 as the seller's own spend. One SKU read ROI -61.5 %
 where the real figure was +1.6 %.

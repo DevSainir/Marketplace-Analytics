@@ -2,7 +2,7 @@
 
 Two facts WB states and we used to drop, both for the same reason: a workspace
 that settles in KGS holds money in more than one currency (verified
-2026-09-29 on all five workspaces).
+2026-09-29 on every workspace).
 
 * ``advertising_stat_daily.currency`` — fullstats names each campaign's
   currency, and it is the campaign's own: RUB for campaigns created before WB

@@ -22,8 +22,8 @@ from src.modules.organizations.contract import WritingAccess
 from src.modules.users.contract import CurrentUserId
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
-#: WB's zip is stored, not compressed: ~0.5 KB a row, so NEVA's largest week
-#: (71 539 rows) is ~36 MB. nginx's ceiling for this path is 49m to match.
+#: WB's zip is stored, not compressed: ~0.5 KB a row, so the largest week
+#: seen (71 539 rows) is ~36 MB. nginx's ceiling for this path is 49m to match.
 _MAX_UPLOAD_BYTES = 48 * 1024 * 1024
 
 router = APIRouter()

@@ -347,7 +347,7 @@ class SettlementRollup:
 
         The one figure a reader of advertising divides by, read on its own. The
         full SKU-day cut (:meth:`aggregate_sku_days`) sums forty columns per
-        cell and then builds each into an aggregate; over «Демо»'s whole
+        cell and then builds each into an aggregate; over one workspace's whole
         history that was ~1 s of a 2 s page, against ~0.2 s for this column
         alone (measured 2026-10-05). Same rows, same freshness check, so the
         two cannot disagree.
@@ -406,7 +406,7 @@ class SettlementRollup:
         """Return settled units per SKU, most-sold first, off the rollup.
 
         Read from the detail, this was the cost-price page's whole cost: a year
-        of «Демо» is a parallel seq scan of the 1.6 GB table, 8.4 s alone
+        of one workspace is a parallel seq scan of the 1.6 GB table, 8.4 s alone
         and 30-35 s when anything else wanted the disk (measured 2026-10-05).
         The units and the article are rollup columns already.
         """

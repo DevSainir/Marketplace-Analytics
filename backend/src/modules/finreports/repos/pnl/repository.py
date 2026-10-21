@@ -312,7 +312,7 @@ class PnlRepository:
         a window whose rows had not been refetched since had sale rows with no
         revenue and no payout — while its logistics, storage and penalties were
         complete, because those columns always existed. None are left on
-        «Демо» (0 of 87 261, 2026-09-24) and the one-off script that filled
+        the workspace checked (0 of 87 261, 2026-09-24) and the one-off script that filled
         them is gone; the check stays, because a report that arrives short
         produces the same shape. «Итого к
         оплате» then reports a full period of withholdings against a partial

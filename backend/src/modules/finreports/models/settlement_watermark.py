@@ -11,7 +11,7 @@ single page of a six-day report the header already said it covered all six
 days. (Since 2026-09-23 the header is written only after all of a report's rows;
 the separation this table keeps is still the rule.)
 Reading the harvest's watermark off that header therefore claimed days that had
-never been fetched: on 2026-09-07 four of five workspaces held one day of the
+never been fetched: on 2026-09-07 most workspaces held one day of the
 01.09-06.09 week while the header said six, the freshness gate probed only the
 day after the stated end, found nothing, and skipped the week forever. The P&L
 was short five days of settlement and nothing about it looked like an error.
@@ -25,7 +25,7 @@ WB answers *empty* completes like any other, and WB forms a week's report the da
 after the week ends — so the Sunday-night tick asks about the open week, is told
 nothing, and the watermark certifies days no report exists for yet. Read alone it
 then closes the gate on the report that lands on Monday, which on 2026-09-14 left
-three of five workspaces without the 07.09-13.09 week while every tick answered
+several workspaces without the 07.09-13.09 week while every tick answered
 «settled through 13.09 — nothing newer can exist yet». What the gate and the walk
 span read is therefore the *earlier* of this mark and the last day a harvested
 report covers — see

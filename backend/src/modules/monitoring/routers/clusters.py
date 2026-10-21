@@ -1,7 +1,7 @@
 """«Поиск по кластерам» — the SKU's advertising clusters.
 
 The SPA calls this only for workspaces whose ``search_clusters_enabled`` is set
-(NEVA since 2026-09-26); the block was hidden for everyone from 2026-09-09. The
+(one workspace since 2026-09-26); the block was hidden for everyone from 2026-09-09. The
 INGEST that fills ``advertising_cluster_stat_daily`` runs for every workspace
 regardless (``wb_search_cluster_harvest_enabled`` in
 ``src/core/config/wildberries.py``). It was off 2026-09-09..2026-10-10 and that

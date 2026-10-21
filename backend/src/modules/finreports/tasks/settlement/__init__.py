@@ -19,7 +19,7 @@ rather than a preference:
   forward harvest always walks this way — it is fetching the week WB published
   this morning, and atomicity is worth more to it than requests are.
 * :func:`walk_settlement_window` takes a span, several reports per request. On
-  «Демо» that is ~21 reports to a page against one; the unit becomes the
+  one workspace that is ~21 reports to a page against one; the unit becomes the
   window, so a walk that dies part-way books nothing and is re-fetched whole.
   The history backfill walks this way whenever it is owed more than one report.
 

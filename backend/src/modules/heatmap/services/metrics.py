@@ -21,7 +21,7 @@ Two things do not add up, and each has its own rule:
 
 And money of two currencies never meets. The orders in money are WB's own
 funnel sum, in the settlement's currency, and the spend is stored in it too:
-rouble campaigns (before 20.08.2026 on «Демо») are converted where they
+rouble campaigns (before 20.08.2026 on one workspace) are converted where they
 are stored, at the Bank of Russia rate of their day (``monitoring/repos/
 ad_money.py``). Should a rouble row ever escape that — a day past the loaded
 rates — `_mixed` and `_paired` keep it out: a spend sum over two currencies is

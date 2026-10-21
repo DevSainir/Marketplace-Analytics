@@ -53,7 +53,7 @@ class WBAdvCampaignStats(RawBase):
     ``currency`` is the unit of every ``sum``/``sum_price``/``cpc`` under it,
     and it is the CAMPAIGN's: fixed when the campaign was created, so campaigns
     from before WB moved the ad account to KGS on 2026-08-20 still answer RUB
-    (verified live 2026-09-29 on all five workspaces). ``""`` if WB omits it.
+    (verified live 2026-09-29 on every workspace). ``""`` if WB omits it.
     """
 
     campaign_id: int = Field(alias="advertId")
@@ -200,7 +200,7 @@ class WBNormQueryItem(RawBase):
 # Advertising write-offs — GET /adv/v1/upd
 # --------------------------------------------------------------------------- #
 # The ONLY WB surface that names how an advertising charge was funded. Verified
-# live 2026-09-15 on the `Демо` workspace: one row per write-off, carrying
+# live 2026-09-15 on one workspace: one row per write-off, carrying
 # `paymentType` («Баланс» — the seller's own money — or «Кэшбэк», which WB pays
 # out of the bonus pool `/adv/v1/balance` reports under `cashbacks`).
 #

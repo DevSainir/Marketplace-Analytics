@@ -150,7 +150,7 @@ async def test_neither_walk_reserves_its_window(monkeypatch: pytest.MonkeyPatch)
     A reserving caller will not touch a token until it has sat free for 120 s,
     and `acquire` accumulates that wait across attempts against a 240 s cap. On
     a bucket of one token a minute it does not yield a window — it refuses its
-    own request. Measured twice on NEVA 2026-09-23/24: the window never reached
+    own request. Measured twice on one workspace 2026-09-23/24: the window never reached
     its second page, and the last thirteen reports never went out at all,
     «would need 360s of queueing (cap 240s)» on every sweep.
 
@@ -194,7 +194,7 @@ async def test_a_scattered_backlog_is_not_spanned_by_one_window(
     can span most of a seller's history, and the extra is not bandwidth but
     PAGES — the thing WB rates.
 
-    NEVA found it on 2026-09-24. Fifteen reports left, scattered, the span
+    One workspace found it on 2026-09-24. Fifteen reports left, scattered, the span
     reached across the archive, and the tick died to `SoftTimeLimitExceeded` —
     which the lane does not catch, so it recorded nothing and re-enqueued
     nothing, sixteen hours into a fill that should have taken minutes.

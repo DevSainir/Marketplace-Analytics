@@ -20,7 +20,7 @@ function row(key, valuesByBucket) {
 /**
  * The display matrix the store hands the chart, built the way the store builds
  * it — the real mapping code rather than a hand-written shape that can drift
- * from it. In «Демо»'s units: priced in RUB, advertised in KGS.
+ * from it. In one workspace's units: priced in RUB, advertised in KGS.
  */
 function matrixView(rows = [], currencies = { prices: 'RUB', ads: ['KGS'] }) {
   return buildMetricsMatrix(

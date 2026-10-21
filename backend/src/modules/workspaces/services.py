@@ -67,7 +67,7 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
         # fallback did not make the analytics token work, it only turned "this
         # workspace has no content token" into a 403 three layers away: the
         # catalogue refresh caught it, fell back to yesterday's SKU list and
-        # logged a warning, so `Демо` ran on a three-week-old catalogue
+        # logged a warning, so one workspace ran on a three-week-old catalogue
         # unnoticed, and «Запустить» on an A/B test failed with a raw
         # integration error instead of the message that names the missing token.
         content=pick(TokenKind.CONTENT),

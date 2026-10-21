@@ -70,7 +70,7 @@ const photoConflict = computed(() => !!props.test.photo_conflict_at)
  * The other stop a seller did not make. It undoes itself, which is exactly why
  * it has to be said: without the sentence a seller presses «Запустить», the
  * next pass finds the campaign still dry and pauses it again, and the page reads
- * as a test that "pauses on its own" — NEVA, 28.09.2026, twice in two hours.
+ * as a test that "pauses on its own" — one workspace, 28.09.2026, twice in two hours.
  */
 const pausedByAds = computed(() => props.test.status === 'paused' && !!props.test.paused_by_ads)
 

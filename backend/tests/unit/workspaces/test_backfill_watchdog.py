@@ -1,7 +1,7 @@
 """The watchdog, and the invariant whose violation created the need for it.
 
 A backfill lane is a chain of self-enqueueing ticks with exactly one thread of
-continuation. On 2026-09-10 NEVA's P&L lane broke that thread on its first tick
+continuation. On 2026-09-10 one workspace's P&L lane broke that thread on its first tick
 and nothing noticed for eleven hours. These are the two guards against a repeat:
 the restart path must be wired to real tasks, and a tick must never be able to
 block for longer than it is allowed to live.
@@ -28,7 +28,7 @@ from src.modules.workspaces.tasks import LANE_RESTART_DELAY, LANE_TASKS, STALE_A
 
 
 def test_a_tick_cannot_block_for_longer_than_it_is_allowed_to_live() -> None:
-    """The exact bug that killed NEVA's P&L lane, as an assertion.
+    """The exact bug that killed one workspace's P&L lane, as an assertion.
 
     The lane was wired to the rate gate that QUEUES rather than the one that
     refuses. Asked at 18:00:04 it answered "waiting 956.0s for a rate token";
@@ -73,7 +73,7 @@ def test_a_reserving_caller_can_still_get_through_the_finance_gate() -> None:
     `BACKGROUND_RESERVE_SECONDS`, so its wait is the reserve PLUS whatever of
     the refill is left. When the queue cap equalled the reserve, the gate slept
     its 120 s, was told it needed 120 s more, and refused its own request —
-    measured on NEVA 2026-09-23 as «would need 240s of queueing (cap 120s)», on
+    measured on one workspace 2026-09-23 as «would need 240s of queueing (cap 120s)», on
     every tick, with nothing ever sent to WB.
 
     The forward harvest never saw it because it does not reserve. Only the
@@ -212,7 +212,7 @@ def test_the_sweep_restarts_a_lane_without_inheriting_its_chain() -> None:
     """A restart must SUPERSEDE the chain it replaces, not join it.
 
     The sweep cannot tell a dead lane from a slow one. Passing the old token
-    through would make it join whatever it was wrong about, which is how NEVA ran
+    through would make it join whatever it was wrong about, which is how one workspace ran
     two P&L chains at once — each taking half of an endpoint WB serves four
     times an hour, and each eventually declaring the lane finished.
 
@@ -235,7 +235,7 @@ def test_the_settlement_lane_is_not_restarted_into_wb_s_closed_window() -> None:
     """An early ask on this endpoint costs three times what waiting costs.
 
     WB answers a request made inside its own block with a penalty rather than a
-    refusal — NEVA drew ``429 ... demands a 2762s wait`` on 2026-09-12 from a
+    refusal — one workspace drew ``429 ... demands a 2762s wait`` on 2026-09-12 from a
     tick fired 13 minutes after the previous one, because a deploy's orphan
     sweep restarted the lane the instant the worker came up.
 

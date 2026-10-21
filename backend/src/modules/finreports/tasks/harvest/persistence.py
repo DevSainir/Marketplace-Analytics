@@ -31,7 +31,7 @@ async def advance_watermark(*, workspace_id: uuid.UUID, completed_through: date)
     here so the mark is never poisoned in the first place rather than only
     corrected when read.
 
-    Reading the minimum is not enough on its own, and NEVA proved it on
+    Reading the minimum is not enough on its own, and one workspace proved it on
     2026-09-14: an earlier tick had already marched this mark to 13.09 over days
     WB had published nothing for, and once a later walk wrote the week's header
     from its first page, coverage reached 13.09 too. Both dates then said 13.09

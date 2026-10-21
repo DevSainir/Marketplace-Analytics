@@ -3,7 +3,7 @@
 A lane is a chain of self-enqueueing ticks, and two things fork it: the watchdog
 restarting a lane it believes dead, and the broker redelivering the
 unacknowledged tick of a worker that was recreated mid-step. Both happened to
-NEVA on 2026-09-12 — two chains, ``c2c87118…`` and ``a657733d…``, walked the same
+one workspace on 2026-09-12 — two chains, ``c2c87118…`` and ``a657733d…``, walked the same
 P&L lane and each declared it finished, 78 minutes apart.
 
 On an endpoint WB serves once per fifteen minutes that is not redundancy. The

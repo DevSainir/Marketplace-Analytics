@@ -7,7 +7,7 @@ its unacknowledged task redelivered by the broker. Either way the restart and
 the original both continue, and from then on the lane runs as two chains that
 cannot see each other.
 
-Observed on NEVA 2026-09-12: two chains ticked the same P&L lane — trace
+Observed on one workspace 2026-09-12: two chains ticked the same P&L lane — trace
 ``c2c87118…`` and ``a657733d…`` — and each independently declared it finished,
 an hour and a quarter apart. On an endpoint WB served once per fifteen minutes
 (and on the one-a-minute finance-api just the same) a second chain does not

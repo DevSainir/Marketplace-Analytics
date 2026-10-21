@@ -210,7 +210,7 @@ async def test_a_stream_that_breaks_mid_body_is_an_integration_error() -> None:
 
     A raw `httpx.ReadError` does not hold it. It escaped the settlement walk's
     `IntegrationError` clause, killed the whole Celery task rather than the one
-    page, and cost NEVA a 300 000-row window on 2026-09-24 — WB drops the
+    page, and cost one workspace a 300 000-row window on 2026-09-24 — WB drops the
     connection on a long body often enough that this is ordinary weather.
     """
 

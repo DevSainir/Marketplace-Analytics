@@ -280,7 +280,7 @@ describe('buildMetricsMatrix', () => {
   })
 
   it('signs each money cell with its own currency: prices in roubles, costs in soms', () => {
-    // «Демо» settles in KGS, is priced in RUB, and its campaigns bill in
+    // One workspace settles in KGS, is priced in RUB, and its campaigns bill in
     // KGS since 20.08.2026: one workspace-wide unit misstated one side of the table.
     const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
 

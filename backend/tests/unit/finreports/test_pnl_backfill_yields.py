@@ -34,7 +34,7 @@ from src.modules.workspaces.schemas import WorkspaceTokenBundle
 def _tokens() -> WorkspaceTokenBundle:
     """A workspace whose «Финансы» and «Статистика» tokens are DIFFERENT.
 
-    Which is the shape «Демо» actually has — every other workspace resolves
+    Which is the shape one workspace actually has — every other workspace resolves
     both to one `unified` token, and that is why the lane read the wrong bucket
     for a day without anything showing.
     """
@@ -187,7 +187,7 @@ async def test_a_long_block_is_polled_rather_than_slept_through(
     asleep for an hour and a half is indistinguishable from a dead one, both to
     the watchdog and to the seller reading the profile.
     """
-    # 2762 s is the real penalty NEVA drew on 2026-09-12, read from the bucket's
+    # 2762 s is the real penalty one workspace drew on 2026-09-12, read from the bucket's
     # own `blocked_until`.
     monkeypatch.setattr(backfill, "finance_reports_rate_gate", lambda *_a, **_k: _Gate(2762.0))
 
@@ -200,7 +200,7 @@ async def test_the_delay_is_read_from_the_finance_token_s_bucket(
     """The bucket is keyed per token, so the wrong one is a bucket nobody writes.
 
     This read `tokens.statistics` while building a FINANCE gate until
-    2026-09-23. On «Демо», which holds per-surface tokens, that bucket is
+    2026-09-23. On a workspace that holds per-surface tokens, that bucket is
     never written and always answers «open», so the lane paced itself on the
     spin guard and could not see a penalty block at all. Every other workspace
     resolves both fields to one `unified` token, which is why it never showed.

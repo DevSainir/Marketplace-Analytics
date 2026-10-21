@@ -164,7 +164,7 @@ async def _harvest_all_workspaces(
         # one day deep, and the walk's own watermark over-claims every week WB
         # has not published yet, because a window answered EMPTY completes like
         # any other. The second is how the 07.09-13.09 report went unharvested by
-        # three of five workspaces while the gate answered «settled through
+        # several workspaces while the gate answered «settled through
         # 13.09 — nothing newer can exist yet» to every tick.
         watermark_repo = SettlementWatermarkRepository(session)
         report_repo = FinancialReportRepository(session)

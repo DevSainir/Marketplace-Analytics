@@ -10,7 +10,7 @@ It is deliberately an addition rather than a replacement, and the shape follows
 from what is and is not proven:
 
 * **The rows are the same rows.** Measured over the closed week 14.09-20.09 on
-  «Демо»: seven daily reports and weekly report 989438999 are the same 4 424
+  one workspace: seven daily reports and weekly report 989438999 are the same 4 424
   rows sharing their ``rrdId`` one for one, every money column summing to the same
   figure. So they go into ``logistics_transaction`` like any others and the P&L
   picks them up by ``rr_dt`` — there is nothing to change on the read side, and

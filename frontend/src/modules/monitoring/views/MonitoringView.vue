@@ -64,7 +64,7 @@ const { matrix, editingLocked, onCellEdit, onCommentEdit, onActionEdit } = useMa
 
 // --- «Рекламные кластеры»: per workspace ----------------------------------
 // Hidden for everyone on 2026-09-09 as a product decision, back on 2026-09-26
-// for the workspaces whose `search_clusters_enabled` is set — today only NEVA,
+// for the workspaces whose `search_clusters_enabled` is set — today one workspace,
 // turned on by migration `b5d2e8f41c93`. Everywhere else the block, its nav
 // entry and its fetch stay off. The harvester fills `advertising_cluster_stat_daily`
 // for every workspace regardless, so switching another workspace on later has
@@ -219,7 +219,7 @@ onMounted(() => store.fetchPins())
           <MetricsChart :view="matrix" />
         </div>
 
-        <!-- «Рекламные кластеры» — only for workspaces with the switch on (NEVA);
+        <!-- «Рекламные кластеры» — only for workspaces with the switch on;
              see the block comment in <script setup>. -->
         <div v-if="clustersEnabled" id="sec-clusters">
           <SkuClusterBlock v-bind="clusters.clusterTableProps" :currency="product?.ad_currencies" />

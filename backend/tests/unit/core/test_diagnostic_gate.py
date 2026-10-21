@@ -128,7 +128,7 @@ def test_an_unreadable_allowlist_is_not_an_empty_one(monkeypatch: pytest.MonkeyP
 
 
 def test_the_default_needs_no_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Unconfigured means «Демо», never «anything».
+    """Unconfigured means the operator's own workspace, never «anything».
 
     A gate that only worked on a box somebody had configured would be off
     exactly where a one-off probe gets written — in a shell, in a hurry.

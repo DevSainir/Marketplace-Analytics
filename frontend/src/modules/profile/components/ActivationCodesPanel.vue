@@ -2,7 +2,7 @@
 /**
  * «Ключи активации» — issuing a key to hand to a customer who paid.
  *
- * Shown to a dev and to the owner of «Демо»; the API refuses everyone else.
+ * Shown to a dev and to the owner of the primary organisation; the API refuses everyone else.
  * The defaults are what is sold most often: 14 days of service, and nothing
  * else bounded. An empty limit field means «без лимита», which is why every
  * one of them is optional and only the term is required.

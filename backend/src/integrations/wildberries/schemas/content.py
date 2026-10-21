@@ -57,7 +57,7 @@ class WBCardPhoto(RawBase):
     public and unauthenticated.
 
     **``hq`` is advertised and not served.** Measured 2026-09-07 across three
-    cards of the ``Демо`` catalogue: every payload carried an ``hq`` URL and
+    cards of one workspace's catalogue: every payload carried an ``hq`` URL and
     every one answered ``404 text/html``, while ``big``, ``c516x688``,
     ``c246x328``, ``square`` and ``tm`` all answered ``200 image/webp``. A URL
     being present therefore says nothing about the file existing, and ``big`` —

@@ -319,7 +319,7 @@ export async function fetchAuditLog(limit = 25) {
 /**
  * POST /v1/organizations/codes — issue a single-use activation key.
  *
- * A dev or the owner of «Демо» only. `null` in any limit means unlimited;
+ * A dev or the owner of the primary organisation only. `null` in any limit means unlimited;
  * `validForDays: null` means the key itself never expires. The key is in this
  * response and nowhere else — the server keeps only its hash.
  *

@@ -14,7 +14,7 @@ has formed; we hold a set of ``reportId``; the backlog is the difference. There
 is nothing to infer, no tolerance to tune, and a hole in the middle of a
 seller's history is not a special case — it is one of the ids in the set.
 
-Measured on «Демо» 2026-09-23, which is what makes this affordable:
+Measured on one workspace 2026-09-23, which is what makes this affordable:
 
 * **one list request covers the whole history, at any width.** A 1095-day
   window returned all 143 reports, back to the account's first week in January
@@ -217,8 +217,8 @@ def parse_cursor(cursor: str) -> tuple[date, int, int, InFlight | None] | None:
     A live lane DID need it, which this docstring got wrong first. It said no
     lane was mid-walk, on the strength of a diagnostic that came back empty —
     but `workspaces.workspace_backfill` carries a tenancy policy, so that probe
-    could only ever see «Демо», which has no lane row. NEVA's was there the
-    whole time: seeded 11.09, last moved 15.09, cursor
+    could only ever see the diagnostic workspace, which has no lane row. Another
+    workspace's was there the whole time: seeded 11.09, last moved 15.09, cursor
     `2026-06-17|2026-07-08|3128642845490|0|2026-07-08`. Rejected on 23.09
     exactly as intended, and the lane restarted from the top.
 

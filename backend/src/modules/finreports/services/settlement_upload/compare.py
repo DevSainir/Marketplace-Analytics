@@ -10,7 +10,7 @@ API's are a day earlier on ~7 % of rows, and ``rr_dt`` is not in the file at all
 What a date would add the money columns already pin: on report 992915233 this
 key matched 3 257 rows to 3 257, one to one.
 
-Each key is held as a 16-byte hash, so the whole of NEVA's largest week (71 539
+Each key is held as a 16-byte hash, so the whole of the largest week seen (71 539
 rows) is a few megabytes rather than the rows themselves.
 """
 

@@ -2,12 +2,12 @@
 
 ``POST /sales-reports/detailed`` takes a period rather than a report id and
 serves every row inside it, across as many reports as fit a page. Measured on
-«Демо» 2026-09-23: one request over 03.08-20.09 returned 40 910 rows and
-all **8** reports — exactly the row set we hold for that window — and on NEVA the
+one workspace 2026-09-23: one request over 03.08-20.09 returned 40 910 rows and
+all **8** reports — exactly the row set we hold for that window — and on another the
 mean report is 11 603 rows, so a 100 000-row page holds about eight of them.
 
 That is the whole reason this module exists. A full history costs ~7 requests
-here against 143 by report id on «Демо», and at one request a minute the
+here against 143 by report id on that first workspace, and at one request a minute the
 difference is an hour and a half of a new seller's first day.
 
 **What it gives up, stated plainly.** By id, a report is either complete or it
@@ -20,7 +20,7 @@ means «all of this report is here».
 
 **And the risk it takes.** A seller documented on WB's forum that ``rrdId`` is
 not monotonic by date across report boundaries on this form, so a walk could
-stop early and silently. Measured on «Демо» 2026-09-23 it did not: zero
+stop early and silently. Measured on one workspace 2026-09-23 it did not: zero
 descents across eight report boundaries, each report contiguous and in date
 order, including one WB had served eight days late. That is one window on one
 workspace and does not cover re-issued or month-split reports — which is why every
@@ -101,7 +101,7 @@ async def walk_settlement_window(
             fits, and this is what keeps a mis-sized one from running past the
             task's soft limit — where the failure is not a slow tick but a
             silent one, since `SoftTimeLimitExceeded` is not the error the lane
-            catches. NEVA spent sixteen hours in that state on 2026-09-24.
+            catches. One workspace spent sixteen hours in that state on 2026-09-24.
 
     Returns:
         A :class:`WindowWalk`. The reports are booked on exactly one outcome —
@@ -150,7 +150,7 @@ async def walk_settlement_window(
             # back to the caller so the NEXT tick continues this same window
             # rather than starting it again. Before this, a run too wide for one
             # tick threw away everything it had fetched and did so for ever:
-            # NEVA sat on `window 2025-05-05..2025-07-27 ran out of tick after
+            # One workspace sat on `window 2025-05-05..2025-07-27 ran out of tick after
             # 300000 rows`, every sweep, 2026-09-24.
             logger.info(
                 "finreports: settlement window %s..%s for %s paused at %d rows; "

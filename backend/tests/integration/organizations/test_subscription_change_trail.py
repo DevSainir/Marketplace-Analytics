@@ -1,6 +1,6 @@
 """Every change to a subscription term lands in the audit log — whoever makes it.
 
-Born of NEVA, 2026-10-06: a hand renewal done as a bare ``UPDATE`` in psql left
+Born of an incident on 2026-10-06: a hand renewal done as a bare ``UPDATE`` in psql left
 ``updated_at`` at the activation day and wrote no audit row, so when the term
 ran out the database could not say it had ever been extended. The record is a
 trigger so that the psql path is covered too; these tests therefore go around

@@ -168,7 +168,7 @@ def _sale(
 async def test_a_report_short_of_its_own_rows_stops_counting_as_held(
     db_session: AsyncSession,
 ) -> None:
-    """NEVA's August, as an assertion.
+    """One workspace's August, as an assertion.
 
     Report 981405464 covered 24-30.08 and we held only a fraction of its money,
     with the header present and the id in every «what do I hold» set. Nothing
@@ -241,7 +241,7 @@ async def test_a_restatement_inside_the_tolerance_is_not_a_shortfall(
     """WB revises a settled week, so exact equality would never terminate.
 
     A report that can never match is re-fetched every sweep for ever. Measured
-    on NEVA the two populations separate cleanly: 20 reports inside 0.5 %, the
+    on one workspace the two populations separate cleanly: 20 reports inside 0.5 %, the
     worst genuine shortfall at 1.2 %.
     """
     db_session.add(_held_report(HELD))

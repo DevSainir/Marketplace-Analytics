@@ -70,7 +70,7 @@ class ReportPeriod(enum.StrEnum):
 
     WB forms both, on the same methods, and ``period`` **defaults to weekly** —
     which is why this service read only the weekly half of the surface from the
-    migration on 2026-09-22 until 2026-09-23. Verified live on «Демо»: the
+    migration on 2026-09-22 until 2026-09-23. Verified live on one workspace: the
     two lanes are the same rows with the same ``rrdId``, cut at a different
     boundary, and a single-day window asked *without* this parameter answers 204
     rather than an error, so the mistake looks exactly like «WB has not formed

@@ -3,7 +3,7 @@
 A period ends on **a Sunday or on the last day of the month, whichever comes
 first**, and the next one starts the day after; WB forms its report the day
 after the period ends (``create_dt = date_to + 1``). Measured over all 142
-reports «Демо» held on 2026-09-19 and every one since, with no exception: the
+reports one workspace held on 2026-09-19 and every one since, with no exception: the
 publication calendar is derivable.
 
 The month-end half started on 2026-03-30; before that WB ran plain Sunday weeks

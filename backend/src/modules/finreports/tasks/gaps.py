@@ -5,7 +5,7 @@ the harvest owns measures what a run DID — rows per source, sources that faile
 — and a lost settlement day moves none of them. The walk succeeds, writes
 exactly what it was asked for, and stops asking about a day WB had not served
 yet. A gap is only ever visible in what the history does not contain, which is
-why nothing noticed when 31.08 went missing from all five workspaces and it took
+why nothing noticed when 31.08 went missing from every workspace and it took
 a person looking at WB's own site to find it.
 
 The survey costs no WB request — it is one query per workspace — so it runs
