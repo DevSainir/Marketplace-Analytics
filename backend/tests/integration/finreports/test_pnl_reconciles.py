@@ -2,7 +2,7 @@
 
 The statement's arithmetic is unit-tested against a pre-summed aggregate. What
 that cannot prove is the aggregation itself: thirty ``SUM(CASE …)`` expressions
-over one table, whose whole job is to partition 620k rows into disjoint buckets.
+over one table, whose whole job is to partition hundreds of thousands of rows into disjoint buckets.
 A single mis-scoped ``CASE`` double-counts a charge and the statement still looks
 like a statement.
 
@@ -12,7 +12,7 @@ So this module asserts the properties that only a real database can:
   ``Decimal`` and PostgreSQL's ``numeric`` agreeing, not just Python with itself;
 * the buckets sum to the total, for every grouping;
 * refunds settled in a *different* week than their sale land in the week they
-  were settled — 41 % of this seller's refunds do, and it is the property that
+  were settled — a large share of refunds do, and it is the property that
   makes the statement settlement-basis rather than order-basis;
 * ``quantity`` on the operations WB uses as filler never reaches the unit count.
 
@@ -44,7 +44,7 @@ pytestmark = pytest.mark.integration
 async def test_the_revenue_block_reconstructs_the_settled_payout_in_real_sql(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """Оплачено − комиссия − эквайринг − поверенный == к перечислению за продажи.
+    """Paid − commission − acquiring − WB's agent fee == payout for sales.
 
     Exactly, with the sums produced by PostgreSQL's ``numeric`` rather than by
     Python. This is the assertion that the twenty-eight aggregate expressions
@@ -71,13 +71,14 @@ async def test_the_residual_commission_matches_the_one_wb_published(
     This is the cross-check the aggregate carries those two columns FOR, and it
     has to actually run: the commission line is a residual, so nothing else
     confirms it is a commission at all rather than a bucket absorbing whatever
-    fails to reconcile. On the fixture the two agree exactly; on the real history
-    they agree to 0.075 % (the ~102 acquiring rows PNL.md §4 documents).
+    fails to reconcile. On the fixture the two agree exactly; on a full history
+    they agree to within a fraction of a percent (the acquiring rows PNL.md §4
+    documents).
 
     It is also the assertion that catches a widened row set. Aggregating those
     columns over every non-refund operation instead of the sale rows put them
-    340 748 KGS apart across the history and gave them opposite signs on 16 of
-    133 weekly reports.
+    far apart across the history and gave them opposite signs on several weekly
+    reports.
     """
     aggregate = (
         await PnlRepository(db_session).aggregate(
@@ -124,9 +125,9 @@ async def test_the_filler_operations_quantity_never_becomes_a_unit(
 ) -> None:
     """«Возмещение издержек» carries ``quantity = 2`` that is not a unit count.
 
-    Every one of its 109 284 rows in production has it, with no ``nm_id`` and no
-    barcode. A bare ``SUM(quantity)`` adds 206 937 phantom units to the history
-    and deflates every per-unit figure on the statement.
+    Every one of its rows has it, with no ``nm_id`` and no barcode. A bare
+    ``SUM(quantity)`` adds two phantom units per row to the history and deflates
+    every per-unit figure on the statement.
     """
     total = (await _statement(db_session)).total
 
@@ -158,8 +159,8 @@ async def test_a_correction_takes_its_sign_from_the_document_type(
 
     WB serves every value positive and the same operation — «Коррекция продаж»,
     «Компенсация ущерба» — under both document types. Its own ``forPaySum``
-    negates the «Возврат» ones and nothing else, which matches all 143 reports
-    of «Демо» to the kopeck; a rule by operation name matched 121.
+    negates the «Возврат» ones and nothing else, which matches every report on
+    file to the kopeck; a rule by operation name missed some.
     Neither row is revenue or a unit.
     """
     before = (await _statement(db_session)).total
@@ -208,9 +209,8 @@ async def test_logistics_splits_into_forward_and_return_legs(
     """``delivery_rub`` partitions by WB's own counters, with no overlap.
 
     Exactly one of ``delivery_amount``/``return_amount`` is set on a logistics
-    row — 152 745 forward and 94 358 return rows in production, none with both
-    or neither. Summing the column twice under two filters that both match would
-    double the largest cost on the statement.
+    row — never both, never neither. Summing the column twice under two filters
+    that both match would double the largest cost on the statement.
     """
     total = (await _statement(db_session)).total
 
@@ -224,7 +224,7 @@ async def test_a_refund_settled_after_its_sale_belongs_to_the_settling_week(
 ) -> None:
     """The statement is settlement-basis: a refund lands where WB settled it.
 
-    41 % of this seller's refunds settle in a different weekly report than their
+    A large share of refunds settle in a different weekly report than their
     sale. Attributing them back to the sale's week would make every published
     week restate itself later — the opposite of a document you reconcile against
     a bank receipt.

@@ -1,7 +1,7 @@
 """Which report the P&L's freshness line calls "the newest one on file".
 
 The line's first half is «Последний отчёт WB: 10–16 авг · загружен 18 авг, 06:14»
-— the string a seller matches against WB's own отчёты page. Naming the wrong
+— the string a seller matches against WB's own reports page. Naming the wrong
 week there is worse than saying nothing: it is a confident, specific claim that
 the statement is current when it is not.
 

@@ -84,7 +84,7 @@ async def test_the_advertising_share_of_the_deductions_is_broken_out(
 ) -> None:
     """«ВБ.Продвижение» gets its own figure inside «удержания».
 
-    It is 95 % of everything WB has ever withheld from this seller and the only
+    It is the bulk of everything WB withholds from a seller and the only
     withheld cost they control; buried in «прочие удержания» it is invisible.
     """
     total = (await _statement(db_session)).total
@@ -99,16 +99,15 @@ async def test_the_vat_sub_line_belongs_to_the_commission_it_sits_under(
     """«в т.ч. НДС комиссии» is summed over the rows the commission is.
 
     «Возмещение издержек по перевозке» reuses ``ppvz_vw`` and ``ppvz_vw_nds`` to
-    express the VAT split of its OWN charge — 86 566 rows carrying −377 874.68
-    and −47 746.32, which add to its 461 652.31 of ``rebill_logistic_cost``. It is
-    not commission.
+    express the VAT split of its OWN charge — the two columns add up to its
+    ``rebill_logistic_cost``. It is not commission.
 
-    Netting those in alongside the sales made the printed VAT 629 187.13 against a
-    true 744 682.24 over the whole history, and gave it the WRONG SIGN on 16 of
-    133 weekly reports. The sub-line must never be summed over a wider row set
+    Netting those in alongside the sales understated the printed VAT noticeably
+    over the whole history, and gave it the WRONG SIGN on several weekly
+    reports. The sub-line must never be summed over a wider row set
     than the line it decomposes.
     """
-    # A rebill row shaped like the real ones: its charge, split across the two
+    # A rebill row shaped like WB's: its charge, split across the two
     # commission columns, with no sale attached.
     db_session.add(
         _row(

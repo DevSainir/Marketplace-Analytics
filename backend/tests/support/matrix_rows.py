@@ -169,7 +169,7 @@ def _ad_bucket(
     assoc_exact: bool = True,
     currencies: list[str] | None = None,
 ) -> MatrixAdBucketBase:
-    """One ad bucket's input facts: the кампания's, with the card's share.
+    """One ad bucket's input facts: the campaign's, with the card's share.
 
     The card's share of the conversions defaults to the whole — a single-card
     campaign, where the card IS the campaign — so a fixture only states
@@ -281,14 +281,14 @@ def _cell(
 
 
 # --------------------------------------------------------------------------- #
-# Reference scenario: two real campaigns — a unified one (shown in BOTH its WB
+# Reference scenario: two delivering campaigns — a unified one (shown in BOTH its WB
 # search/shelves zones) and a manual search one. Plus a noise campaign, cut.
 #
-# Every ₽ figure here is scaled so the two real campaigns clear
+# Every ₽ figure here is scaled so the two delivering campaigns clear
 # ``_MIN_CAMPAIGN_DAY_SPEND`` (a campaign-day below it is residual trickle, not
 # delivery — see matrix.py) while the noise campaign stays under it. Spend,
 # ad revenue and the price snapshot are scaled TOGETHER, so every ratio the
-# tests assert (ДРР, СПП, «Доля трафика») is unchanged by the scaling.
+# tests assert (DRR, SPP, «Доля трафика») is unchanged by the scaling.
 # --------------------------------------------------------------------------- #
 def _two_campaign_rows() -> dict[str, list[float | None]]:
     campaigns = {

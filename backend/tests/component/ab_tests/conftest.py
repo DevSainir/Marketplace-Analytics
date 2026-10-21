@@ -1,4 +1,4 @@
-"""Shared fixtures for the A/Б-tests component tests.
+"""Shared fixtures for the A/B tests component tests.
 
 The stubbed catalog service, the stubbed WB installer, and the identity and
 tenancy wiring every case in this directory needs. Split out when the route
@@ -312,5 +312,5 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def _customer_caller(login_as: Any) -> None:
-    """Call as an ordinary customer: A/Б-тесты is open to every tenant."""
+    """Call as an ordinary customer: the A/B tests module is open to every tenant."""
     login_as(is_primary_org=False)

@@ -70,8 +70,8 @@ async def test_the_sweep_clears_every_warehouse_by_default(db_session: AsyncSess
 async def test_a_spared_warehouse_survives_the_sweep(db_session: AsyncSession) -> None:
     """A failed FBS read leaves the seller's warehouse holding its last figures.
 
-    Stale-but-true beats freshly-wrong: the alternative is reporting 1716 units
-    as zero because one of two WB surfaces was unreachable.
+    Stale-but-true beats freshly-wrong: the alternative is reporting a stocked
+    warehouse as zero because one of two WB surfaces was unreachable.
     """
     await _snapshot(db_session)
     repo = StockRepository(db_session)

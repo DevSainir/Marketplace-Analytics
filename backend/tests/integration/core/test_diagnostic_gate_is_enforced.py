@@ -42,11 +42,11 @@ def gated(monkeypatch: pytest.MonkeyPatch, engine: Any, isolated: None) -> None:
 
 
 async def test_a_probe_with_no_where_clause_sees_one_кабинет(gated: None) -> None:
-    """A query that asks for everything gets one кабинет's rows.
+    """A query that asks for everything gets one workspace's rows.
 
     Deliberately unscoped: a probe that scoped its own SQL would pass with the
     gate removed, which is the one thing this must not do. This IS the shape the
-    incident had — «select the busiest кабинет and read it» — and here it can
+    incident had — «select the busiest workspace and read it» — and here it can
     only ever select the allowed one.
     """
     async with diagnostic_session() as session:
@@ -94,7 +94,7 @@ async def test_a_missing_role_is_a_refusal_rather_than_an_owner_session(
 
     Without this the failure would be silent and total: `SET ROLE` to a role
     that does not exist leaves the connection as the OWNER, whom no policy
-    binds — a probe would then read every кабинет while believing it was pinned.
+    binds — a probe would then read every workspace while believing it was pinned.
     """
     monkeypatch.setattr(diagnostics, "AsyncSessionLocal", async_sessionmaker(engine))
     monkeypatch.setattr(diagnostics, "RESTRICTED_ROLE", "role_that_does_not_exist")

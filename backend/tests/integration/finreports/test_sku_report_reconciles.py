@@ -180,8 +180,10 @@ async def test_account_level_charges_stay_out_of_the_sku_rows(
 
     assert report.unallocated is not None
     assert report.unallocated.sa_name == UNALLOCATED_NAME
+    # 40 storage + 300 deduction + 5 rebill + the 25 dimensions fine, which the
     # fixture books on nm_id 0 exactly as WB books most fines.
     assert report.unallocated.payout_net == Decimal("-370")
+    # The penalty (25, dimensions) is on nm_id 0 in the fixture, so it is the
     # bucket's, and its category label survives to the row.
     assert [p.reason for p in report.unallocated.penalties] == [
     ]
@@ -206,7 +208,7 @@ async def test_the_monitoring_loaders_deliver_per_sku_figures(
 async def test_buyout_is_wbs_percentage_over_decided_orders_only(
     db_session: AsyncSession, seeded: None, monitoring_seeded: None
 ) -> None:
-    """«Выкуп» = выкупы ÷ (выкупы + отказы) по дате заказа, как в кабинете WB.
+    """«Выкуп» = buyouts ÷ (buyouts + refusals) by order date, as in WB's seller portal.
 
     The second funnel day has not been through the cohort pass (its refusals
     are NULL); counting it as «no refusals» would invent a 100 % day, so it is
@@ -237,7 +239,7 @@ async def test_without_monitoring_history_the_columns_are_unknown_not_zero(
 async def test_the_profit_uses_the_sellers_cost_and_the_promo_spend(
     db_session: AsyncSession, seeded: None, monitoring_seeded: None
 ) -> None:
-    """Чистая прибыль = к перечислению − себестоимость − реклама, per SKU."""
+    """Net profit = payout − cost price − advertising, per SKU."""
     report = await _report(db_session)
 
     row_a = next(r for r in report.rows if r.nm_id == SKU_A)

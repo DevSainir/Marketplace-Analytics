@@ -70,7 +70,7 @@ async def catalogued(db_session: AsyncSession, seeded: None) -> None:
             ProductCard(nm_id=SKU_B, workspace_id=WORKSPACE, vendor_code="sku-b"),
             SalesFunnelDaily(stat_date=WINDOW_FROM, nm_id=SKU_A, order_count=40, buyout_count=12),
             SalesFunnelDaily(stat_date=WINDOW_TO, nm_id=SKU_B, order_count=60, buyout_count=18),
-            # A price for the FIRST day only: the ДРР line needs the ordered
+            # A price for the FIRST day only: the DRR line needs the ordered
             # money, WB's funnel publishes none, and the day we never
             # snapshotted a price for has to stay unknown rather than free.
             PriceSnapshot(stat_date=WINDOW_FROM, nm_id=SKU_A, seller_price=Decimal("2500")),

@@ -4,7 +4,7 @@ Design decisions worth knowing before you add a test here:
 
 * **A dedicated database.** Everything runs against ``marketplace_test`` (or
   ``TEST_POSTGRES_DB``), created on demand next to the dev database. Tests never
-  touch ``marketplace`` — it holds real harvested WB data.
+  touch ``marketplace`` — it holds harvested WB data.
 * **Schema from the models, not from Alembic.** ``Base.metadata.create_all`` is
   ~100× faster than replaying every migration, and it is the models that the
   repositories are written against. The migrations get their own dedicated test

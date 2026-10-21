@@ -1,7 +1,7 @@
 """The polling pass's test harness: fakes for everything around the runner.
 
-Shared by ``testrunner.py`` (what a pass credits and in what order) and
-``testrunner_stopping.py`` (when it swaps, wraps, or ends). One copy, because
+Shared by ``test_runner.py`` (what a pass credits and in what order) and
+``test_runner_stopping.py`` (when it swaps, wraps, or ends). One copy, because
 two copies of a fake exposure log is two definitions of what an exposure is.
 """
 

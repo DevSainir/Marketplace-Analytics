@@ -194,6 +194,7 @@ class _FakeStorageClient:
 
 
 class _EmptyMeasurementClient:
+    """WB's measurement reports with nothing to report — not what these tests are about."""
 
     def __init__(self, _settings: Any, *, token: str) -> None:
         self.token = token
@@ -210,8 +211,10 @@ class _EmptyMeasurementClient:
         return None
 
     async def fetch_penalties(self, *, date_from: date, date_to: date) -> list[Any]:
+        """No penalised measurements in the window."""
         return []
 
+        """No measurements in the window."""
         return []
 
 

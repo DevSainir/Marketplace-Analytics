@@ -170,10 +170,10 @@ async def test_a_report_short_of_its_own_rows_stops_counting_as_held(
 ) -> None:
     """NEVA's August, as an assertion.
 
-    Report 981405464 covered 24-30.08 and we held 13.8 % of its money, with the
-    header present and the id in every «what do I hold» set. Nothing ever asked
-    for the rest: a set difference sees presence, and presence was written
-    beside the first batch of rows.
+    Report 981405464 covered 24-30.08 and we held only a fraction of its money,
+    with the header present and the id in every «what do I hold» set. Nothing
+    ever asked for the rest: a set difference sees presence, and presence was
+    written beside the first batch of rows.
 
     So presence stops being the test. WB's own `forPaySum` is, and a report that
     does not add up to it goes back on the missing list.
@@ -262,8 +262,8 @@ async def test_a_report_with_no_wb_total_is_not_guessed_at(
     """Without the oracle there is no evidence either way.
 
     Every header booked before 2026-09-23 has no WB total on it. Treating those
-    as incomplete would re-fetch an entire history on no grounds — «Демо»
-    alone holds 143 of them.
+    as incomplete would re-fetch an entire history on no grounds — a single
+    workspace can hold well over a hundred of them.
     """
     db_session.add(_held_report(HELD))
     await db_session.flush()

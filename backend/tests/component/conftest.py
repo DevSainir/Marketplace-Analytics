@@ -92,7 +92,7 @@ def _no_session_revocation(monkeypatch: pytest.MonkeyPatch) -> None:
 
     ``get_current_user_id`` consults the Redis watermark on every authenticated
     request. The revocation semantics are covered against a real Redis in
-    ``tests/integration/core/test_session_revocation.py``.
+    ``tests/integration/users/test_session_revocation_lever.py``.
     """
     from src.core import deps as core_deps
 

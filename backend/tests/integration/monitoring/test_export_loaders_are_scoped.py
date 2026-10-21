@@ -341,7 +341,7 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # is what actually proves it — this count only forces somebody to look.
     #
     # 18 since 2026-09-16: `load_order_days` and `load_ad_days` give «Сводка» its
-    # whole-кабинет daily series. Both go through `workspace_sku_select`, because
+    # whole-workspace daily series. Both go through `workspace_sku_select`, because
     # neither the funnel nor the campaign statistics carries a workspace of its
     # own — a bare `nm_id` filter would sum one seller's orders into another's
     # chart, WB article numbers being global.
@@ -374,6 +374,6 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # 26 since 2026-10-03: `load_ad_campaign_facts`, the advertising page's
     # campaign-grain rows. Spend and the search slice go through the same
     # semijoin; the campaign dimension and the bonus ledger, which carry no
-    # tenant, are restricted to the campaigns that spent on the кабинет's cards.
+    # tenant, are restricted to the campaigns that spent on the workspace's cards.
     # `test_ad_campaign_facts_are_scoped.py` beside this file is what proves it.
     assert len(scoped) == 26, f"expected 26 scoped loaders, found {sorted(scoped)}"

@@ -32,7 +32,7 @@ DAY = date(2026, 9, 21)
 
 
 def _row(rrd_id: int) -> dict[str, object]:
-    """One settlement row for the lock's кабинет."""
+    """One settlement row for the lock's workspace."""
     return {
         "rrd_id": rrd_id,
         "report_id": 900_000_001,
@@ -46,7 +46,7 @@ def _row(rrd_id: int) -> dict[str, object]:
 
 
 async def test_a_detail_write_waits_for_a_rebuild_in_flight(engine: AsyncEngine) -> None:
-    """While a read is rebuilding the кабинет's rollup, an ingest cannot commit past it."""
+    """While a read is rebuilding the workspace's rollup, an ingest cannot commit past it."""
     async with engine.connect() as reader_conn, engine.connect() as writer_conn:
         reader_tx = await reader_conn.begin()
         writer_tx = await writer_conn.begin()

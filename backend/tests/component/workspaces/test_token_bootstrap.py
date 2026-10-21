@@ -191,7 +191,7 @@ async def test_a_token_nothing_reads_neither_harvests_nor_resets_the_history(
     enqueued: list[dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """«Вопросы и отзывы» added to an established кабинет is not a new seller.
+    """«Вопросы и отзывы» added to an established workspace is not a new seller.
 
     On 2026-10-02 exactly this save sent all four lanes of «Демо» back to
     «В очереди…» and re-walked its whole history. A surface no harvest and no

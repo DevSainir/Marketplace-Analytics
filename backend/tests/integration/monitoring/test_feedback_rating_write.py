@@ -1,8 +1,8 @@
 """The nightly rating write lands only on the token's own cards, and dates nothing.
 
 Two properties only a real database can show. The UPDATE carries
-``workspace_id`` in its WHERE, so a rating WB served under one кабинет's token
-cannot land on a card another кабинет owns. And it pins ``synced_at`` to itself:
+``workspace_id`` in its WHERE, so a rating WB served under one workspace's token
+cannot land on a card another workspace owns. And it pins ``synced_at`` to itself:
 that column says when the CATALOGUE was last synced, and the model's
 ``onupdate`` would otherwise stamp it on every rating write — making a stale
 catalogue look fresh.

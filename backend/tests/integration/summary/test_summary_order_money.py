@@ -1,8 +1,8 @@
-"""«Сводка»'s ordered money is in the кабинет's currency, at either price base.
+"""«Сводка»'s ordered money is in the workspace's currency, at either price base.
 
-«ДРР от заказов» divides advertising — in сомы on a Kyrgyz кабинет — by what
+«ДРР от заказов» divides advertising — in soms on a Kyrgyz workspace — by what
 the orders were worth. At the seller's price that is WB's own funnel sum,
-already in сомы; at the customer's price WB publishes none, so the WB sum is
+already in soms; at the customer's price WB publishes none, so the WB sum is
 scaled by the card's customer/seller price ratio. A day WB served no sum for is
 the count at the snapshot price, converted at the Bank of Russia rate.
 """
@@ -30,11 +30,11 @@ async def _seed(session: AsyncSession) -> None:
         [
             ProductCard(nm_id=VALUED, workspace_id=WORKSPACE, vendor_code="valued"),
             ProductCard(nm_id=UNVALUED, workspace_id=WORKSPACE, vendor_code="unvalued"),
-            # Saturday's rate stands until Tuesday's: 1 ₽ = 1.140665 с.
+            # Saturday's rate stands until Tuesday's: 1 ₽ = 1.140665 KGS.
             CbrRate(
                 currency="KGS", rate_date=date(2026, 7, 11), nominal=100, value=Decimal("87.6681")
             ),
-            # 10 orders at 4 000 ₽ that WB valued at 41 480 с.
+            # 10 orders at 4 000 ₽ that WB valued at 41 480 KGS.
             SalesFunnelDaily(
                 stat_date=MONDAY,
                 nm_id=VALUED,

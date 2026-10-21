@@ -1,4 +1,4 @@
-"""The advertising page's campaign-grain facts answer for ONE кабинет.
+"""The advertising page's campaign-grain facts answer for ONE workspace.
 
 Three of the four sources behind :func:`load_ad_campaign_facts` carry no tenant
 of their own — the campaign dimension, the search slice's campaigns and the
@@ -136,7 +136,7 @@ async def test_a_shared_campaigns_bonus_is_cut_to_our_share_of_its_spend(
 ) -> None:
     """A campaign that also advertised a foreign card hands us only our part of its bonus.
 
-    The ledger names a campaign, not a card, so without the scaling every сом
+    The ledger names a campaign, not a card, so without the scaling every som
     WB paid for the other seller's impressions would land on our page.
     """
     mine = await _workspace(db_session, "Мой", MINE)

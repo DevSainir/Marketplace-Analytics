@@ -6,7 +6,7 @@ workspace scopes the read, and that the window is bounded before it reaches a
 query rather than after.
 
 The window bound carries real weight. This route aggregates settlement detail,
-and the largest workspace on this service carries ~670 000 rows: an unbounded
+and a large workspace carries hundreds of thousands of rows: an unbounded
 window is one authenticated caller making Postgres do a minute of work per
 keystroke, which is a denial of service with a valid token attached.
 """
@@ -168,7 +168,7 @@ async def test_an_omitted_window_defaults_to_the_last_week(
     WB dates every settlement row by the Moscow calendar, so resolving the open
     end from the host's own clock drops the newest day for the three hours
     between 00:00 and 03:00 MSK. The length is the page's own: «Сводка» answers
-    «как идут дела сейчас», and a month of history flattens the few days that
+    «how are things going right now», and a month of history flattens the few days that
     answer it.
     """
     await client.get("/api/v1/summary", headers=headers)

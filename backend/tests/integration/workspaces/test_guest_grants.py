@@ -28,7 +28,7 @@ from src.modules.workspaces.repos import WorkspaceGuestRepository
 
 @pytest.fixture
 async def via(db_session: AsyncSession, organization: Organization) -> Workspace:
-    """Another company's кабинет."""
+    """Another company's workspace."""
     workspace = Workspace(organization_id=organization.id, name="NEVA")
     db_session.add(workspace)
     await db_session.flush()
@@ -99,7 +99,7 @@ async def test_a_dev_is_refused_and_keeps_the_dev_role(
 async def test_an_unknown_workspace_changes_no_role(
     db_session: AsyncSession, via: Workspace
 ) -> None:
-    """The кабинет is checked before the account is promoted."""
+    """The workspace is checked before the account is promoted."""
     # Arrange
     user = await _account(db_session, "head@example.com")
 

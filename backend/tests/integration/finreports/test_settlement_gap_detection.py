@@ -7,8 +7,8 @@ had not served yet; all five workspaces lost it and a person found it by reading
 WB's own site nine days later.
 
 So the detector keys on **report periods, not rows**. "No settlement rows on day
-D" is evidence of nothing — Марат's entire 31.08 report was 45 rows, and a
-small seller genuinely has days with no sales. WB's report periods tile the
+D" is evidence of nothing — a small workspace's whole weekly report can be a
+few dozen rows, and a small seller genuinely has days with no sales. WB's report periods tile the
 calendar, so a day inside the harvested range belonging to no report is a report
 that is missing.
 

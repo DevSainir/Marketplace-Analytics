@@ -8,7 +8,7 @@ counts the shortfall so the statement can say so.
 
 Pinned here because the query was rewritten for speed: the operation moved from
 a ``FILTER`` on the counts into the ``WHERE``, which is what lets the partial
-sale index answer it (3.7 s → milliseconds on the largest кабинет) and is
+sale index answer it (3.7 s → milliseconds on the largest workspace) and is
 exactly the kind of rewrite that can quietly change what is counted.
 """
 

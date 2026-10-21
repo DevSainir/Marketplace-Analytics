@@ -1,10 +1,10 @@
-"""Rouble ad money converted to the кабинет's currency where it is stored.
+"""Rouble ad money converted to the workspace's currency where it is stored.
 
-WB moved the ad accounts from RUB to KGS on 2026-08-20; a KGS кабинет's
+WB moved the ad accounts from RUB to KGS on 2026-08-20; a KGS workspace's
 earlier spend, and WB's bonuses on it, are stored by WB in roubles. The sweep
 converts them at the Bank of Russia rate of their own day — the rate WB itself
 converts at — and the rules worth pinning are SQL: the latest rate on or before
-the day, the кабинет read off its funnel, the ledger rows merging across the
+the day, the workspace read off its funnel, the ledger rows merging across the
 currency key, and that a second run changes nothing.
 """
 
@@ -30,7 +30,7 @@ from src.modules.monitoring.repos.ad_money import convert_rouble_ad_money
 KGS_NM, RUB_NM, DELISTED_NM = 7001, 7002, 7003
 KGS_CABINET = uuid.UUID("019f657a-0000-7000-8000-0000000c0001")
 RUB_CABINET = uuid.UUID("019f657a-0000-7000-8000-0000000c0002")
-#: Saturday 11.07.2026: 87.6681 ₽ per 100 с, so 1 ₽ = 1.140665… с. WB converted
+#: Saturday 11.07.2026: 87.6681 ₽ per 100 KGS, so 1 ₽ = 1.140665… KGS. WB converted
 #: Sunday 12.07 at exactly this rate.
 SATURDAY, SUNDAY = date(2026, 7, 11), date(2026, 7, 12)
 
@@ -137,7 +137,7 @@ async def test_an_unlabelled_row_before_the_switch_is_roubles(db_session: AsyncS
 
 
 async def test_a_rouble_cabinet_keeps_its_roubles(db_session: AsyncSession) -> None:
-    """An article whose funnel speaks RUB belongs to a кабинет that settles in RUB."""
+    """An article whose funnel speaks RUB belongs to a workspace that settles in RUB."""
     await _seed(db_session)
     db_session.add(_ad(RUB_NM, 804))
     await db_session.flush()
@@ -232,7 +232,7 @@ async def test_a_rouble_bonus_merges_into_the_days_som_row(db_session: AsyncSess
 async def test_a_card_with_no_funnel_of_its_own_takes_its_cabinets_currency(
     db_session: AsyncSession,
 ) -> None:
-    """A card delisted before WB served funnel sums still spent the кабинет's money."""
+    """A card delisted before WB served funnel sums still spent the workspace's money."""
     await _seed(db_session)
     db_session.add(_ad(DELISTED_NM, 808))
     await db_session.flush()

@@ -1,6 +1,6 @@
 """The two units a SKU's money is in, as the detail view reads them.
 
-A кабинет that settles in KGS still has its prices in RUB and its campaigns in
+A workspace that settles in KGS still has its prices in RUB and its campaigns in
 whatever currency each was created in — the ad account moved RUB -> KGS on
 2026-08-20 and older campaigns kept billing in RUB. The monitoring table labels
 its rows from these two reads, so each is pinned against a real database: the
@@ -135,10 +135,10 @@ async def test_the_ad_unit_ignores_other_campaigns_and_other_days(db_session: As
 async def test_a_sku_outside_the_ledger_takes_its_cabinets_ad_unit(
     db_session: AsyncSession,
 ) -> None:
-    """The ledger names some campaigns only; the SKU's кабинет answers for the rest.
+    """The ledger names some campaigns only; the SKU's workspace answers for the rest.
 
-    On «Демо» 8 of the 31 campaigns that spent in a fortnight of September
-    2026 had a write-off row — without the fallback most SKUs printed spend with
+    On one workspace only a minority of the campaigns that spent in a fortnight
+    of September 2026 had a write-off row — without the fallback most SKUs printed spend with
     no unit. A neighbour's campaign must not leak into the answer.
     """
     mine, theirs = uuid.uuid4(), uuid.uuid4()

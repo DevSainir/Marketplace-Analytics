@@ -1,6 +1,6 @@
 """Shared fixture for the P&L integration tests.
 
-One miniature of a real WB week, seeded once and used by both
+One miniature WB week, seeded once and used by both
 ``test_pnl_reconciles.py`` (does the arithmetic close?) and
 ``test_pnl_caveats.py`` (does the statement admit what it cannot verify?). It
 lives here rather than in either file because the two split out of one module
@@ -130,13 +130,13 @@ async def seeded(db_session: AsyncSession) -> None:
             ),
             # A compensation: ppvz_for_pay and nothing else.
             _row(9, "Компенсация ущерба", nm_id=SKU_B, quantity=1, ppvz_for_pay=Decimal("70")),
-            # The filler operation, shaped like the real rows: quantity 2, no
+            # The filler operation, shaped like WB's rows: quantity 2, no
             # product identity, and its charge ALSO republished across the two
             # commission columns as its own VAT split. That last part is what
-            # makes this row load-bearing — over the history those columns carry
-            # −377 874.68 and −47 746.32 here, and summing them alongside the
-            # sales is what put «в т.ч. НДС комиссии» 43 756 KGS out and
-            # sign-flipped it on 16 of 133 weeks.
+            # makes this row load-bearing — over a full history those columns
+            # carry sizeable sums here, and summing them alongside the sales is
+            # what put «в т.ч. НДС комиссии» far out and sign-flipped it on
+            # several weeks.
             _row(
                 10,
                 _FILLER_OPER,

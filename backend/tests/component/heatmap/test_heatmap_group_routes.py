@@ -108,7 +108,7 @@ def _wire(
 
 @pytest.fixture
 def headers(user: Any, workspace: Workspace) -> dict[str, str]:
-    """Authenticated headers carrying the active кабинет."""
+    """Authenticated headers carrying the active workspace."""
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
@@ -138,7 +138,7 @@ async def test_no_page_with_the_filter_no_groups(
     catalog: _StubCatalogService,
     path: str,
 ) -> None:
-    """«Мониторинг» and A/Б-тесты carry no group filter, so they open nothing here."""
+    """«Мониторинг» and A/B tests carry no group filter, so they open nothing here."""
     login_as(role=EffectiveRole.MANAGER, modules=_WITHOUT_GROUPS)
 
     response = await client.get(path, headers=headers)
@@ -171,7 +171,7 @@ async def test_a_read_only_manager_cannot_create_a_group(
     login_as: Callable[..., None],
     groups: _StubGroupService,
 ) -> None:
-    """A group changes what everyone in the кабинет sees in the filter — it is a write."""
+    """A group changes what everyone in the workspace sees in the filter — it is a write."""
     login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY)
 
     response = await client.post(
@@ -190,7 +190,7 @@ async def test_a_writer_creates_a_group_in_the_active_workspace(
     groups: _StubGroupService,
     workspace: Workspace,
 ) -> None:
-    """The кабинет comes from the header; the body cannot name one."""
+    """The workspace comes from the header; the body cannot name one."""
     response = await client.post(
         "/api/v1/heatmap/groups",
         json={"name": "  Двойки  ", "nm_ids": [1, 2]},
@@ -219,7 +219,7 @@ async def test_a_blank_group_name_is_refused(
 async def test_deleting_an_unknown_group_is_a_404(
     client: httpx.AsyncClient, headers: dict[str, str]
 ) -> None:
-    """A group of another кабинет is missing, not forbidden — a guessed id confirms nothing."""
+    """A group of another workspace is missing, not forbidden — a guessed id confirms nothing."""
     response = await client.delete(f"/api/v1/heatmap/groups/{uuid.uuid4()}", headers=headers)
 
     assert response.status_code == 404

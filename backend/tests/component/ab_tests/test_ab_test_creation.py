@@ -74,7 +74,7 @@ async def test_both_bounds_are_accepted_together_in_either_mode(
 ) -> None:
     """«Показы и время» takes both, because the rotation reads both.
 
-    The turn ends at whichever arrives first — 1 000 показов on a card the
+    The turn ends at whichever arrives first — 1 000 impressions on a card the
     advertising is pushing, twenty minutes on one it is not.
     """
     response = await client.post(

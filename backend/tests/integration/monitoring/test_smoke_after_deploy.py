@@ -38,7 +38,7 @@ pytestmark = pytest.mark.integration
 
 QUIET, BUSY = 300000001, 300000002
 
-#: One settled WB week — the whole of the кабинет's P&L history, so the page
+#: One settled WB week — the whole of the workspace's P&L history, so the page
 #: opens on exactly it.
 WEEK_FROM, WEEK_TO = date(2026, 9, 7), date(2026, 9, 13)
 REPORT_ID = 900000001
@@ -65,10 +65,10 @@ def _day(nm_id: int, *, days_ago: int, orders: int) -> SalesFunnelDaily:
 
 
 async def _cabinet(session: AsyncSession, organization: Organization) -> Workspace:
-    """A кабинет with something on every main page.
+    """A workspace with something on every main page.
 
     Two cards with recent orders, a stock day, one settled week with a sale in
-    it, and an A/Б test with one photo.
+    it, and an A/B test with one photo.
     """
     workspace = await _workspace(session, organization)
     test_id = uuid.uuid4()
@@ -158,9 +158,9 @@ async def test_the_busiest_cards_render_on_rows_from_before_a_migration(
 async def test_every_main_page_renders_on_real_rows(
     db_session: AsyncSession, organization: Organization
 ) -> None:
-    """P&L, the heatmap and the A/Б tests each open, and each on the кабинет's rows.
+    """P&L, the heatmap and the A/B tests each open, and each on the workspace's rows.
 
-    The row counts are the point: a page answering over an empty кабинет would
+    The row counts are the point: a page answering over an empty workspace would
     pass just as quietly, and prove nothing about the rows it never read. And it
     is read-only, as on production, where a page whose read writes is a failure.
     """

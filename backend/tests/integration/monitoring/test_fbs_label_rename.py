@@ -36,7 +36,7 @@ _OLD_LABEL = "Москва (Белая дача) (FBS)"
 _NEW_LABEL = "Белая дача - Москва (FBS)"
 _WAREHOUSE_ID = 9990254
 
-#: Внуково needs no seeding here — ``b4f1e7c92d05`` writes it, under the label
+#: Vnukovo needs no seeding here — ``b4f1e7c92d05`` writes it, under the label
 #: it had been harvesting under. It is in every assertion below because a
 #: rename that misses the row a previous migration seeded is the same failure
 #: as one that misses a row discovery wrote.

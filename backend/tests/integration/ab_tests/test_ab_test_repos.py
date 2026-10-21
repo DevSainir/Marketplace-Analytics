@@ -98,7 +98,10 @@ async def test_search_matches_the_test_name(
 async def test_search_matches_the_sellers_article(
     db_session: AsyncSession, organization: Organization
 ) -> None:
-    """Артикул продавца is searchable — it is what the team actually types."""
+    """The seller's article code («Артикул продавца») is searchable.
+
+    It is what the team actually types.
+    """
     workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 

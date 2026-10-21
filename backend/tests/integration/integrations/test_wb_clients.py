@@ -3,8 +3,8 @@
 "Integration" here means the whole client is exercised end to end — request
 construction, pagination, envelope unwrapping, and Pydantic validation — with
 only the network replaced. The canned envelopes in ``tests/support/wb_payloads``
-are copied from observed WB responses rather than written from any document, so
-a drafting error in the ``wildberries-api`` skill cannot propagate into them.
+follow the shapes of observed WB responses rather than any document, so a
+drafting error in written API notes cannot propagate into them.
 
 Real WB calls are deliberately out of scope: they need live seller tokens, they
 are rate-limited to roughly one request a minute, and they would make the suite
@@ -235,10 +235,10 @@ async def test_the_client_closes_its_connection_pool() -> None:
 async def test_the_funnel_aggregates_currency_reaches_every_row() -> None:
     """WB states the unit once, on ``data``; each row must carry it to the database.
 
-    The sums are in the SETTLEMENT currency (KGS on every кабинет, verified
+    The sums are in the SETTLEMENT currency (KGS on every workspace, verified
     2026-09-29), not the RUB of the prices — a row that lost the envelope's
-    ``currency`` would be a number nobody could label. Shape copied from a live
-    response on «Демо».
+    ``currency`` would be a number nobody could label. The shape follows an
+    observed WB response; the values are synthetic.
     """
     payload = {
         "data": {

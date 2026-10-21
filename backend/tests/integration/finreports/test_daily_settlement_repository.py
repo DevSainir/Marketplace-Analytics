@@ -3,7 +3,7 @@
 Everything the day-later verification concludes rests on four statements this
 repository runs: an md5 over `string_agg` of the rows, an upsert that must clear
 an old verdict, a queue ordered and filtered by age, and a verdict write scoped
-to one кабинет. Each has been unit-tested only through fakes, which is to say
+to one workspace. Each has been unit-tested only through fakes, which is to say
 not at all — `string_agg` ordering and `ON CONFLICT` semantics are PostgreSQL's,
 not Python's.
 """
@@ -143,7 +143,7 @@ async def test_the_queue_waits_the_full_day_and_skips_what_is_verified(
 
 
 async def test_a_verdict_is_written_only_to_its_own_кабинет(db_session: AsyncSession) -> None:
-    """Named with another кабинет, the write touches nothing.
+    """Named with another workspace, the write touches nothing.
 
     The worker is the table owner, so row-level security does not stand behind
     this UPDATE; the `WHERE` on `workspace_id` is the only tenancy check.
@@ -203,7 +203,7 @@ async def test_a_closed_day_keeps_only_what_the_weekly_report_rewrote(
 
 
 async def test_dropping_a_report_s_rows_is_scoped_to_its_кабинет(db_session: AsyncSession) -> None:
-    """Named with another кабинет, the delete removes nothing."""
+    """Named with another workspace, the delete removes nothing."""
     db_session.add(_row(1, "100.00"))
     await db_session.flush()
     repo = DailySettlementRepository(db_session)

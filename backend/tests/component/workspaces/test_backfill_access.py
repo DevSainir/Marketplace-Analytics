@@ -1,10 +1,10 @@
-"""Who may read a кабинет's history-backfill progress, through the route as mounted.
+"""Who may read a workspace's history-backfill progress, through the route as mounted.
 
-The progress strip is the answer to «почему тут пусто», so it is a member's
+The progress strip is the answer to «why is this empty», so it is a member's
 read, not an owner's. From 2026-09-10 to 2026-10-17 the route's path binder was
 the owner-only one and every manager got 403 — the SPA swallowed it and drew
 nothing. These tests hold the member rule (own organisation, or a head's grant)
-and its limit (anyone else reads the кабинет as missing).
+and its limit (anyone else reads the workspace as missing).
 
 The owner-only path routes keep refusing a manager: that is
 ``test_administration_requires_the_owner_role`` in ``test_workspace_admin.py``.
@@ -76,7 +76,7 @@ def read_for(monkeypatch: pytest.MonkeyPatch) -> list[uuid.UUID]:
 def foreign_workspace(
     foreign_organization_id: uuid.UUID, workspace_repo: FakeWorkspaceRepository
 ) -> Workspace:
-    """Another company's кабинет, known to the workspace store."""
+    """Another company's workspace, known to the workspace store."""
     ws = make_workspace(organization_id=foreign_organization_id, name="NEVA")
     workspace_repo.workspaces[ws.id] = ws
     return ws
@@ -116,7 +116,7 @@ async def test_a_head_with_a_grant_sees_the_foreign_backfill_progress(
     foreign_workspace: Workspace,
     read_for: list[uuid.UUID],
 ) -> None:
-    """A head may read the strip in a кабинет granted to them, as any page there."""
+    """A head may read the strip in a workspace granted to them, as any page there."""
     # Arrange
     login_as(
         role=EffectiveRole.USER, org=None, subscription=SubscriptionState.EXPIRED, is_head=True
@@ -140,7 +140,7 @@ async def test_a_member_of_another_organisation_gets_404(
     workspace: Workspace,
     read_for: list[uuid.UUID],
 ) -> None:
-    """Another company's кабинет reads as missing, never as forbidden.
+    """Another company's workspace reads as missing, never as forbidden.
 
     A 403 would confirm the id names a real workspace — an oracle for other
     sellers' ids, which guard every other route.
@@ -165,7 +165,7 @@ async def test_a_head_without_a_grant_gets_404(
     foreign_workspace: Workspace,
     read_for: list[uuid.UUID],
 ) -> None:
-    """The head role alone opens no other company's кабинет."""
+    """The head role alone opens no other company's workspace."""
     # Arrange
     login_as(is_head=True)
     override(get_workspace_guest_repo, _FakeGuestRepository(set()))
@@ -184,7 +184,7 @@ async def test_an_unknown_workspace_gets_404(
     user: Any,
     read_for: list[uuid.UUID],
 ) -> None:
-    """A deleted кабинет still selected in the SPA is 404, the same as a foreign one."""
+    """A deleted workspace still selected in the SPA is 404, the same as a foreign one."""
     # Act
     response = await client.get(_url(uuid.uuid4()), headers=auth_headers(user.id))
 

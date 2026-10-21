@@ -1,6 +1,6 @@
 """A maintenance re-walk must not reappear on a seller's profile.
 
-``funnel_sums`` re-walks the funnel of кабинеты whose history loaded long ago,
+``funnel_sums`` re-walks the funnel of workspaces whose history loaded long ago,
 to fill the sums first stored on 2026-09-29. It reports into the same table the
 profile reads «Загружаем историю» from, and a seller seeing that strip come back
 months after signup would reasonably think their data had been lost.

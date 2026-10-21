@@ -1,9 +1,9 @@
-"""The heatmap reads one кабинет — every source, every filter, every group.
+"""The heatmap reads one workspace — every source, every filter, every group.
 
-The heatmap is the first screen that pulls EVERY article of a кабинет out of
+The heatmap is the first screen that pulls EVERY article of a workspace out of
 four fact tables at once, none of which carries a workspace of its own: the
 funnel, advertising, prices and stock are all keyed by the global WB article
-number. So each test seeds TWO кабинеты in two organisations with facts on the
+number. So each test seeds TWO workspaces in two organisations with facts on the
 same day and asserts only one of them comes back. Real Postgres, because the
 thing under test is the semijoin through ``product_card`` — a fake repository
 would assert nothing about it.
@@ -57,7 +57,7 @@ DAY = date(2026, 9, 23)
 
 
 async def _workspace(session: AsyncSession, name: str) -> Workspace:
-    """Persist a кабинет in an organisation of its own."""
+    """Persist a workspace in an organisation of its own."""
     org = Organization(name=f"Орг {name}", is_primary=False)
     session.add(org)
     await session.flush()
@@ -68,7 +68,7 @@ async def _workspace(session: AsyncSession, name: str) -> Workspace:
 
 
 async def _card(session: AsyncSession, workspace: Workspace, nm_id: int, subject: str) -> None:
-    """Register an article to a кабинет, with a subject, and one day of every fact."""
+    """Register an article to a workspace, with a subject, and one day of every fact."""
     session.add_all(
         [
             ProductCard(
@@ -108,7 +108,7 @@ async def _card(session: AsyncSession, workspace: Workspace, nm_id: int, subject
 
 
 async def _two_tenants(session: AsyncSession) -> tuple[Workspace, Workspace]:
-    """Two кабинеты: mine with two articles, theirs with one, all active on DAY."""
+    """Two workspaces: mine with two articles, theirs with one, all active on DAY."""
     mine = await _workspace(session, "Мой")
     theirs = await _workspace(session, "Чужой")
     await _card(session, mine, MINE, "Костюмы")
@@ -162,7 +162,7 @@ async def test_naming_a_foreign_article_cannot_widen_the_scope(db_session: Async
 
 
 async def test_the_catalogue_is_one_workspaces_cards(db_session: AsyncSession) -> None:
-    """The filter options list this кабинет's articles and subjects only."""
+    """The filter options list this workspace's articles and subjects only."""
     mine, _ = await _two_tenants(db_session)
 
     cards = await load_workspace_catalog(db_session, workspace_id=mine.id)
@@ -174,7 +174,7 @@ async def test_the_catalogue_is_one_workspaces_cards(db_session: AsyncSession) -
 
 
 async def test_the_grid_totals_count_only_this_workspace(db_session: AsyncSession) -> None:
-    """«Итого» is this кабинет's orders; the foreign article's nine are nowhere."""
+    """«Итого» is this workspace's orders; the foreign article's nine are nowhere."""
     mine, _ = await _two_tenants(db_session)
     query = HeatmapQuery(
         date_from=DAY, date_to=DAY, period="day", group_by="sku", metric="orders", metric2="spend"
@@ -219,7 +219,7 @@ async def test_a_group_cannot_hold_another_workspaces_article(db_session: AsyncS
 
 
 async def test_groups_are_listed_for_their_own_workspace(db_session: AsyncSession) -> None:
-    """Another кабинет's groups are not options in this one's filter."""
+    """Another workspace's groups are not options in this one's filter."""
     mine, theirs = await _two_tenants(db_session)
     service = SkuGroupService(SkuGroupRepository(db_session))
     await service.create(

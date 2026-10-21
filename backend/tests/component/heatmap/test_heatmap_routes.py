@@ -2,7 +2,7 @@
 
 The arithmetic is covered in ``tests/unit/heatmap``; what is proved here is the
 transport contract — who may reach the routes at all, that the caller's active
-кабинет scopes every read and write, and that the window and the filter lists
+workspace scopes every read and write, and that the window and the filter lists
 are bounded before anything reaches a query.
 """
 
@@ -89,7 +89,7 @@ def _wire(
 
 @pytest.fixture
 def headers(user: Any, workspace: Workspace) -> dict[str, str]:
-    """Authenticated headers carrying the active кабинет."""
+    """Authenticated headers carrying the active workspace."""
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
@@ -99,7 +99,7 @@ async def test_the_catalogue_is_ordered_over_the_requested_window(
     heatmap: _StubHeatmapService,
     workspace: Workspace,
 ) -> None:
-    """The pickers sort by orders in the period on screen, for the caller's кабинет."""
+    """The pickers sort by orders in the period on screen, for the caller's workspace."""
     response = await client.get(
         "/api/v1/heatmap/catalog",
         params={"date_from": "2026-09-01", "date_to": "2026-09-27"},
@@ -182,7 +182,7 @@ async def test_the_grid_is_scoped_to_the_active_workspace(
     heatmap: _StubHeatmapService,
     workspace: Workspace,
 ) -> None:
-    """The кабинет from the header, not the token, scopes the read."""
+    """The workspace from the header, not the token, scopes the read."""
     response = await client.get("/api/v1/heatmap", headers=headers)
 
     assert response.status_code == 200

@@ -1,7 +1,7 @@
 """Component tests for the heatmap's hand-set norms («Норма: ручной ввод»).
 
 What is proved here: the norms need the monitoring grant like the page, the
-кабинет from the header scopes every read and write, a read-only manager
+workspace from the header scopes every read and write, a read-only manager
 cannot write, and the metric, the article and the value are bounded before
 anything reaches the service.
 """
@@ -68,7 +68,7 @@ def _wire(
 
 @pytest.fixture
 def headers(user: Any, workspace: Workspace) -> dict[str, str]:
-    """Authenticated headers carrying the active кабинет."""
+    """Authenticated headers carrying the active workspace."""
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
@@ -102,7 +102,7 @@ async def test_the_norms_are_read_for_the_active_workspace(
     norms: _StubNormService,
     workspace: Workspace,
 ) -> None:
-    """The кабинет from the header scopes the list."""
+    """The workspace from the header scopes the list."""
     response = await client.get("/api/v1/heatmap/norms", headers=headers)
 
     assert response.status_code == 200
@@ -115,7 +115,7 @@ async def test_a_writer_sets_a_norm_in_the_active_workspace(
     norms: _StubNormService,
     workspace: Workspace,
 ) -> None:
-    """Article and metric come from the path, the кабинет from the header."""
+    """Article and metric come from the path, the workspace from the header."""
     response = await client.put(
         "/api/v1/heatmap/norms/123/orders", json={"value": 50}, headers=headers
     )
@@ -133,7 +133,7 @@ async def test_a_read_only_manager_cannot_set_or_clear_a_norm(
     login_as: Callable[..., None],
     norms: _StubNormService,
 ) -> None:
-    """A norm changes how everyone in the кабинет sees the grid — it is a write."""
+    """A norm changes how everyone in the workspace sees the grid — it is a write."""
     login_as(role=EffectiveRole.MANAGER, access_level=AccessLevel.READ_ONLY)
 
     put = await client.put("/api/v1/heatmap/norms/123/orders", json={"value": 5}, headers=headers)
@@ -172,7 +172,7 @@ async def test_clearing_a_norm_is_scoped_to_the_active_workspace(
     norms: _StubNormService,
     workspace: Workspace,
 ) -> None:
-    """A clear can only ever reach the caller's own кабинет."""
+    """A clear can only ever reach the caller's own workspace."""
     response = await client.delete("/api/v1/heatmap/norms/123/orders", headers=headers)
 
     assert response.status_code == 204

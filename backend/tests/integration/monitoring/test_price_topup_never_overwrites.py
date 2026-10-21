@@ -73,7 +73,7 @@ async def test_a_price_that_is_already_there_survives_the_top_up(
 async def test_an_empty_price_is_filled_and_labelled(
     db_session: AsyncSession, snapshot: None
 ) -> None:
-    """The gap the pass exists for: price, СПП and source all land together."""
+    """The gap the pass exists for: price, SPP and source all land together."""
     repo = PriceRepository(db_session)
 
     filled = await repo.fill_missing_customer_price(

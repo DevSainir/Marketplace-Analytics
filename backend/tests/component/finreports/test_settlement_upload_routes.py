@@ -1,7 +1,7 @@
 """Component tests for «Загрузить отчёт» (``/v1/finreports/settlement-uploads``).
 
 The route's whole job is to answer at once: is this WB's weekly report, which
-one, and is another upload of the кабинет still being read — and then hand the
+one, and is another upload of the workspace still being read — and then hand the
 file to the worker. What the worker does with it is the integration tier's
 (``tests/integration/finreports/test_settlement_upload_flow.py``).
 """
@@ -132,7 +132,7 @@ async def test_a_file_that_is_not_wbs_report_is_refused_before_anything_is_queue
 async def test_a_second_upload_waits_for_the_first(
     client: httpx.AsyncClient, headers: dict[str, str], uploads: _FakeUploads, task: _SpyTask
 ) -> None:
-    """One file in flight per кабинет: two of the same week would race to write it."""
+    """One file in flight per workspace: two of the same week would race to write it."""
     uploads.busy = True
 
     response = await client.post(URL, headers=headers, files=_file())
@@ -144,7 +144,7 @@ async def test_a_second_upload_waits_for_the_first(
 async def test_the_poll_reads_only_the_callers_own_uploads(
     client: httpx.AsyncClient, headers: dict[str, str], uploads: _FakeUploads
 ) -> None:
-    """Another кабинет's upload is a 404, the same as one that does not exist."""
+    """Another workspace's upload is a 404, the same as one that does not exist."""
     stranger = SettlementUpload(
         id=uuid.uuid4(), workspace_id=uuid.uuid4(), status=UploadStatus.WRITTEN
     )

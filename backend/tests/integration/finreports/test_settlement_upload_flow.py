@@ -69,7 +69,7 @@ def worker(monkeypatch: pytest.MonkeyPatch, session_factory: async_sessionmaker[
 
 @pytest.fixture(autouse=True)
 async def settled_before(db_session: AsyncSession) -> None:
-    """A row of an earlier week, which is where the кабинет's currency is read from."""
+    """A row of an earlier week, which is where the workspace's currency is read from."""
     db_session.add(
         LogisticsTransaction(
             rrd_id=1,

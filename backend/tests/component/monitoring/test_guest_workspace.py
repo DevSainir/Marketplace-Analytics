@@ -1,4 +1,4 @@
-"""A head reading another company's кабинет — and only reading it.
+"""A head reading another company's workspace — and only reading it.
 
 The tenancy header is resolved against the caller's own organisation; the one
 way past that is a dev's grant to an account holding the ``head`` role. These
@@ -49,7 +49,7 @@ class FakeWorkspaceGuestRepository:
 def foreign_workspace(
     foreign_organization_id: uuid.UUID, workspace_repo: FakeWorkspaceRepository
 ) -> Workspace:
-    """Another company's кабинет, known to the workspace store."""
+    """Another company's workspace, known to the workspace store."""
     ws = make_workspace(organization_id=foreign_organization_id, name="NEVA")
     workspace_repo.workspaces[ws.id] = ws
     return ws
@@ -59,7 +59,7 @@ def foreign_workspace(
 def guest_repo(
     override: Callable[[Any, Any], None], foreign_workspace: Workspace, user: Any
 ) -> FakeWorkspaceGuestRepository:
-    """A grant opening the foreign кабинет to the test's caller."""
+    """A grant opening the foreign workspace to the test's caller."""
     repo = FakeWorkspaceGuestRepository([foreign_workspace], {(foreign_workspace.id, user.id)})
     override(get_workspace_guest_repo, repo)
     return repo
@@ -67,7 +67,7 @@ def guest_repo(
 
 @pytest.fixture
 def foreign_headers(user: Any, foreign_workspace: Workspace) -> dict[str, str]:
-    """The caller's token with the foreign кабинет selected."""
+    """The caller's token with the foreign workspace selected."""
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(foreign_workspace.id)}
 
 
@@ -79,7 +79,7 @@ async def test_a_head_with_a_grant_reads_the_foreign_workspace(
     foreign_workspace: Workspace,
     analytics: _StubAnalyticsService,
 ) -> None:
-    """Role and grant together open the кабинет, scoped to that кабинет."""
+    """Role and grant together open the workspace, scoped to that workspace."""
     # Arrange
     login_as(is_head=True)
 
@@ -118,7 +118,7 @@ async def test_a_grant_without_the_head_role_opens_nothing(
     foreign_headers: dict[str, str],
     analytics: _StubAnalyticsService,
 ) -> None:
-    """A stray grant on an ordinary account reads as a missing кабинет."""
+    """A stray grant on an ordinary account reads as a missing workspace."""
     # Act
     response = await client.get("/api/v1/monitoring/summary", headers=foreign_headers)
 
@@ -135,7 +135,7 @@ async def test_the_head_role_without_a_grant_opens_nothing(
     foreign_headers: dict[str, str],
     analytics: _StubAnalyticsService,
 ) -> None:
-    """The role is a precondition, not a pass: every other кабинет stays 404."""
+    """The role is a precondition, not a pass: every other workspace stays 404."""
     # Arrange
     login_as(is_head=True)
     override(get_workspace_guest_repo, FakeWorkspaceGuestRepository([foreign_workspace]))
@@ -156,7 +156,7 @@ async def test_the_switcher_lists_the_granted_workspace_as_a_guest(
     workspace: Workspace,
     foreign_workspace: Workspace,
 ) -> None:
-    """Own кабинеты first and writable, the granted one after and flagged."""
+    """Own workspaces first and writable, the granted one after and flagged."""
     # Arrange
     login_as(is_head=True)
 
@@ -228,7 +228,7 @@ async def test_a_guest_with_no_company_sees_nothing_ungranted(
     workspace: Workspace,
     analytics: _StubAnalyticsService,
 ) -> None:
-    """Every кабинет without a grant is the same 404 as one that does not exist."""
+    """Every workspace without a grant is the same 404 as one that does not exist."""
     # Arrange
     _login_as_guest_only(login_as)
     headers = {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
@@ -248,7 +248,7 @@ async def test_the_switcher_of_a_guest_with_no_company_lists_only_the_grant(
     user: Any,
     foreign_workspace: Workspace,
 ) -> None:
-    """Nothing of their own, and the granted кабинет flagged as a guest's."""
+    """Nothing of their own, and the granted workspace flagged as a guest's."""
     # Arrange
     _login_as_guest_only(login_as)
 

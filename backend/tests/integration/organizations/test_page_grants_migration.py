@@ -4,7 +4,7 @@ Before this migration «Сводка» opened on «Мониторинг» AND P&
 карта» on «Мониторинг». The migration turns both into grants of their own, and
 the property that matters is that nobody's reach to a page changes on the
 deploy — above all, that a manager whose owner closed P&L to them does not find
-the кабинет's revenue on «Сводка» the morning after.
+the workspace's revenue on «Сводка» the morning after.
 
 Nothing below asserts on the SQL: each case seeds a membership or invitation the
 way the previous revision stored it, runs the one upgrade, and reads the list

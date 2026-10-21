@@ -6,8 +6,8 @@ pinned. It lives in the integration tier because the rules ARE the SQL: the
 proportional split, the currency partition and the workspace semijoin are all
 expressed in the query, and a fake repository would assert none of them.
 
-The numbers are the live 2026-09-01..15 shape of the `Демо` workspace, where
-WB funded 123 291 of 392 003 KGS of write-offs.
+The numbers are synthetic, shaped like a fortnight in which WB funded a
+sizeable part of a workspace's write-offs.
 """
 
 from __future__ import annotations
@@ -169,8 +169,8 @@ async def test_a_relabelled_currency_still_reaches_the_spend_it_came_off(
     The amounts did not change with the label — `upd` agrees with `fullstats`
     at 90-100 % per campaign on BOTH sides of it — because both come from the
     same advertising account. Filtering the ledger by the SETTLEMENT currency
-    was this loader's first shape and it dropped 402 022 of real bonuses for
-    every window spanning the relabel.
+    was this loader's first shape and it dropped the bonuses of every window
+    spanning the relabel.
     """
     mine = await _workspace(db_session, "Мой")
     await _sku(db_session, mine, MINE)

@@ -26,7 +26,7 @@ from tests.support.fakes import FakeUserRepository, FakeWorkspaceRepository
 
 
 class _StubPnlService:
-    """Answers the currency lookup and records which кабинет it was asked about."""
+    """Answers the currency lookup and records which workspace it was asked about."""
 
     def __init__(self) -> None:
         """Start with no recorded calls."""
@@ -69,7 +69,7 @@ async def test_the_currency_is_the_active_workspaces(
     pnl: _StubPnlService,
     workspace: Workspace,
 ) -> None:
-    """The кабинет from the header, not the token, is the one whose unit comes back."""
+    """The workspace from the header, not the token, is the one whose unit comes back."""
     response = await client.get("/api/v1/finreports/currency", headers=headers)
 
     assert response.status_code == 200
@@ -119,7 +119,7 @@ async def test_an_account_outside_any_organisation_gets_nothing(
     login_as: Callable[..., None],
     pnl: _StubPnlService,
 ) -> None:
-    """Membership is still the floor: a bare account has no кабинет to ask about."""
+    """Membership is still the floor: a bare account has no workspace to ask about."""
     login_as(org=None)
 
     response = await client.get("/api/v1/finreports/currency", headers=headers)

@@ -2,9 +2,9 @@
 
 The reconciliation tests next door ask whether the arithmetic closes. These ask
 the question underneath it: which WB surface answered, whether it was allowed to
-(every monitoring table is keyed by ``nm_id`` alone, so a кабинет exists only as
+(every monitoring table is keyed by ``nm_id`` alone, so a workspace exists only as
 a semijoin through ``product_card``), and what the page reports when the answer
-is «мы не знаем» rather than a number.
+is «we don't know» rather than a number.
 
 Split out of ``test_summary_reconciles`` when that file reached the 500-line
 ceiling; the fixtures are shared through the module it was split from.
@@ -69,12 +69,12 @@ async def test_a_day_outside_the_window_is_not_loaded(
 async def test_the_ordered_money_needs_a_price_and_says_so_when_it_has_none(
     db_session: AsyncSession, catalogued: None
 ) -> None:
-    """«ДРР от заказов» divides by Σ(заказы x цена) — or by nothing at all.
+    """«ДРР от заказов» divides by Σ(orders x price) — or by nothing at all.
 
     WB's funnel publishes counts, never a money volume, so a day is worth its
     orders priced at that day's own snapshot. A day with no snapshot therefore
     has no volume: reporting zero there would divide that day's advertising by
-    nothing and draw ДРР as infinite spend on a day that was merely unobserved.
+    nothing and draw DRR as infinite spend on a day that was merely unobserved.
     """
     days = await load_order_days(
         db_session, workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
@@ -90,8 +90,8 @@ async def test_a_window_too_fresh_to_have_a_cohort_borrows_the_standing_one(
     """«Выкуп» for the last week comes from «21-7 дней назад», and says so.
 
     The page opens on a week, and a week's own deliveries have barely been
-    answered — measured on the live кабинет, 8 % of them, reading 22.2 % against
-    a long-run 26-30 % because refusals arrive before buyouts. So the card falls
+    answered — only a small fraction of them, reading several points below the
+    long-run rate because refusals arrive before buyouts. So the card falls
     back to the standing window rather than reporting a cohort that is merely
     early, and carries a flag the page turns into «за 21-7 дней до сегодня».
     """
@@ -136,10 +136,9 @@ async def test_a_half_answered_period_is_not_reported_as_its_own_rate(
 
     The lag alone does not save this one: for a week ending today, its oldest
     day or two DO clear the seven-day cut, and they are answered just past half.
-    Measured on «Демо» for 10-16.09, that cohort read 29.6 % — 89 buyouts of
-    301 answered deliveries against 1 151 orders — while the кабинет settles at
-    26.4 %. The same кабинет's 8 %-answered cohort read 22 %: half-answered is
-    noisy in both directions, so the period answers for itself only once most of
+    Such a cohort can read several points above the rate the workspace settles
+    at, while a barely-answered one reads several points below it: half-answered
+    is noisy in both directions, so the period answers for itself only once most of
     what it ordered has been answered.
     """
     today = moscow_today()

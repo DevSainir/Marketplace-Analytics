@@ -3,7 +3,7 @@
 The rollup exists because the detail is 870 MB against a 128 MB
 ``shared_buffers``: any window covering most of it is a parallel seq scan, ~7 s a
 pass, and «Вся история» was a timeout rather than a page. The same rows collapse
-to 27 857 groups on (кабинет, отчёт, день, артикул).
+to tens of thousands of groups on (workspace, report, day, article).
 
 A derived copy of a seller's money is only defensible if it cannot be wrong, so
 what is pinned here is not the speed — it is the safety property that buys the
@@ -92,7 +92,7 @@ async def test_the_rollup_reports_what_the_detail_reports(
 async def test_an_empty_rollup_is_a_slow_read_and_not_a_wrong_one(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """A кабинет nobody has ever summarised still gets the right figures.
+    """A workspace nobody has ever summarised still gets the right figures.
 
     This is what makes the migration safe to deploy empty: a rollup that has
     never been built is simply a cache that misses everywhere, and the first
@@ -291,7 +291,7 @@ async def test_rows_with_no_settlement_date_are_outside_every_window(
 
     It is excluded from the rollup for the same reason it is excluded from every
     windowed query — and, crucially, from the row-count comparison too, or its
-    presence would make every day of the кабинет look permanently stale and
+    presence would make every day of the workspace look permanently stale and
     rebuild the whole history on every single read.
     """
     db_session.add(
@@ -346,7 +346,7 @@ async def test_a_history_of_months_is_built_in_one_pass(
 
     A window this wide is what separates the two: the fixture's own week fits in
     any implementation, and only a window of months exercises the day list, the
-    grouping and the conflict clause at the size the кабинет actually has.
+    grouping and the conflict clause at the size the workspace actually has.
     """
     span = 90
     start = WINDOW_FROM - timedelta(days=span)

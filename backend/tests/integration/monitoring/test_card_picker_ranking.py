@@ -1,8 +1,8 @@
-"""How the A/Б article picker orders the catalogue it opens with.
+"""How the A/B test article picker orders the catalogue it opens with.
 
 This is SQL — two grouped subqueries joined to a page of cards and three sort
 keys — so a fake repository would assert nothing but its own `sorted()`. The
-window is relative to «сегодня» in Moscow, which is the other reason it belongs
+window is relative to «today» in Moscow, which is the other reason it belongs
 here: the loader reads the clock, and a test that pinned a date would pass on
 data the loader can no longer see.
 """

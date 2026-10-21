@@ -1,4 +1,4 @@
-"""Component tests for the A/Б-tests HTTP surface.
+"""Component tests for the A/B tests HTTP surface.
 
 The service's arithmetic is unit-tested; what this tier adds is the wiring —
 that the routes exist where the SPA expects them, that the workspace header is
@@ -162,10 +162,10 @@ async def test_the_image_route_serves_a_thumbnail_when_asked(
 ) -> None:
     """`size=thumb` is what every screen in the SPA asks for.
 
-    The originals are phone photos — fourteen of them measured 78.8 MB on
-    production — and the largest any of them is drawn at is 88 CSS pixels. A
-    default that quietly served the full size would put those megabytes back on
-    every page load, so the flag reaching the service is worth pinning.
+    The originals are phone photos — several megabytes each — and the largest
+    any of them is drawn at is 88 CSS pixels. A default that quietly served the
+    full size would put those megabytes back on every page load, so the flag
+    reaching the service is worth pinning.
     """
     full = await client.get(f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}/image", headers=headers)
     thumb = await client.get(
@@ -293,7 +293,7 @@ async def test_a_customer_reaches_ab_tests(
 ) -> None:
     """An ordinary paying tenant gets the list, not a 403.
 
-    A/Б-тесты was internal-only while it was being built and opened to every
+    The A/B tests module was internal-only while it was being built and opened to every
     customer on 2026-09-24. The guard sits on the router, so one route standing
     in for the module is the honest scope for this assertion.
     """
@@ -320,7 +320,7 @@ async def test_a_read_only_manager_still_reads_the_results(
 ) -> None:
     """Read-only means read-only, not shut out.
 
-    The owner grants A/Б-тесты at ``read_only`` precisely so someone can watch
+    The owner grants A/B tests at ``read_only`` precisely so someone can watch
     the rotation without touching the card; a guard that took the results table
     away with the upload button would make that grant useless.
     """

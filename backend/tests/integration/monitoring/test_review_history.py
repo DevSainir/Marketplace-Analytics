@@ -71,7 +71,7 @@ class FakeReviewList:
 
 
 class FakeStorefront:
-    """The storefront summary per склейка, or the refusal it answers with."""
+    """The storefront summary per merged-card group, or the refusal it answers with."""
 
     def __init__(self, answers: dict[int, Any] | None = None) -> None:
         self.answers = answers or {}
@@ -160,7 +160,7 @@ async def test_a_walk_that_did_not_finish_declares_nothing_vanished(
 
 
 async def test_a_mass_disappearance_is_not_recorded(db_session: AsyncSession) -> None:
-    """An empty answer from WB is a truncated list, not a кабинет wiped by moderation."""
+    """An empty answer from WB is a truncated list, not a workspace wiped by moderation."""
     await run(db_session, FakeReviewList([review(f"r{n}") for n in range(60)]), today=DAY_1)
 
     result = await run(db_session, FakeReviewList([]), today=DAY_2)

@@ -2,7 +2,7 @@
 
 Real, because two things under test live in the database: the upsert on the
 ``(workspace, article, metric)`` constraint, and that a norm is written,
-read and cleared for ONE кабинет only.
+read and cleared for ONE workspace only.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ THEIRS = 322222222
 
 
 async def _workspace_with_card(session: AsyncSession, name: str, nm_id: int) -> Workspace:
-    """Persist a кабинет in an organisation of its own, owning one article."""
+    """Persist a workspace in an organisation of its own, owning one article."""
     org = Organization(name=f"Орг {name}", is_primary=False)
     session.add(org)
     await session.flush()
@@ -69,7 +69,7 @@ async def test_a_norm_cannot_be_set_on_another_workspaces_article(
 async def test_norms_are_listed_and_cleared_for_their_own_workspace(
     db_session: AsyncSession,
 ) -> None:
-    """Another кабинет's norm is neither listed nor cleared, even when named."""
+    """Another workspace's norm is neither listed nor cleared, even when named."""
     mine = await _workspace_with_card(db_session, "Мой", MINE)
     theirs = await _workspace_with_card(db_session, "Чужой", THEIRS)
     service = SkuNormService(SkuNormRepository(db_session))

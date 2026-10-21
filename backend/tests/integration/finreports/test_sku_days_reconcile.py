@@ -67,7 +67,7 @@ async def test_a_skus_days_add_up_to_its_window_row(db_session: AsyncSession, se
 
 
 async def test_the_cut_holds_articles_only(db_session: AsyncSession, seeded: None) -> None:
-    """Storage, fines and deductions billed to the кабинет never land on an article."""
+    """Storage, fines and deductions billed to the workspace never land on an article."""
     days = await _service(db_session).get_sku_days(
         workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
     )

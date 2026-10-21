@@ -1,8 +1,8 @@
-"""Component tests for the кабинет's display settings — the «Промо-бонусы» switch.
+"""Component tests for the workspace's display settings — the «Промо-бонусы» switch.
 
-The setting changes «Реклама» for everyone in the кабинет, so it is a write in
+The setting changes «Реклама» for everyone in the workspace, so it is a write in
 every sense that matters: a read-only manager must not flip it for the owner,
-and nobody may flip it in a кабинет of another company.
+and nobody may flip it in a workspace of another company.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ URL = "/api/v1/workspaces/current/settings"
 
 
 def _headers(user: Any, workspace: Workspace) -> dict[str, str]:
-    """The caller's token, in the кабинет the request is about."""
+    """The caller's token, in the workspace the request is about."""
     return {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
 
 
@@ -44,7 +44,7 @@ def _wire_workspace_repositories(
 async def test_a_writer_turns_the_bonus_off_for_the_whole_kabinet(
     client: httpx.AsyncClient, user: Any, workspace: Workspace, login_as: Callable[..., None]
 ) -> None:
-    """Saved on the кабинет, so the list everyone loads comes back with it."""
+    """Saved on the workspace, so the list everyone loads comes back with it."""
     login_as(role=EffectiveRole.MANAGER)
 
     response = await client.patch(
@@ -81,7 +81,7 @@ async def test_another_companys_kabinet_reads_as_missing(
     workspace_repo: FakeWorkspaceRepository,
     foreign_organization_id: uuid.UUID,
 ) -> None:
-    """404, not 403 — the route must not confirm that a foreign кабинет exists."""
+    """404, not 403 — the route must not confirm that a foreign workspace exists."""
     foreign = make_workspace(organization_id=foreign_organization_id, name="ООО Чужой")
     workspace_repo.workspaces[foreign.id] = foreign
 

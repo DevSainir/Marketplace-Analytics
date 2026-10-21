@@ -118,12 +118,12 @@ async def test_the_daily_margin_sums_to_the_margin_card(
 ) -> None:
     """Σ of the chart's margin equals the card above it, with no tolerance.
 
-    This is the assertion that was missing when the page first ran on live
-    data, and the bug it would have caught was real: the card subtracted
+    This is the assertion that was missing when the page first shipped, and the
+    bug it would have caught was real: the card subtracted
     advertising twice — once as WB's weekly invoice, already inside «к
     перечислению», and once as the burn the statistics recorded — while the
-    chart subtracted it once. One кабинет, one 54-day window: 3 161 239 on the
-    card against 4 134 120 under it, the gap being the invoices to the сом.
+    chart subtracted it once. One workspace, one 54-day window: the card came out
+    about a third below the chart under it, the gap being the invoices to the som.
 
     Revenue having reconciled did not catch it, because revenue is the one
     figure the restatement does not touch.
@@ -249,8 +249,8 @@ async def test_a_window_reaching_past_the_settlement_charges_only_what_it_earned
     of «последняя неделя», since the funnel and the promotion statistics land
     daily and settlements weekly and late. Both figures the advertising enters
     must ignore that tail: «Средний ДРР» divided seven days of spend by four
-    days of revenue and read 16.22 % on the live кабинет against a chart whose
-    worst drawn day was 10.49 %, and the margin lost the same money twice over.
+    days of revenue and read far above the worst day the chart drew, and the
+    margin lost the same money twice over.
 
     The margin invariant is the sharper half: Σ of the chart's days must equal
     the card, and it cannot while the card subtracts advertising no day of the
