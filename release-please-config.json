@@ -20,7 +20,7 @@
   "bump-patch-for-minor-pre-major": false,
   "separate-pull-requests": true,
   "pull-request-title-pattern": "chore(release): v${version}",
-  "pull-request-header": "Автоматический релиз. Слияние этого PR создаст тег, GitHub Release и уведомление в Telegram.",
+  "pull-request-header": "Automated release. Merging this PR creates the tag and the GitHub Release.",
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
     { "type": "feat-minor", "section": "Minor Features" },

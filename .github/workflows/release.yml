@@ -157,7 +157,7 @@ jobs:
       #     version bump would sit on main, released but never shipped — the
       #     exact failure v0.1.1 had, arrived at from the other direction.
       #   * `release` itself, which is what notices the merged PR and creates
-      #     the tag, the GitHub Release and the Telegram announcement. Without
+      #     the tag and the GitHub Release. Without
       #     it the PR would merge and no release would ever be cut.
       #
       # `workflow_dispatch` is the documented exception to that rule, so both
@@ -260,54 +260,3 @@ jobs:
           gh workflow run tests.yml --ref main
           gh workflow run release.yml --ref main
           echo "Dispatched tests + release for the merged commit."
-
-      # Everything below runs only on the merge that actually cut a release.
-      - name: Check out the tagged commit
-        if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          # Full history + tags: the announcement is built from the commits
-          # between the previous tag and this one.
-          fetch-depth: 0
-
-      - name: Collect the commits in this release
-        if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
-        id: commits
-        env:
-          TAG: ${{ steps.release.outputs.tag_name }}
-        run: |
-          set -euo pipefail
-          git fetch --tags --force --quiet
-
-          # The tag immediately preceding this one, by version order. Empty on
-          # the very first release, in which case we take the whole history.
-          prev=$(git tag --list 'v*' --sort=-v:refname | grep -vFx "$TAG" | head -n 1 || true)
-          if [ -n "$prev" ]; then
-            range="${prev}..${TAG}"
-          else
-            range="$TAG"
-          fi
-          echo "Announcing range: ${range}"
-
-          # --no-merges keeps merge-commit subjects ("Merge pull request #12…")
-          # out of a list meant for humans. The cap is --max-count and not a
-          # `| head`, which under `pipefail` would fail the step with SIGPIPE
-          # on exactly the large release it is there to protect.
-          git log --no-merges --max-count=200 --pretty=format:%s "$range" > commits.txt
-          echo "range=${range}" >> "$GITHUB_OUTPUT"
-          wc -l < commits.txt
-
-      - name: Announce the release in Telegram (Russian, everyone)
-        if: steps.release.outputs.release_created && vars.ANNOUNCE_RELEASES == 'true'
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_MAIN_CHAT_ID: ${{ secrets.TELEGRAM_MAIN_CHAT_ID }}
-          WORKERS_TELEGRAM_CHAT_IDS: ${{ secrets.WORKERS_TELEGRAM_CHAT_IDS }}
-          VERSION: ${{ steps.release.outputs.version }}
-          TAG: ${{ steps.release.outputs.tag_name }}
-        run: |
-          set -euo pipefail
-          python3 .github/scripts/release_notes_ru.py < commits.txt \
-            | python3 .github/scripts/telegram_notify.py --audience all --parse-mode HTML
