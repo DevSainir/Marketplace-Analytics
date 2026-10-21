@@ -12,8 +12,8 @@ per-*user* watermark ends everything that account has open — the incident leve
 browser, or the one whose refresh token was replayed. Using the user key for a
 family-scoped act was never an option — it would sign a customer's colleagues
 and their own phone out because one tab was closed — and its absence is why
-logout left the caller's access token alive for up to fifteen minutes
-(register P1.12). Same mechanism, correct blast radius.
+logout left the caller's access token alive for up to fifteen minutes.
+Same mechanism, correct blast radius.
 
 Availability policy: both helpers **fail open** on Redis outages. Blocking all
 authenticated traffic because the cache is down is a worse failure mode than
@@ -21,7 +21,7 @@ temporarily widening the revocation window back to the access-token TTL. The
 degradation is reported to :mod:`src.core.degradation`, which raises one
 alertable event per outage rather than one traceback per request, and which is
 the only thing positioned to notice that the auth rate limiter went down in the
-same instant (register P1.2).
+same instant.
 """
 
 from __future__ import annotations
@@ -228,7 +228,7 @@ async def mark_family_revoked(family_id: uuid.UUID) -> None:
     The narrow counterpart to :func:`mark_user_sessions_revoked`. Called when a
     single family is revoked — a logout, or a detected refresh-token replay —
     so the access tokens already handed out on that lineage stop working now
-    instead of surviving up to their full TTL (register P1.12).
+    instead of surviving up to their full TTL.
 
     **Stamp this, never the per-user key, for a family-scoped act.** That
     distinction is not stylistic: revoking account-wide on a replay is what

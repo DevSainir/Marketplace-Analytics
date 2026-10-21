@@ -15,7 +15,7 @@ from prometheus_client import Counter, Gauge
 # --------------------------------------------------------------------------- #
 
 #: A query that reached a row-level-security-protected table without a tenant
-#: bound, and was refused by PostgreSQL (register P2.5).
+#: bound, and was refused by PostgreSQL.
 #:
 #: **This should be flat at zero forever, and that is what makes it worth
 #: exporting.** The policies fail closed: an unbound query raises rather than

@@ -1,4 +1,4 @@
-"""Telling the database which tenant a request belongs to (register P2.5).
+"""Telling the database which tenant a request belongs to.
 
 Application-level scoping is enforced and tested: every tenant-scoped query
 takes a `workspace_id`, and `test_export_loaders_are_scoped.py` and friends fail

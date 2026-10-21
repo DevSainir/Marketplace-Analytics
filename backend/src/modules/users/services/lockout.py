@@ -1,4 +1,4 @@
-"""Per-account cooling-off after repeated failed logins (register P1.5).
+"""Per-account cooling-off after repeated failed logins.
 
 The IP throttle in :mod:`src.core.ratelimit` bounds how fast **one address** can
 guess. It is the wrong shape for credential stuffing, which is the attack this

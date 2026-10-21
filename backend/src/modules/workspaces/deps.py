@@ -116,7 +116,7 @@ async def get_current_workspace_id(
     every other route.
 
     It is also where the tenant is announced to PostgreSQL, for the row-level
-    security policies (register P2.5) — **after** the ownership check and never
+    security policies — **after** the ownership check and never
     before it. Binding a tenant the caller has not been shown to belong to would
     hand the database the very claim this function exists to verify.
 
@@ -206,7 +206,7 @@ async def _enter_as_member(
     # or the logs. Both announcements sit behind the same check for the same
     # reason: recording a tenant the caller has not been shown to belong to
     # would put the claim this function exists to verify into the evidence
-    # somebody would later use to verify it (register P2.2/P2.5).
+    # somebody would later use to verify it.
     await set_workspace_context(session, workspace_id)
     bind_workspace(workspace_id)
     return workspace_id
@@ -227,7 +227,7 @@ async def get_path_workspace_id(
     no authorization that was missing. What it adds is the **binding**: without
     passing through here there is nowhere to tell PostgreSQL which tenant is
     asking, and a row-level-security policy on `workspace_tokens` would make
-    every one of those requests raise (register P2.5).
+    every one of those requests raise.
 
     The 404-not-403 rule is the same one, and for the same reason: a 403 would
     confirm the id names a real workspace, turning the path into an oracle for

@@ -225,7 +225,7 @@ export const useAuthStore = defineStore('auth', () => {
     needsConfirmation.value = false
   }
 
-  // --- account recovery (register P1.6) ----------------------------------
+  // --- account recovery ----------------------------------
   //
   // One shape for all four: flip `loading`, clear `error`, return a boolean the
   // view can branch on. They are separate from `login`/`register` because none

@@ -73,7 +73,7 @@ def _reset_enabled(redis_client: Any, settings_override: Any, mailbox: Capturing
     """Turn the flow on, capture its mail, and isolate Redis.
 
     ``password_reset_enabled`` defaults OFF — it ships dark until a relay exists
-    (register P1.6) — so these tests enable it explicitly. ``email_enabled``
+    — so these tests enable it explicitly. ``email_enabled``
     stays off, so nothing here can reach a network even if the override failed.
     """
     from main import app

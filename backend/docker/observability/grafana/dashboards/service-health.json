@@ -737,7 +737,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "1 while a control runs its fail-open fallback (register P1.2). max across instances: degraded anywhere is degraded. Two at once is the correlated failure the ledger exists to surface.",
+      "description": "1 while a control runs its fail-open fallback. max across instances: degraded anywhere is degraded. Two at once is the correlated failure the ledger exists to surface.",
       "gridPos": {
         "x": 6,
         "y": 36,

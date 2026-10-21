@@ -5,7 +5,7 @@ Both are written by code that is thinking about a failure rather than about
 confidentiality; both are then *retained*, shipped off the box, and read by
 more people than the database is. A WB token that reaches Loki has been copied
 to a system with none of the controls that protect it in Postgres, where it is
-Fernet-encrypted at rest (register P1.11) — so one careless `%s` would quietly
+Fernet-encrypted at rest — so one careless `%s` would quietly
 undo that whole control.
 
 **Two independent nets, because they fail differently.**
@@ -117,7 +117,7 @@ _SENSITIVE_VALUE_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
     re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"),
     # A bcrypt digest, as `src.core.security` produces them.
     re.compile(r"\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}"),
-    # A Fernet token — how every workspace WB token is stored (register P1.11),
+    # A Fernet token — how every workspace WB token is stored,
     # and therefore what a repository dump of that column would print.
     re.compile(r"\bgAAAAA[A-Za-z0-9_=-]{20,}"),
     # `Authorization: Bearer <...>` carried inside prose or a header dump.

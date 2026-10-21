@@ -82,7 +82,7 @@ celery_app.conf.update(
     # lines being read when a harvest failed. `src.core.observability`
     # `.celery_runtime` also connects to the `setup_logging` signal, which is
     # what stops the hijack rather than undoing it afterwards; this flag is the
-    # declarative half of the same decision (register P2.2).
+    # declarative half of the same decision.
     worker_hijack_root_logger=False,
 )
 

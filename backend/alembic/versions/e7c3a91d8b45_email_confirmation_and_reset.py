@@ -4,8 +4,8 @@ Revision ID: e7c3a91d8b45
 Revises: d5b2a8f31c47
 Create Date: 2026-09-01
 
-Closes register P1.6 at the schema level: `auth.users.email_confirmed_at` and
-`auth.verification_codes`.
+Email confirmation and password reset at the schema level:
+`auth.users.email_confirmed_at` and `auth.verification_codes`.
 
 **Every existing account is left NULL — unconfirmed — on purpose.** The
 tempting alternative is to stamp them all as confirmed on the grounds that they

@@ -1,4 +1,4 @@
-"""Metrics, error reporting, health and log redaction (register P2.1, P2.2).
+"""Metrics, error reporting, health and log redaction.
 
 **A deliberately thin facade.** Only :mod:`~src.core.observability.scrubbing`
 is re-exported here; every other submodule is imported from its own path.

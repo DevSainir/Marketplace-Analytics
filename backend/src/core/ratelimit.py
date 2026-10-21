@@ -10,7 +10,7 @@ dampener, not a correctness guarantee. The outage is reported to
 :mod:`src.core.degradation` rather than logged from here, so that one Redis
 failure raises one alertable event instead of one traceback per request, and so
 that something above this module can notice when session revocation is failing
-open at the same time (register P1.2).
+open at the same time.
 """
 
 from __future__ import annotations

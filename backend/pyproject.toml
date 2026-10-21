@@ -17,7 +17,7 @@ dependencies = [
     "celery[redis]>=5.4",
     "redis>=5.0",
     "httpx>=0.27",
-    # Outbound mail: email confirmation and password reset (register P1.6).
+    # Outbound mail: email confirmation and password reset.
     # aiosmtplib rather than stdlib smtplib because every I/O path in this
     # backend is async, and a blocking send inside a request handler would
     # stall the whole worker's event loop — the same failure the claim
@@ -58,7 +58,7 @@ dependencies = [
     # regenerated.
     "pillow>=10.4",
     "xlsxwriter>=3.2",
-    # --- Observability (register P2.1/P2.2) ------------------------------
+    # --- Observability ------------------------------
     # structlog is the logging API; stdlib `logging` stays the transport, so
     # uvicorn's, Celery's and SQLAlchemy's own lines go through the SAME
     # processor chain as ours — including the redaction filter. A second

@@ -1,4 +1,4 @@
-"""Email confirmation and password reset (register P1.6).
+"""Email confirmation and password reset.
 
 The register's warning is the design brief, and it is worth repeating because
 everything below is shaped by it: *building this badly is worse than not having

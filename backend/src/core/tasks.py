@@ -69,5 +69,5 @@ def run_task[T](coro: Coroutine[object, object, T]) -> T:
     finally:
         # A worker reuses its process across tasks, so any log context this task
         # bound would otherwise attribute the NEXT task's lines to this task's
-        # tenant (register P2.2). Mis-attributed evidence is worse than none.
+        # tenant. Mis-attributed evidence is worse than none.
         reset_context()

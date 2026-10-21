@@ -1,4 +1,4 @@
-"""The readiness probe against the real Postgres and Redis (register P2.1).
+"""The readiness probe against the real Postgres and Redis.
 
 The component tier proves the parts that live in this process — the status
 mapping, the payload's shape, that no exception text escapes — with both probes

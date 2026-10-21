@@ -124,7 +124,7 @@ async def get_current_user_id(
 
     # And the narrow one: this login lineage alone. A logout revokes the
     # family's refresh rows, which used to leave the access token already handed
-    # out working for the rest of its TTL (register P1.12).
+    # out working for the rest of its TTL.
     #
     # A token carrying no `fam` claim predates it and skips this check rather
     # than being refused. That is what makes the rollout survivable: refusing

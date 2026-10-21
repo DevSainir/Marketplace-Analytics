@@ -98,7 +98,7 @@ class HealthReport:
 
         All-or-nothing on purpose. This service cannot serve a request without
         Postgres, and without Redis it serves them with its rate limiter and
-        session revocation failing open (register P1.2) — which is degraded in
+        session revocation failing open — which is degraded in
         a way that should page somebody, not a state to report as healthy.
         """
         return all(dependency.healthy for dependency in self.dependencies)

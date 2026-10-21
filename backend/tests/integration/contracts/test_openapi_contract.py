@@ -155,7 +155,7 @@ def test_every_protected_route_declares_a_security_scheme(openapi: dict[str, Any
     # whose access token has already expired can still end its session instead
     # of leaving a live refresh family behind.
     #
-    # The recovery routes (register P1.6) are unauthenticated of necessity, not
+    # The recovery routes are unauthenticated of necessity, not
     # by oversight: someone who has lost their password cannot authenticate, and
     # that is the entire circumstance the flow exists for. What stands in for a
     # token there is proof of control of the mailbox — a single-use, expiring,
@@ -164,7 +164,7 @@ def test_every_protected_route_declares_a_security_scheme(openapi: dict[str, Any
     # own credential is something other than an access token.
     public = {
         "/health",
-        # The readiness probe (register P2.1). Unauthenticated because the thing
+        # The readiness probe. Unauthenticated because the thing
         # that polls it is an external uptime checker outside this network,
         # which by definition holds no credential — and it is the failure mode
         # nothing inside the box can observe, since a check that cannot run
@@ -177,7 +177,7 @@ def test_every_protected_route_declares_a_security_scheme(openapi: dict[str, Any
         # host or a DSN (see `src.core.observability.health`, and P0.3 for why
         # that last part is spelled out rather than assumed).
         "/healthz",
-        # Whether alerts reach Telegram (register P2.12) — polled by the same
+        # Whether alerts reach Telegram — polled by the same
         # external checker, for the same reason: a silent pager is the one
         # failure nothing that sends alerts can report. Nothing to protect
         # either: it asks Alertmanager one question about our own plumbing,

@@ -1,4 +1,4 @@
-"""Email confirmation and password reset — the four routes of register P1.6.
+"""Email confirmation and password reset — the four routes.
 
 Split from the session routes when the module reached the 500-line ceiling.
 They are a coherent half: none of them authenticates with a password, all four
@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 
 
 # --------------------------------------------------------------------------- #
-# Account recovery (register P1.6)
+# Account recovery
 #
 # Four endpoints, one rule running through all of them: **the response never
 # says whether an address is registered.** `/login` is carefully not an
@@ -191,7 +191,7 @@ async def reset_password(
 
     **It is recorded.** ``PASSWORD_CHANGED`` was in the audit vocabulary from the
     start with nothing emitting it, because there was no route that changed a
-    password (register P1.3). This is that route. A password changing without a
+    password. This is that route. A password changing without a
     login is the single most useful line in the trail when the question is "how
     did they get in" — and the address it was done from is the part the account
     holder cannot tell you.

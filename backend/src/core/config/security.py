@@ -80,7 +80,7 @@ class SecuritySettings(BaseSettings):
     # timeout retry, and is far short of the days-later replay that is the case
     # actually worth revoking a family over.
     refresh_replay_grace_seconds: int = Field(default=30)
-    # --- Tenancy enforced by the database (register P2.5) ---
+    # --- Tenancy enforced by the database ---
     # Whether `scripts/sql/row_level_security.sql` has been applied. When true
     # the app binds the caller's workspace to each transaction so the policies
     # can read it; when false that round trip is skipped, because nothing would
@@ -104,7 +104,7 @@ class SecuritySettings(BaseSettings):
     # value is one workspace and there is no "all".
     diagnostic_workspace_id: str = Field(default="")
 
-    # --- Per-tenant resource bounds (register P1.13) ---
+    # --- Per-tenant resource bounds ---
     # `max_workspaces` / `max_managers` live on the SUBSCRIPTION row, because
     # they are what a customer bought. These three do not: they are safety
     # bounds on shared storage, of the same family as the upload caps in P0.4,

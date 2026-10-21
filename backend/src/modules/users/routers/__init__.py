@@ -93,7 +93,7 @@ async def register(
     Signup is open and the account starts powerless — it belongs to no
     organisation and every data route sits behind `require_member`. The
     confirmation code is what lets it later take an activation code or an
-    invitation (register P1.6).
+    invitation.
 
     The mail is sent inside this request, and a failure to send is NOT allowed
     to fail the registration: the account exists, the password is stored, and
@@ -252,7 +252,7 @@ async def revoke_account_sessions(
     A compromised account has to be stoppable by someone other than whoever
     controls it, and until now nobody could: the revocation watermark had no
     caller outside the test suite, so a stolen session simply ran until its
-    tokens expired (register P1.1).
+    tokens expired.
 
     Answers 200 for an account that does not exist, with ``revoked: 0``,
     exactly as for one that exists and holds no session. The endpoint is behind

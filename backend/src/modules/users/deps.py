@@ -167,7 +167,7 @@ async def require_confirmed_email(user: CurrentUser) -> User:
     that is an account that can reach nothing anyway.
 
     A no-op while ``EMAIL_CONFIRMATION_REQUIRED`` is off, which is the default
-    and is how this ships before a mail relay exists — see register P1.6.
+    and is how this ships before a mail relay exists.
 
     Args:
         user: The authenticated, freshly loaded user row.

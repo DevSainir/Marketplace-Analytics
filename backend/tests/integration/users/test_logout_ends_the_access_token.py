@@ -1,4 +1,4 @@
-"""Logout stops the access token it was pressed about (register P1.12).
+"""Logout stops the access token it was pressed about.
 
 Everything below this test already worked: logout revoked the family's refresh
 rows, so no *new* pair could be minted. What it did not do was stop the access
@@ -153,7 +153,7 @@ async def test_a_replayed_refresh_token_ends_its_lineages_access_tokens(
     The grace window is set to zero, which is its documented "strict rotation"
     value rather than a test-only switch. With the default 30 s an immediate
     replay is *deliberately* not a breach — three tabs share one cookie and each
-    fires /refresh on load (register P0.5) — so this test would otherwise be
+    fires /refresh on load — so this test would otherwise be
     asserting against the concurrency feature instead of against breach
     handling. The grace path has its own coverage in
     ``test_concurrent_tab_refresh.py``.

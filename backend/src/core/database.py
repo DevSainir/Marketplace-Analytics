@@ -77,7 +77,7 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 )
 
 
-# Count the moments row-level security refuses a query (register P2.5/P2.1).
+# Count the moments row-level security refuses a query.
 #
 # Attached HERE, at the one place the engine is built, rather than in each
 # entrypoint: the API, the Celery worker, Alembic and every script share this

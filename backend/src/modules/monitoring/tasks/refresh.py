@@ -131,7 +131,7 @@ def harvest_sku_window(
         # working for. The task itself resolved the workspace from the SKU, so
         # nothing upstream could have bound it — and a harvest that goes wrong
         # goes wrong for one tenant, which is the first thing anybody reading
-        # the log needs to know (register P2.2).
+        # the log needs to know.
         bind_workspace(workspace_id)
         if tokens is None:
             raise IntegrationError(f"Workspace {workspace_id} no longer exists; refresh aborted.")

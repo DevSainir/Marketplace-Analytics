@@ -4,7 +4,7 @@ Revision ID: d5b2a8f31c47
 Revises: c4a91f6b7d20
 Create Date: 2026-08-30
 
-Closes register P1.3(b). Attribution columns say who owns a row now; they
+Attribution columns say who owns a row now; they
 cannot say what happened last Tuesday, because a compromised manager who
 deletes a workspace or removes a member destroys the attribution in the same
 action you would be investigating.

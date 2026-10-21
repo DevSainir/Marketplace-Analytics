@@ -43,7 +43,7 @@ groups:
             сообщил, что страница не отвечает «alerts-ok», значит алерты не
             доходят. Проверьте `docker exec marketplace-observability-alertmanager-1
             wget -qO- localhost:9093/metrics | grep notifications_failed`, логи
-            `marketplace-observability-telegram-relay-1` и HARDENING P2.12.
+            `marketplace-observability-telegram-relay-1`.
 
       - alert: TelegramRoadDown
         expr: max(haproxy_backend_active_servers{job="telegram-relay",proxy="telegram"}) < 2
@@ -101,7 +101,7 @@ groups:
           description: >-
             Без Postgres не работает ничего. Без Redis API продолжает
             отвечать, но ограничитель попыток входа и отзыв сессий начинают
-            пропускать всё подряд (реестр P1.2). Это не просто «стало
+            пропускать всё подряд. Это не просто «стало
             медленнее» — это дыра в защите.
 
       - alert: PostgresCrashRecovered
@@ -159,8 +159,8 @@ groups:
         annotations:
           summary: "Защита {{ $labels.control }} работает в аварийном режиме и пропускает всё."
           description: >-
-            Она перешла на запасной путь, потому что не отвечает Redis
-            (реестр P1.2). Пока это так, подбор паролей ограничен только
+            Она перешла на запасной путь, потому что не отвечает Redis.
+            Пока это так, подбор паролей ограничен только
             тем, что ещё живо. Две такие сразу — это уже связанный отказ,
             ради которого журнал и заводили.
 

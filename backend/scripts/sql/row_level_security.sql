@@ -1,4 +1,4 @@
--- Tenancy enforced by the database, not only by every query (register P2.5).
+-- Tenancy enforced by the database, not only by every query.
 --
 -- Application-level scoping already works and is tested. Its weakness is
 -- structural rather than a bug: it is a promise made by *every* query, so it

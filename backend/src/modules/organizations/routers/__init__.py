@@ -109,7 +109,7 @@ async def activate(
     access: CurrentAccess,
     # ConfirmedUser, not CurrentUser: redeeming a code makes the holder the
     # OWNER of a company, which is the point at which an unproven address stops
-    # being harmless (register P1.6). A no-op while confirmation is not
+    # being harmless. A no-op while confirmation is not
     # required, which is the default.
     user: ConfirmedUser,
     service: ActivationServiceDep,
@@ -251,7 +251,7 @@ async def read_audit_log(
 
     `limit` is bounded rather than free: this is the one table that only ever
     grows, so an unbounded read is a slow query waiting for the tenant who has
-    been with us longest (register P1.13's reasoning, applied to a read).
+    been with us longest (the same reasoning, applied to a read).
 
     Args:
         access: Owner-level access; supplies the organisation.

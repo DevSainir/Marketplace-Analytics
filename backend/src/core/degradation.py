@@ -138,7 +138,7 @@ class DegradationLedger:
                 EVENT_DEGRADED,
                 # Fields, not prose. An alert rule binds to `control` and
                 # `event`; parsing them back out of a sentence is what made
-                # the first version of this unalertable (register P2.2).
+                # the first version of this unalertable.
                 extra={"event": EVENT_DEGRADED, "control": control, "detail": detail},
             )
 

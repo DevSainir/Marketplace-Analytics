@@ -124,7 +124,7 @@ class Settings(
         # A flow that needs mail, on a deployment that cannot send it, fails at
         # the registration form rather than at the thing that is broken — and
         # the people who see it are the ones with no way to report it. Refuse
-        # the combination outright (register P1.6).
+        # the combination outright.
         problems.extend(self._email_configuration_problems())
 
         if problems:

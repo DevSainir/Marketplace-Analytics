@@ -180,8 +180,8 @@ class AbTestCatalogService:
 
         Raises:
             ValidationError: If the article is not in the workspace's catalogue,
-                or if the workspace is at its test bound
-                (register P1.13). Finished tests count — they keep their rows,
+                or if the workspace is at its test bound.
+                Finished tests count — they keep their rows,
                 their variants and their uploaded images.
         """
         # An article the workspace does not own cannot be rotated: it would send

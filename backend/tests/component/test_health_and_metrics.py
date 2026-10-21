@@ -1,4 +1,4 @@
-"""The two endpoints this service publishes about itself (register P2.1/P2.2).
+"""The two endpoints this service publishes about itself.
 
 ``/healthz`` is what an external uptime checker polls, and ``/metrics`` is what
 Prometheus scrapes. Both are unauthenticated in the sense that no session is
@@ -48,7 +48,7 @@ async def test_healthz_answers_503_when_a_dependency_is_gone(
     """A readiness probe that answers 200 while Redis is down is decorative.
 
     Redis in particular: without it the API still SERVES, with the auth rate
-    limiter and session revocation failing open (register P1.2). That is a
+    limiter and session revocation failing open. That is a
     security posture change wearing the costume of a healthy service, and it is
     exactly what an external checker should be shouting about.
     """

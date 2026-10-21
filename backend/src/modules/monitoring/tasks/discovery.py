@@ -143,7 +143,7 @@ async def _discover_and_harvest_workspace(
 
     # Every line from here on names the seller this run is working for. The
     # nightly pass walks every workspace inside one task, so the task-level
-    # context names none of them (register P2.2).
+    # context names none of them.
     bind_workspace(tokens.workspace_id)
 
     end = moscow_today() - timedelta(days=1)  # WB serves no current-day data

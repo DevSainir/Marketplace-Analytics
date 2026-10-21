@@ -1,4 +1,4 @@
-"""Tenancy that survives a forgotten `WHERE` (register P2.5).
+"""Tenancy that survives a forgotten `WHERE`.
 
 Application scoping already works and is tested elsewhere. Its weakness is not a
 bug — it is that the guarantee is re-made by every query, so it holds only until

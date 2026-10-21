@@ -58,7 +58,7 @@ async def get_current_access(session: DbSession, user: CurrentUser) -> Organizat
     happens to expire.
     """
     access = await resolve_access(session, user_id=user.id, platform_role=user.role)
-    # From here the request's log lines name the tenant too (register P2.2).
+    # From here the request's log lines name the tenant too.
     # Bound here rather than in the middleware because this is the first point
     # the tenant is KNOWN — it comes from a membership lookup, not the token.
     bind_tenant(access.organization_id)

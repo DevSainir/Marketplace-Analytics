@@ -3,7 +3,7 @@
 Contains the ``User`` aggregate, the ``RefreshToken`` session-tracking table
 that powers Refresh Token Rotation (RTR) with breach detection, and the
 short-lived ``VerificationCode`` rows behind email confirmation and password
-reset (register P1.6).
+reset.
 """
 
 from __future__ import annotations
@@ -42,9 +42,8 @@ class User(Base):
         is_active: Soft-disable flag; inactive users cannot authenticate.
         role: Coarse authorization role (:data:`ROLE_USER` default;
             :data:`ROLE_DEV` unlocks workspace administration). Read/write
-            separation inside an organisation is a deliberate non-goal — see
-            register P1.4 — so this column plus the membership role is the
-            whole authorization model on purpose.
+            separation inside an organisation is a deliberate non-goal, so this column
+            plus the membership role is the whole authorization model on purpose.
         email_confirmed_at: When the address was proven, or ``NULL`` if never.
             Nullable rather than a boolean so the *when* survives: "this
             account confirmed before we required it" and "confirmed last

@@ -1,4 +1,4 @@
-"""Metrics, error reporting and log shipping (register P2.1, P2.2).
+"""Metrics, error reporting and log shipping.
 
 Three sinks, one section, because they are configured together or not at all:
 Prometheus scrapes, Sentry receives, Loki collects. The register's argument for

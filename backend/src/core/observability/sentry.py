@@ -21,7 +21,7 @@ cookies, and on this API those carry passwords, reset codes, refresh cookies
 and WB seller tokens. Its own scrubbing is a denylist maintained by somebody
 else, applied to data we should not have transmitted in the first place.
 
-What replaces it is deliberate and small: the log context (register P2.2) —
+What replaces it is deliberate and small: the log context —
 trace id, tenant, workspace, account, route — attached as tags, so a report
 answers "whose, and during what" without carrying anything a caller submitted.
 
@@ -183,7 +183,7 @@ def configure_sentry(*, component: str) -> bool:
         # problem, would otherwise allow it. On this API a captured request
         # body is a password or a WB token, so the two controls are worth
         # having independently — the same argument the audit log's
-        # grant-and-trigger pair rests on (register P1.3).
+        # grant-and-trigger pair rests on.
         max_request_body_size="never",
     )
     sentry_sdk.set_tag("component", component)

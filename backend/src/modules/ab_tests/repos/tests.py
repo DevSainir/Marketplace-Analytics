@@ -83,7 +83,7 @@ class AbTestRepository:
 
         Draft, running and finished all count: a finished test keeps its rows,
         its variants and its images, so it is exactly as much stored data as a
-        running one (register P1.13).
+        running one.
 
         Args:
             workspace_id: Owning workspace.

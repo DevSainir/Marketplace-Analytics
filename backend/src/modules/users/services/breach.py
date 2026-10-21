@@ -51,8 +51,8 @@ async def revoke_breached_family(*, user_id: uuid.UUID, family_id: uuid.UUID) ->
     account-wide, so using it would re-introduce exactly the blast radius this
     scopes away. The **per-family** watermark is stamped, and closes what was
     previously documented as an accepted consequence — access tokens already
-    issued on the replayed lineage staying valid for up to fifteen minutes
-    (register P1.12). A replay is the strongest evidence available that a
+    issued on the replayed lineage staying valid for up to fifteen minutes.
+    A replay is the strongest evidence available that a
     lineage's tokens are in someone else's hands, so it is the last place worth
     waiting out a TTL.
 

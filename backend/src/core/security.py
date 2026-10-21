@@ -278,7 +278,7 @@ def create_access_token(
         family_id: The login lineage this token belongs to. Carried as the
             ``fam`` claim so that ending one lineage — a logout, a detected
             refresh replay — can invalidate the access tokens it already handed
-            out, without touching the user's other devices (register P1.12).
+            out, without touching the user's other devices.
 
     Returns:
         A ``(encoded_jwt, expires_at)`` tuple. ``expires_at`` is timezone-aware

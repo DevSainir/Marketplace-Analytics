@@ -1,4 +1,4 @@
-"""The request log, exercised through the real middleware (register P2.2).
+"""The request log, exercised through the real middleware.
 
 The unit tier proves the formatter is safe and carries whatever is bound. What
 it cannot prove is that anything actually binds — that the middleware runs, that

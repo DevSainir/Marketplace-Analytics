@@ -61,7 +61,7 @@ class DayAnnotationAnalytics:
 
         Raises:
             ValidationError: If ``comment_date`` is far outside the window the
-                matrix can show (register P1.13).
+                matrix can show.
         """
         _refuse_a_meaningless_date(comment_date)
         current = await self._day_comments.get(nm_id=nm_id, comment_date=comment_date)

@@ -45,7 +45,7 @@ async def revoke_all_sessions(*, tokens: RefreshTokenRepository, user_id: uuid.U
         (``get_current_user_id`` checks it on every request). It is also why the
         machinery existed but was unreachable: ``mark_user_sessions_revoked``
         was called from tests only, so the watermark could never be set and
-        incident response had no lever at all (register P1.1).
+        incident response had no lever at all.
 
         Order matters. The rows are revoked first and the watermark stamped
         after, so a rotation racing this call finds no live row to rotate. The
@@ -85,7 +85,7 @@ async def end_family(*, tokens: RefreshTokenRepository, refresh_secret: str | No
     lineage kept working for up to fifteen more minutes. Fifteen minutes of
     an attacker inside the account is exactly what the button was pressed to
     stop. The watermark ends the lineage's access tokens immediately and
-    still leaves every other device alone (register P1.12).
+    still leaves every other device alone.
 
     Rows first, watermark second — the reverse leaves a gap in which a
     rotation racing this call mints a pair past the watermark.

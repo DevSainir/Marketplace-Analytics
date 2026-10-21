@@ -173,7 +173,7 @@ async def log_requests(
     to log — a rate-limit trip, a revoked session, a WB failure deep in a
     service — is attributed to this request id, this address and (once the auth
     dependency resolves them) this account and tenant, without any of those call
-    sites knowing that logging context exists (register P2.2).
+    sites knowing that logging context exists.
 
     The id is returned as ``X-Request-Id`` so a customer reporting "it failed at
     about two" can hand over the one string that finds it.

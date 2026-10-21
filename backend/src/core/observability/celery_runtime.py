@@ -1,7 +1,7 @@
 """Making the worker observable: context, metrics and an exporter of its own.
 
 The API half of this service was already legible — every request binds a
-context and emits a line (register P2.2). The worker half was not, and it is
+context and emits a line. The worker half was not, and it is
 the half that runs unattended: a failed request is answered with a 500 that
 somebody sees, a failed nightly harvest is a number that is quietly stale until a
 customer asks. This module closes that asymmetry.

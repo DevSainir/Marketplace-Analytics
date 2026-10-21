@@ -1,4 +1,4 @@
-"""Counting the moments row-level security refuses a query (register P2.5).
+"""Counting the moments row-level security refuses a query.
 
 The policies fail closed on purpose: a query that reaches a tenant-scoped
 table without ``app.workspace_id`` bound **raises** rather than returning zero

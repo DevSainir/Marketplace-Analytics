@@ -1,4 +1,4 @@
-"""Centralised logging configuration, built on structlog (register P2.2).
+"""Centralised logging configuration, built on structlog.
 
 A single :func:`configure_logging` call wires up level-aware logging for the API
 process and Celery workers alike, keeping formatting identical across every

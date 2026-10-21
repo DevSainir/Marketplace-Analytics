@@ -1,4 +1,4 @@
-"""Every metric this service exports, defined in one place (register P2.1).
+"""Every metric this service exports, defined in one place.
 
 One module holds all the definitions, and the call sites only ever *record*.
 That is the arrangement that keeps a metric honest: a counter declared next to
