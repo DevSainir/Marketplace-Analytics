@@ -211,8 +211,8 @@ def _units(opers: Sequence[str]) -> ColumnElement[Any]:
     """Count units on the given operations only.
 
     Never a bare ``SUM(quantity)``: «Возмещение издержек» carries a constant
-    ``quantity = 2`` on all 109 284 of its rows as filler, which would add
-    206 937 phantom units to the seller's history.
+    ``quantity = 2`` on every one of its rows as filler, which would add two
+    phantom units per row to the seller's history.
     """
     return func.coalesce(
         func.sum(case((_T.supplier_oper_name.in_(list(opers)), _T.quantity), else_=0)), 0
@@ -256,9 +256,9 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
         )
     ),
     # SALE-side only, NOT _netted. «Возмещение издержек по перевозке» reuses these
-    # two columns to express the VAT split of its own charge — 86 566 rows
-    # carrying ppvz_vw -377 874.68 and ppvz_vw_nds -47 746.32, which add to its
-    # 461 652.31 of rebill_logistic_cost. It is not commission at all.
+    # two columns to express the VAT split of its own charge — rows whose
+    # ppvz_vw and ppvz_vw_nds (both negative) add up to their
+    # rebill_logistic_cost. It is not commission at all.
     #
     # These two decompose the commission line, and that line is a residual over
     # the sale-side payout, so they must be aggregated over the same rows. On the
