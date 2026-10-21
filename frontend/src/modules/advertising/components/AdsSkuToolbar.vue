@@ -14,7 +14,7 @@ import { GroupsFilter } from '@/modules/heatmap'
 
 defineProps({
   query: { type: String, default: '' },
-  /** The chosen ones — empty is «все». */
+  /** The chosen ones — empty is "all". */
   subjects: { type: Array, default: () => [] },
   brands: { type: Array, default: () => [] },
   groupIds: { type: Array, default: () => [] },

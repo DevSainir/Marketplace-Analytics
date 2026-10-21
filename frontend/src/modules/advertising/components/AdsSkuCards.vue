@@ -3,7 +3,7 @@
  * The per-article list below `sm` — the same rows `AdsSkuTable` renders, one
  * two-line record each.
  *
- * «Реклама» leads with ДРР beside it; share, orders and bonus are the second
+ * «Реклама» leads with DRR beside it; share, orders and bonus are the second
  * line. A list has no headers to click, so it carries its own sort, grows ten
  * records at a time, and puts the «Итого» first. «Зоны» under a record opens
  * its money by display zone, as the ▶ does in the desktop table.

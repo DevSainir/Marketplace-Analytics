@@ -9,7 +9,7 @@
  * «С баланса» is spend minus WB's bonus — the seller's own money, whether the
  * balance or the settlement payout paid it. «ДРР от продаж» is that own money
  * on the settled days over the settled sales of the same days, across every
- * article: Σ (реклама − бонусы) ÷ Σ продажи, never a mean of per-article ratios.
+ * article: Σ (ad spend − bonuses) ÷ Σ sales, never a mean of per-article ratios.
  * When it cannot be computed the card shows a dash, and says why on hover.
  */
 import { computed } from 'vue'

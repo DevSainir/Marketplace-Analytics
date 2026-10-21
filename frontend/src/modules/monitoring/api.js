@@ -191,7 +191,7 @@ export async function setDayComment(nmId, iso, patch) {
  * @typedef {'uni'|'manual_search'|'manual_shelves'|'cpc'} RkType
  * @typedef {object} DayAction
  * @property {RkType|null} first_rk_type «Первая РК» campaign type (null = unset).
- * @property {number|null} first_rk_budget First campaign «Бюджет рекламы», in the кабинет's currency.
+ * @property {number|null} first_rk_budget First campaign «Бюджет рекламы», in the workspace's currency.
  * @property {RkType|null} second_rk_type «Вторая РК» campaign type.
  * @property {number|null} second_rk_budget Second campaign «Бюджет рекламы», same currency.
  * @property {'up'|'down'|null} price_change «Меняли цену?».
@@ -255,7 +255,7 @@ export async function getRefreshStatus(taskId) {
  * Harvested history, so it answers instantly and covers only phrases the seller
  * PAID to appear for.
  *
- * Called only for кабинеты with `search_clusters_enabled` set (NEVA); see
+ * Called only for workspaces with `search_clusters_enabled` set (NEVA); see
  * `MonitoringView.vue`.
  *
  * @param {number|string} nmId WB SKU identifier.

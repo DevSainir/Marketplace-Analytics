@@ -49,7 +49,7 @@ export function useMatrixEditing(store) {
     store.saveDayComment(day, patch)
   }
 
-  // The per-day РК/price answers have their own row; each partial change is
+  // The per-day ad campaign/price answers have their own row; each partial change is
   // forwarded and the store merges then saves.
   function onActionEdit({ day, patch }) {
     store.saveDayAction(day, patch)

@@ -2,8 +2,8 @@
  * Two-way sync between the monitoring page's search state and the URL.
  *
  * The URL is the single source of truth, deliberately: a SKU plus a window is
- * exactly what people paste to each other ("посмотри M-TRX01-BLK за прошлую
- * неделю"), so the page has to restore fully from a link and every search has
+ * exactly what people paste to each other ("look at M-TRX01-BLK for last
+ * week"), so the page has to restore fully from a link and every search has
  * to leave one behind. Back/forward then work for free — the watcher re-runs on
  * any query change, whoever caused it — and the handlers stay trivial, because
  * they only push a query and never fetch.

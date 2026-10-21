@@ -3,7 +3,7 @@
  * One row's money by display zone — the breakdown that opens under an article
  * (or a subject, or a brand) in the advertising table.
  *
- * What the zone cards above say for the whole кабинет, this says for one row:
+ * What the zone cards above say for the whole workspace, this says for one row:
  * which kind of campaign took its money and where it was shown. Narrow on
  * purpose — a short list of zones under a wide row, not a second table across
  * it — so it reads as a footnote to the row rather than as a new section.

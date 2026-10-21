@@ -40,7 +40,7 @@ const detailState = computed(() =>
   describeDetail({ windowTooWide: windowTooWide.value, product: product.value, store }),
 )
 
-// Vendor code (артикул продавца) once the backend serves it; nm ID meanwhile.
+// Vendor code (the seller's article) once the backend serves it; nm ID meanwhile.
 const skuLabel = computed(
   () => formatSku(product.value?.vendor_code) ?? `Артикул WB ${product.value?.nm_id ?? ''}`,
 )
@@ -62,12 +62,12 @@ const sharedStockSizes = computed(() => unionStockSizes(store.stockDays))
 // three commits it can make and the undo/redo keys.
 const { matrix, editingLocked, onCellEdit, onCommentEdit, onActionEdit } = useMatrixEditing(store)
 
-// --- «Рекламные кластеры»: per кабинет ------------------------------------
+// --- «Рекламные кластеры»: per workspace ----------------------------------
 // Hidden for everyone on 2026-09-09 as a product decision, back on 2026-09-26
 // for the workspaces whose `search_clusters_enabled` is set — today only NEVA,
 // turned on by migration `b5d2e8f41c93`. Everywhere else the block, its nav
 // entry and its fetch stay off. The harvester fills `advertising_cluster_stat_daily`
-// for every workspace regardless, so switching another кабинет on later has
+// for every workspace regardless, so switching another workspace on later has
 // its history ready.
 const workspaces = useWorkspaceStore()
 const clustersEnabled = computed(() =>
@@ -219,7 +219,7 @@ onMounted(() => store.fetchPins())
           <MetricsChart :view="matrix" />
         </div>
 
-        <!-- «Рекламные кластеры» — only for кабинеты with the switch on (NEVA);
+        <!-- «Рекламные кластеры» — only for workspaces with the switch on (NEVA);
              see the block comment in <script setup>. -->
         <div v-if="clustersEnabled" id="sec-clusters">
           <SkuClusterBlock v-bind="clusters.clusterTableProps" :currency="product?.ad_currencies" />

@@ -4,16 +4,16 @@
  *
  * A switch, not a checkbox or a chip: it changes how the whole page reads
  * (cards, table columns, chart line), and a sliding track is the control that
- * says «режим», where a chip reads as one more filter. It sits in the page
+ * says "mode", where a chip reads as one more filter. It sits in the page
  * toolbar beside the period because it governs everything below it.
  *
- * It is the кабинет's setting, not this browser's: flipping it changes the page
- * for everyone in the кабинет, and it stays that way.
+ * It is the workspace's setting, not this browser's: flipping it changes the page
+ * for everyone in the workspace, and it stays that way.
  *
  * Always switchable when the caller may change it: a window without bonuses
- * shows zeros, which says «бонусов не было» better than a dead switch. Disabled
+ * shows zeros, which says "there were no bonuses" better than a dead switch. Disabled
  * — with the reason on hover — only for a caller who may not change the
- * кабинет's settings.
+ * workspace's settings.
  */
 import { computed } from 'vue'
 
@@ -21,7 +21,7 @@ import UiSwitch from '@/core/components/UiSwitch.vue'
 
 const props = defineProps({
   on: { type: Boolean, required: true },
-  /** The caller may not change the кабинет's settings (read-only, or a guest). */
+  /** The caller may not change the workspace's settings (read-only, or a guest). */
   locked: { type: Boolean, default: false },
 })
 

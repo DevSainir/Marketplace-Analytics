@@ -4,7 +4,7 @@ import DataState from '@/core/components/DataState.vue'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 
 /**
- * Rendered only for кабинеты whose `search_clusters_enabled` is set — NEVA since
+ * Rendered only for workspaces whose `search_clusters_enabled` is set — NEVA since
  * 2026-09-26; hidden for everyone else since 2026-09-09. See the note in
  * `MonitoringView.vue`.
  *
@@ -77,8 +77,8 @@ defineProps({
               <td class="text-right">{{ formatNumber(item.orders) }}</td>
               <td class="text-right">{{ formatMoney(item.spend, item.currencies ?? currency) }}</td>
               <td class="text-right">{{ formatMoney(item.cpc, item.currencies ?? currency) }}</td>
-              <!-- Null = WB reported no position at all, which is not «первое
-                   место» — an em dash is the only honest rendering. -->
+              <!-- Null = WB reported no position at all, which is not "first
+                   place" — an em dash is the only honest rendering. -->
               <td class="text-right">
                 {{ item.avg_position === null ? '—' : item.avg_position }}
               </td>

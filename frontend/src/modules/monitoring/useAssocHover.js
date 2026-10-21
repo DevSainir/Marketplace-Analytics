@@ -7,7 +7,7 @@
  * clutter thousands of cells, so it is a hover.
  *
  * The «Общая» CTR cell rides the same listener: its «Клики» row is the
- * funnel's, so the hover names the advertising clicks and показы the CTR
+ * funnel's, so the hover names the advertising clicks and views the CTR
  * actually divides (`ctrTip`).
  *
  * Delegated: ONE mouseover listener on the scroll container, with cells

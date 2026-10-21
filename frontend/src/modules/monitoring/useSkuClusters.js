@@ -1,5 +1,5 @@
 /**
- * «Рекламные кластеры» is shown per кабинет: hidden for everyone on 2026-09-09,
+ * «Рекламные кластеры» is shown per workspace: hidden for everyone on 2026-09-09,
  * back since 2026-09-26 for the workspaces whose `search_clusters_enabled` is
  * set (NEVA). Where it is off this composable fetches nothing — see the note in
  * `MonitoringView.vue`.
@@ -19,7 +19,7 @@ import { useClusterSearchStore } from '@/modules/monitoring/clusterStore'
 import { useMonitoringStore } from '@/modules/monitoring/store'
 
 /**
- * @param {() => boolean} enabled Whether the current кабинет shows the block;
+ * @param {() => boolean} enabled Whether the current workspace shows the block;
  *   read reactively, so a workspace list that loads late still switches it on.
  * @returns {ReturnType<typeof useClusterSearchStore>} The store the block reads.
  */

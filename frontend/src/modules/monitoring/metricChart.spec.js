@@ -69,7 +69,7 @@ describe('buildMetricChart', () => {
     })
 
     it('reads CPM out of the day\u2019s «Общая» column', () => {
-      // The backend serves it there as the day's whole ad bill over the показы
+      // The backend serves it there as the day's whole ad bill over the views
       // it bought; the chart is a lookup, so this is what breaks if the row
       // ever goes back to being blank.
       const chart = chartOf(['cpm'], [row('cpm', { total: [150, 300, 225] })])
@@ -127,12 +127,12 @@ describe('buildMetricChart', () => {
 
       expect(axes[0].position).toBe('left')
       expect(axes[1].position).toBe('right')
-      expect(axes[0].max).toBe(500) // ничего в штуках — шкала на месте
+      expect(axes[0].max).toBe(500) // nothing in unit counts — the scale is still there
       expect(axes[1].max).toBe(12)
     })
 
     it('does not let one unit move the other one scale', () => {
-      // Ticking «Клики» must not rescale «Заказы» — both are штуки, but the
+      // Ticking «Клики» must not rescale «Заказы» — both are unit counts, but the
       // money ruler cannot move at all, and that is the half that used to.
       const alone = chartOf(['spend'], [money])
       const withCounts = chartOf(['spend', 'orders'], [money, counts])
@@ -141,12 +141,12 @@ describe('buildMetricChart', () => {
     })
 
     it('keeps the left ruler for the FUNNEL, not for everything in штуках', () => {
-      // Показы run to five figures and клики to four while заказы run to two:
+      // Views run to five figures and clicks to four while orders run to two:
       // one ruler true for the first two draws the third along the axis, which
       // is the complaint that produced the list.
       const chart = chartOf(['spend', 'views', 'clicks', 'carts', 'orders'])
 
-      // Затраты → рубли; показы and клики → the index; корзины and заказы →
+      // Spend → roubles; views and clicks → the index; carts and orders →
       // the counts ruler they share an order of magnitude with.
       expect(chart.option.series.map((entry) => entry.yAxisIndex)).toEqual([1, 2, 2, 0, 0])
     })
@@ -196,7 +196,7 @@ describe('buildMetricChart', () => {
       // штук» would be a number in the wrong units on a real gridline.
       const chart = chartOf(['ctr', 'orders'], [row('ctr', { total: [2, 4, 1] }), counts])
 
-      expect([chart.option.yAxis].flat()[0].max).toBe(20) // заказы, не индекс
+      expect([chart.option.yAxis].flat()[0].max).toBe(20) // orders, not the index
     })
   })
 
@@ -254,8 +254,8 @@ describe('buildMetricChart', () => {
       )
       const axes = [chart.option.yAxis].flat()
 
-      expect(axes[0].max).toBeGreaterThanOrEqual(80) // заказы
-      expect(axes[1].max).toBeGreaterThanOrEqual(300) // затраты
+      expect(axes[0].max).toBeGreaterThanOrEqual(80) // orders
+      expect(axes[1].max).toBeGreaterThanOrEqual(300) // spend
     })
   })
 
@@ -350,8 +350,8 @@ describe('buildMetricChart', () => {
   describe('what counts as hovering a metric', () => {
     it('is the dot and the line through it, not the fill under them', () => {
       // The fill belongs to its series as far as ECharts is concerned, so a
-      // cursor anywhere in the band arrived as «наведён на Затраты» and
-      // answered with Затраты alone — over most of the plot.
+      // cursor anywhere in the band arrived as "hovering «Затраты»" and
+      // answered with «Затраты» alone — over most of the plot.
       expect(isOnMark({ cursorY: 100, markY: 104 })).toBe(true)
       expect(isOnMark({ cursorY: 100, markY: 260 })).toBe(false)
     })
@@ -474,7 +474,7 @@ describe('buildMetricChart', () => {
     })
 
     it("states a price beside spend in its own unit, not the spend's", () => {
-      // A KGS-settled кабинет is priced in RUB: one chart-wide unit printed the
+      // A KGS-settled workspace is priced in RUB: one chart-wide unit printed the
       // price in soms, or the spend in roubles, whichever came first.
       const chart = chartOf(
         ['spend', 'seller_price'],

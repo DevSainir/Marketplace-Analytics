@@ -9,7 +9,7 @@
  * day on the right. Metric rows mirror the workbook's order.
  *
  * «CPC» is the pay-per-click campaign group: WB bills it per click instead of
- * per 1000 показов, so its ставка and its CPM cannot be read against the CPM
+ * per 1000 views, so its bid and its CPM cannot be read against the CPM
  * columns beside it and it gets a group of its own.
  *
  * ALL values arrive precomputed from the backend (`SkuDetailResponse.matrix`,
@@ -18,7 +18,7 @@
  * applies ru-RU display formatting; `null` cells render as «—».
  *
  * Money comes from three sources, and each row names its own
- * (`money: 'prices'|'orders'|'ads'`). A кабинет settled in KGS is still priced in
+ * (`money: 'prices'|'orders'|'ads'`). A workspace settled in KGS is still priced in
  * RUB; the order money («Заказы», «Выкупы») is WB's own funnel sum, in KGS; the
  * spend is in whatever each campaign bills in — RUB before WB moved the ad
  * account on 2026-08-20, KGS after. The backend states the orders' and the
@@ -70,7 +70,7 @@ function isEditable(bucket, metric) {
  * one line, and the two `roomy` groups — «Единая ставка», «Руч. поиск», whose
  * figures («88,58%») are the tightest fit in the row — the rest. The room for
  * «Руч. полки» came from the unified «Каталог» column, removed 2026-10-05: WB
- * never reported a catalogue slice for единая ставка, so the column could only
+ * never reported a catalogue slice for the unified bid, so the column could only
  * ever be empty.
  */
 export const TRAFFIC_COLUMNS = [
@@ -104,7 +104,7 @@ export const DAY_COLSPAN = COLUMNS_PER_DAY
  * list slices by. `spansZones` groups have no zone split — their header cell
  * spans the zones row too instead of repeating the same word twice. `key`
  * names the group's campaign in `campaigns.byDay` (see `campaignLinks.js`).
- * «Руч. поиск» spans two zones: WB search campaigns also deliver in каталог
+ * «Руч. поиск» spans two zones: WB search campaigns also deliver in the catalogue
  * (backend-split).
  */
 export const TRAFFIC_GROUPS = [
@@ -158,8 +158,8 @@ const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
  *
  * `group` assigns each row to one of the four data blocks; every block gets
  * its own subtle row tint (see the `matrix-group--*` rules in main.css):
- * traffic (Доля трафика..Клики), funnel (Корзины..Конверсия в заказ),
- * money (Заказы..Стоимость корзины), efficiency (the ДРР/выкуп trio).
+ * traffic («Доля трафика»..«Клики»), funnel («Корзины»..«Конверсия в заказ»),
+ * money («Заказы»..«Стоимость корзины»), efficiency (the DRR/buyout trio).
  *
  * `money` names where a money row's currency comes from — `'prices'` for the
  * prices, `'orders'` for the order money, `'ads'` for spend and every cost built
@@ -182,7 +182,7 @@ const METRIC_DEFS = [
   { key: 'views', label: 'Показы', group: 'traffic', format: fmtNumber },
   // «Общая»'s CTR is the ADVERTISING one while its «Клики» row is the funnel's,
   // so the two do not divide into it. `adClicksKey` is the backend row of its
-  // real numerator; hovering the cell shows the clicks over показы it divides.
+  // real numerator; hovering the cell shows the clicks over views it divides.
   {
     key: 'ctr',
     label: 'CTR, %',
@@ -193,7 +193,7 @@ const METRIC_DEFS = [
   { key: 'cpm', label: 'CPM', money: 'ads', group: 'traffic', format: fmtMoney },
   { key: 'cpc', label: 'CPC', money: 'ads', group: 'traffic', format: fmtMoneyTenths },
   { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
-  // The cell itself is the кампания's count. `skuKey` points at the backend's
+  // The cell itself is the campaign's count. `skuKey` points at the backend's
   // row for the VIEWED card's share of it, which is emitted only when the two
   // differ — i.e. when associated size/colour variants converted. Hovering
   // then breaks the cell down per variant; `assocCountField` picks this
@@ -275,7 +275,7 @@ const STOCK_METRIC_DEFS = [
   { key: 'stock_to_client', label: 'В пути к клиенту, шт', format: fmtNumber },
   { key: 'stock_from_client', label: 'В пути от клиента, шт', format: fmtNumber },
 ]
-// The compact «Всего» card next to «Остатки»: остаток + оба «в пути»,
+// The compact «Всего» card next to «Остатки»: stock + both «в пути» legs,
 // COMPUTED BY THE BACKEND (`stock_total` matrix row) — mapped here like any
 // other metric, label/formatting only.
 const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Всего, шт', format: fmtNumber }]
@@ -432,9 +432,9 @@ function cellAssoc(def, raw, skuRaw, breakdown, viewedNmId) {
 }
 
 /**
- * The hover payload of the «Общая» CTR cell: the advertising clicks and показы
+ * The hover payload of the «Общая» CTR cell: the advertising clicks and views
  * it divides, or null for every other cell (an ad bucket's CTR divides the
- * clicks and показы printed in its own column, so it needs no explaining).
+ * clicks and views printed in its own column, so it needs no explaining).
  */
 function cellCtrBasis(def, bucket, raw, adClicks, views) {
   if (!def.adClicksKey || bucket !== 'total' || raw == null) return null

@@ -156,7 +156,7 @@ describe('buildMetricsMatrix', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
     expect(blockCell(matrix.priceRows, 'seller_price', 0).editable).toBe(true)
     expect(blockCell(matrix.priceRows, 'customer_price', 0).editable).toBe(true)
-    // СПП is derived but still editable (display override); its value still shows.
+    // SPP is derived but still editable (display override); its value still shows.
     expect(blockCell(matrix.priceRows, 'spp', 0).editable).toBe(true)
     expect(blockCell(matrix.priceRows, 'spp', 0).display).toBe('30,00%')
     // Block cells address the backend «total» bucket for edits.
@@ -239,7 +239,7 @@ describe('buildMetricsMatrix', () => {
   it('lands the CPC buckets in their own two columns', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
 
-    // A pay-per-click campaign's ставка is the CPC row itself, so the two zone
+    // A pay-per-click campaign's bid is the CPC row itself, so the two zone
     // cells must address cpc_search/cpc_shelves and nothing beside them.
     // «CPC» prints tenths — a click costs single units of money.
     expect(cell(matrix, 'cpc', 0, 'cpc_search')).toBe('12,5')
@@ -281,7 +281,7 @@ describe('buildMetricsMatrix', () => {
 
   it('signs each money cell with its own currency: prices in roubles, costs in soms', () => {
     // «Демо» settles in KGS, is priced in RUB, and its campaigns bill in
-    // KGS since 20.08.2026: one кабинет-wide unit misstated one side of the table.
+    // KGS since 20.08.2026: one workspace-wide unit misstated one side of the table.
     const matrix = buildMetricsMatrix(PRODUCT, { prices: 'RUB', ads: ['KGS'] })
 
     const first = (rows, key) => rows.find((r) => r.key === key).cells.find((c) => c.raw != null)
@@ -313,7 +313,7 @@ describe('buildMetricsMatrix', () => {
 
   it("signs each day's cells with that day's own currencies when the backend states them", () => {
     // Across 20.08 a RUB campaign spends one day and a KGS one the next; the
-    // order money is WB's funnel sum in сомы whatever the prices are in.
+    // order money is WB's funnel sum in soms whatever the prices are in.
     const product = structuredClone(PRODUCT)
     product.matrix.currencies = [
       { orders: 'KGS', ads: { uni_search: ['RUB'], total: ['RUB'] } },
@@ -416,7 +416,7 @@ describe('patchMetricsMatrix', () => {
   })
 })
 
-// A carts/orders cell is the кампания's own count («ассоциированные конверсии»
+// A carts/orders cell is the campaign's own count (associated conversions
 // included); the card's share and the per-variant rows behind the hover ride
 // alongside it.
 describe('associative conversions', () => {

@@ -80,8 +80,8 @@ describe('MetricsChart', () => {
 
   it('opens on its default metrics rather than on an empty plot', () => {
     // A chart that starts blank makes the reader do work before it says
-    // anything: где деньги (затраты, показы, CTR) and что вернулось (корзины,
-    // заказы).
+    // anything: where the money goes (spend, views, CTR) and what came back (carts,
+    // orders).
     const wrapper = mountChart()
 
     expect(legend(wrapper)).toEqual(['Затраты', 'Показы', 'CTR, %', 'Корзины, шт', 'Заказы, шт'])
@@ -158,7 +158,7 @@ describe('MetricsChart', () => {
   })
 
   it('plots what has no ruler as an index', () => {
-    // Штуки and рубли each have a fixed scale; a percent has neither, so it is
+    // Unit counts and roubles each have a fixed scale; a percent has neither, so it is
     // drawn as a shape and the hover keeps the quantity.
     const wrapper = mountChart({
       view: matrixView([row('ctr', { total: [2, 4] })]),

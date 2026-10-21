@@ -38,36 +38,36 @@ const LINE_GRID = '#BFBFBF'
  *
  * The four the reader named are fixed by meaning: «Затраты» and «Остатки» are
  * the two greens, «Корзины» blue, «Заказы» orange. Around those, related
- * metrics take a lighter shade of their family's hue — конверсия в корзину is
- * a paler «Корзины» blue, конверсия в заказ a paler «Заказы» orange — so a
+ * metrics take a lighter shade of their family's hue — cart conversion is
+ * a paler «Корзины» blue, order conversion a paler «Заказы» orange — so a
  * funnel reads as a funnel before the legend is consulted.
  *
  * Keyed by CATALOGUE key, not by metric: `orders` and `orders_organic` read
  * the same backend row and must still be told apart.
  */
 export const METRIC_COLORS = {
-  // Реклама
-  spend: '#1BAF7A', // зелёный — «Затраты»
-  views: '#4A3AA7', // фиолетовый
-  clicks: '#9179E0', // светлее — те же показы, но кликнутые
-  ctr: '#EDA100', // жёлтый
-  cpm: '#8E2F4F', // тёмно-вишнёвый — цена рекламы, как и CPC
-  cpc: '#E34948', // красный
-  drr_orders: '#C14BAD', // пурпурный
-  drr_sales: '#E87BA4', // розовый — тот же ДРР, другая база
-  // Воронка
-  carts: '#2A78D6', // синий — «Корзины»
-  cart_conversion: '#5FA8E8', // светлее — конверсия в те же корзины
-  orders: '#EB6834', // оранжевый — «Заказы»
-  order_conversion: '#F2A25C', // светлее — конверсия в те же заказы
-  buyout_percent: '#8A6D3B', // коричневый
-  // Общие
-  seller_price: '#00838F', // бирюзовый
-  customer_price: '#5B7C99', // серо-синий
-  stock_quantity: '#0B7A3B', // тёмно-зелёный — «Остатки»
-  stock_total: '#0B7A3B', // тот же смысл на сводной странице
-  order_sum: '#B8471F', // тёмно-оранжевый — те же заказы, в деньгах
-  orders_organic: '#C98A4B', // «Заказы» без рекламы
+  // Advertising
+  spend: '#1BAF7A', // green — «Затраты»
+  views: '#4A3AA7', // violet
+  clicks: '#9179E0', // lighter — the same views, but clicked
+  ctr: '#EDA100', // yellow
+  cpm: '#8E2F4F', // dark cherry — a price of advertising, like CPC
+  cpc: '#E34948', // red
+  drr_orders: '#C14BAD', // purple
+  drr_sales: '#E87BA4', // pink — the same DRR, a different base
+  // Funnel
+  carts: '#2A78D6', // blue — «Корзины»
+  cart_conversion: '#5FA8E8', // lighter — conversion into the same carts
+  orders: '#EB6834', // orange — «Заказы»
+  order_conversion: '#F2A25C', // lighter — conversion into the same orders
+  buyout_percent: '#8A6D3B', // brown
+  // General
+  seller_price: '#00838F', // teal
+  customer_price: '#5B7C99', // grey-blue
+  stock_quantity: '#0B7A3B', // dark green — «Остатки»
+  stock_total: '#0B7A3B', // the same meaning on the summary page
+  order_sum: '#B8471F', // dark orange — the same orders, in money
+  orders_organic: '#C98A4B', // «Заказы» without advertising
 }
 
 /** A metric outside the map is a bug, but a grey line beats no line. */
@@ -110,7 +110,7 @@ export function shortDayLabel(iso) {
 /**
  * One series' mark: a column, or a thin line with a dot per day.
  *
- * **Columns only while they fit.** Корзины, заказы and остатки are columns up
+ * **Columns only while they fit.** Carts, orders and stock are columns up
  * to {@link BARS_UP_TO_DAYS} and lines past it — a card a year wide would draw
  * 365 of them at 1,5px each, which is a texture rather than a bar. Never
  * stacked: a stack would draw a total in which a cart is a unit of stock.
@@ -121,8 +121,8 @@ export function shortDayLabel(iso) {
  * **Every line carries its own area**, in its own hue at {@link AREA_OPACITY}.
  * One fill was tried first, on the grounds that several translucent ones over
  * each other become mud; at this opacity they do not — where two overlap the
- * tint greys out, which is itself the useful reading («здесь эти две метрики
- * шли вместе»), and a plot where only one of five lines has a floor reads as a
+ * tint greys out, which is itself the useful reading ("these two metrics moved
+ * together here"), and a plot where only one of five lines has a floor reads as a
  * plot with one important line and four decorations.
  *
  * Lines are smooth. A daily series is a sampling of something continuous, and
@@ -201,7 +201,7 @@ const WEEKLY_DATE = { color: DATE_INK, fontSize: 9, rotate: 60 }
 
 /**
  * Up to this many days a window is drawn in its SHORT form: a date and an
- * upright per day, and the counts (корзины, заказы, остатки) as columns.
+ * upright per day, and the counts (carts, orders, stock) as columns.
  *
  * A month is what a column needs to stay a column — 31 days across a card is
  * ~35px of slot, and past that they thin to a texture. The date axis changes at
@@ -276,7 +276,7 @@ export function ruleStep(top) {
   return nice * power
 }
 
-/** What the orders ruler falls back to when the window reports no заказы. */
+/** What the orders ruler falls back to when the window reports no orders. */
 export const DEFAULT_AXIS_MAX = 500
 
 /**
@@ -324,7 +324,7 @@ function valueAxis({
 }
 
 /**
- * Build the plot's rulers: штуки left, деньги right, and the index on a scale
+ * Build the plot's rulers: unit counts left, money right, and the index on a scale
  * that is never drawn.
  *
  * The first two are drawn whether or not anything is on them — that is the
@@ -414,8 +414,8 @@ function groupedTooltip(series, hover, currency) {
  * How close to a mark the cursor has to be for the hover to be about it.
  *
  * The filled area belongs to its series as far as ECharts is concerned, so a
- * cursor anywhere inside the band — most of the plot — arrived as «наведён на
- * Затраты» and answered with Затраты alone. The fill is not a mark, it is the
+ * cursor anywhere inside the band — most of the plot — arrived as "hovering
+ * «Затраты»" and answered with «Затраты» alone. The fill is not a mark, it is the
  * floor; a question about one metric is asked by pointing at the metric.
  */
 const MARK_REACH_PX = 14
@@ -469,7 +469,7 @@ export function focusedPoints(points, hover) {
  * fortnight and wrong for a year: 365 days at 44px is nine metres to drag
  * through, and the shape a reader came for is never on screen at once.
  *
- * Штуки down the left edge and деньги down the right, fixed, whatever is
+ * Unit counts down the left edge and money down the right, fixed, whatever is
  * ticked; anything that is neither is an index on a scale that is never drawn.
  * See `metricChart.js#AXES`.
  *

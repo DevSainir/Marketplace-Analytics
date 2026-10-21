@@ -15,7 +15,7 @@ export function ratioPct(ratio) {
  * Fixed hues, by meaning — the dataviz palette's first three slots, validated
  * together for colour-blind separation (worst adjacent ΔE 9.2). «Расход» and
  * «Поиск» share slot 1, «Промо-бонусы» and «Полки» slot 2, «Каталог» slot 3;
- * ДРР takes the pink the monitoring charts give «ДРР от продаж».
+ * DRR takes the pink the monitoring charts give «ДРР от продаж».
  *
  * Hex rather than a token because ECharts and the SVG pies need a literal.
  */
@@ -31,7 +31,7 @@ export const ZONE_COLORS = {
   catalog: '#1BAF7A',
 }
 
-/** ДРР above this is printed in the negative tone. */
+/** DRR above this is printed in the negative tone. */
 export const DRR_ALARM = 0.2
 
 /** "2026-07-05" -> "05.07.2026". */

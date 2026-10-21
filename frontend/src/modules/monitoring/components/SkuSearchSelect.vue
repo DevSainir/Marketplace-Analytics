@@ -70,7 +70,7 @@ function onApply() {
 <template>
   <div ref="root" class="relative" @focusout="onFocusOut" @keydown.esc="close">
     <!-- On a phone «Применить» beside the field leaves the input too narrow to
-         show an артикул, so the pair stacks and each takes the full width. -->
+         show an article, so the pair stacks and each takes the full width. -->
     <form class="flex items-stretch gap-sm phone:flex-col" @submit.prevent="onApply">
       <div class="relative flex-1">
         <svg

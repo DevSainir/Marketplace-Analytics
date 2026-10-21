@@ -121,7 +121,7 @@ describe('the unit on the matrix', () => {
 
   it('signs spend with the currency the detail states for the campaigns', async () => {
     // «Демо» settles in KGS but is priced in RUB, and its campaigns bill in
-    // KGS since 20.08.2026 — one кабинет-wide unit misstated one of the two.
+    // KGS since 20.08.2026 — one workspace-wide unit misstated one of the two.
     fetchSkuDetail.mockResolvedValue(WITH_MATRIX)
 
     await store.fetchProductData('953770957')
@@ -477,7 +477,7 @@ describe('refreshFromWb', () => {
     // THE 2026-07-30 REGRESSION. The ceiling was 200 polls x 600ms = 120s while
     // the backend legitimately takes up to ~4 minutes when a cohort pass is
     // competing for WB's rate budget. Harvests that succeeded in 144-198s were
-    // all reported as "не завершилось за отведённое время", which is why users
+    // all reported as «не завершилось за отведённое время», which is why users
     // concluded «Обновить» never works. A poll ceiling BELOW the backend's own
     // limit turns every slow success into a visible failure.
     vi.useFakeTimers()

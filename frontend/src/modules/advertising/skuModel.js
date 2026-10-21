@@ -3,12 +3,12 @@
  *
  * Both ratios are re-derived from summed money, never averaged:
  *
- * * **ДРР от продаж** — the seller's own spend (WB's bonus taken off) on
+ * * **«ДРР от продаж»** — the seller's own spend (WB's bonus taken off) on
  *   SETTLED days over settled sales. The page's own window may run past the
  *   settlement; those days' spend has no sales to be divided by and stays out
  *   of the numerator (the backend sends it apart as `spend_settled` and
  *   `bonus_settled`).
- * * **Доля** — the row's spend over the кабинет's whole spend for the window,
+ * * **«Доля»** — the row's spend over the workspace's whole spend for the window,
  *   whatever the filter: «доля общих рекламных расходов».
  */
 
@@ -30,11 +30,11 @@ const NONE = '—'
 const num = (value) => (value === null || value === undefined ? null : Number(value))
 
 /**
- * ДРР as a 0–1 ratio, `null` when there is nothing to divide by.
+ * DRR as a 0–1 ratio, `null` when there is nothing to divide by.
  *
  * Sales here are net of returns, so a day or an article can come out at zero
- * or below — on «Демо» 19.06.2024 took 101 000 сом of returns against
- * 85 000 of sales. Advertising over a negative sum is a negative ДРР, which
+ * or below — a day with more money returned than sold is an ordinary sight.
+ * Advertising over a negative sum is a negative DRR, which
  * means nothing; it is withheld like a day without sales.
  */
 export function drrOf(spendSettled, sales) {
@@ -136,7 +136,7 @@ function sum(rows, label) {
   )
 }
 
-/** Attach ДРР and the share of the кабинет's spend. */
+/** Attach DRR and the share of the workspace's spend. */
 function withRatios(row, cabinetSpend) {
   return {
     ...row,
@@ -151,7 +151,7 @@ function withRatios(row, cabinetSpend) {
  *
  * By «Группы» an article sits in every group it belongs to — the heatmap's
  * rule — and the ones in none share a «Без группы» row. The rows can then add
- * up to more than the кабинет spent, which is why the «Итого» is summed over
+ * up to more than the workspace spent, which is why the «Итого» is summed over
  * the articles, never over these rows ({@link totalRow}).
  *
  * @param {Array<{name: string, nm_ids: number[]}>} [groups] For `group` only.

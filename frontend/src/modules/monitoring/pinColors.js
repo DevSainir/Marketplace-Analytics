@@ -9,8 +9,8 @@
  *   the page whose colour came from somewhere else, and the row read as a
  *   child's highlighter set next to `ui-next`'s single violet accent;
  * * thirteen choices is not thirteen times as useful as three. The colour is a
- *   grouping mark on a row of chips a manager scans sideways — «эти три я
- *   смотрю вместе». Past a handful, telling `#d8f5a2` from `#b2f2bb` at chip
+ *   grouping mark on a row of chips a manager scans sideways — "these three I
+ *   look at together". Past a handful, telling `#d8f5a2` from `#b2f2bb` at chip
  *   size costs more attention than the grouping saves.
  *
  * These three are the system's own hues (`tokens.css`: action `#715FFF`,

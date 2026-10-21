@@ -2,7 +2,7 @@
 /**
  * What the «Общая» CTR cell divides.
  *
- * That column's «Показы» are advertising показы (WB reports no organic ones),
+ * That column's «Показы» are advertising views (WB reports no organic ones),
  * while its «Клики» are the funnel's — organic included. The CTR is the
  * advertising one, so dividing the two rows on screen gives a number that
  * never happened. This names the advertising clicks the CTR actually uses.

@@ -4,7 +4,7 @@
  *
  * Open by default, and collapsible from the chevron. It used to open collapsed,
  * on the reasoning that the table is read for its numbers; in use the notes are
- * what the day is read THROUGH — «почему вторник просел» is answered by the
+ * what the day is read THROUGH — "why did Tuesday dip" is answered by the
  * comment, not by the row above it — and every reader was opening the band on
  * arrival. The chevron still closes it for the readings where the grid is the
  * whole question.

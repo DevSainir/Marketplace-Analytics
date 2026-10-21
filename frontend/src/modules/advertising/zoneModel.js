@@ -8,11 +8,11 @@
  * so it is now exactly that: a card per kind, its total, and its zones.
  *
  * The payment model (CPM / CPC) is a tag on the card rather than a level of
- * nesting. The order is fixed — единая ставка, the two manual ones, CPC — not
+ * nesting. The order is fixed — unified bid, the two manual ones, CPC — not
  * by size, so a card is always in the same place from one period to the next; a kind that did not
  * run stays on the row at zero rather than vanishing.
  *
- * Единая ставка has no «Каталог»: WB reports only a unified campaign's search
+ * The unified bid has no «Каталог»: WB reports only a unified campaign's search
  * slice, so the rest of it is «Полки» and nothing finer can be told apart.
  */
 
@@ -125,7 +125,7 @@ const UNTYPED_LINE = { kind: null, label: 'Без настроек кампан�
  * An article's (or a group's) money by zone, for the row's breakdown.
  *
  * `share` is the zone's part of the ROW's spend — the question the breakdown
- * answers is where this article's money went, not its weight in the кабинет.
+ * answers is where this article's money went, not its weight in the workspace.
  *
  * @param {Array<{zone: string, spend: number, bonus: number}>} zones
  * @param {number} rowSpend

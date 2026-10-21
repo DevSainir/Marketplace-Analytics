@@ -1,13 +1,13 @@
 <script setup>
 /**
- * «Открутка по дням»: spend, the bonus part of it, and ДРР от продаж.
+ * «Открутка по дням»: spend, the bonus part of it, and DRR from sales.
  *
- * ДРР is on its own right-hand percent scale, as asked, so its line does not
+ * DRR is on its own right-hand percent scale, as asked, so its line does not
  * flatten against money in the hundreds of thousands. Two scales on one plot
- * invite reading the crossings as meaningful, so the ДРР line is set apart
+ * invite reading the crossings as meaningful, so the DRR line is set apart
  * three ways: dashed, its own hue, and an axis labelled in percent. It stops on
  * the last settled day — past it there are no sales to divide by, and a gap is
- * honest where a zero would read as «реклама окупилась бесплатно».
+ * honest where a zero would read as "the advertising paid for itself for free".
  *
  * With bonuses hidden the blue line is «Расход» — everything the campaigns
  * spent. With them shown it becomes «Расход с баланса», the spend minus what
@@ -18,7 +18,7 @@
  * colour: a ticked box is a drawn line, so one metric can be read without the
  * others. A box rather than a clickable caption — a struck-through caption did
  * not read as something to click. Hidden lines are this chart's own
- * state and reset with the page; the ДРР axis goes with its line.
+ * state and reset with the page; the DRR axis goes with its line.
  *
  * Ink mirrors `tokens.css` as hex because ECharts paints on a canvas.
  */
@@ -34,7 +34,7 @@ const props = defineProps({
   days: { type: Array, required: true },
   currency: { type: String, default: '' },
   showBonus: { type: Boolean, default: false },
-  /** False when spend and sales are in different currencies — no ДРР line then. */
+  /** False when spend and sales are in different currencies — no DRR line then. */
   showDrr: { type: Boolean, default: true },
 })
 
@@ -63,7 +63,7 @@ const legend = computed(() => [
 ])
 
 /**
- * Per-day ДРР from the seller's own money — the day's spend minus WB's bonus,
+ * Per-day DRR from the seller's own money — the day's spend minus WB's bonus,
  * whatever the bonus switch shows — over the day's sales. `null` past the
  * settlement, and on a day whose returns outweighed its sales.
  */
@@ -121,7 +121,7 @@ const option = computed(() => ({
     {
       type: 'value',
       show: props.showDrr && shown('drr'),
-      // ДРР is withheld rather than negative, so the axis starts at zero and
+      // DRR is withheld rather than negative, so the axis starts at zero and
       // the line never floats over an empty band below it.
       min: 0,
       splitLine: { show: false },

@@ -37,7 +37,7 @@ describe('the cluster half', () => {
   })
 
   it('reports a failure instead of showing an empty cluster list', async () => {
-    // «Реклама не показывалась» and «запрос не выполнился» lead a seller to
+    // "the ads were not shown" and "the request failed" lead a seller to
     // opposite decisions, so a failure is never rendered as "no clusters".
     fetchSkuClusters.mockRejectedValue({ response: { status: 500 } })
 

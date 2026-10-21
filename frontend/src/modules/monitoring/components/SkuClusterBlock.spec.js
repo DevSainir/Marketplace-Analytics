@@ -30,7 +30,7 @@ it('shows the SKU’s clusters without anyone typing a phrase', () => {
 })
 
 it('renders an unreported average ad position as a dash, not zero', () => {
-  // Null means WB never reported a position; 0 would read as «первое место».
+  // Null means WB never reported a position; 0 would read as "first place".
   const wrapper = mountBlock({ clusters: [{ ...CLUSTERS[0], avg_position: null }] })
 
   expect(wrapper.find('tbody tr').text()).toContain('—')

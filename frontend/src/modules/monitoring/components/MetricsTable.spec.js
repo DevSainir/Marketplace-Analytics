@@ -23,7 +23,7 @@ function amountInputs(wrapper) {
   return wrapper.findAll('.day-action-amount input')
 }
 
-/** The three «Действия» dropdowns: [Первая РК, Вторая РК, Меняли цену?]. */
+/** The three «Действия» dropdowns: [«Первая РК», «Вторая РК», «Меняли цену?»]. */
 function selects(wrapper) {
   return wrapper.findAll('.day-action-select')
 }
@@ -243,8 +243,8 @@ describe('table composition', () => {
   })
 
   it('opens the notes band expanded and still lets it be closed', async () => {
-    // Открыт по умолчанию: комментарий — это то, ЧЕРЕЗ что читают день, и
-    // раскрывали его всё равно каждый раз. Свернуть по-прежнему можно.
+    // Open by default: the comment is what a day is read THROUGH, and people
+    // expanded it every time anyway. It can still be collapsed.
     const wrapper = mountTable()
 
     expect(wrapper.find('.comment-input').exists()).toBe(true)
@@ -255,8 +255,8 @@ describe('table composition', () => {
   })
 
   it('gives a day note ten rows to be written in', () => {
-    // Двух строк хватало на первую строку заметки; остальное читалось
-    // прокруткой внутри поля.
+    // Two rows held the first line of a note; the rest had to be read by
+    // scrolling inside the field.
     const wrapper = mountTable()
 
     expect(wrapper.find('.comment-input').attributes('rows')).toBe('10')

@@ -7,7 +7,7 @@
  *
  * Money is labelled in the units the detail response states — the prices'
  * (`price_currency`) and the campaigns' (`ad_currencies`). Not the settlement
- * currency: a KGS кабинет is priced in RUB, and its campaigns bill in the
+ * currency: a KGS workspace is priced in RUB, and its campaigns bill in the
  * currency each was created in (see `unitsOf` in metricsMatrix.js).
  */
 import { defineStore } from 'pinia'
@@ -54,7 +54,7 @@ const REFRESH_POLL_INTERVAL_MS = 600
  *
  * The old ceiling was 120s — BELOW the worst case of the day. On 2026-07-30
  * harvests that genuinely succeeded in 144-198s were all reported to the user
- * as "не завершилось за отведённое время", which is why «Обновить» appeared
+ * as «не завершилось за отведённое время», which is why «Обновить» appeared
  * never to work. A ceiling under the backend's own limit turns every slow
  * success into a visible failure.
  */
@@ -356,7 +356,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  // --- day actions («Действия»: РК toggles + budgets, price change) ---------
+  // --- day actions («Действия»: ad campaign toggles + budgets, price change) -
   // Per-day answered questions under the comments row: persisted on the backend
   // (monitoring.sku_day_action), global per (nm_id, day). The persisted map
   // rides on `currentProduct.day_actions` (keyed by ISO day, touched days

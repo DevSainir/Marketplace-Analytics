@@ -10,7 +10,7 @@
  * The rules that make the form honest, all carried over from the table row
  * because they are about the data, not the layout:
  *
- *   - the two РК slots cannot hold the same campaign type, so each disables the
+ *   - the two ad campaign slots cannot hold the same campaign type, so each disables the
  *     other's pick;
  *   - clearing a type takes its budget with it — a number behind no campaign
  *     could not be read back or cleared;
@@ -34,7 +34,7 @@ const PRICE_CHANGE_OPTIONS = [
   { value: 'down', label: 'Понизили' },
 ]
 
-// The campaign types a РК slot can hold. Both slots draw from this list but stay
+// The campaign types an ad campaign slot can hold. Both slots draw from this list but stay
 // distinct — a type picked in one is disabled in the other.
 const RK_TYPE_OPTIONS = [
   { value: 'uni', label: 'Единая' },
@@ -58,12 +58,12 @@ const RK_BLOCKS = [
   },
 ]
 
-/** Whether a type option is already taken by the OTHER РК slot (so, disabled). */
+/** Whether a type option is already taken by the OTHER campaign slot (so, disabled). */
 function isTypeTaken(block, optionValue) {
   return props.action[block.otherTypeField] === optionValue
 }
 
-/** Commit a РК slot's type; clearing it takes its now-locked budget with it. */
+/** Commit a campaign slot's type; clearing it takes its now-locked budget with it. */
 function commitRkType(block, event) {
   const next = event.target.value || null
   const patch = { [block.typeField]: next }

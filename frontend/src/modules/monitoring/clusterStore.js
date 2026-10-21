@@ -1,5 +1,5 @@
 /**
- * Rendered only for кабинеты whose `search_clusters_enabled` is set — NEVA since
+ * Rendered only for workspaces whose `search_clusters_enabled` is set — NEVA since
  * 2026-09-26; hidden for everyone else since 2026-09-09. See the note in
  * `MonitoringView.vue`.
  *

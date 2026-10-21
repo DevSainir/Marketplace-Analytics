@@ -15,8 +15,8 @@
   border-left: none;
 }
 
-/* «ДРР от продаж»: one cell per traffic group, so 6 per day (uni | руч.поиск |
-   руч.полки | CPC | общая | органика). Black day boundary before each day's
+/* «ДРР от продаж»: one cell per traffic group, so 6 per day (uni | manual search |
+   manual shelves | CPC | total | organic). Black day boundary before each day's
    first cell (except the first day), light boundaries between the campaign
    groups within a day — the same cadence as the type header in main.css, one
    row up in the same columns.

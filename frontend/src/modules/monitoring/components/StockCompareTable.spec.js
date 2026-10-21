@@ -109,7 +109,7 @@ describe('StockCompareTable', () => {
       [cell(1, 'S', 'Казань', 2)],
     )
 
-    // размер | день 1: всего, Казань, Тула | день 2: всего, Казань
+    // size | day 1: total, Казань, Тула | day 2: total, Казань
     expect(rowText(wrapper, 0)).toEqual(['S', '3', '3', '', '2', '2'])
     // «M» sold out overnight: the row stays, and the second day shows the gap.
     expect(rowText(wrapper, 1)).toEqual(['M', '11', '10', '1', '', ''])

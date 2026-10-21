@@ -4,7 +4,7 @@
  *
  * Always visible under the comments. Per day, three blocks — «Первая РК» /
  * «Вторая РК» (a campaign-type dropdown plus «Бюджет рекламы») and «Меняли
- * цену?» (Повысили/Понизили plus «На сколько»). Every change emits `action`
+ * цену?» («Повысили»/«Понизили» plus «На сколько»). Every change emits `action`
  * with a PARTIAL patch; the store merges it into the day's stored state and
  * saves the whole day (last write wins).
  *
@@ -29,7 +29,7 @@ const PRICE_CHANGE_OPTIONS = [
   { value: 'down', label: 'Понизили' },
 ]
 
-// The campaign types a РК slot can hold. The two slots draw from this same
+// The campaign types an ad campaign slot can hold. The two slots draw from this same
 // list but are kept distinct (a type picked in one is disabled in the other).
 const RK_TYPE_OPTIONS = [
   { value: 'uni', label: 'Единая' },
@@ -38,7 +38,7 @@ const RK_TYPE_OPTIONS = [
   { value: 'cpc', label: 'CPC' },
 ]
 
-// The two РК blocks share one markup (v-for over this config). `otherTypeField`
+// The two ad campaign blocks share one markup (v-for over this config). `otherTypeField`
 // is the sibling slot, read to sync the dropdowns.
 const RK_BLOCKS = [
   {
@@ -59,12 +59,12 @@ function dayAction(iso) {
   return props.dayActions[iso] ?? {}
 }
 
-/** Whether a type option is already taken by the OTHER РК slot (so, disabled). */
+/** Whether a type option is already taken by the OTHER campaign slot (so, disabled). */
 function isTypeTaken(iso, block, optionValue) {
   return dayAction(iso)[block.otherTypeField] === optionValue
 }
 
-/** Commit a РК slot's type; clearing it takes its now-locked budget with it. */
+/** Commit a campaign slot's type; clearing it takes its now-locked budget with it. */
 function commitRkType(iso, block, event) {
   const next = event.target.value || null
   const patch = { [block.typeField]: next }
