@@ -37,10 +37,10 @@ async def reconcile_against_wb(
     ``forPaySum`` for the same report, so for the first time the statement can
     be checked against something.
 
-    **What WB totals is not a plain sum.** Worked out against report 989286628
-    on 2026-09-22: ``forPaySum`` is «Продажа» minus «Возврат» minus «Коррекция
-    продаж» plus the standalone compensations — 967 379.90 - 116 946.31 -
-    64.13 + 7 618.21 = 1 024 861.64, to the kopeck. The sign is never in the
+    **What WB totals is not a plain sum.** Worked out against a real report on
+    2026-09-22: ``forPaySum`` is «Продажа» minus «Возврат» minus «Коррекция
+    продаж» plus the standalone compensations — e.g. 1 000 000.00 - 120 000.00 -
+    50.00 + 8 000.00 = 887 950.00, to the kopeck. The sign is never in the
     value: WB serves refunds POSITIVE, which is the mistake that doubles
     revenue if a reader sums the column.
 
