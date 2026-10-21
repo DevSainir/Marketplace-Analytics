@@ -112,7 +112,7 @@ async def _next_page_delay(tokens: WorkspaceTokenBundle) -> int:
     bug rather than a tidying. It read `tokens.statistics` while building a
     FINANCE gate, so it asked a bucket nothing writes to: on «Демо», which
     holds per-surface tokens, the answer was always «open» and the lane paced
-    itself on the spin guard. Every other кабинет resolves both fields to the
+    itself on the spin guard. Every other workspace resolves both fields to the
     same `unified` token, which is why it never showed. A function that is
     handed the bundle cannot be given the wrong half of it.
 
@@ -310,10 +310,10 @@ def backfill_pnl(
             message=step.message,
         )
         if step.finished:
-            # The end of the FIRST walk is the one moment a кабинет's whole
+            # The end of the FIRST walk is the one moment a workspace's whole
             # history exists and nothing has ever summarised it. Without this,
             # the seller who has just waited hours for the backfill pays for the
-            # rollup too — ~17 s on the largest кабинет — on their first click.
+            # rollup too — ~17 s on the largest workspace — on their first click.
             await warm_settlement_rollup(workspace_id=ws_id, name=tokens.name)
         if not step.finished:
             # Unconditional: `advance_pnl` finishes the lane outright when there

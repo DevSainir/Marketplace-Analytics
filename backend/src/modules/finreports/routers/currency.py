@@ -1,9 +1,9 @@
-"""HTTP route for the кабинет's settlement currency.
+"""HTTP route for the workspace's settlement currency.
 
 The unit of figures read from the settlement. It is NOT the unit of everything
-a кабинет shows: a KGS кабинет is priced in RUB, and its campaigns bill in the
+a workspace shows: a KGS workspace is priced in RUB, and its campaigns bill in the
 currency each was created in (RUB before WB moved the ad account on 2026-08-20),
-so monitoring labels its prices and spend from its own data instead. The A/Б
+so monitoring labels its prices and spend from its own data instead. The A/B
 summary still reads this for its spend — right for every test so far, all of
 them on campaigns created after the move. The unit lives in this module's
 settlement rows, so this module answers for it; monitoring cannot, because this
@@ -11,7 +11,7 @@ module already depends on monitoring's contract and a dependency back would
 close a cycle.
 
 It is mounted beside the P&L routes but **not behind the P&L grant**: a manager
-granted only monitoring or A/Б tests reads money in this currency on every
+granted only monitoring or A/B tests reads money in this currency on every
 screen they can reach, and what comes back is a currency code, not a figure.
 """
 
@@ -42,11 +42,11 @@ async def get_settlement_currency(
     service: PnlServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> SettlementCurrencyResponse:
-    """Return the currency WB settles the active кабинет in.
+    """Return the currency WB settles the active workspace in.
 
-    Membership, not the P&L grant: monitoring and the A/Б tests print money in
+    Membership, not the P&L grant: monitoring and the A/B tests print money in
     this unit for managers who cannot open the P&L. Nothing weaker either —
-    ``MemberAccess`` is the paywall, and a bare account has no кабинет to ask
+    ``MemberAccess`` is the paywall, and a bare account has no workspace to ask
     about.
     """
     return SettlementCurrencyResponse(

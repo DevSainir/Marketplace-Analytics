@@ -26,7 +26,7 @@ class PnlSkuDay(BaseModel):
 
     nm_id: int
     day: date
-    #: Sales minus refunds at the seller's own price, before WB's СПП — the
+    #: Sales minus refunds at the seller's own price, before WB's SPP — the
     #: base every percentage of the P&L is taken of (PNL.md §17).
     revenue_seller: Decimal
     sold_units: int

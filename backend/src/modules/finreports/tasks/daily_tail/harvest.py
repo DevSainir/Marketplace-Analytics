@@ -68,7 +68,7 @@ async def harvest_daily_tail(*, workspace_id: uuid.UUID) -> dict[str, int]:
     and fetch nothing, which is the case the button exists for — so it takes a
     key of its own. It spends one seller's budget, WB's buckets are per token,
     and pacing is the rate gate's job; the lock only has to stop two clicks on
-    the same кабинет walking it twice.
+    the same workspace walking it twice.
 
     Args:
         workspace_id: The workspace to cover. Required: a click by one tenant

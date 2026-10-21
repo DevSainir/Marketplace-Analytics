@@ -1,4 +1,4 @@
-"""Pre-summed settlement detail — one row per кабинет / отчёт / день / артикул.
+"""Pre-summed settlement detail — one row per workspace / report / day / SKU.
 
 **This table is a cache, and the read path proves it before trusting it.** Every
 query that reads it first asks the detail how many rows each day of the window
@@ -52,7 +52,7 @@ class SettlementDailyRollup(Base):
     rr_dt: Mapped[date] = mapped_column(Date, primary_key=True)
     nm_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
 
-    #: The modal currency of the group's rows. A кабинет is effectively
+    #: The modal currency of the group's rows. A workspace is effectively
     #: single-currency, but stray rows exist and `max()` is lexical — it would
     #: report "RUB" for a KGS window and make every cost price unmatchable.
     currency: Mapped[str] = mapped_column(String(8), default="", nullable=False)
@@ -101,6 +101,7 @@ class SettlementDailyRollup(Base):
     rebill_logistic_cost: Mapped[Decimal] = _money()
     advertising: Mapped[Decimal] = _money()
 
+    #: The dimensions summary's figures, «Логистика» rows only — see
     #: P&L aggregate on purpose; written by the same rebuild.
         Numeric(18, 2), default=Decimal(0), server_default="0", nullable=False
     )
@@ -115,6 +116,7 @@ class SettlementDailyRollup(Base):
     #: the day when the two disagree.
     rows: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    #: When the group was last rebuilt. Load-bearing for the dimensions cache:
     #: every write to the detail deletes the days it touches, so a restated row
     #: comes back here with a new ``built_at`` even when the count is the same.
     built_at: Mapped[datetime] = mapped_column(

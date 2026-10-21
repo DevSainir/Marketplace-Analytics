@@ -1,4 +1,4 @@
-"""Response DTO for the кабинет's settlement currency."""
+"""Response DTO for the workspace's settlement currency."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class SettlementCurrencyResponse(BaseModel):
-    """The currency every money figure of the active кабинет is stated in.
+    """The currency every money figure of the active workspace is stated in.
 
     One seller account is priced, advertised and paid in one currency, so the
     code WB settles it in is also the unit of its funnel sums, its prices and

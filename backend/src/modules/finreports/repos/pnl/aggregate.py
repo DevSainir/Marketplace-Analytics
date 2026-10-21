@@ -10,8 +10,8 @@ query plumbing.
 column against every ``supplier_oper_name`` over the seller's whole settled
 history shows each column is populated by exactly one family of operations and
 is identically zero on all the others: ``delivery_rub`` only ever by
-Логистика/Коррекция логистики, ``storage_fee`` only by the three storage
-operations, ``penalty`` only by Штраф, and so on. Summing the column over all
+«Логистика»/«Коррекция логистики», ``storage_fee`` only by the three storage
+operations, ``penalty`` only by «Штраф», and so on. Summing the column over all
 rows is therefore both simpler *and* safer than filtering by operation — if WB
 introduces an operation tomorrow that withholds storage, it lands in the storage
 line instead of vanishing. Only the revenue/units/payout lines need the operation
@@ -73,20 +73,20 @@ class SettlementAggregate:
         label: Human-readable name for the key (``sa_name`` for a SKU cut).
         date_from / date_to: Settlement dates actually observed in this group.
         currency: Settlement currency observed on the rows.
-        subject_name / brand_name: WB's catalogue identity for the row (Тип
-            предмета / Бренд). Meaningful on the SKU cut only.
+        subject_name / brand_name: WB's catalogue identity for the row («Тип
+            предмета» / «Бренд»). Meaningful on the SKU cut only.
         sold_units / returned_units: Units on «Продажа» / «Возврат» rows.
         sales_gross / returns_gross: ``retail_amount`` — what buyers paid and
             what was refunded.
         sales_before_spp / returns_before_spp: ``retail_price_withdisc_rub`` on
-            sale and refund rows — the price before WB's own СПП discount, so the
+            sale and refund rows — the price before WB's own SPP discount, so the
             gap WB co-funded is visible. Both are needed: netting refunds out of
-            the pre-СПП revenue at their *post*-СПП amount mixes two bases and
-            misstates the discount line by the refunds' own СПП.
+            the pre-SPP revenue at their *post*-SPP amount mixes two bases and
+            misstates the discount line by the refunds' own SPP.
         payout_sales / payout_returns / payout_other: ``ppvz_for_pay`` on sale
             rows, on refund rows, and on everything else. The third bucket is
-            not padding: WB's standalone compensations (ущерб, брак, подменённый
-            товар, потерянный товар) populate ``ppvz_for_pay`` and no other
+            not padding: WB's standalone compensations (damage, defects, substituted
+            goods, lost goods) populate ``ppvz_for_pay`` and no other
             money column, so filtering the payout to «Продажа» would drop them —
             33 433 KGS in a single quarter of this seller's history.
         wb_commission_reported / wb_commission_vat: ``ppvz_vw`` and
@@ -96,12 +96,12 @@ class SettlementAggregate:
             the printed lines add up exactly. Their sum cross-checks that residual
             instead, and that check RUNS:
             ``test_the_residual_commission_matches_the_one_wb_published``. They
-            agree exactly on the fixture and to 0.075 % over the real history.
+            agree exactly on the fixture and to 0.075 % over a full seller history.
             ``wb_commission_vat`` is additionally printed as the «в т.ч. НДС» of
             the commission line, so both must be summed over the same rows the
             residual is; see the expression's own comment for what widening
             them costs.
-        wb_reward: ``ppvz_reward`` (вознаграждение поверенного), over the sale rows.
+        wb_reward: ``ppvz_reward`` (the agent's reward), over the sale rows.
             Zero in 2026 but 47 396 KGS in one 2024 quarter — omitting it makes
             the payout fail to reconcile by exactly that amount.
         acquiring_withheld: ``acquiring_fee`` that WB actually deducted from the
@@ -109,7 +109,7 @@ class SettlementAggregate:
         acquiring_billed_apart: ``acquiring_fee`` labelled «Комиссия за
             организацию платежа с НДС», which WB bills separately instead of
             withholding — a memo figure, never a deduction from the payout.
-        agency_vat: НДС агента — a memo figure, NOT part of the payout.
+        agency_vat: «НДС агента» (agent's VAT) — a memo figure, NOT part of the payout.
         logistics_forward / logistics_return / logistics_unlegged:
             ``delivery_rub`` split by which leg counter WB set on the row. The
             third bucket is «Коррекция логистики», which sets neither.
@@ -325,7 +325,7 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
             else_=_ZERO,
         )
     ),
-    # Catalogue identity, carried for the SKU cut's Тип предмета / Бренд columns.
+    # Catalogue identity, carried for the SKU cut's «Тип предмета» / «Бренд» columns.
     # ``max`` because a SKU's rows all share them; ignored on period/total cuts.
     func.max(_T.subject_name),
     func.max(_T.brand_name),

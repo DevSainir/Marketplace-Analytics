@@ -2,8 +2,8 @@
 
 The detail is 870 MB against a 128 MB ``shared_buffers``, so every windowed
 aggregate over it is a parallel seq scan — 714 MB off disk and ~7 s, measured on
-this service's largest кабинет. The same rows collapse to 27 857 groups on
-(кабинет, отчёт, день, артикул), which stays in cache.
+this service's largest workspace. The same rows collapse to 27 857 groups on
+(workspace, report, day, SKU), which stays in cache.
 
 **Nothing here trusts the cache.** A read first asks the detail how many rows
 each day of the window holds — an index-only scan over
@@ -100,7 +100,7 @@ def _summed_columns() -> list[SqlExpr]:
         func.coalesce(func.mode().within_group(rollup.currency).filter(rollup.currency != ""), ""),
         func.max(rollup.subject_name),
         func.max(rollup.brand_name),
-        # Coalesced, because a window the кабинет settled nothing in still
+        # Coalesced, because a window the workspace settled nothing in still
         # has to produce a zeroed aggregate rather than a row of NULLs: the
         # TOTAL cut has no GROUP BY, so an empty window returns one row
         # regardless and every figure on it would be None.
@@ -188,7 +188,7 @@ class SettlementRollup:
         the process down instead of returning a page.
 
         Nor is the window split into batches of days, which was the other
-        candidate: measured on the largest кабинет, 31 days is a 0.7 s index
+        candidate: measured on the largest workspace, 31 days is a 0.7 s index
         scan but 92 days is a 19.7 s bitmap heap scan, while the whole history
         in one statement is a 9.5 s parallel seq scan. Postgres picks the right
         plan for the whole window; chopping it up only forces a worse one.
@@ -276,7 +276,7 @@ class SettlementRollup:
         columns ARE that pass's own expressions, summed at a finer grain — with
         one documented exception: the settlement currency is the modal currency
         of the rollup's GROUPS rather than of the detail's rows. The two differ
-        only on a кабинет that settles two currencies inside one day, which is
+        only on a workspace that settles two currencies inside one day, which is
         not a thing WB does; every other figure here is a plain sum and cannot
         drift.
         """
@@ -311,7 +311,7 @@ class SettlementRollup:
         :meth:`aggregate` uses, so a SKU's days add up to its window row exactly.
 
         The account-level bucket (``nm_id = 0``) is left out: storage, acceptance
-        and WB's deductions are billed to the кабинет, not to an article, and a
+        and WB's deductions are billed to the workspace, not to an article, and a
         per-article cut has nowhere honest to put them.
 
         Returns:

@@ -38,8 +38,8 @@ answered in SQL by :func:`~src.modules.finreports.tasks.gaps.survey_settlement_g
 
 The verdict it reaches is not thrown away: it is recorded per workspace (see
 :mod:`src.modules.finreports.services.freshness_record`) so the P&L page can say
-in words why the statement stops where it does. «Новых отчётов нет» means
-nothing without «и мы спросили 12 минут назад» — and since every tick now asks,
+in words why the statement stops where it does. "No new reports" means
+nothing without "and we asked 12 minutes ago" — and since every tick now asks,
 every tick records a true one.
 """
 

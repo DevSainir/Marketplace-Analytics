@@ -8,7 +8,7 @@ The schedule asks WB on the hours a report can arrive, and only while a seller
 is still owed one; this exists for the moments it cannot cover. A report served
 off the calendar waits for the 04:00 pass, and a worker that was down for its
 tick waits for the next one — in both cases the seller can already see the report on WB's own
-site, and «подождите» is not an answer.
+site, and "please wait" is not an answer.
 
 Triggering is guarded, not queued: if a harvest is already in flight the answer
 is ``already_running`` and nothing is enqueued. The guard is advisory (see
@@ -136,8 +136,8 @@ async def trigger_harvest(
 
     So the click walks the reconciliation span: the days behind our coverage as
     well as the ones after it, whatever the gate says. That is the only shape
-    that answers the question actually being asked, which is not «есть ли что-то
-    новее» but «догони то, что у WB уже есть, а у нас нет». It costs more — a
+    that answers the question actually being asked, which is not "is there anything
+    newer" but "catch up on what WB already has and we do not". It costs more — a
     fortnight was three windows of the old endpoint's quarter-hourly budget, and
     is a few one-a-minute requests on finance-api — and it is spent on
     the caller's own workspace, once, because a person asked.
@@ -153,7 +153,7 @@ async def trigger_harvest(
     old settlement report at one request per ~15 minutes, so a click shortly
     after the hourly tick used to enqueue a harvest whose first act was to sit still
     for most of that window — seven minutes of «Обновляем…» during which nothing
-    could possibly happen (prod 2026-09-09). The bucket already knows, in shared
+    could possibly happen (observed 2026-09-09). The bucket already knows, in shared
     Redis, so that case is now refused here with the wait attached instead of
     being discovered minutes later on a worker.
 
@@ -163,7 +163,7 @@ async def trigger_harvest(
     could do differently until the bucket reopens.
 
     Order matters — a run in flight is reported ahead of the rate limit. The
-    running harvest is very often what emptied the bucket, and "уже идёт" is the
+    running harvest is very often what emptied the bucket, and "already running" is the
     more useful half of that pair: it says the work is happening, where the rate
     limit alone would say only that it cannot start.
 

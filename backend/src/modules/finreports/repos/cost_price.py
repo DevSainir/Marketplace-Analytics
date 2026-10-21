@@ -47,7 +47,7 @@ class CostPriceRepository(BaseRepository):
 
         Returns:
             The row count. Indexed by the primary key's leading column, so this
-            is cheap enough to run on the write path (register P1.13).
+            is cheap enough to run on the write path.
         """
         stmt = (
             select(func.count())

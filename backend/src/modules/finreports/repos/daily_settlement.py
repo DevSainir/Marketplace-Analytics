@@ -177,9 +177,10 @@ class DailySettlementRepository(BaseRepository):
         """Return the newest day the provisional tail covers, if any.
 
         The P&L's freshness line reads this to say «плюс предварительно по 22
-        сен» beside the settled weekly period. It is deliberately NOT mixed into
-        `latest_settled`: one of the two claims is a WB settlement document and
-        the other is a day we have not yet proved stable.
+        сен» ("plus provisional to 22 Sep") beside the settled weekly period. It
+        is deliberately NOT mixed into `latest_settled`: one of the two claims is
+        a WB settlement document and the other is a day we have not yet proved
+        stable.
 
         Args:
             workspace_id: Tenancy scope.

@@ -2,7 +2,7 @@
 
 No I/O, no session — aggregates and cost prices in, a
 :class:`~src.modules.finreports.schemas.pnl.PnlStatement` out. That is what lets
-the whole statement be unit-tested against a real WB week without a database.
+the whole statement be unit-tested against a full WB week without a database.
 
 **The commission line is a residual, and that is deliberate.** WB publishes its
 reward twice: ``ppvz_vw`` unrounded and ``ppvz_sales_commission`` rounded to

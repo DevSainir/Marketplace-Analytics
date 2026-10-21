@@ -133,12 +133,12 @@ class PnlService:
         )
 
     async def get_settled_span(self, *, workspace_id: uuid.UUID) -> tuple[date, date] | None:
-        """Return the first and last day WB has actually settled for a кабинет.
+        """Return the first and last day WB has actually settled for a workspace.
 
         Read off the report headers — a hundred rows — rather than off the
         settlement detail, which is where the same two dates would cost a pass
         over three quarters of a gigabyte. It is what «Вся история» means and
-        what a preset ends on: «30 дней» measured to today would include days no
+        what a preset ends on: «30 дней» (30 days) measured to today would include days no
         WB report covers yet and read as a collapse in sales.
 
         Returns:
@@ -150,13 +150,12 @@ class PnlService:
         return (min(row[1] for row in periods), max(row[2] for row in periods))
 
     async def settlement_currency(self, *, workspace_id: uuid.UUID) -> str:
-        """Return the currency WB settles this кабинет in; ``""`` before the first report.
+        """Return the currency WB settles this workspace in; ``""`` before the first report.
 
         The unit of the settlement report and of nothing else by default. A KGS
-        кабинет's prices and the orders valued at them are RUB, and its
+        workspace's prices and the orders valued at them are RUB, and its
         campaigns bill in whatever currency each was created in — so a label
         taken from here is right only for figures read from the settlement.
-        See ``.claude/skills/wildberries-api/references/currencies.md``.
         """
         return await self._pnl.settlement_currency(workspace_id=workspace_id)
 
@@ -176,7 +175,7 @@ class PnlService:
         queries, each a separate pass over the same settlement rows. A consumer
         that draws a chart needs none of that, and on a multi-year window those
         extra passes are the difference between a page and a timeout — measured
-        at ~7 s per pass over this service's largest кабинет.
+        at ~7 s per pass over this service's largest workspace.
 
         The buckets themselves are composed by the same code path
         :meth:`get_statement` uses, so the two cannot drift.
@@ -363,7 +362,7 @@ class PnlService:
                 f"в штуки и выплаты: {', '.join(sorted(unknown))}."
             )
         if total.wb_commission < _ZERO:
-            # Real, and surprising enough to need saying: WB funds the СПП out of
+            # Real, and surprising enough to need saying: WB funds the SPP out of
             # its own reward, so when the discount it grants exceeds its
             # commission rate the net «комиссия» turns into a subsidy. Measured
             # on this seller's 2025: -859 899 KGS, i.e. WB paid out more than

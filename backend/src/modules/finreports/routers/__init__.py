@@ -1,10 +1,9 @@
 """HTTP presentation layer for the ``finreports`` module.
 
-Five route groups behind one prefix, split because they answer different
+Four route groups behind one prefix, split because they answer different
 questions of the same seller's data:
 
 * :mod:`.pnl` — the profit-and-loss statement and the cost-price editor.
-  statement («логистика») examined closely enough to file in court.
 * :mod:`.harvest` — the manual «Обновить» trigger: fetch WB's finance reports
   now, for the hours the hourly schedule cannot cover.
 * :mod:`.settlement_upload` — the weekly report uploaded by hand while WB's API
@@ -13,7 +12,7 @@ questions of the same seller's data:
   moved are worth, by warehouse, on one snapshot day.
 
 All are pure pass-through routers, guarded here by the membership dependency so
-carries a second, narrower guard of its own — it is ours, not a customer's.
+no individual route can forget it.
 
 One route sits outside the «P&L» grant: :mod:`.currency`, the unit every page
 that prints money needs, whichever sections the reader was granted. It names
@@ -36,7 +35,6 @@ from src.modules.organizations.contract import require_finreports
 # Membership and the «P&L» grant, for every route that shows a figure.
 _granted = APIRouter(dependencies=[Depends(require_finreports)])
 _granted.include_router(pnl_router)
-_granted.include_router(damage_router)
 _granted.include_router(balance_router)
 _granted.include_router(harvest_router)
 _granted.include_router(settlement_upload_router)

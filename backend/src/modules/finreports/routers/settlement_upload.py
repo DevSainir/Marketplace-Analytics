@@ -1,6 +1,6 @@
 """HTTP routes for uploading WB's weekly report by hand, and following it.
 
-The seller downloads «Еженедельный детализированный отчет» from WB's кабинет —
+The seller downloads «Еженедельный детализированный отчет» from WB's seller portal —
 hours before WB's API serves it — and uploads it here. The POST answers at
 once: it checks the file is WB's and queues it; the worker reads it, and the
 GET says how it ended. See :mod:`src.modules.finreports.services.settlement_upload`.
@@ -54,13 +54,13 @@ async def upload_settlement_report(
     """Queue a hand-uploaded weekly report.
 
     Guard: the module's router-level P&L grant, plus ``WritingAccess`` — the
-    upload writes settlement rows into the кабинет's statement, which a
+    upload writes settlement rows into the workspace's statement, which a
     read-only member may not do. Scoped by ``CurrentWorkspaceId``, which
     validates the header against the caller's organisation and binds the tenant
     for row-level security; the worker writes for that workspace and no other.
 
     Bounded three ways: the body is read capped, the archive's declared size is
-    checked before anything is parsed, and a кабинет has one upload in flight at
+    checked before anything is parsed, and a workspace has one upload in flight at
     a time.
     """
     data = await read_capped(
@@ -95,7 +95,7 @@ async def get_settlement_upload(
     """Report how an upload ended, for the page polling it.
 
     Guard: the module's router-level P&L grant. Scoped by ``CurrentWorkspaceId``
-    and read by ``(workspace_id, id)`` — another кабинет's upload is a 404, the
+    and read by ``(workspace_id, id)`` — another workspace's upload is a 404, the
     same as one that does not exist.
     """
     return _out(await service.get(workspace_id=workspace_id, upload_id=upload_id))

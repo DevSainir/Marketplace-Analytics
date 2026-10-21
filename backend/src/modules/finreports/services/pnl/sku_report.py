@@ -38,10 +38,10 @@ def _pct(part: Decimal, whole: Decimal) -> Decimal | None:
 
 
 def _drr_pct(advertising: Decimal, revenue: Decimal) -> Decimal | None:
-    """ДРР as a percentage, or ``None`` unless revenue is positive.
+    """DRR (ad cost ratio) as a percentage, or ``None`` unless revenue is positive.
 
     Revenue is net of returns, so an article — or a whole window — can return
-    more than it sold; advertising over that is a negative ДРР, which means
+    more than it sold; advertising over that is a negative DRR, which means
     nothing and is withheld like a window without sales.
     """
     return _pct(advertising, revenue) if revenue > _ZERO else None
@@ -112,8 +112,8 @@ def build_sku_row(
             as a positive magnitude. ``None`` when the write-off ledger has
             no coverage for the window — which must not be read as zero.
         penalties: This SKU's penalty categories.
-        subject_name: WB's Тип предмета (blank on the totals/bucket rows).
-        brand_name: WB's Бренд (blank on the totals/bucket rows).
+        subject_name: WB's «Тип предмета» (subject; blank on the totals/bucket rows).
+        brand_name: WB's «Бренд» (brand; blank on the totals/bucket rows).
         is_excluded: Whether the seller marked the SKU «Не включать в общий счёт».
         photo_url: The card's main image on WB's CDN, ``None`` when the
             monitoring catalogue holds none — and on the totals and
@@ -294,7 +294,7 @@ def build_sku_report(
     # ran. A SKU row only ever sees the second — the invoice carries no nm_id —
     # so its spend, net of WB's bonuses, is that row's advertising charge.
     #
-    # «Итого» is the invoice: what WB billed the кабинет is the total, by the
+    # «Итого» is the invoice: what WB billed the workspace is the total, by the
     # owner's decision of 2026-10-02 (the burn differs from it by when it is
     # dated — a week's invoice was 0.77..1.13 of that week's burn on «Демо»
     # in September, 0.96 over five weeks — and, before 20.08.2026, by the rate:
@@ -345,8 +345,8 @@ def build_dashboard(
         return total - sum((pick(r) for r in marked), _ZERO)
 
     # «Продажи» at the seller's own price (revenue_seller_price = «Цена розничная
-    # с учётом согласованной скидки», before СПП); «оплачено покупателями» is the
-    # after-СПП amount, kept as the card's qualifier.
+    # с учётом согласованной скидки», before SPP); «оплачено покупателями» is the
+    # after-SPP amount, kept as the card's qualifier.
     sales = _less(totals.revenue_seller_price, lambda r: r.revenue_seller_price)
     paid = _less(totals.revenue_paid, lambda r: r.revenue_paid)
     logistics = _less(totals.logistics_total, lambda r: r.logistics_total)

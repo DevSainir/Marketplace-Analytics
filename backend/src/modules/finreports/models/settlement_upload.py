@@ -1,6 +1,6 @@
 """A weekly report the seller uploaded by hand, and what became of it.
 
-WB shows the weekly report in the seller's кабинет hours — once eight days —
+WB shows the weekly report in the seller's portal hours — once eight days —
 before its API serves it. The seller can download it there («Еженедельный
 детализированный отчет №…», a zip with one .xlsx) and upload it here; the rows
 then stand in the P&L until the API serves the same report.
@@ -46,7 +46,7 @@ _SCHEMA: str = "finreports"
 
 #: Where an uploaded row's ``rrd_id`` comes from, negated. A real WB ``rrdId`` is
 #: positive, so the sign alone says a row came from a file — and a sequence, not
-#: the report number, because ``rrd_id`` is unique across every кабинет.
+#: the report number, because ``rrd_id`` is unique across every workspace.
 UPLOAD_ROW_SEQUENCE = Sequence("upload_row_seq", schema=_SCHEMA, metadata=Base.metadata)
 
 

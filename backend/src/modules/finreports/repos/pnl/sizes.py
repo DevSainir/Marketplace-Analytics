@@ -14,7 +14,7 @@ sliced by position into the rollup's column order
 (:data:`~.aggregate._GROUP_EXPRESSIONS`), so a field added for this cut would
 silently move every rollup column; and this cut needs one figure the statement
 never wanted — the count of forward logistics legs, which is the only
-measurement of «сколько доехало до покупателя» that carries a size.
+measurement of "how many units reached a buyer" that carries a size.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ class SizeSettlement:
             denominator of «Выкуп»: the funnel's orders have no size.
         sales_gross / returns_gross: ``retail_amount`` — paid and refunded.
         sales_before_spp / returns_before_spp: ``retail_price_withdisc_rub`` —
-            the same at the seller's own price, before WB's СПП.
+            the same at the seller's own price, before WB's SPP.
         payout_sales / payout_returns / payout_other: ``ppvz_for_pay`` on sale
             rows, refund rows, and everything else (WB's compensations).
         logistics_forward / logistics_return / logistics_unlegged:

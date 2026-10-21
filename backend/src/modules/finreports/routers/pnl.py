@@ -18,6 +18,7 @@ from src.core.exceptions import ValidationError
 from src.core.uploads import read_capped
 from src.modules.finreports.deps import (
     CostPriceServiceDep,
+    PeriodServiceDep,
     PnlServiceDep,
     SkuReportServiceDep,
 )
@@ -74,13 +75,14 @@ router = APIRouter()
     },
 )
 async def list_weeks(
+    service: PeriodServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> WeeksResponse:
     """List the WB weekly report periods the seller has data for.
 
-    it is what every finreports page's period selector is built from: the SPA
-    reads the full settlement span from this to pick a default window and to
-    with them left a customer's P&L unable to choose a period at all.
+    Every finreports page's period selector is built from this: the SPA reads
+    the full settlement span from it to pick a default window and to bound the
+    date picker.
     """
     return await service.list_weeks(workspace_id=workspace_id)
 
@@ -135,6 +137,7 @@ async def get_pnl_by_sku(
     """Return the per-SKU P&L cut for an arbitrary settlement-date window.
 
     Three things come from the monitoring module, resolved here through its
+    contract:
     orders from the funnel history, per-SKU advertising from the Promotion API
     statistics, and the card thumbnails — the settlement report carries an
     article string and no catalogue at all.

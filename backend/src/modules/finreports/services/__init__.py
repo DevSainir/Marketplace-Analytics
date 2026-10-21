@@ -16,7 +16,7 @@ Mirrors the monitoring split — one write service, the rest read-only:
 
 composition in :mod:`.pnl.statement` and the pure grid assembly in
 :func:`.balance.build_balance`; all three are I/O-free, so all three are tested
-against real WB payloads without a database.
+against WB-shaped payloads without a database.
 """
 
 from src.modules.finreports.services.balance import BalanceService, build_balance

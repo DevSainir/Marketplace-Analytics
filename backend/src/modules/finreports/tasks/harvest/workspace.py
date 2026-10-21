@@ -76,14 +76,16 @@ async def _harvest_workspace(
         ``penalties``), plus two failure reports: ``storage_windows_failed``,
         non-zero when the window is only partly covered and the storage claim
         is therefore understated, and ``baselines_failed``, 1 when today's
+        declared-dimensions snapshot could not be taken at all.
     """
     # `harvest_all_workspaces` walks every seller in one task, so the task-level
     # context names none of them. Binding here is what makes each line say which
     # seller it is about — and this walk is the single largest producer of log
     # volume in the service, so it is also where an unattributable line costs
-    # the most (register P2.2).
+    # the most.
     bind_workspace(tokens.workspace_id)
     # The reports' whole span, not their closing days: `date_to` alone is one
+    # Sunday of a week's measurements and storage.
     span_from = min((r.date_from or r.date_to for r in reports), default=on_date)
     span_to = max((r.date_to for r in reports), default=on_date)
 
@@ -118,6 +120,7 @@ async def _harvest_workspace(
         #
         # **Enqueued, not awaited, since 2026-09-19**, and the reason is the
         # whole point of calling it best-effort. Awaited, it was not
+        # first penalised measurement appeared means loading 115 366 rows in one go
         # (~269 MB, measured), and on a worker whose floor had ratcheted that
         # is over the cgroup cap. The kernel does not care that the caller
         # meant it to be optional — it killed the child, and with it the

@@ -1,4 +1,4 @@
-"""One lock between rebuilding a кабинет's rollup and rewriting its detail.
+"""One lock between rebuilding a workspace's rollup and rewriting its detail.
 
 The rollup proves a day by row count, and the detail upsert deletes the rollup
 of every day it touches so a rewrite the count cannot see is rebuilt. That
@@ -26,7 +26,7 @@ _ROLLUP_LOCK_CLASS = 7_300_001
 
 
 async def hold_rollup_lock(session: AsyncSession, workspace_id: uuid.UUID, *, shared: bool) -> None:
-    """Take the кабинет's rollup lock until the session's transaction ends.
+    """Take the workspace's rollup lock until the session's transaction ends.
 
     Args:
         session: The session whose transaction holds the lock.

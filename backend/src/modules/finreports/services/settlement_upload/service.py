@@ -3,7 +3,7 @@
 Reading a weekly report is the worker's job — a 70 000-row week is a minute and
 a half of openpyxl, far past what a request may hold — so this does only what
 must be answered at once: is this WB's file at all, which report is it, and is
-another upload of this кабинет still being read. Everything else waits for
+another upload of this workspace still being read. Everything else waits for
 :mod:`src.modules.finreports.tasks.settlement_upload`.
 """
 
@@ -32,12 +32,12 @@ class SettlementUploadService:
     ) -> SettlementUpload:
         """Check the file is a WB weekly report and queue it for the worker.
 
-        One upload at a time per кабинет: each costs the worker up to a minute
+        One upload at a time per workspace: each costs the worker up to a minute
         and a half, and two of the same week would race to write it.
 
         Raises:
             ValidationError: Not WB's file, or no report number in its name.
-            ConflictError: Another upload of this кабинет is still being read.
+            ConflictError: Another upload of this workspace is still being read.
         """
         opened = open_upload(filename, data)
         if await self._uploads.in_flight(workspace_id=workspace_id):
@@ -57,11 +57,11 @@ class SettlementUploadService:
         )
 
     async def get(self, *, workspace_id: uuid.UUID, upload_id: uuid.UUID) -> SettlementUpload:
-        """One upload of this кабинет.
+        """One upload of this workspace.
 
         Raises:
             NotFoundError: No such upload here — including one of another
-                кабинет, which is indistinguishable from none.
+                workspace, which is indistinguishable from none.
         """
         upload = await self._uploads.get(workspace_id=workspace_id, upload_id=upload_id)
         if upload is None:

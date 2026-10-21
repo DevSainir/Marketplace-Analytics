@@ -32,7 +32,7 @@ from what is and is not proven:
   nothing exactly when the hourly sweep is in flight — the one case it exists
   for. A scoped run spends one seller's budget, WB's buckets are per token, and
   pacing is the rate gate's job; its own lock only stops two clicks on the same
-  кабинет walking it twice.
+  workspace walking it twice.
 """
 
 from src.modules.finreports.tasks.daily_tail.harvest import (

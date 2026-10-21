@@ -14,7 +14,7 @@ from SQL without spending a request. The reports that break the calendar —
 served days late, back-dated — are the nightly reconciliation's job, which
 walks every seller regardless of this.
 
-Only scheduled ticks are gated. «Обновить», a new кабинет's first harvest and
+Only scheduled ticks are gated. «Обновить», a new workspace's first harvest and
 the nightly pass always ask WB.
 """
 

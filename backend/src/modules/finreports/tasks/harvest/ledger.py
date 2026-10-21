@@ -65,7 +65,7 @@ async def refresh_archive_totals(*, tokens: WorkspaceTokenBundle, today: date) -
 
     The ordinary tick lists 45 days, so a report older than that only got its
     totals from the history backfill — which runs once, for a NEW workspace.
-    A кабинет that predates the totals had them on eight of 143 reports, and the
+    A workspace that predates the totals had them on eight of 143 reports, and the
     completeness check and the WB reconciliation are blind wherever a total is
     missing. One list request answers for the whole history at any width
     (measured 2026-09-23), so the nightly pass spends it.
@@ -102,7 +102,7 @@ async def reports_to_re_walk(
 
     Plus every OLDER report that does not add up to WB's own total. The forward
     tick only looks back 45 days, and the history backfill runs once, so a short
-    archive report on an established кабинет had nothing left that would ever
+    archive report on an established workspace had nothing left that would ever
     ask for it again.
 
     Args:

@@ -1,17 +1,17 @@
 """Response DTOs for the per-SKU P&L report (the «По артикулам» view).
 
 One row per SKU over an arbitrary settlement-date window, mirroring the
-industry-standard «По артикулам» sheet: units and orders, revenue and СПП,
+industry-standard «По артикулам» sheet: units and orders, revenue and SPP,
 logistics, penalties by category, advertising, the payout and the net profit.
 
 Three columns come from outside the settlement report, and each declares it:
 
-* **Заказы** — the settlement only records buyouts; orders come from the
+* **«Заказы»** (orders) — the settlement only records buyouts; orders come from the
   sales-funnel history (``None`` when the window predates it).
-* **Реклама** — the settlement bills advertising as account-level invoices with
+* **«Реклама»** (advertising) — the settlement bills advertising as account-level invoices with
   no SKU; the per-SKU spend comes from the Promotion API statistics (``None``
   when the window predates them).
-* **Себестоимость** — the seller's own figure (``None`` when not on file, and
+* **«Себестоимость»** (cost price) — the seller's own figure (``None`` when not on file, and
   then the profit is ``None`` too rather than a number that pretends the goods
   were free).
 
@@ -56,7 +56,7 @@ class PnlSkuRow(BaseModel):
     #: account-level rows, which are not a product. A direct https link: the
     #: browser fetches it from WB, not from us.
     photo_url: str | None = None
-    #: WB's catalogue identity for the SKU (Тип предмета / Бренд). "" on the
+    #: WB's catalogue identity for the SKU («Тип предмета» / «Бренд»). "" on the
     #: totals and account-level bucket rows, which span many subjects/brands.
     subject_name: str
     brand_name: str
@@ -83,17 +83,17 @@ class PnlSkuRow(BaseModel):
     #: settlement date): the funnel carries no size. docs/finreports/PNL.md.
     buyout_pct: Decimal | None
 
-    #: Продажи / Возвраты, сом (what buyers paid on sale / refund rows).
+    #: «Продажи» / «Возвраты», som (what buyers paid on sale / refund rows).
     sales_amount: Decimal
     returns_amount: Decimal
-    #: Продажи - Возвраты — the base every percentage in the row is against, and
+    #: «Продажи» - «Возвраты» — the base every percentage in the row is against, and
     #: the «Продажи» actually shown (net of returns, to match WB's finance page).
     revenue_paid: Decimal
-    #: The same net revenue at the seller's own pre-СПП price.
+    #: The same net revenue at the seller's own pre-SPP price.
     revenue_seller_price: Decimal
     spp_amount: Decimal
     spp_pct: Decimal | None
-    #: Средний чек — net revenue per bought-out unit. ``None`` when net units 0.
+    #: «Средний чек» (average cheque) — net revenue per bought-out unit. ``None`` when net units 0.
     average_cheque: Decimal | None
 
     logistics_forward: Decimal
@@ -125,16 +125,16 @@ class PnlSkuRow(BaseModel):
     #: exactly once, in :attr:`advertising_cash`.
     #:
     #: ``None`` when the write-off ledger has no coverage for the window, which
-    #: is NOT the same as zero: «мы не знаем» and «бонусов не было» read
+    #: is NOT the same as zero: "we do not know" and "there were no bonuses" read
     #: differently on a report, and only the second one may lower a cost.
     ad_bonus: Decimal | None
     #: advertising - ad_bonus: what the advertising actually cost the seller.
     #: This — never :attr:`advertising` — is what profit and ROI use.
     advertising_cash: Decimal | None
 
-    #: К перечислению за товар — Σ ``ppvz_for_pay``, WB's settled payout.
+    #: «К перечислению за товар» — Σ ``ppvz_for_pay``, WB's settled payout.
     payout_for_goods: Decimal
-    #: К перечислению — the payout net of this SKU's own withholdings
+    #: «К перечислению» — the payout net of this SKU's own withholdings
     #: (its logistics, penalties and the rare SKU-attributed storage).
     payout_net: Decimal
 
@@ -159,10 +159,10 @@ class PnlDashboard(BaseModel):
     """
 
     #: «Продажи» — at the SELLER's price («Цена розничная с учётом согласованной
-    #: скидки», i.e. before WB's СПП), net of returns, over non-excluded SKUs.
-    #: This is what the seller is effectively paid on (WB funds the СПП gap).
+    #: скидки», i.e. before WB's SPP), net of returns, over non-excluded SKUs.
+    #: This is what the seller is effectively paid on (WB funds the SPP gap).
     sales: Decimal
-    #: «Цена реализации» — the same net revenue at the after-СПП price the buyer
+    #: «Цена реализации» — the same net revenue at the after-SPP price the buyer
     #: actually paid; WB's own «Продажа». The page switches between the two.
     paid: Decimal
     #: Units on «Продажа» rows (gross) and on «Возврат» rows; the card shows the
@@ -180,7 +180,7 @@ class PnlDashboard(BaseModel):
     #: «Перечисление» — Σ non-excluded SKUs' payout + the account-level bucket.
     payout_net: Decimal
     #: «Прочие удержания» — Σ ``deduction`` (WB's own line), account-level, so it
-    #: is exclusion-independent. ``advertising`` is its ВБ.Продвижение share.
+    #: is exclusion-independent. ``advertising`` is its «ВБ.Продвижение» share.
     other_deductions: Decimal
     advertising: Decimal
     #: How many SKUs are currently marked out of the count.

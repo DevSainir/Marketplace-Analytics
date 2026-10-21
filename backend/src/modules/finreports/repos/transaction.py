@@ -166,7 +166,7 @@ class LogisticsTransactionRepository(BaseRepository):
                 touched.setdefault(row["workspace_id"], set()).add(row["rr_dt"])
         # Exclusive, and taken BEFORE the write, so a rebuild in flight finishes
         # first and its days are deleted below — see `rollup_lock`. Sorted so
-        # two writers of the same кабинеты take them in one order.
+        # two writers of the same workspaces take them in one order.
         for workspace_id in sorted(touched, key=str):
             await hold_rollup_lock(self._session, workspace_id, shared=False)
         written = await super().bulk_upsert(
@@ -200,9 +200,10 @@ class LogisticsTransactionRepository(BaseRepository):
     async def aggregate_by_sku(
         self, *, workspace_id: uuid.UUID, date_from: date, date_to: date
     ) -> list[SkuLogisticsAggregate]:
+        """Roll up logistics billing and dimensions penalties per SKU for a window.
 
         Off the settlement rollup, which stores these four figures per
-        (отчёт, день, артикул) — see
+        (report, day, SKU) — see
         detail is no longer read here. The currency is the modal one of the
         SKU's groups, as everywhere else the rollup is read: ``max()`` is
         lexical and would call a KGS article "RUB" over one stray row.
@@ -344,6 +345,7 @@ class LogisticsTransactionRepository(BaseRepository):
         nm_ids: Sequence[int],
         """Return every logistics/penalty row backing a claim, ordered for audit.
 
+        dimensions penalties. Ordered by report then settlement date so the XLSX
         ledger reads in the same order as WB's own weekly reports.
 
         Args:

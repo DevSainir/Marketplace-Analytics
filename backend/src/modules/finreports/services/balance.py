@@ -115,7 +115,7 @@ def _build_rows(
             BalanceSkuRow(
                 nm_id=nm_id,
                 # A SKU with stock but no settlement history has no name in the
-                # финотчёт; the catalogue vendor code names it, and only a SKU
+                # finance report; the catalogue vendor code names it, and only a SKU
                 # missing from both falls back to its bare nm_id.
                 sa_name=sa_name or vendor_codes.get(nm_id) or str(nm_id),
                 subject_name=subject,

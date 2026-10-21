@@ -10,8 +10,8 @@ Since the freshness line was added, the same answer serves a second question the
 page has to answer on every load: *why does the statement stop where it does?*
 That takes two facts, and neither works without the other — **what we hold**
 (the newest report on file, and when we pulled it) and **when we last asked**
-(what the hourly gate found, and the moment it found it). «Новых отчётов нет»
-means nothing without «и мы спросили 12 минут назад»: a confident "nothing new"
+(what the hourly gate found, and the moment it found it). "No new reports"
+means nothing without "and we asked 12 minutes ago": a confident "nothing new"
 that is six hours stale is a dead harvester wearing the same words.
 
 Two things this service does NOT do. It does not decide whether the harvest may
@@ -139,7 +139,7 @@ class HarvestControlService:
 
         A click shortly after a tick used to enqueue a harvest whose first act
         was to sit still waiting for WB's next token — seven minutes of
-        «Обновляем…» with nothing happening (prod 2026-09-09). The bucket
+        «Обновляем…» with nothing happening (observed 2026-09-09). The bucket
         already knows the number, and it is in shared Redis, so the answer costs
         a Redis round trip and **no WB request**: asking WB whether WB will
         accept a request is the one thing that cannot be done here.

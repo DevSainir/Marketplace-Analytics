@@ -23,7 +23,7 @@ not monotonic by date across report boundaries on this form, so a walk could
 stop early and silently. Measured on «Демо» 2026-09-23 it did not: zero
 descents across eight report boundaries, each report contiguous and in date
 order, including one WB had served eight days late. That is one window on one
-кабинет and does not cover re-issued or month-split reports — which is why every
+workspace and does not cover re-issued or month-split reports — which is why every
 report this walk books is checked against WB's own ``forPaySum`` afterwards
 (`docs/finreports/PNL.md` has the arithmetic).
 """

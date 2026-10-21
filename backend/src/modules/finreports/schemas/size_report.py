@@ -1,4 +1,4 @@
-"""Response DTOs for one article's per-size P&L («подтаблица размеров»).
+"""Response DTOs for one article's per-size P&L (the size sub-table).
 
 The «По артикулам» table answers *which article* loses money; this answers
 *which size of it does* — and the two failure modes it exists to show are size
@@ -39,12 +39,12 @@ class PnlSizeRow(BaseModel):
     #: sold / delivered. ``None`` when nothing was carried in the window.
     buyout_pct: Decimal | None
 
-    #: Продажи - Возвраты at what buyers paid.
+    #: «Продажи» - «Возвраты» (sales minus returns) at what buyers paid.
     revenue_paid: Decimal
-    #: The same net revenue at the seller's own pre-СПП price; the base of the
+    #: The same net revenue at the seller's own pre-SPP price; the base of the
     #: percentages.
     revenue_seller_price: Decimal
-    #: Цена — net revenue at the seller's price per bought-out unit, so price x
+    #: «Цена» — net revenue at the seller's price per bought-out unit, so price x
     #: units is the revenue beside it. ``None`` when net units are 0.
     average_price: Decimal | None
 
@@ -54,7 +54,7 @@ class PnlSizeRow(BaseModel):
     logistics_per_delivery: Decimal | None
     penalties_total: Decimal
 
-    #: К перечислению for this size, net of its own withholdings — the same
+    #: «К перечислению» (payout) for this size, net of its own withholdings — the same
     #: formula the article's row uses, which is what makes the column sum back.
     payout_net: Decimal
 

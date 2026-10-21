@@ -157,6 +157,7 @@ LOGISTICS_OPER: str = "Логистика"
 #: WB ``supplier_oper_name`` for a penalty row.
 PENALTY_OPER: str = "Штраф"
 
+#: itemised, court-grade dimensions charge (understatement of package dimensions).
 
 
 #: FX-invariant), and WB currently sets these uniformly across warehouses
@@ -335,5 +336,5 @@ DAILY_TAIL_VERIFY_LIMIT: int = 3
 #: click cannot take that lock: it would answer «already running» and fetch
 #: nothing exactly when the hourly sweep is in flight, which is the case the
 #: button exists for. One key per workspace keeps the only guarantee a scoped
-#: run needs — that two clicks on the same кабинет do not walk it twice.
+#: run needs — that two clicks on the same workspace do not walk it twice.
 DAILY_TAIL_LOCK_PREFIX: str = "finreports:daily_tail:"

@@ -3,8 +3,8 @@
 A period ends on **a Sunday or on the last day of the month, whichever comes
 first**, and the next one starts the day after; WB forms its report the day
 after the period ends (``create_dt = date_to + 1``). Measured over all 142
-reports «Демо» held on 2026-09-19 and every one since, with no exception —
-see the ``wildberries-api`` skill, «The publication calendar is DERIVABLE».
+reports «Демо» held on 2026-09-19 and every one since, with no exception: the
+publication calendar is derivable.
 
 The month-end half started on 2026-03-30; before that WB ran plain Sunday weeks
 through month boundaries. So this predicts forward and does not describe older
@@ -45,7 +45,7 @@ def last_due_settlement_day(*, today: date, grace_days: int) -> date:
     once the day itself has. Every day of a week is settled by one report formed
     the day after the Sunday, so counting the grace from the day made the
     Monday of every week «uncovered» on the following Monday morning, hours
-    before WB serves the report that covers it (prod, 05.10 and 12.10.2026).
+    before WB serves the report that covers it (observed 05.10 and 12.10.2026).
 
     Args:
         today: Today in Moscow time.

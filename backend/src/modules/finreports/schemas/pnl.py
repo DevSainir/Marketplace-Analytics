@@ -44,7 +44,7 @@ class PnlStatement(BaseModel):
     """The full statement for one window or one grouping bucket.
 
     The blocks read top to bottom exactly as the numbers compose:
-    units → revenue → what WB kept → what WB withheld → к оплате → cost → profit.
+    units → revenue → what WB kept → what WB withheld → payable → cost → profit.
     """
 
     key: str | None
@@ -63,7 +63,7 @@ class PnlStatement(BaseModel):
     # --- Revenue ------------------------------------------------------------
     #: Σ ``retail_price_withdisc_rub`` net of refunds — the seller's own price.
     revenue_seller_price: Decimal
-    #: The gap WB funded out of its own pocket (СПП).
+    #: The gap WB funded out of its own pocket (SPP).
     wb_discount: Decimal
     #: Σ ``retail_amount`` net of refunds — what buyers actually paid.
     revenue_paid: Decimal
@@ -119,7 +119,7 @@ class PnlStatement(BaseModel):
     margin_pct: Decimal | None
 
     # --- Memo ---------------------------------------------------------------
-    #: НДС агента. Reported by WB alongside the settlement but NOT deducted from
+    #: «НДС агента» (agent's VAT). Reported by WB alongside the settlement but NOT deducted from
     #: it — shown so the figure is not mistaken for a missing cost.
     agency_vat: Decimal
     settlement_rows: int

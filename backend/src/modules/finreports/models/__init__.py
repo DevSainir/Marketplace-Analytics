@@ -1,5 +1,6 @@
 """ORM models for the ``finreports`` module (PostgreSQL ``finreports`` schema).
 
+The tables that hold WB's settlement facts (see ``docs/finreports/PNL.md``):
 
 * :class:`FinancialReport` — one WB weekly realization report header.
 * :class:`DailySettlementReport` — the provisional per-day tail in front of it,
@@ -10,7 +11,8 @@
   rows stand in for the API's until it serves the same report.
 * :class:`SettlementWatermark` — how far each workspace's settlement walk has
   actually got, which is NOT what the newest report claims to cover.
-* :class:`SettlementDailyRollup` — the same rows pre-summed per день / артикул.
+* :class:`LogisticsTransaction` — one settlement row (raw WB facts).
+* :class:`SettlementDailyRollup` — the same rows pre-summed per day / SKU.
   A verified cache: every read checks it against the detail's own row counts and
   rebuilds what disagrees, so it can cost time but never correctness.
 

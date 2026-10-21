@@ -14,36 +14,20 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import aclosing
-from datetime import date
-from decimal import Decimal
 
-from src.integrations.wildberries.schemas import (
-    WBCard,
-    WBFinanceReportHeader,
-    WBReportDetailRow,
-)
+from src.integrations.wildberries.schemas import WBFinanceReportHeader, WBReportDetailRow
 from src.modules.finreports.repos import (
     FinancialReportRepository,
     LogisticsTransactionRepository,
     SettlementUploadRepository,
 )
-from src.modules.finreports.services.ingestion.columns import (
-    BASELINE_UPDATE,
-    BILLED_UPDATE,
-    MEASUREMENT_UPDATE,
-    PENALTY_UPDATE,
-    REPORT_UPDATE,
-    TXN_UPDATE,
-)
-from src.modules.finreports.services.ingestion.rows import (
-    dedupe,
-    number_units,
-    settlement_row,
-)
+from src.modules.finreports.services.ingestion.columns import REPORT_UPDATE, TXN_UPDATE
+from src.modules.finreports.services.ingestion.rows import dedupe, settlement_row
 from src.modules.finreports.services.settlement_upload.reconcile import settle_upload_on_booking
 
 
 class IngestionService:
+    """Persists harvested WB finance-report rows and report headers."""
 
     def __init__(
         self,
@@ -59,10 +43,6 @@ class IngestionService:
         """
         self._transactions = transaction_repo
         self._reports = report_repo
-        self._baselines = baseline_repo
-        self._billed = billed_repo
-        self._penalties = penalty_repo
-        self._measurements = measurement_repo
         self._uploads = upload_repo
 
     async def record_report_header(
@@ -205,148 +185,4 @@ class IngestionService:
             ),
             conflict_columns=["rrd_id"],
             update_columns=TXN_UPDATE,
-        )
-
-    async def ingest_tariffs(
-    ) -> int:
-        payload: list[dict[str, object]] = [
-            {
-                "snapshot_date": snapshot_date,
-                "warehouse_name": r.warehouse_name,
-                "box_delivery_base": r.box_delivery_base,
-                "box_delivery_liter": r.box_delivery_liter,
-                "box_delivery_coef_pct": r.box_delivery_coef_pct,
-                "box_storage_base": r.box_storage_base,
-                "box_storage_liter": r.box_storage_liter,
-                "box_storage_coef_pct": r.box_storage_coef_pct,
-                "geo_name": r.geo_name,
-                "dt_till_max": dt_till_max,
-            }
-            for r in rows
-            if r.warehouse_name
-        ]
-        payload = dedupe(payload, keys=["snapshot_date", "warehouse_name"])
-        return await self._tariffs.bulk_upsert(
-            payload,
-            conflict_columns=["snapshot_date", "warehouse_name"],
-        )
-
-    async def ingest_baselines(
-        self, cards: list[WBCard], *, workspace_id: uuid.UUID, snapshot_date: date
-    ) -> int:
-        """Snapshot declared dimensions from content cards (skip dimensionless)."""
-        payload: list[dict[str, object]] = []
-        for card in cards:
-            d = card.dimensions
-            if d is None or d.length is None or d.width is None or d.height is None:
-                continue
-            volume_l = (d.length * d.width * d.height) / Decimal(1000)
-            payload.append(
-                {
-                    "nm_id": card.nm_id,
-                    "snapshot_date": snapshot_date,
-                    "source": "card",
-                    "vendor_code": card.vendor_code,
-                    "length_cm": d.length,
-                    "width_cm": d.width,
-                    "height_cm": d.height,
-                    "weight_brutto_kg": d.weight_brutto,
-                    "volume_l": volume_l,
-                    "workspace_id": workspace_id,
-                    "document_proof_id": None,
-                }
-            )
-        return await self._baselines.bulk_upsert(
-            payload,
-            conflict_columns=["nm_id", "snapshot_date", "source"],
-            update_columns=BASELINE_UPDATE,
-        )
-
-        payload: list[dict[str, object]] = [
-            {
-                "observed_date": r.observed_date,
-                "warehouse_name": r.warehouse,
-                "gi_id": r.gi_id,
-                "chrt_id": r.chrt_id,
-                "nm_id": r.nm_id,
-                "barcode": r.barcode,
-                "volume_l": r.volume,
-                "warehouse_coef": r.warehouse_coef,
-                "calc_type": r.calc_type,
-                "warehouse_price": r.warehouse_price,
-            }
-            for r in rows
-            if r.observed_date is not None and r.warehouse
-        ]
-        payload = dedupe(payload, keys=["observed_date", "warehouse_name", "gi_id", "chrt_id"])
-        return await self._billed.bulk_upsert(
-            payload,
-            conflict_columns=["observed_date", "warehouse_name", "gi_id", "chrt_id"],
-            update_columns=BILLED_UPDATE,
-        )
-
-    ) -> int:
-
-        Every row WB publishes is kept. ``(nm_id, dim_id, dt_bonus)`` is not
-        unique — WB emits one row per penalised unit, and rows sharing that key
-        can carry different card dimensions and penalties — so each group is
-        sorted deterministically and numbered (``unit_no``). Sorting rather
-        than trusting WB's page order is what makes a re-harvest idempotent:
-        the same report always yields the same ordinals.
-        """
-        payload: list[dict[str, object]] = [
-            {
-                "nm_id": r.nm_id,
-                "dim_id": r.dim_id,
-                "dt_bonus": r.dt_bonus,
-                "unit_no": 0,
-                "subject_name": r.subject_name,
-                "prc_over": r.prc_over,
-                "length_sup": r.length_sup,
-                "width_sup": r.width_sup,
-                "height_sup": r.height_sup,
-                "volume_sup": r.volume_sup,
-                "length": r.length,
-                "width": r.width,
-                "height": r.height,
-                "volume": r.volume,
-                "penalty_amount": r.penalty_amount,
-                "reversal_amount": r.reversal_amount,
-                "photo_url": r.photo_urls[0] if r.photo_urls else "",
-                "is_valid": r.is_valid,
-                "is_valid_dt": r.is_valid_dt,
-                "workspace_id": workspace_id,
-            }
-            for r in rows
-            if r.dt_bonus is not None
-        ]
-        payload = number_units(payload)
-        return await self._penalties.bulk_upsert(
-            payload,
-            conflict_columns=["nm_id", "dim_id", "dt_bonus", "unit_no"],
-            update_columns=PENALTY_UPDATE,
-        )
-
-    ) -> int:
-        payload: list[dict[str, object]] = [
-            {
-                "nm_id": r.nm_id,
-                "dim_id": r.dim_id,
-                "subject_name": r.subject_name,
-                "length_cm": r.length,
-                "width_cm": r.width,
-                "height_cm": r.height,
-                "volume_l": r.volume,
-                "measured_at": r.measured_at,
-                "photo_url": r.photo_urls[0] if r.photo_urls else "",
-                "workspace_id": workspace_id,
-            }
-            for r in rows
-            if r.dim_id
-        ]
-        payload = dedupe(payload, keys=["nm_id", "dim_id"])
-        return await self._measurements.bulk_upsert(
-            payload,
-            conflict_columns=["nm_id", "dim_id"],
-            update_columns=MEASUREMENT_UPDATE,
         )

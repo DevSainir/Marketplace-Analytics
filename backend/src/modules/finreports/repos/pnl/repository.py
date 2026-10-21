@@ -141,7 +141,7 @@ class PnlRepository:
     ) -> str:
         """Return the window's settlement currency, and nothing else.
 
-        The MODAL currency, not ``max()``: a кабинет's settlements are
+        The MODAL currency, not ``max()``: a workspace's settlements are
         effectively single-currency, but a couple of stray rows in another exist,
         and ``max`` is lexical — ``max("KGS","RUB") = "RUB"``, which would
         mislabel the statement AND make every KGS cost price unmatchable.
@@ -287,7 +287,8 @@ class PnlRepository:
         """Return each SKU's penalties split by WB's own reason.
 
         Feeds the per-SKU report's «Штрафы» column, which shows the categories
-        the категории are what tell a seller which penalty is disputable.
+        (dimensions, paid storage of returns, …) rather than one opaque sum —
+        the categories are what tell a seller which penalty is disputable.
 
         Returns:
             ``(nm_id, reason, amount)`` triples, non-zero only. ``nm_id = 0``
@@ -321,7 +322,7 @@ class PnlRepository:
         # two are equivalent — every row counted here is a sale either way —
         # but only the WHERE lets Postgres use `ix_logistics_txn_sale`, whose
         # predicate is that same operation. As a FILTER this read the whole
-        # window and cost 3.7 s of every P&L on the largest кабинет.
+        # window and cost 3.7 s of every P&L on the largest workspace.
         stmt = select(
             func.count(),
             func.count().filter(_T.retail_amount != _ZERO),

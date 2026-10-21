@@ -4,20 +4,21 @@ One row per WB ``rrd_id`` — from ``reportDetailByPeriod`` until 2026-09-22, fr
 finance-api ``sales-reports/detailed`` since, weekly and provisional daily
 reports alike (the weekly one re-keys a daily row's ``report_id``). Stores the WB-authored
 facts **verbatim** (money, counts, dates, operation/reason classifiers, join
-a later baseline, tariff or cost-price correction re-prices history without a
-data migration.
+keys); every derived figure — the P&L lines above all — is computed on read,
+never frozen here, so a later cost-price or taxonomy correction re-prices
+history without a data migration.
 
-This one table backs both of the module's outputs:
+This one table backs the module's output:
 
 * **The P&L.** Revenue (``retail_amount``), WB's cut (``ppvz_vw`` +
   ``ppvz_vw_nds``), acquiring, and the payout (``ppvz_for_pay``) come off the
   «Продажа»/«Возврат» rows; logistics, storage, acceptance, penalties and
   deductions off their own operations. Nothing in the statement is sourced from
   anywhere but these columns and the seller's own cost prices.
-  ``supplier_oper_name == "Штраф"`` + ``bonus_type_name == "Занижение фактических
-  ``delivery_rub`` billed on WB's inflated volume is the larger silent
 
-The table keeps its historical name; it long predates the P&L and renaming it
+The table keeps its historical name; it long predates the P&L, when it held only
+the logistics subset of each row, and renaming it would churn three migrations
+for nothing.
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
-from src.modules.finreports.constants import LOGISTICS_OPER, SALE_OPERS
+from src.modules.finreports.constants import SALE_OPERS
 
 _SCHEMA: str = "finreports"
 
@@ -59,31 +60,33 @@ class LogisticsTransaction(Base):
         office_name: The warehouse/office the row was priced at.
         subject_name / brand_name: Catalogue identity WB puts on the row itself.
         rr_dt / order_dt / sale_dt: Settlement, order and sale dates.
-        supplier_oper_name: Operation kind (Логистика/Продажа/Штраф/…).
-        doc_type_name: Продажа vs Возврат on the money rows.
+        supplier_oper_name: Operation kind («Логистика»/«Продажа»/«Штраф»/…).
+        doc_type_name: «Продажа» vs «Возврат» on the money rows.
+        bonus_type_name: WB's reason string (e.g. why a penalty was charged).
         gi_box_type_name / delivery_method / site_country / srv_dbs: Supply,
             delivery and settlement-scheme descriptors.
         currency_name: Row settlement currency (e.g. ``KGS``).
         quantity: Units on the row.
         delivery_amount / return_amount: **Counts, not money.** Exactly one of
             them is 1 on a «Логистика» row, which is what splits ``delivery_rub``
-            into логистика к клиенту and обратная логистика.
+            into forward (to the buyer) and return logistics.
         retail_price / retail_price_withdisc_rub / retail_amount: Card price,
             price after the seller's discount, and what the buyer actually paid.
         sale_percent / commission_percent / ppvz_spp_prc / ppvz_kvw_prc_base /
             ppvz_kvw_prc / acquiring_percent: The percentages WB applied.
-        ppvz_for_pay: К перечислению for the row — the settled bottom line, and
+        ppvz_for_pay: «К перечислению» (payout) for the row — the settled bottom line, and
             the anchor of the payout identity ``ppvz_for_pay = retail_amount -
             ppvz_vw - ppvz_vw_nds - acquiring_fee - ppvz_reward``.
         ppvz_vw / ppvz_vw_nds / ppvz_sales_commission / ppvz_reward: WB's reward
-            net of VAT, the VAT on it, the pre-поверенный figure, and the
-            поверенный's own reward.
+            net of VAT, the VAT on it, the figure before the agent's reward, and
+            the agent's own reward.
         acquiring_fee / acquiring_bank / payment_processing: Payment costs.
         product_discount_for_report / supplier_promo / seller_promo_discount /
             loyalty_discount / installment_cofinancing_amount / cashback_*:
             Who funded the gap between card price and what was paid.
-        agency_vat: НДС агента — reported alongside, not part of the payout.
+        agency_vat: «НДС агента» (agent's VAT) — reported alongside, not part of the payout.
         dlv_prc: Delivery coefficient applied to the row.
+        delivery_rub: Logistics ₽ charged.
         penalty / additional_payment / rebill_logistic_cost / storage_fee /
             acceptance / deduction: The row's other money fields.
         fix_tariff_date_from / fix_tariff_date_to: The tariff window WB locked.
@@ -119,17 +122,6 @@ class LogisticsTransaction(Base):
             postgresql_where=text(
                 "supplier_oper_name IN ({})".format(", ".join(f"'{oper}'" for oper in SALE_OPERS))
             ),
-        ),
-        # 1.6 GB heap: 26 k pages read off disk, 8.9 s, the largest part of a
-        # whole-history recompute (measured 2026-10-10). Everything it reads is
-        # in the index. The predicate is checked against LOGISTICS_OPER by the
-        # same test as the sale index.
-        Index(
-            "workspace_id",
-            "nm_id",
-            "rr_dt",
-            postgresql_include=["delivery_rub"],
-            postgresql_where=text(f"supplier_oper_name = '{LOGISTICS_OPER}'"),
         ),
         {"schema": _SCHEMA},
     )

@@ -110,7 +110,7 @@ class CostPriceService:
 
         Raises:
             ValidationError: If the batch would take the workspace past its
-                cost-row bound (register P1.13).
+                cost-row bound.
         """
         await self._refuse_if_over_quota(workspace_id=workspace_id, items=items)
         saved = await self._costs.upsert_many(

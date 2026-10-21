@@ -63,7 +63,7 @@ class SkuReportService:
         """Return every settled SKU-day of the window — revenue, units, payout, cost.
 
         The cut the heatmap paints its money metrics from. Costs are matched in
-        the window's own settlement currency, falling back to the кабинет's when
+        the window's own settlement currency, falling back to the workspace's when
         the window settled nothing, exactly as the per-SKU report picks them: a
         cost stated in another currency leaves the article uncosted rather than
         converted at an invented rate.

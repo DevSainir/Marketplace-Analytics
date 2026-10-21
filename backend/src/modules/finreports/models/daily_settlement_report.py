@@ -10,8 +10,7 @@ readable today instead of waiting the one to eight days a weekly report takes.
 Measured on «Демо» for the closed week 14.09-20.09: the seven daily reports
 and the weekly report `989438999` are the **same 4 424 rows**, sharing their
 ``rrdId`` one for one, with every money column summing to the same figure and no
-row present in one lane and absent from the other. See
-`.claude/skills/wildberries-api/references/finance-reports.md`.
+row present in one lane and absent from the other.
 
 **So why a table of its own rather than a row in `financial_report`.** Not
 because a daily report is a different kind of document — it is the same

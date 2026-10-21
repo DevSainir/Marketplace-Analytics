@@ -1,6 +1,6 @@
 """Read WB's «Еженедельный детализированный отчет» workbook into settlement rows.
 
-The file is what the seller downloads from WB's кабинет: a zip holding one
+The file is what the seller downloads from WB's seller portal: a zip holding one
 .xlsx, one sheet, a header row and one row per settlement line. Every column is
 located **by its header text**, and the set below was matched against the API's
 rows of report 992915233 value by value — 3 257 rows, each column agreeing on
@@ -238,7 +238,7 @@ def _row(cells: tuple[Any, ...], at: dict[str, int], ordinal: int) -> dict[str, 
         )
     row: dict[str, Any] = {column: _text(cell(name)) for name, column in _TEXT.items()}
     row |= {column: _int(cell(name), ordinal) for name, column in _INT.items()}
-    # Blank in the file: no supply is NULL in the API's row, no ШК is 0.
+    # Blank in the file: no supply is NULL in the API's row, no barcode is 0.
     gi_id = cell(_GI_ID)
     row["gi_id"] = None if gi_id in (None, "") else _int(gi_id, ordinal)
     shk_id = cell(_SHK_ID)
