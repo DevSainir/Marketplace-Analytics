@@ -18,8 +18,8 @@ figure WB actually settles on and which is never recomputed here. The reported
 
 That only works because the acquiring term is the *withheld* part. WB labels some
 ``acquiring_fee`` rows «Комиссия за организацию платежа с НДС» and bills them
-separately rather than deducting them; over this seller's history that is 226 004
-KGS on 3 293 rows. Feeding the undifferentiated ``acquiring_fee`` into the
+separately rather than deducting them — thousands of rows over a seller's
+history. Feeding the undifferentiated ``acquiring_fee`` into the
 residual would move exactly that much out of «комиссия WB» and into «эквайринг» —
 a plausible-looking statement with two wrong lines that still totals correctly.
 """

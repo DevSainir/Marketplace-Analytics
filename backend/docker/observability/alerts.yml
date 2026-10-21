@@ -89,7 +89,7 @@ groups:
           summary: "Оба инстанса API не отвечают. Сайт лежит."
           description: >-
             В пуле nginx не осталось ни одного живого. Пользователи видят
-            502. Что делать — в docs/security/INCIDENT_RESPONSE.md.
+            502. Подробнее — в docs/monitoring/OBSERVABILITY.md.
 
       - alert: DependencyDown
         expr: dependency_up == 0
@@ -687,8 +687,7 @@ groups:
             Один роут падает у всех, кто его открывает. Трассировка — в логах
             api: `docker logs --since 15m marketplace-service-api-1 | grep
             "Exception in ASGI"`. Если это началось с последнего деплоя —
-            откат одной командой, docs/security/INCIDENT_RESPONSE.md,
-            «Откат релиза».
+            откатите релиз (backend/scripts/deploy/rollback.sh).
 
   # -------------------------------------------------------------------------
   # New-organisation history backfill.
