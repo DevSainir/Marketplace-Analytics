@@ -9,12 +9,11 @@ list comes from decides whether a test measures anything at all.
 ``advertising_stat_daily`` — campaigns that have already served *and* been
 picked up by the nightly harvest. A campaign started this morning is in neither,
 so the poller never asks WB about it, reads zeros, and credits every photo with
-nothing. Measured on production 2026-09-07: a live test on nm 1944299862 sat at
-zero for half an hour while campaign 97455930 (status 9, «идут показы») served
-it 259 impressions, 6 clicks and 64 ₽ — because that campaign had never appeared
-in a harvest.
+nothing. Observed 2026-09-07: a running test sat at zero for half an hour while
+a campaign in status 9 («идут показы») served the card a few hundred impressions
+— because that campaign had never appeared in a harvest.
 
-That is not an edge case, it is the common one. A seller starting an A/Б test
+That is not an edge case, it is the common one. A seller starting an A/B test
 starts a campaign for it; the whole point is to measure a card that is being
 pushed right now. A discovery path that cannot see a campaign for up to a day
 guarantees the two-hour tests are the ones it fails.
@@ -77,9 +76,9 @@ KIND_LABELS: dict[str, str] = {
     CampaignKind.UNKNOWN: "Реклама",
 }
 
-#: WB campaign statuses from which a campaign can still deliver: 9 «идут
-#: показы» and 11 «на паузе». The same pair monitoring's harvest planner keeps
-#: (``modules.monitoring.tasks.planning._HARVESTABLE_STATUSES``) — repeated
+#: WB campaign statuses from which a campaign can still deliver: 9 («идут
+#: показы», serving) and 11 («на паузе», paused). The same pair monitoring's
+#: harvest planner keeps (``modules.monitoring.tasks.planning._HARVESTABLE_STATUSES``) — repeated
 #: rather than imported because a module may not reach past another's contract,
 #: and both places name it in their own docstring for exactly that reason.
 RUNNING_STATUSES: frozenset[int] = frozenset({9, 11})
@@ -87,7 +86,7 @@ RUNNING_STATUSES: frozenset[int] = frozenset({9, 11})
 #: WB's own word for a pay-per-click campaign, in ``settings.payment_type``.
 _CPC_PAYMENT: str = "cpc"
 
-#: WB's word for единая ставка, in ``bid_type``.
+#: WB's word for a unified-bid campaign, in ``bid_type``.
 _UNIFIED_BID: str = "unified"
 
 
@@ -96,7 +95,7 @@ def classify(advert: WBAdvertV2) -> CampaignKind:
 
     The payment model outranks the bid model, the way the monitoring matrix
     classifies the same campaigns: WB bills a CPC campaign per click rather
-    than per 1000 показов, so its CTR, its ставки and its расход share nothing
+    than per 1000 impressions, so its CTR, its bids and its spend share nothing
     with a CPM campaign's whatever its placements say.
 
     A manual campaign running in BOTH zones is «Руч. поиск»: search is the zone
@@ -164,7 +163,7 @@ def campaigns_for_sku(
 
     Statuses used to be deliberately not filtered, on the reasoning that a
     campaign finished mid-test still paid for part of it and that re-reading a
-    dead one could only ever add traffic the card really earned. Production
+    dead one could only ever add traffic the card really earned. Practice
     disagreed. A card that has been advertised for a month names a dozen
     campaigns WB has since completed, and every one of them can still turn up
     in a fullstats answer — at which point :func:`..services.collection.

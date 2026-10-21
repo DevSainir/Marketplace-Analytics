@@ -37,12 +37,12 @@ GROUP_NAME_MAX_LENGTH: int = 80
 
 
 class SkuGroup(Base):
-    """A named set of one кабинет's articles.
+    """A named set of one workspace's articles.
 
     Attributes:
         id: UUIDv7 — time-ordered, and not an enumeration oracle.
-        workspace_id: Owning кабинет; the group is shared by everyone in it.
-        name: What the seller called it; unique within the кабинет, so the
+        workspace_id: Owning workspace; the group is shared by everyone in it.
+        name: What the seller called it; unique within the workspace, so the
             filter never lists two options that read the same.
         created_at: When it was made.
     """
@@ -70,8 +70,8 @@ class SkuGroupItem(Base):
 
     Attributes:
         group_id: The group; deleting it deletes its members.
-        nm_id: The article (proved to be the кабинет's own before it is written).
-        workspace_id: The group's кабинет, repeated so the row can carry a policy.
+        nm_id: The article (proved to be the workspace's own before it is written).
+        workspace_id: The group's workspace, repeated so the row can carry a policy.
     """
 
     __tablename__ = "sku_group_item"
@@ -97,8 +97,8 @@ class SkuNorm(Base):
 
     Attributes:
         id: UUIDv7.
-        workspace_id: Owning кабинет; the norm is shared by everyone in it.
-        nm_id: The article (proved to be the кабинет's own before it is written).
+        workspace_id: Owning workspace; the norm is shared by everyone in it.
+        nm_id: The article (proved to be the workspace's own before it is written).
         metric: A :data:`~src.modules.heatmap.schemas.MetricKey`.
         value: The norm.
         updated_at: When it was last set.

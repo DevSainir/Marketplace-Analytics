@@ -2,7 +2,7 @@
 
 Separated from :mod:`.auth` because it is not a step of authentication: it runs
 on its OWN committed transaction, deliberately outside the caller's, and the
-long comment inside it is the record of two production incidents. Keeping it
+long comment inside it is the record of two incidents. Keeping it
 here leaves the service readable and this reasoning findable.
 """
 
@@ -39,7 +39,7 @@ async def revoke_breached_family(*, user_id: uuid.UUID, family_id: uuid.UUID) ->
     Revoking every family on that evidence is what turned one such replay
     into a team-wide outage on 2026-07-27: a tab last used on the 24th woke
     up, replayed its long-dead token, and signed every other worker sharing
-    the account out mid-task, across all 14 of that user's live families.
+    the account out mid-task, across every one of that user's live families.
     Family scope still ends the ambiguous lineage — that device does have to
     log in again — while leaving every other device untouched.
 

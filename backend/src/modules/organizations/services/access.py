@@ -150,12 +150,12 @@ class OrganizationAccess:
     #: because this dataclass is frozen for a reason and a mutable field would
     #: leave a hole in it.
     modules: tuple[str, ...] = ALL_MODULES
-    #: The platform ``head`` role: may open, read-only, the кабинеты of other
+    #: The platform ``head`` role: may open, read-only, the workspaces of other
     #: organisations that a dev granted them one by one. Deliberately NOT an
-    #: :class:`EffectiveRole` — it widens which кабинеты the person may look
+    #: :class:`EffectiveRole` — it widens which workspaces the person may look
     #: at, not what they may do in their own company, so an owner who is also
     #: a head stays an owner there. The grants themselves are checked where
-    #: the кабинет is resolved (``workspaces.deps``); this flag alone opens
+    #: the workspace is resolved (``workspaces.deps``); this flag alone opens
     #: nothing.
     is_head: bool = False
 
@@ -188,8 +188,8 @@ class OrganizationAccess:
     def is_guest_only(self) -> bool:
         """Whether the caller is a head with no company of their own.
 
-        A dev may open a кабинет to anybody, not only to people who already
-        belong somewhere — showing a кабинет to someone outside every customer
+        A dev may open a workspace to anybody, not only to people who already
+        belong somewhere — showing a workspace to someone outside every customer
         is the point of the grant. Such a caller is let past ``require_member``
         with nothing of their own: every route that needs the caller's
         organisation still refuses them (``tenant_id`` raises), and every
@@ -216,7 +216,7 @@ class OrganizationAccess:
             return True
         if self.is_guest_only:
             # No tenant of their own to bill. What they may read was chosen by a
-            # dev, one кабинет at a time; `can_write` stays False for them.
+            # dev, one workspace at a time; `can_write` stays False for them.
             return True
         return self.subscription is not SubscriptionState.EXPIRED
 
@@ -253,7 +253,7 @@ class OrganizationAccess:
 
         Only a manager can be denied. A dev sees everything by definition, an
         owner bought the thing, a guest with no company of their own sees every
-        section of the кабинеты granted to them (read-only, enforced by verb),
+        section of the workspaces granted to them (read-only, enforced by verb),
         and any other caller with no membership never gets far enough to ask.
 
         Args:
@@ -272,9 +272,9 @@ class OrganizationAccess:
     def sees_internal_features(self) -> bool:
         """Whether the internal-only surfaces are reachable for this caller.
 
-        one seller — ours — against our own data and our own legal case. They
-        are reachable by devs and by members of the primary organisation, and
-        by nobody else.
+        A/B tests and the labs were built for one seller — ours — against our
+        own data. They are reachable by devs and by members of the primary
+        organisation, and by nobody else.
         """
         return self.is_dev or self.is_primary_org
 
@@ -284,7 +284,7 @@ class OrganizationAccess:
 
         A dev, or the OWNER of the primary organisation — the person who takes
         the money. Not a manager of it: a code is a paid account, and handing
-        one out is a decision about our revenue, not a task inside a кабинет.
+        one out is a decision about our revenue, not a task inside a workspace.
         """
         return self.is_dev or (self.role is EffectiveRole.OWNER and self.is_primary_org)
 
@@ -357,24 +357,6 @@ async def resolve_access(
         modules=tuple(membership.modules or ()),
         is_head=is_head,
     )
-
-
-async def load_primary_organization_id(session: AsyncSession) -> uuid.UUID | None:
-    """Return the id of OUR organisation, or ``None`` when there is not one.
-
-    A lookup rather than a search: a partial unique index allows at most one
-    row to carry the flag. Exposed for the fan-out callers that would otherwise
-    ask :func:`is_internal_organization` once per row and re-read the same
-    single organisation each time.
-
-    Args:
-        session: An open async session (caller owns the transaction).
-
-    Returns:
-        The primary organisation's id, or ``None`` on a database that has none.
-    """
-    primary = await OrganizationRepository(session).get_primary()
-    return primary.id if primary is not None else None
 
 
 def harvestable_organization_ids(
@@ -453,29 +435,6 @@ async def load_harvestable_organization_ids(session: AsyncSession) -> frozenset[
     )
 
 
-async def is_internal_organization(session: AsyncSession, organization_id: uuid.UUID) -> bool:
-    """Whether an organisation is OURS — the task-side internal-feature gate.
-
-    :attr:`OrganizationAccess.sees_internal_features` answers this for a
-    request, from a resolved caller. A Celery harvest has no caller and no
-    request, so it asks here instead: the same question, decided by the same
-    ``is_primary`` flag, so a surface cannot be reachable to one and not the
-    other.
-
-    Args:
-        session: An open async session (caller owns the transaction).
-        organization_id: The tenant being asked about.
-
-    Returns:
-        ``True`` only for the single primary organisation. A missing primary
-        row — a fresh database, a restore that has not run the seed — answers
-        ``False``, which withholds an internal-only source rather than
-        harvesting it for everyone.
-    """
-    primary_id = await load_primary_organization_id(session)
-    return primary_id is not None and primary_id == organization_id
-
-
 #: Roles permitted to act inside an organisation's workspaces at all.
 WRITING_ROLES: frozenset[EffectiveRole] = frozenset(
     {EffectiveRole.DEV, EffectiveRole.OWNER, EffectiveRole.MANAGER}
@@ -490,9 +449,7 @@ __all__ = [
     "OrganizationAccess",
     "SubscriptionState",
     "harvestable_organization_ids",
-    "is_internal_organization",
     "load_harvestable_organization_ids",
-    "load_primary_organization_id",
     "resolve_access",
     "subscription_state",
 ]

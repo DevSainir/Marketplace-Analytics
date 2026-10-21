@@ -64,7 +64,7 @@ class ActivationCode(Base):
         expires_at: When the code stops being redeemable; ``NULL`` = never.
             Bounded codes matter because a code handed out and not used is a
             standing grant of a paid account sitting in someone's messages.
-        max_workspaces: The кабинет cap the subscription starts with;
+        max_workspaces: The workspace cap the subscription starts with;
             ``NULL`` = unlimited. On the code for the same reason as the term:
             what was sold is what gets delivered.
         max_managers: The manager cap, likewise; ``NULL`` = unlimited.

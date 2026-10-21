@@ -1,36 +1,36 @@
-"""The one-line answer to «что вообще насчитал этот тест».
+"""The one-line answer to "what has this test counted at all".
 
 The result table compares photos against each other; this compares the test
 against itself. It exists because every figure on the page is a *share* of
-something the page never states — a variant's 4 000 показов mean one thing when
+something the page never states — a variant's 4 000 impressions mean one thing when
 the test has counted 8 000 and another when it has counted 400 000 — and because
-the two questions a seller asks before believing any of it («сколько уже
-собрано» and «за сколько времени») had no answer anywhere in the payload.
+the two questions a seller asks before believing any of it ("how much has been
+collected so far" and "over how long") had no answer anywhere in the payload.
 
 **Everything here is summed from the same rows the table divides.** Not from
 WB, not from a second query, not from a stored counter: the identical
 :class:`~..models.stats.VariantStatWindow` list that
 :func:`..services.results.build_rows` walks. That is the property that makes the
-block checkable rather than decorative — the total показов is the sum of the
+block checkable rather than decorative — the total of impressions is the sum of the
 table's «Показов» line, to the impression, always, and a reader who adds the
 columns up and gets the same number has verified the page rather than trusted
 it.
 
 Two clocks, and they are deliberately not the same number:
 
-* **Измерено** — the length of the union of the intervals that carry the
-  counts. This is the exposure the CTR is divided over; it is what «за
-  столько-то» honestly means. A union, not a sum: every interval is stored once
+* **«Измерено»** (measured) — the length of the union of the intervals that carry the
+  counts. This is the exposure the CTR is divided over; it is what "over so much
+  time" honestly means. A union, not a sum: every interval is stored once
   per advertising campaign, so with two campaigns serving the same hour that
   hour has two rows, and summing them reported a 20-hour test as «1 д 17 ч».
-* **Прошло** — wall clock from the first install to the finish (or to now).
+* **«Прошло»** (elapsed) — wall clock from the first install to the finish (or to now).
 
 They differ by every stretch the test was not accruing: a hand pause, a campaign
 that stopped serving, a poll that read nothing. The gap is reported rather than
 hidden, because a test that ran «14 часов» while measuring four of them is a
 test whose numbers are thin for a reason the seller can act on — switch the
 advertising back on — and averaging the difference away would present the same
-1 200 показов as if they were a day's worth.
+1 200 impressions as if they were a day's worth.
 
 The wall clock itself is NOT computed here: it ends at «сейчас» for a live test,
 and a duration frozen at the last poll would be wrong on the screen within

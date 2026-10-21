@@ -4,10 +4,10 @@ A group is replaced whole on every edit — name and members together — becaus
 that is how the dialog works (one form, one «Сохранить») and because it leaves
 no half-edited group behind a failed request.
 
-Every article is proved to be the кабинет's own before it is written. WB article
+Every article is proved to be the workspace's own before it is written. WB article
 numbers are global, so «this article exists» and «this article is yours» are
 different questions, and a group holding a stranger's card would paint that
-card's name into this кабинет's filter the next time the catalogue changed
+card's name into this workspace's filter the next time the catalogue changed
 hands. The error says how many were refused, never which: the rule is not to
 echo rejected input back.
 """
@@ -26,14 +26,14 @@ from src.modules.monitoring.contract import load_workspace_catalog
 
 
 class SkuGroupService:
-    """Lists, creates, edits and deletes one кабинет's groups."""
+    """Lists, creates, edits and deletes one workspace's groups."""
 
     def __init__(self, repo: SkuGroupRepository) -> None:
         """Wire the service from its repository."""
         self._repo = repo
 
     async def list_groups(self, *, workspace_id: uuid.UUID) -> SkuGroupList:
-        """Every group of the кабинет, alphabetically."""
+        """Every group of the workspace, alphabetically."""
         return SkuGroupList(
             items=[
                 SkuGroupRead(id=group_id, name=name, nm_ids=nm_ids)
@@ -44,11 +44,11 @@ class SkuGroupService:
     async def create(
         self, session: AsyncSession, *, workspace_id: uuid.UUID, payload: SkuGroupWrite
     ) -> SkuGroupRead:
-        """Create a group from a name and a set of the кабинет's articles.
+        """Create a group from a name and a set of the workspace's articles.
 
         Raises:
-            ValidationError: An article is not in the кабинет's catalogue, or the
-                кабинет is at its group bound.
+            ValidationError: An article is not in the workspace's catalogue, or the
+                workspace is at its group bound.
             ConflictError: Another group already has this name.
         """
         await self._check_members(session, workspace_id, payload.nm_ids)
@@ -72,9 +72,9 @@ class SkuGroupService:
         """Replace a group's name and members.
 
         Raises:
-            NotFoundError: The group is not one of this кабинет's — reported as
+            NotFoundError: The group is not one of this workspace's — reported as
                 missing rather than forbidden, so a guessed id confirms nothing.
-            ValidationError: An article is not in the кабинет's catalogue.
+            ValidationError: An article is not in the workspace's catalogue.
             ConflictError: Another group already has this name.
         """
         if not await self._repo.exists(workspace_id, group_id):
@@ -90,7 +90,7 @@ class SkuGroupService:
         """Delete a group; its articles are untouched.
 
         Raises:
-            NotFoundError: The group is not one of this кабинет's.
+            NotFoundError: The group is not one of this workspace's.
         """
         if not await self._repo.delete(workspace_id, group_id):
             raise NotFoundError("Группа не найдена.")
@@ -98,7 +98,7 @@ class SkuGroupService:
     async def _check_members(
         self, session: AsyncSession, workspace_id: uuid.UUID, nm_ids: list[int]
     ) -> None:
-        """Refuse any article the кабинет does not own."""
+        """Refuse any article the workspace does not own."""
         cards = await load_workspace_catalog(session, workspace_id=workspace_id)
         owned = {card.nm_id for card in cards}
         unknown = len(set(nm_ids) - owned)

@@ -2,7 +2,7 @@
 
 The rotation records what it *installed*. Until this module existed nothing
 checked what was *there*, and the gap is not hypothetical: on 2026-09-09 the
-main photo of nm 1944299862 was rewritten at 11:58:18Z, thirteen hours after the
+main photo of a tested card was rewritten by hand, thirteen hours after the
 rotation's last install. Had that test still been running, every window after it
 would have been credited to a variant the card was no longer showing, and
 nothing on any screen would have said so. A wrong number that looks right is

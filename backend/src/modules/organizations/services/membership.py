@@ -143,7 +143,7 @@ class OrganizationService:
 
         Read separately from :meth:`set_member_access` so the caller can tell a
         real change from a re-save of the same form. That distinction is not
-        cosmetic: the audit trail is read to answer «кто и что поменял», and a
+        cosmetic: the audit trail is read to answer "who changed what", and a
         page full of «Изменён доступ» entries that changed nothing is a trail
         that has to be searched rather than read.
 

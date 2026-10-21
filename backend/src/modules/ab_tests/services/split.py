@@ -2,7 +2,7 @@
 
 A card is often pushed by two campaigns at once, and until the counters were
 kept apart the page could only show their sum. The sum is still the headline —
-a photo's total показов is what it got — but it is not a comparison: «Единая»
+a photo's total of impressions is what it got — but it is not a comparison: «Единая»
 and «CPC» buy different traffic at different prices, and a campaign switched on
 halfway through lifts every photo that follows it in a way that reads exactly
 like one photo winning.
@@ -11,7 +11,7 @@ So each block of the page can be read through one campaign, and this module is
 the projection that makes that possible. Three shapes come out of it, one per
 question the page asks:
 
-* :func:`campaign_totals` — «сколько принесла каждая РК», the branches under
+* :func:`campaign_totals` — "how much did each ad campaign bring", the branches under
   each figure of «Итог по тесту».
 * :func:`variant_campaign_metrics` — the result table, computed inside one
   campaign. The leader is recomputed there too: the best CTR overall is not
@@ -23,7 +23,7 @@ question the page asks:
 **A campaign appears only once it has SHOWN the card to somebody.** The
 register knows every campaign the poller has read counters from, and a card can
 name a campaign that never served it; a branch of zeroes is not a finding. Nor
-is a branch of spend with no показы and no клики: whatever WB billed there, it
+is a branch of spend with no impressions and no clicks: whatever WB billed there, it
 put none of the photos in front of anybody, so it measures nothing the page is
 comparing and its column of dashes only crowds out the one or two campaigns
 that do. This is also what keeps the one-campaign case looking exactly as it
@@ -218,7 +218,7 @@ def exposure_campaign_counts(
 
     Attributed exactly the way the turn's total is: a window belongs to the
     exposure that was open when it closed. Only campaigns that earned something
-    in this turn are listed — the timeline reads «did this РК run in this lap»
+    in this turn are listed — the timeline reads "did this ad campaign run in this lap"
     off the presence of an entry, and an entry of zeroes would answer yes.
 
     Args:

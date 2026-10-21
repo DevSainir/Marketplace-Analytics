@@ -1,11 +1,11 @@
 """Small copies of the variant photos, for every screen that shows one.
 
-Measured on production before this existed: fourteen variant images are
+Measured before this existed: fourteen variant images are
 **78.8 MB**, mostly phone PNGs of eight or nine megabytes each. Every surface
 that displays one draws it between 24 and 88 CSS pixels — the result table's
 thumbnail, the timeline's markers, the log. The detail page was therefore
 downloading tens of megabytes to paint pictures the size of a postage stamp,
-which is the whole of «грузится 10-15 секунд».
+which is the whole of "it takes 10-15 seconds to load".
 
 The full image is still what goes to WB. Nothing here touches the original: the
 rotation reads the stored bytes and uploads them, and a re-encode in that path

@@ -16,7 +16,7 @@ concurrency and expensive to discover afterwards:
 
 * **At most one primary organisation.** :attr:`Organization.is_primary` marks
   *ours*, and it is what unlocks the internal-only surfaces. A second row
-  labs.
+  carrying it would silently hand another company the A/B tests and the labs.
 * **At most one owner per organisation.** Two owners is not a richer model, it
   is an unresolvable argument about who may remove whom.
 """
@@ -101,19 +101,19 @@ class ModuleKey(enum.StrEnum):
     open to anybody holding one of those four (:data:`GROUP_MODULES`).
     """
 
-    #: Мониторинг — карточки и воронка.
+    #: «Мониторинг» — cards and the funnel.
     MONITORING = "monitoring"
     #: P&L — the profit-and-loss statement built from WB's settlement detail.
     FINREPORTS = "finreports"
-    #: A/Б-тесты.
+    #: «A/Б-тесты» — photo A/B tests.
     AB_TESTS = "ab_tests"
-    #: Реклама — where the advertising money went. Its own switch rather than
-    #: «Мониторинг»'s, because the page shows sales and ДРР от продаж: an owner
+    #: «Реклама» — where the advertising money went. Its own switch rather than
+    #: «Мониторинг»'s, because the page shows sales and «ДРР от продаж»: an owner
     #: who grants it is deciding about money, not about cards.
     ADVERTISING = "advertising"
-    #: Сводка — the кабинет's revenue and margin beside its orders and ads.
+    #: «Сводка» — the workspace's revenue and margin beside its orders and ads.
     SUMMARY = "summary"
-    #: Тепловая карта — every metric by day, the settlement's money included.
+    #: «Тепловая карта» — every metric by day, the settlement's money included.
     HEATMAP = "heatmap"
 
 
@@ -123,7 +123,7 @@ class ModuleKey(enum.StrEnum):
 ALL_MODULES: tuple[str, ...] = tuple(m.value for m in ModuleKey)
 
 #: The pages that carry the group filter. A group is a named list of the
-#: кабинет's own articles, and whoever may open one of these pages may read
+#: workspace's own articles, and whoever may open one of these pages may read
 #: and — at the writing level — edit the groups on it.
 GROUP_MODULES: tuple[ModuleKey, ...] = (
     ModuleKey.SUMMARY,
@@ -146,7 +146,8 @@ class Organization(Base):
             currently owns the row would rename the company when its owner
             leaves it. The owner may edit it afterwards.
         is_primary: ``True`` for OUR organisation, which unlocks the surfaces
-            labs). Exactly one row may carry it; see the partial index below.
+            built only for us (A/B tests, labs). Exactly one row may carry it;
+            see the partial index below.
         created_at: Server-assigned creation timestamp (UTC).
         members: Everyone who belongs to this organisation.
         subscription: The one subscription row governing its access.

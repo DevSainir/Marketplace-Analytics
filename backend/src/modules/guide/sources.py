@@ -2,8 +2,7 @@
 
 This is the file to read first and the only one to edit when adding a feed. Each
 entry carries the measurement that justifies its cadence — every window here was
-probed live against WB on 2026-09-12, and the numbers are in
-`.claude/skills/wildberries-api/references/`.
+probed against WB on 2026-09-12, and each entry states what was found.
 
 **The cadence rule.** Daily when a missed day is a lost day: the feed's window is
 short enough that falling behind cannot be made up. Monthly for everything else,
@@ -12,23 +11,24 @@ nothing. There is deliberately no weekly cadence — the only feed that ever
 warranted one (FBS supplies, ~31 days) turned out not to be worth capturing at
 all; see below.
 
-What is deliberately NOT here: КИЗы (fiscal receipt numbers), рекламные
-пополнения and списания (the second duplicates ``fullstats.spend``), balances
+What is deliberately NOT here: KIZ codes (fiscal receipt numbers), advertising
+top-ups and write-offs (the second duplicates ``fullstats.spend``), balances
 (WB serves no history, so there is nothing to capture), the deleted-card bin,
 buyer chat, and the FBS orders feed (``supplier/orders`` already carries FBS
-orders — measured, 2 941 of 65 349 rows came from «Склад продавца»). Each was
+orders — measured: a share of its rows came from «Склад продавца»). Each was
 considered and rejected; re-proposing one should come with a use for it.
 
 **FBS supplies (`marketplace /api/v3/supplies`) were built and then removed**,
 2026-09-14, and the reason is worth keeping so nobody adds them again. The feed
 is a shipment header with no contents: id, auto-generated name, created/closed
-timestamps, a numeric destination office, and `scanDt` filled on 27 of 193 rows.
+timestamps, a numeric destination office, and `scanDt` filled on a minority of
+rows.
 The contents are unreachable — `/supplies/{id}/orders` is 404, `/trbx` returns
 boxes with an empty order list, and `/api/v3/orders?supplyId=` IGNORES the
 filter (asked for one supply, got a row from another). And the ids join to
-nothing we hold: settlement `gi_id` runs 0-34 410 398 on this account while
-supply ids start at 182 918 224 — different entities behind the same `WB-GI-`
-prefix, zero overlap on all 193. What survives is a list of dates and office
+nothing we hold: settlement `gi_id` and supply ids live in ranges far apart —
+different entities behind the same `WB-GI-` prefix, zero overlap on every
+supply. What survives is a list of dates and office
 numbers that answers one question nobody asked. If FBS shipments ever matter,
 the feed to capture is `/api/v3/orders` (60-day window), which carries
 `supplyId` on each order.

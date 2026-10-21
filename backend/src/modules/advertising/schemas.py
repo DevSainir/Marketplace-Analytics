@@ -2,9 +2,9 @@
 
 Money is a ``Decimal`` in the response's ``currency``. ``None`` and ``0`` stay
 apart everywhere: ``sales`` is ``None`` for a day or article the settlement has
-not reached yet, which is «ещё не рассчитано», not «продаж не было».
+not reached yet, which is "not calculated yet", not "there were no sales".
 
-ДРР is deliberately NOT a field. Every row carries the figures it is divided
+DRR is deliberately NOT a field. Every row carries the figures it is divided
 from — ``spend_settled - bonus_settled`` over ``sales`` — so the page can
 re-derive it for a group or a filter from summed money, never as a mean of
 ratios.
@@ -32,7 +32,7 @@ Zone = Literal[
 
 
 class AdvertisingSpan(BaseModel):
-    """The days the кабинет has advertising for, for the period picker."""
+    """The days the workspace has advertising for, for the period picker."""
 
     date_from: date | None
     date_to: date | None
@@ -49,7 +49,7 @@ class AdvertisingTotals(BaseModel):
     bonus: Decimal
     #: Spend on the days the settlement covers.
     spend_settled: Decimal
-    #: WB's bonus on those same days. ДРР's numerator is
+    #: WB's bonus on those same days. DRR's numerator is
     #: ``spend_settled - bonus_settled``: the seller's own money.
     bonus_settled: Decimal
     #: Sales minus returns at the seller's price, over the settled days.
@@ -117,11 +117,11 @@ class AdvertisingResponse(BaseModel):
     #: The unit of every money field.
     currency: str
     #: The currencies the window's ad spend was billed in. More than one, or one
-    #: other than ``currency``, means ДРР would divide unlike units — the page
+    #: other than ``currency``, means DRR would divide unlike units — the page
     #: then withholds it.
     ad_currencies: list[str]
     #: Whether WB's funding ledger covers the window at all: without it a zero
-    #: bonus means «не знаем», not «WB ничего не оплатил».
+    #: bonus means "we don't know", not "WB paid nothing".
     bonus_known: bool
     totals: AdvertisingTotals
     zones: list[AdvertisingZone]

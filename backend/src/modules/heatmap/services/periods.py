@@ -2,7 +2,7 @@
 
 Weeks run Monday to Sunday and months from the 1st, as a seller counts them —
 not seven-day slices from the window's start, which would put a Wednesday at
-the head of every «неделя». The first and last column are clipped to the
+the head of every week. The first and last column are clipped to the
 window, so a partial week says so in its own dates rather than silently
 reporting three days as seven.
 

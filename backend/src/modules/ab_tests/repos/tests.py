@@ -48,7 +48,7 @@ class AbTestRepository:
         Args:
             workspace_id: Owning workspace.
             nm_id: The card whose main photo will rotate.
-            vendor_code: Артикул продавца, denormalised for search.
+            vendor_code: The seller's own article, denormalised for search.
             name: Human title.
             trigger_mode: Which trigger advances the rotation.
             impression_budget: Impressions one variant must gather, in
@@ -314,8 +314,8 @@ class AbTestRepository:
         """Move a test to a new status, stamping the lifecycle timestamps.
 
         ``stopped_at`` is cleared by any transition into ``RUNNING`` rather than
-        left for the caller to remember: it is the answer to «сколько тест уже
-        стоит», and a value surviving a resume would keep answering it for a
+        left for the caller to remember: it is the answer to "how long has the
+        test been stopped", and a value surviving a resume would keep answering it for a
         test that is moving again.
 
         Args:

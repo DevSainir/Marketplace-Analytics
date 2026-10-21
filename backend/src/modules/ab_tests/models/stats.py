@@ -54,7 +54,7 @@ class VariantExposure(Base):
     """One continuous stretch during which a variant was the card's main photo.
 
     A variant gets a second row rather than a widened one if it comes back for a
-    later round, so «сколько раз этот вариант стоял» stays answerable.
+    later round, so "how many times was this variant up" stays answerable.
 
     Attributes:
         id: UUIDv7 primary key.

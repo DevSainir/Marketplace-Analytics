@@ -140,7 +140,7 @@ async def get_catalog(
     date_from: date | None = Query(default=None, description="Inclusive start."),
     date_to: date | None = Query(default=None, description="Inclusive end."),
 ) -> HeatmapCatalogResponse:
-    """Return the кабинет's cards and subjects, for «Категории», «Артикулы» and the group editor.
+    """Return the workspace's cards and subjects, for «Категории», «Артикулы» and the group editor.
 
     Its own route because the filters need it before a grid exists. The window
     only orders the cards — most-ordered first — so it is bounded the same way

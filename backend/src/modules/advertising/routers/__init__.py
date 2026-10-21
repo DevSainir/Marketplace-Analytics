@@ -5,7 +5,7 @@ One guard on the aggregating router, so no route here can forget it:
 2026-10-10.
 
 It is a switch of its own rather than «Мониторинг»'s, by the owner's decision
-of that day. The page shows sales and ДРР от продаж, so under the «Сводка» rule
+of that day. The page shows sales and «ДРР от продаж», so under the «Сводка» rule
 a manager holding monitoring alone could not have read it; a separate grant lets
 an owner decide about this page directly. It is on by default — the migration
 that introduced it backfilled every membership and invitation — so nobody who

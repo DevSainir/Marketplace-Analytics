@@ -3,14 +3,14 @@
 A cell is not a number. It is the ADDITIVE facts behind every metric — orders,
 opens, spend, revenue… — and a metric is derived from them only at the end.
 That is the whole trick of the «Итого» row and column: a CTR over a week is
-Σ clicks / Σ views, never the average of seven CTRs, and a category's ДРР is its
+Σ clicks / Σ views, never the average of seven CTRs, and a category's DRR is its
 summed spend over its summed orders. Summing ratios is how a heatmap's totals
 come out plausible and wrong.
 
 Two things do not add up, and each has its own rule:
 
 * **Stock is a level, not a flow.** Across days it is the LATEST snapshot (the
-  stock «за неделю» is what was on the shelf at the end of it); across articles
+  stock "for a week" is what was on the shelf at the end of it); across articles
   it is the sum. :func:`merge_days` and :func:`merge_skus` are therefore two
   functions, not one.
 * **Money from the settlement is unknown until WB calculates it.** A day after
@@ -25,7 +25,7 @@ rouble campaigns (before 20.08.2026 on «Демо») are converted where they
 are stored, at the Bank of Russia rate of their day (``monitoring/repos/
 ad_money.py``). Should a rouble row ever escape that — a day past the loaded
 rates — `_mixed` and `_paired` keep it out: a spend sum over two currencies is
-«—», and so is a ДРР whose spend is not in the orders' currency.
+«—», and so is a DRR whose spend is not in the orders' currency.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ class Facts:
     #: Orders on days that carried a seller price, and what they were worth.
     priced_orders: int = 0
     amount_seller: Decimal = _ZERO
-    #: The same for the price after WB's СПП.
+    #: The same for the price after WB's SPP.
     paid_orders: int = 0
     amount_paid: Decimal = _ZERO
     #: Orders on days WB served its own funnel sum for, and that sum — in
@@ -139,9 +139,9 @@ def _add_flows(target: Facts, other: Facts) -> None:
     """Add every additive field and OR the two flags.
 
     Written out field by field rather than looped over :data:`ADDITIVE_FIELDS`
-    with ``getattr``/``setattr``: this runs once per SKU-day per fold, and on
-    production the loop was most of a grid's time — 335 000 attribute calls for
-    one кабинет's month. The unit tier pins that no field is left out.
+    with ``getattr``/``setattr``: this runs once per SKU-day per fold, and in
+    profiling the loop was most of a grid's time — 335 000 attribute calls for
+    one workspace's month. The unit tier pins that no field is left out.
     """
     target.funnel_days += other.funnel_days
     target.opens += other.opens
@@ -225,7 +225,7 @@ def _mixed(f: Facts) -> bool:
 
 
 def _paired(f: Facts) -> bool:
-    """Whether the spend is in the orders' currency, so ДРР divides like by like.
+    """Whether the spend is in the orders' currency, so DRR divides like by like.
 
     No spend is 0 % in any currency. A campaign never labelled (``""``) could
     be either, so it does not pair.
@@ -240,14 +240,14 @@ def _spend(read: Callable[[Facts], float | None]) -> Callable[[Facts], float | N
 
 
 def _seller_price(f: Facts) -> float | None:
-    """Order-weighted price before СПП; the plain mean of snapshots on a no-order cell."""
+    """Order-weighted price before SPP; the plain mean of snapshots on a no-order cell."""
     if f.priced_orders:
         return _ratio(f.amount_seller, f.priced_orders)
     return _ratio(f.seller_price_sum, f.seller_price_n)
 
 
 def _customer_price(f: Facts) -> float | None:
-    """Order-weighted price after СПП, with the same fallback."""
+    """Order-weighted price after SPP, with the same fallback."""
     if f.paid_orders:
         return _ratio(f.amount_paid, f.paid_orders)
     return _ratio(f.customer_price_sum, f.customer_price_n)
@@ -336,7 +336,7 @@ def spread_bonus(
     campaigns, not days: the bonus is only defined over a window
     (:func:`~src.modules.monitoring.contract.load_ad_bonus_by_nm`). So the
     article's window bonus is laid over its days in proportion to what each
-    day spent — the same move «Сводка» makes for the whole кабинет — and only
+    day spent — the same move «Сводка» makes for the whole workspace — and only
     the settled days' share is kept, next to :attr:`Facts.settled_spend`.
 
     Clamped at the article's own spend, as the P&L clamps it: a write-off dated

@@ -74,7 +74,7 @@ def build_row_specs(
         group_by: What one row stands for.
         nm_ids: The selected articles that have facts in the window.
         cards: Catalogue identity per article, for labels and names.
-        groups: The кабинет's groups, used when cutting by group.
+        groups: The workspace's groups, used when cutting by group.
     """
     selected = frozenset(nm_ids)
     if group_by == "sku":

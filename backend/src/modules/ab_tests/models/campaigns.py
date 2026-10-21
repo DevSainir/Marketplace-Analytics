@@ -2,7 +2,7 @@
 
 A card can be pushed by more than one campaign at once, and the counters of all
 of them used to be added together before anything was recorded — so a photo's
-«копилка» held the sum and no later question could take it apart. The split is
+running tally held the sum and no later question could take it apart. The split is
 now made where the numbers arrive (see :mod:`..services.collection`), and every
 row that carries traffic carries the campaign id it came from.
 

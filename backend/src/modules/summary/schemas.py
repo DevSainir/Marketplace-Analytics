@@ -36,9 +36,9 @@ class SummaryKpi(BaseModel):
     would be a margin wearing a more confident name.
     """
 
-    #: Net revenue at the price the buyer paid, after WB's СПП.
+    #: Net revenue at the price the buyer paid, after WB's SPP.
     revenue_paid: Decimal
-    #: The same revenue at the seller's own price, before СПП. WB's payout is
+    #: The same revenue at the seller's own price, before SPP. WB's payout is
     #: pegged to this one, which is why it is offered as a base at all.
     revenue_seller: Decimal
     #: Payout net of withholdings, less cost of goods and the advertising the
@@ -70,7 +70,7 @@ class SummaryKpi(BaseModel):
     #: both places would be read as two different costs.
     penalties: Decimal
     #: What advertising actually cost the seller in the window, WB's bonuses
-    #: removed. ``None`` without advertising coverage. The ДРР card is this over
+    #: removed. ``None`` without advertising coverage. The DRR card is this over
     #: revenue, computed by the page so it follows the price base.
     ad_spend: Decimal | None
 
@@ -82,7 +82,7 @@ class SummaryDay(BaseModel):
     #: ``None`` on a day WB has not calculated yet. The window may legitimately
     #: run past the last settlement — orders and advertising arrive daily while
     #: the settlement lands weekly — and a zero there is a claim that the
-    #: кабинет sold nothing, which is a very different statement from «WB has
+    #: workspace sold nothing, which is a very different statement from «WB has
     #: not said yet». The chart breaks its line instead of dropping to the axis.
     revenue_paid: Decimal | None
     revenue_seller: Decimal | None
@@ -93,7 +93,7 @@ class SummaryDay(BaseModel):
     #: What those orders were worth at the seller's own price, and at the price
     #: the customer pays. ``None`` when the day cannot be valued at all — the
     #: funnel publishes no money volume, so a day reached only by it and never
-    #: priced has no volume, and zero would read as infinite ДРР.
+    #: priced has no volume, and zero would read as infinite DRR.
     orders_amount_seller: Decimal | None
     orders_amount_paid: Decimal | None
     #: Units WB calculated as sold that day, net of refunds. ``None`` on a day
@@ -142,7 +142,7 @@ class SummaryCoverage(BaseModel):
 
 
 class SummarySpan(BaseModel):
-    """The days a кабинет has data for, for the period picker.
+    """The days a workspace has data for, for the period picker.
 
     Every feed, not the settlement alone: orders and advertising arrive daily
     while WB calculates settlements weekly, so ending every preset on the last

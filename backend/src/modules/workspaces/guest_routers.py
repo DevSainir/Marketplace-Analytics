@@ -1,8 +1,8 @@
-"""Dev-only routes that open another company's кабинет to a head, read-only.
+"""Dev-only routes that open another company's workspace to a head, read-only.
 
 ``DevAccess`` on every route, and nothing weaker would do: a grant crosses the
 one boundary the rest of the platform exists to hold — one company reading
-another's кабинет. Neither company's owner may decide that, so ``OwnerAccess``
+another's workspace. Neither company's owner may decide that, so ``OwnerAccess``
 is wrong, and it is a platform decision rather than a tenant one.
 
 These routes touch ``workspaces.workspace_guests`` and ``workspaces.workspaces``
@@ -47,7 +47,7 @@ _DEV_ONLY_RESPONSES: dict[int | str, dict[str, str]] = {
     responses=_DEV_ONLY_RESPONSES,
 )
 async def list_guest_grants(_dev: DevAccess, session: DbSession) -> list[GuestGrantRead]:
-    """Every standing grant — who may read which кабинет of another company."""
+    """Every standing grant — who may read which workspace of another company."""
     return await list_guests(session)
 
 
@@ -58,7 +58,7 @@ async def list_guest_grants(_dev: DevAccess, session: DbSession) -> list[GuestGr
     responses=_DEV_ONLY_RESPONSES,
 )
 async def list_grantable(_dev: DevAccess, session: DbSession) -> list[GuestWorkspaceOption]:
-    """Every кабинет on the platform, id and name only, for the grant form.
+    """Every workspace on the platform, id and name only, for the grant form.
 
     ``DevAccess``: the list names every customer, which is a platform fact no
     tenant may see — and the dev who may grant any of them already can.
@@ -82,7 +82,7 @@ async def grant_guest_access(
     session: DbSession,
     audit: AuditTrail,
 ) -> GuestGrantRead:
-    """Open a кабинет to an account, read-only; the account becomes ``head``."""
+    """Open a workspace to an account, read-only; the account becomes ``head``."""
     grant = await grant_guest(
         session,
         email=payload.email,

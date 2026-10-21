@@ -1,9 +1,9 @@
 """HTTP routes for the heatmap's «Группы».
 
 Reads take the tenant from ``X-Workspace-Id``. Writes take ``WritingAccess`` as
-well: a group is shared by everyone in the кабинет and changes what their
+well: a group is shared by everyone in the workspace and changes what their
 filter lists, so a read-only manager — or a guest reading another company's
-кабинет — must not be able to make or remove one. The grant on the router
+workspace — must not be able to make or remove one. The grant on the router
 (``require_groups``: any page that carries the group filter) is not enough on
 its own for that: it says which pages the caller may open, not whether they
 may change anything in them.
@@ -40,7 +40,7 @@ _WRITE_ERRORS: dict[int | str, dict[str, str]] = {
 async def list_groups(
     service: SkuGroupServiceDep, workspace_id: CurrentWorkspaceId
 ) -> SkuGroupList:
-    """Return every group of the кабинет, by name."""
+    """Return every group of the workspace, by name."""
     return await service.list_groups(workspace_id=workspace_id)
 
 
@@ -57,7 +57,7 @@ async def create_group(
     workspace_id: CurrentWorkspaceId,
     session: DbSession,
 ) -> SkuGroupRead:
-    """Create a group of the кабинет's articles."""
+    """Create a group of the workspace's articles."""
     return await service.create(session, workspace_id=workspace_id, payload=payload)
 
 
@@ -77,7 +77,7 @@ async def update_group(
 ) -> SkuGroupRead:
     """Replace a group's name and members.
 
-    A group of another кабинет is reported as missing, not forbidden — a guessed
+    A group of another workspace is reported as missing, not forbidden — a guessed
     id must not confirm that the group exists.
     """
     return await service.update(

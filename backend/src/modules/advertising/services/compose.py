@@ -64,10 +64,10 @@ def compose(
     """Cut the window's facts into totals, zones, days and articles.
 
     Args:
-        facts: Campaign-grain advertising of the кабинет for the window.
+        facts: Campaign-grain advertising of the workspace for the window.
         sales: Settled sales per article-day; empty when nothing settled.
         settled_to: Last settled day; spend after it has no sales to divide by.
-        catalog: The кабинет's cards, for article labels.
+        catalog: The workspace's cards, for article labels.
         orders: Ordered units per article over the window, or ``None`` when the
             funnel does not cover it (then every article's orders are unknown).
     """

@@ -103,7 +103,7 @@ class AbTestSettingsUpdate(BaseModel):
     the test already has. The bound rule is checked against the *resolved*
     mode — the one in the body if it names one, otherwise the stored one — so
     "set slot_minutes on a test that is still counting impressions" is refused
-    even though the body never mentions a mode, while a test in режиме
+    even though the body never mentions a mode, while a test in mode
     «either» takes either field on its own. That check needs the stored test, so it
     happens in the service rather than here.
     """
@@ -187,7 +187,7 @@ class ExposureCampaignCounts(BaseModel):
     """What one turn earned from one campaign.
 
     Absent for a campaign that earned nothing in the turn — the timeline reads
-    «эта РК работала в этом круге» off the presence of an entry.
+    "this ad campaign ran in this lap" off the presence of an entry.
     """
 
     campaign_id: int

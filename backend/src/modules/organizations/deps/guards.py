@@ -99,7 +99,7 @@ async def require_member(access: CurrentAccess) -> OrganizationAccess:
 
     The one caller let through with no organisation is a head with nothing of
     their own (:attr:`OrganizationAccess.is_guest_only`): they reach only the
-    кабинеты a dev granted them, read-only, and every route that needs their
+    workspaces a dev granted them, read-only, and every route that needs their
     own organisation still refuses them through ``tenant_id``.
 
     ``/me``, ``/activate`` and ``/invitations/mine`` sit in front of this guard
@@ -193,7 +193,7 @@ def require_any_module(
     async def _guard(access: MemberAccess) -> OrganizationAccess:
         if not any(access.can_reach(module) for module in modules):
             # Deliberately says the access is missing rather than that the
-            # module is: "нет такого раздела" would be a lie the person cannot
+            # module is: "no such section" would be a lie the person cannot
             # act on, and they need to know who to ask.
             raise PermissionDeniedError(
                 "Раздел недоступен для вашей учётной записи. Доступ выдаёт владелец организации."

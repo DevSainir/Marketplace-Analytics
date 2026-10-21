@@ -15,7 +15,7 @@ a campaign must land in the same zone on both pages.
   harvested slice the whole day stays in «Поиск» — sending ~90 % of a search
   campaign to the catalogue on a missing row would be worse.
 * A unified campaign's remainder is «Полки». WB reports no zone finer than the
-  search slice for единая ставка, so it has no «Каталог» on this page or on
+  search slice for a unified-bid campaign, so it has no «Каталог» on this page or on
   the monitoring matrix; in practice it runs almost entirely on the shelves.
 """
 
@@ -36,7 +36,7 @@ def zone_legs(
 
     Args:
         meta: The campaign's settings; ``None`` or no bid type when never synced.
-        spend: The campaign-day's ``fullstats`` spend on the кабинет's cards.
+        spend: The campaign-day's ``fullstats`` spend on the workspace's cards.
         search: Its normquery search-zone spend, ``None`` when none was harvested.
     """
     if meta is None or not meta.bid_type:

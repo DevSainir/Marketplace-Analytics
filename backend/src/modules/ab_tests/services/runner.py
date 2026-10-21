@@ -281,8 +281,8 @@ class RotationRunner:
             window_views = sum(delta.views for delta in deltas.values())
             for campaign_id, delta in deltas.items():
                 # An empty delta is not a measurement — the campaign simply did
-                # not move — and a row of zeroes would make «эта РК участвовала
-                # в этом круге» true of a campaign that served nothing.
+                # not move — and a row of zeroes would make "this ad campaign took
+                # part in this lap" true of a campaign that served nothing.
                 if delta.is_empty:
                     continue
                 await self._windows.append(

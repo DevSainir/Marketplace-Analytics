@@ -1,12 +1,12 @@
 """The heatmap's hand-set norms: what «Норма: ручной ввод» paints an article against.
 
-One number per article per metric, shared by everyone in the кабинет. The page
+One number per article per metric, shared by everyone in the workspace. The page
 reads them all at once — at most every card times every metric — and paints;
 nothing here touches the grid, which stays the same whichever norm is on.
 
-An article is proved to be the кабинет's own before its norm is written, for the
+An article is proved to be the workspace's own before its norm is written, for the
 reason «Группы» are: WB article numbers are global, and a row for a stranger's
-card would sit in this кабинет's table for good.
+card would sit in this workspace's table for good.
 """
 
 from __future__ import annotations
@@ -22,14 +22,14 @@ from src.modules.monitoring.contract import load_workspace_catalog
 
 
 class SkuNormService:
-    """Lists, sets and clears one кабинет's norms."""
+    """Lists, sets and clears one workspace's norms."""
 
     def __init__(self, repo: SkuNormRepository) -> None:
         """Wire the service from its repository."""
         self._repo = repo
 
     async def list_norms(self, *, workspace_id: uuid.UUID) -> SkuNormList:
-        """Every norm of the кабинет."""
+        """Every norm of the workspace."""
         return SkuNormList(
             items=[
                 SkuNormRead.model_validate({"nm_id": nm_id, "metric": metric, "value": value})
@@ -49,7 +49,7 @@ class SkuNormService:
         """Set an article's norm on one metric, replacing the previous one.
 
         Raises:
-            ValidationError: The article is not in the кабинет's catalogue.
+            ValidationError: The article is not in the workspace's catalogue.
         """
         cards = await load_workspace_catalog(session, workspace_id=workspace_id)
         if nm_id not in {card.nm_id for card in cards}:

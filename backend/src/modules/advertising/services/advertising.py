@@ -27,7 +27,7 @@ from src.modules.monitoring.contract import (
 
 
 class AdvertisingService:
-    """Builds the «Реклама» page for a кабинет and window."""
+    """Builds the «Реклама» page for a workspace and window."""
 
     def __init__(self, *, pnl: PnlService, skus: SkuReportService) -> None:
         """Wire the read service from the finreports services it takes sales from."""
@@ -35,11 +35,11 @@ class AdvertisingService:
         self._skus = skus
 
     async def span(self, session: AsyncSession, *, workspace_id: uuid.UUID) -> AdvertisingSpan:
-        """Return the days the кабинет has advertising for, and where sales stop.
+        """Return the days the workspace has advertising for, and where sales stop.
 
         The picker's range is the ADVERTISING span, not the settlement's: the
         page is about spend, which lands every day, while the settlement is
-        weekly and days late. ``settled_to`` travels beside it so the ДРР line
+        weekly and days late. ``settled_to`` travels beside it so the DRR line
         can stop where the money does.
         """
         horizon = {"date_from": date(2000, 1, 1), "date_to": moscow_today()}
@@ -54,7 +54,7 @@ class AdvertisingService:
     ) -> AdvertisingResponse:
         """Return every figure the page draws for one window.
 
-        ДРР is «от продаж» in the strict sense: the seller's own spend — WB's
+        DRR is "of sales" («от продаж») in the strict sense: the seller's own spend — WB's
         bonus taken off — on the settled days, over the settled sales of the
         SAME days (minus returns, at the seller's price, the base the P&L takes
         every share of). Days past the settlement have spend and no sales, and

@@ -44,8 +44,9 @@ from src.modules.summary.services.compose import (
 
 #: How much of a period's ordering must have been ANSWERED before the period's
 #: own buyout rate is reported. Half, because the ratio is noisy below that and
-#: settles above it: measured on «Демо», a cohort 8 % answered read 22 %,
-#: one 60 % answered read 30 %, and the кабинет's own rate is 26-28 %.
+#: settles above it: measured on one workspace, a barely answered cohort read
+#: several points below the long-run rate and a mostly answered one a few
+#: points above it.
 _ANSWERED_ENOUGH = 0.5
 
 
@@ -58,7 +59,7 @@ class SummaryService:
         self._skus = skus
 
     async def span(self, session: AsyncSession, *, workspace_id: uuid.UUID) -> SummarySpan:
-        """Return the days the кабинет has any data for, for the period picker.
+        """Return the days the workspace has any data for, for the period picker.
 
         Not the settled days alone. WB calculates settlements weekly and serves
         them days late, but the funnel and the advertising statistics land every
@@ -90,17 +91,17 @@ class SummaryService:
 
         The cohort is lagged by :data:`BUYOUT_LAG_END_DAYS`, the same lag the
         «Мониторинг SKU» matrix applies, and for the same measured reason: inside
-        a fresh cohort the refusals arrive before the buyouts do. On the live
-        кабинет the current week reads 22.2 % against a long-run 26-30 %, on
-        8 % of its deliveries having answered at all.
+        a fresh cohort the refusals arrive before the buyouts do. Measured on
+        one workspace, the current week read several points below the long-run
+        rate, with under a tenth of its deliveries answered at all.
 
         The lag alone is not enough, which a week-long period shows: only its
         oldest day or two clear it, and they are answered barely past half.
-        Measured on «Демо» for 10-16.09, that cohort read 29.6 % — 89
-        buyouts out of 301 answered deliveries, against 1 151 orders — while
-        the кабинет's settled rate is 26.4 %. A half-answered cohort is noisy in
-        BOTH directions: at 8 % answered the same кабинет read 22 %, at 60 % it
-        read 30 %.
+        Measured on one week, that cohort read a few points above the
+        workspace's settled rate, on a few hundred answered deliveries out of
+        several times as many orders. A half-answered cohort is noisy in BOTH
+        directions: barely answered, the same workspace read low; mostly
+        answered, it read high.
 
         So the period answers for itself only when most of what it ordered has
         been answered. Otherwise the standing «21-7 дней назад» window answers
@@ -182,7 +183,7 @@ class SummaryService:
             ),
             # Feeds the report's caveat lines and nothing else, and this page
             # draws no caveats (`annotated=False` below). Asking anyway is one
-            # more pass over the кабинет's advertising ledger for text that is
+            # more pass over the workspace's advertising ledger for text that is
             # discarded.
             unknown_funding=[],
             funnel_span=funnel_span,

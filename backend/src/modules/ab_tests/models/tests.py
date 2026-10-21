@@ -4,12 +4,12 @@ A test is a **sequential rotation**, not a simultaneous split: a WB card has
 exactly one main photo at a time, so variants take turns. Each variant is set as
 the card's main photo, left there until it has accumulated the test's impression
 budget, and then replaced by the next one. That is the only shape WB's API
-permits — see the ``wildberries-api`` skill for why a true concurrent A/B is not
-buildable on this platform.
+permits: a card cannot show two main photos to different shoppers at once, so a
+true concurrent A/B is not buildable on this platform.
 
 Impressions come from **advertising** (`/adv/v3/fullstats`), the sole surface on
-WB that reports them at all; organic показы exist in the seller cabinet and in no
-API. A test therefore only advances while the card is being advertised.
+WB that reports them at all; organic impressions exist in the seller portal and in
+no API. A test therefore only advances while the card is being advertised.
 """
 
 from __future__ import annotations
@@ -75,10 +75,10 @@ class TriggerMode(enum.StrEnum):
     number a trigger fires on; what the refusal ignored is the failure the
     seller actually meets. A budget alone stalls a photo for days when the
     advertising slows, and a slot alone hands one photo a burst of traffic
-    another never saw. Naming both bounds the turn from both sides — «не дольше
-    20 минут и не больше 1 000 показов» — and every window records the exposure
-    a turn really got, so the result table divides by what was measured rather
-    than by what was budgeted.
+    another never saw. Naming both bounds the turn from both sides — "no longer
+    than 20 minutes and no more than 1 000 impressions" — and every window
+    records the exposure a turn really got, so the result table divides by what
+    was measured rather than by what was budgeted.
     """
 
     IMPRESSIONS = "impressions"
@@ -121,7 +121,7 @@ class AbTest(Base):
         id: UUIDv7 primary key.
         workspace_id: Owning workspace — tests are per-tenant, like tokens.
         nm_id: The WB SKU whose main photo is rotated.
-        vendor_code: Артикул продавца, denormalised from the card so the list
+        vendor_code: The seller's own article, denormalised from the card so the list
             can be searched by it without joining the monitoring module.
         name: Human title of the test, shown in the list.
         status: See :class:`AbTestStatus`.

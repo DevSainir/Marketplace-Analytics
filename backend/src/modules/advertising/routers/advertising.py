@@ -25,7 +25,7 @@ DEFAULT_WINDOW_DAYS = 29
 #: Hard cap on one request — sized to «Вся история», like «Сводка»'s.
 #:
 #: WB keeps advertising statistics for a campaign's whole life (no retention
-#: cliff; «Демо» goes back to 2023-10-24), so a cap below the кабинет's own
+#: cliff; «Демо» goes back to 2023-10-24), so a cap below the workspace's own
 #: history would make the «Вся история» button an error. Measured 2026-10-05:
 #: that whole span answers in ~1 s on «Демо». The bound still has to exist —
 #: an unbounded window is a cheap way for one caller to keep Postgres busy.
@@ -63,7 +63,7 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
 async def get_advertising_span(
     service: AdvertisingServiceDep, session: DbSession, workspace_id: CurrentWorkspaceId
 ) -> AdvertisingSpan:
-    """Return the days this кабинет has advertising for, before a window is chosen."""
+    """Return the days this workspace has advertising for, before a window is chosen."""
     return await service.span(session, workspace_id=workspace_id)
 
 
@@ -89,7 +89,7 @@ async def get_advertising(
 
     **This GET may write, as «Сводка»'s does**: reading settled sales fills the
     settlement rollup for days it did not already cover. Nothing the caller
-    sends decides what is written — it is derived from the кабинет's own
+    sends decides what is written — it is derived from the workspace's own
     settlement rows, under the tenant :data:`CurrentWorkspaceId` binds.
     """
     start, end = _resolve_window(date_from, date_to)

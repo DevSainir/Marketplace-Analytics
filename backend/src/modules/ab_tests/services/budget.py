@@ -22,9 +22,9 @@ read as UNKNOWN, on the grounds that «no campaign» is neither «switched off»
 «out of money». But the rule the pause enforces is not about why the ads
 stopped — it is that without them there is nothing to measure. A «по времени»
 test on such a card dealt photo after photo and recorded every turn as zero,
-which is the table of zeros this module exists to prevent. Seen on a live
-cabinet 2026-09-30, where a seller took a rotation that moved to be one that
-worked without advertising.
+which is the table of zeros this module exists to prevent. Seen on 2026-09-30,
+where a seller took a rotation that moved to be one that worked without
+advertising.
 
 **A spent budget is a pause, not an ending, and that is a correction.** It used
 to complete the test, which made a routine event permanent: a campaign that
@@ -38,10 +38,10 @@ What a test that keeps rotating through dead air produces is the reason the
 pause exists at all: photo after photo dealt, each turn recorded as zero
 impressions, and ten rows of zeros read exactly like a finding.
 
-**Why a zero is believable.** Measured live 2026-09-07 across the account's
-campaigns: running ones reported 3818, 3504 and 14929, a paused one 350, and
-every finished one 0. The endpoint answers with real numbers, so a zero is an
-answer rather than the shape of a failure. See
+**Why a zero is believable.** Measured 2026-09-07 across one account's
+campaigns: running ones reported non-zero budgets, a paused one a non-zero
+remainder, and every finished one 0. The endpoint answers with real numbers, so
+a zero is an answer rather than the shape of a failure. See
 ``WBAdvertisingClient.fetch_campaign_budget``.
 """
 
@@ -63,8 +63,8 @@ SERVING_STATUS: int = 9
 PAUSED_STATUS: int = 11
 
 #: Statuses whose campaigns can still spend. A finished campaign (7) cannot, and
-#: 261 of the live account's campaigns are finished and all report zero — so
-#: counting them would make every test look out of money.
+#: on an account with any advertising history most campaigns are finished and all
+#: report zero — so counting them would make every test look out of money.
 SPENDABLE_STATUSES: frozenset[int] = frozenset({SERVING_STATUS, PAUSED_STATUS})
 
 

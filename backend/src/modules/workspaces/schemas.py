@@ -21,12 +21,12 @@ class WorkspaceRead(BaseModel):
     id: uuid.UUID
     name: str
     is_primary: bool
-    #: Whether the SKU page renders «Рекламные кластеры» for this кабинет.
+    #: Whether the SKU page renders «Рекламные кластеры» for this workspace.
     search_clusters_enabled: bool
-    #: Whether «Реклама» shows WB's promo bonus — the кабинет's own setting.
+    #: Whether «Реклама» shows WB's promo bonus — the workspace's own setting.
     ads_show_bonus: bool
     created_at: datetime
-    #: Another company's кабинет, opened read-only to this head by a dev. The
+    #: Another company's workspace, opened read-only to this head by a dev. The
     #: SPA marks it in the switcher and leaves it out of the owner's admin list.
     is_guest: bool = False
 
@@ -38,7 +38,7 @@ class WorkspaceListResponse(BaseModel):
 
 
 class WorkspaceSettingsUpdate(BaseModel):
-    """The кабинет's display settings a writer may change.
+    """The workspace's display settings a writer may change.
 
     One setting today, so it is required rather than optional: a PATCH that
     names nothing would be a successful request that did nothing.
@@ -156,9 +156,9 @@ class BackfillStatusResponse(BaseModel):
 
 
 class GuestGrantRequest(BaseModel):
-    """Open one кабинет, read-only, to one account (dev only).
+    """Open one workspace, read-only, to one account (dev only).
 
-    Addressed by name because a dev knows the кабинет by its name and names
+    Addressed by name because a dev knows the workspace by its name and names
     are unique platform-wide; the id is not something anybody has to hand.
     """
 
@@ -167,14 +167,14 @@ class GuestGrantRequest(BaseModel):
 
 
 class GuestWorkspaceOption(BaseModel):
-    """One кабинет a dev may open to someone: its name, and nothing of its data."""
+    """One workspace a dev may open to someone: its name, and nothing of its data."""
 
     id: uuid.UUID
     name: str
 
 
 class GuestGrantRead(BaseModel):
-    """One standing grant. Carries no token and nothing of the кабинет's data."""
+    """One standing grant. Carries no token and nothing of the workspace's data."""
 
     id: uuid.UUID
     email: str

@@ -19,14 +19,14 @@ from src.modules.summary.schemas import SummaryResponse, SummarySpan
 from src.modules.workspaces.contract import CurrentWorkspaceId
 
 #: Default window when the caller names no dates — the last week. The page is
-#: «как идут дела сейчас», and a month of history flattens the few days that
+#: "how are things going right now", and a month of history flattens the few days that
 #: answer that; the presets are one click away for the longer look.
 DEFAULT_WINDOW_DAYS = 7
 
 #: Hard cap on how much settlement history one request may aggregate.
 #:
 #: Sized to «Вся история» rather than below it: the button exists, and a cap that
-#: refuses the кабинет's own settled span makes it a button that always errors.
+#: refuses the workspace's own settled span makes it a button that always errors.
 #: The oldest settlement on this service is from 2024, so three years of slack is
 #: the whole product — and the bound still has to exist, because an unbounded
 #: window is a cheap way for one authenticated caller to make Postgres do a
@@ -69,7 +69,7 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
 async def get_summary_span(
     service: SummaryServiceDep, session: DbSession, workspace_id: CurrentWorkspaceId
 ) -> SummarySpan:
-    """Return the days this кабинет has data for.
+    """Return the days this workspace has data for.
 
     Its own route rather than a field on the summary because the picker needs it
     BEFORE a window is chosen, and because it is answered off the report headers
@@ -108,7 +108,7 @@ async def get_summary(
     rollup for the days it did not already cover — a cache that verifies itself
     against the detail's own row counts and rebuilds whatever disagrees. Nothing
     a caller sends decides what is written: the content is derived from the
-    кабинет's own settlement rows, and the tenant is bound by
+    workspace's own settlement rows, and the tenant is bound by
     :data:`CurrentWorkspaceId` exactly as for the read.
 
     Otherwise read-only; the guard lives on the aggregating router

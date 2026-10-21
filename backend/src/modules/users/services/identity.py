@@ -1,4 +1,4 @@
-"""Resolving account ids to the facts другие modules need about them."""
+"""Resolving account ids to the facts other modules need about them."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ async def promote_to_head(session: AsyncSession, email: str) -> uuid.UUID | None
     """Give an account the ``head`` platform role, and return its id.
 
     Only an ordinary ``user`` is promoted. A ``dev`` keeps its role — it is
-    the wider one, and demoting it by granting it a кабинет would be a
+    the wider one, and demoting it by granting it a workspace would be a
     surprise nobody asked for — and so ends up with a grant that does nothing,
     which is why the caller refuses a dev before it gets here.
 

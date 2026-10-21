@@ -1,10 +1,10 @@
-"""Guest access: a head reading another company's кабинет.
+"""Guest access: a head reading another company's workspace.
 
 A user belongs to at most one organisation, and every workspace is reached
 through the caller's own one. The single exception is here: a dev may open a
-named кабинет to an account holding the ``head`` platform role, and that head
+named workspace to an account holding the ``head`` platform role, and that head
 may then switch into it and **read** — the switcher lists it, every GET
-answers, and every write is refused where the кабинет is resolved
+answers, and every write is refused where the workspace is resolved
 (``deps.get_current_workspace_id``). Nothing about the owning company changes:
 it does not see the head, its members and subscription are untouched, and the
 head never reaches its tokens, members or billing (those routes check the
@@ -29,7 +29,7 @@ from src.modules.workspaces.schemas import GuestGrantRead, GuestWorkspaceOption,
 async def list_guest_workspaces(
     guests: WorkspaceGuestRepository, *, user_id: uuid.UUID, organization_id: uuid.UUID | None
 ) -> list[WorkspaceRead]:
-    """The кабинеты granted to one head, minus any their own company owns.
+    """The workspaces granted to one head, minus any their own company owns.
 
     A grant on a workspace of the head's own organisation is harmless but
     would list it twice; the own entry wins, since it is the one they may
@@ -59,7 +59,7 @@ async def list_guests(session: AsyncSession) -> list[GuestGrantRead]:
 
 
 async def list_grantable_workspaces(session: AsyncSession) -> list[GuestWorkspaceOption]:
-    """Every кабинет on the platform, by name — what the dev's grant form offers."""
+    """Every workspace on the platform, by name — what the dev's grant form offers."""
     workspaces = await WorkspaceRepository(session).list_all()
     return sorted(
         (GuestWorkspaceOption(id=ws.id, name=ws.name) for ws in workspaces),
@@ -70,12 +70,12 @@ async def list_grantable_workspaces(session: AsyncSession) -> list[GuestWorkspac
 async def grant_guest(
     session: AsyncSession, *, email: str, workspace_name: str, granted_by: uuid.UUID
 ) -> GuestGrantRead:
-    """Open a кабинет to an account, read-only, promoting it to ``head``.
+    """Open a workspace to an account, read-only, promoting it to ``head``.
 
     Idempotent: granting what is already granted returns the standing grant.
 
     Raises:
-        NotFoundError: No such account, or no such кабинет. One message for
+        NotFoundError: No such account, or no such workspace. One message for
             both would hide which one the dev mistyped, and this route is
             behind the dev role, so there is no oracle to protect.
         ConflictError: The account is a dev — it already has the wider role,

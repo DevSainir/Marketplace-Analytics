@@ -43,19 +43,19 @@ class TokenKind(enum.StrEnum):
     :attr:`~.models.Workspace.is_primary`).
     """
 
-    CONTENT = "content"  # Контент
-    ANALYTICS = "analytics"  # Аналитика
-    PRICES = "prices"  # Цены и скидки
-    MARKETPLACE = "marketplace"  # Маркетплейс
-    STATISTICS = "statistics"  # Статистика
-    PROMOTION = "promotion"  # Продвижение (advertising)
-    FEEDBACK = "feedback"  # Вопросы и отзывы
-    CHAT = "chat"  # Чат с покупателем
-    SUPPLIES = "supplies"  # Поставки
-    RETURNS = "returns"  # Возвраты
-    DOCUMENTS = "documents"  # Документы
-    FINANCE = "finance"  # Финансы
-    USERS = "users"  # Пользователи
+    CONTENT = "content"  # Content
+    ANALYTICS = "analytics"  # Analytics
+    PRICES = "prices"  # Prices and discounts
+    MARKETPLACE = "marketplace"  # Marketplace
+    STATISTICS = "statistics"  # Statistics
+    PROMOTION = "promotion"  # Promotion (advertising)
+    FEEDBACK = "feedback"  # Questions and reviews
+    CHAT = "chat"  # Buyer chat
+    SUPPLIES = "supplies"  # Supplies
+    RETURNS = "returns"  # Returns
+    DOCUMENTS = "documents"  # Documents
+    FINANCE = "finance"  # Finance
+    USERS = "users"  # Users
 
     #: A single all-category token for non-primary workspaces (not one of the
     #: 13 real WB categories — a stand-in resolved for every surface).
@@ -94,12 +94,12 @@ class BackfillLane(enum.StrEnum):
     honest estimate.
     """
 
-    CATALOGUE = "catalogue"  # Каталог — cards, sizes, SKU ownership
-    FUNNEL = "funnel"  # Воронка — 365 days, the WB ceiling
-    ADVERTISING = "advertising"  # Реклама — to the first campaign
+    CATALOGUE = "catalogue"  # «Каталог» — cards, sizes, SKU ownership
+    FUNNEL = "funnel"  # «Воронка» — 365 days, the WB ceiling
+    ADVERTISING = "advertising"  # «Реклама» — to the first campaign
     PNL = "pnl"  # P&L — to the first settlement report
     #: Not a seller's lane: a maintenance re-walk of the funnel for the sums
-    #: stored since 2026-09-29, on кабинеты whose history predates them. It is
+    #: stored since 2026-09-29, on workspaces whose history predates them. It is
     #: deliberately absent from ``LANE_ORDER``, so the profile never shows it,
     #: while the watchdog still restarts it after a deploy like any other.
     FUNNEL_SUMS = "funnel_sums"
@@ -190,15 +190,15 @@ class Workspace(Base):
             seeded «ИП Иванов. И. И.»); new workspaces are never primary.
         search_clusters_enabled: Shows «Рекламные кластеры» on the SKU page.
             The block was hidden for everyone on 2026-09-09 as a product
-            decision and brought back for one кабинет (NEVA) on 2026-09-26, so
+            decision and brought back for one workspace (NEVA) on 2026-09-26, so
             it is a per-workspace switch rather than a global one. Flipped by
             migration, not by any route — no caller can turn it on for itself.
             The harvester fills the cluster tables whatever this says.
         ads_show_bonus: Whether «Реклама» shows WB's promo bonus — the
             «Промо-бонусы» switch. A seller either has bonuses or does not,
-            so the choice is the кабинет's and made once, for everyone in it,
+            so the choice is the workspace's and made once, for everyone in it,
             rather than a per-browser toggle. On by default; any writer in the
-            кабинет flips it (``PATCH /v1/workspaces/current/settings``).
+            workspace flips it (``PATCH /v1/workspaces/current/settings``).
         created_at: Server-assigned creation timestamp (UTC).
         tokens: The encrypted WB API tokens owned by this workspace.
     """
@@ -269,7 +269,7 @@ class WorkspaceToken(Base):
 
 
 class WorkspaceGuest(Base):
-    """One head's read-only way into one кабинет of another organisation.
+    """One head's read-only way into one workspace of another organisation.
 
     The only row in the platform that lets a person see a workspace their own
     organisation does not own. Granted and revoked by a dev, never by the
@@ -283,7 +283,7 @@ class WorkspaceGuest(Base):
 
     Attributes:
         id: UUIDv7 primary key.
-        workspace_id: The кабинет opened (FK, cascade delete — a grant on a
+        workspace_id: The workspace opened (FK, cascade delete — a grant on a
             deleted workspace means nothing).
         user_id: The head it is opened to (FK to ``auth.users``, cascade).
         granted_by_user_id: The dev who granted it. No foreign key, for the

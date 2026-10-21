@@ -84,12 +84,12 @@ def build_kpi(
 
     # Advertising is subtracted exactly ONCE, as WB's invoice: «к перечислению»
     # is already net of it, so the margin is the payout less the goods. Taking
-    # the burn off as well charged it twice — 2 657 954.54 against a true
-    # 4 313 444.72 on one live 54-day window.
+    # the burn off as well charged it twice, and understated the margin by the
+    # whole advertising bill.
     margin = None if missing else totals.payout_net - (totals.cogs or _ZERO)
 
     # Fines and withholdings, minus the advertising invoices inside them: the
-    # ДРР card already reports advertising, and the same money under two labels
+    # DRR card already reports advertising, and the same money under two labels
     # reads as two costs. The dashboard's figures are the account-level ones,
     # which no SKU exclusion can move.
     withheld = (
@@ -149,7 +149,7 @@ def build_days(
     applied_bonus = min(total_bonus, total_spend)
     # The last day takes whatever the rounding left over, so Σ days is the
     # window's advertising cost EXACTLY rather than within a kopeck of it. On a
-    # live 54-day window the drift was three kopecks — invisible on screen and
+    # 54-day window the drift was three kopecks — invisible on screen and
     # enough to make «the chart sums to the card» a claim with an asterisk.
     cash_by_day: dict[date, Decimal] = {}
     assigned = _ZERO

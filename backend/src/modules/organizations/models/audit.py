@@ -87,7 +87,7 @@ class AuditEvent(enum.StrEnum):
     SESSIONS_REVOKED = "SESSIONS_REVOKED"
     PASSWORD_CHANGED = "PASSWORD_CHANGED"  # noqa: S105
     ACTIVATION_CODE_ISSUED = "ACTIVATION_CODE_ISSUED"
-    #: A dev opened, or closed, another company's кабинет to a head, read-only.
+    #: A dev opened, or closed, another company's workspace to a head, read-only.
     WORKSPACE_GUEST_GRANTED = "WORKSPACE_GUEST_GRANTED"
     WORKSPACE_GUEST_REVOKED = "WORKSPACE_GUEST_REVOKED"
     #: A subscription term was moved or removed. Written by a database trigger

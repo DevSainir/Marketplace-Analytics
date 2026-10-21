@@ -78,7 +78,7 @@ def _resolve_bundle(
         # workspace has no content token" into a 403 three layers away: the
         # catalogue refresh caught it, fell back to yesterday's SKU list and
         # logged a warning, so `Демо` ran on a three-week-old catalogue
-        # unnoticed, and «Запустить» on an A/Б test failed with a raw
+        # unnoticed, and «Запустить» on an A/B test failed with a raw
         # integration error instead of the message that names the missing token.
         content=pick(TokenKind.CONTENT),
         analytics=pick(TokenKind.ANALYTICS),

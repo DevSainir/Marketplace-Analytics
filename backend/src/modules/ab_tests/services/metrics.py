@@ -8,9 +8,9 @@ answers a question nobody asked, so totals are summed first and divided once.
 The three ratios are **chained**, each dividing by the previous stage — the same
 definition WB's own A/B result screen uses:
 
-    Доля переходов в карточку  = clicks / views
-    Доля добавлений в корзину  = atbs   / clicks
-    Доля оформлений заказов    = orders / atbs
+    «Доля переходов в карточку» (click-through)  = clicks / views
+    «Доля добавлений в корзину» (add-to-cart)    = atbs   / clicks
+    «Доля оформлений заказов»   (order rate)     = orders / atbs
 """
 
 from __future__ import annotations

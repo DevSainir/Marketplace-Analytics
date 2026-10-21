@@ -5,7 +5,7 @@ were ours only (``require_internal``) while tried out at /labs/heatmap, and
 opened to every subscriber on 2026-10-01.
 
 Reads take the tenant from ``X-Workspace-Id``. Writes take ``WritingAccess`` as
-well: a norm is shared by everyone in the кабинет and changes how their grid is
+well: a norm is shared by everyone in the workspace and changes how their grid is
 painted, so a read-only manager must not be able to set or clear one. The
 module grants on the router are not enough for that — they say which sections
 the caller may open, not whether they may change anything in them.
@@ -35,7 +35,7 @@ NmId = Annotated[int, Path(ge=1)]
     responses={401: {"description": "Unauthorized access token."}},
 )
 async def list_norms(service: SkuNormServiceDep, workspace_id: CurrentWorkspaceId) -> SkuNormList:
-    """Return every norm the кабинет has set — bounded by its cards times the metrics."""
+    """Return every norm the workspace has set — bounded by its cards times the metrics."""
     return await service.list_norms(workspace_id=workspace_id)
 
 

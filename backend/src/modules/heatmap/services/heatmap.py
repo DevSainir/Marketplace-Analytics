@@ -5,7 +5,7 @@ handing the facts to the pure folding in :mod:`.table`. The numbers themselves
 are decided in :mod:`.metrics`.
 
 Filters narrow, they never widen, and they combine by intersection — «Категории»,
-«Группы» and «Артикулы» all at once. Every one of them is applied to the кабинет's OWN
+«Группы» and «Артикулы» all at once. Every one of them is applied to the workspace's OWN
 catalogue, so an article id from somewhere else is not in the set to begin with.
 """
 
@@ -81,10 +81,10 @@ class HeatmapService:
     async def catalog(
         self, session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
     ) -> HeatmapCatalogResponse:
-        """Every card of the кабинет, most-ordered in the window first, and its subjects.
+        """Every card of the workspace, most-ordered in the window first, and its subjects.
 
         The article pickers — the «Артикулы» filter and the group editor — list a
-        few hundred cards on a large кабинет; the ones a seller is looking for
+        few hundred cards on a large workspace; the ones a seller is looking for
         are the ones that sell, so they come first rather than alphabetically.
         """
         cards = await load_workspace_catalog(session, workspace_id=workspace_id)
@@ -107,7 +107,7 @@ class HeatmapService:
 
         Args:
             session: The request's session, tenant bound.
-            workspace_id: The caller's кабинет.
+            workspace_id: The caller's workspace.
             query: Window, cut, metrics and filters.
         """
         cards = {
@@ -175,7 +175,7 @@ class HeatmapService:
 
 
 def _order_currency(facts: Mapping[tuple[int, date], Facts]) -> str:
-    """The currency WB's funnel sums are in — one per кабинет, the settlement's."""
+    """The currency WB's funnel sums are in — one per workspace, the settlement's."""
     for cell in facts.values():
         if len(cell.order_currencies) == 1:
             return next(iter(cell.order_currencies))
@@ -188,7 +188,7 @@ def _sql_narrowing(
     """The articles to name in the fact queries — the whole catalogue when nothing is filtered.
 
     Naming them is a plan, not a scope: the tenant semijoin is there either way.
-    The fact tables hold every кабинет's articles, and against the semijoin
+    The fact tables hold every workspace's articles, and against the semijoin
     alone Postgres reads the whole window of all of them — measured on
     «Демо» (64 cards, 180 days, 2026-09-30) advertising was a cold
     sequential scan of 5 459 pages in 2.05 s. Named, it is a bitmap scan of the
@@ -201,9 +201,9 @@ def _sql_narrowing(
 def _select(
     cards: dict[int, CatalogCard], groups: list[GroupSpec], query: HeatmapQuery
 ) -> frozenset[int] | None:
-    """The selected articles, or ``None`` for «every article of the кабинет».
+    """The selected articles, or ``None`` for "every article of the workspace".
 
-    Always a subset of the кабинет's own catalogue: each filter intersects it.
+    Always a subset of the workspace's own catalogue: each filter intersects it.
     """
     if not (query.subjects or query.group_ids or query.nm_ids):
         return None

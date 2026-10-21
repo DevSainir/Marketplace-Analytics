@@ -56,7 +56,7 @@ async def load_facts(
 
     Args:
         session: The request's session; the tenant is already bound on it.
-        window: The кабинет, the dates, the sources and the article narrowing.
+        window: The workspace, the dates, the sources and the article narrowing.
         pnl: The P&L service — for the last settled day.
         skus: The per-SKU P&L service — for the settlement's per-day cut.
     """

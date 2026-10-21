@@ -2,8 +2,8 @@
 
 The service had only the *forgotten*-password path: ask for a code, read the
 mailbox, set a new password. A signed-in person who simply wants a different
-password had to pretend to have lost the old one — and the SPA's «сменить
-пароль» mailed a code with nowhere to type it, so the flow did not finish at
+password had to pretend to have lost the old one — and the SPA's "change
+password" mailed a code with nowhere to type it, so the flow did not finish at
 all.
 
 **Why no mailed code here.** A code proves the mailbox, which is what the

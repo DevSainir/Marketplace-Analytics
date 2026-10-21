@@ -84,7 +84,7 @@ class ActivationService:
             valid_for_days: How long it stays redeemable; ``None`` = forever.
             subscription_days: The term it buys.
             created_by_user_id: The dev (or primary owner) generating it.
-            max_workspaces: The кабинет cap it sells; ``None`` = unlimited.
+            max_workspaces: The workspace cap it sells; ``None`` = unlimited.
             max_managers: The manager cap it sells; ``None`` = unlimited.
 
         Returns:

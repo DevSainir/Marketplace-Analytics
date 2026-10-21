@@ -61,7 +61,7 @@ class CampaignRepository:
         seller renaming a campaign mid-test should see the new name, and the
         old one names nothing they can find in the cabinet. A pass that does
         not know keeps what is stored. ``first_seen_at`` is never touched once
-        written — it answers «с какого момента эта РК участвует».
+        written — it answers "since when has this ad campaign been taking part".
 
         Args:
             test_id: Owning test.

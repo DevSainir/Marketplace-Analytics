@@ -88,8 +88,8 @@ class WindowRepository:
     ) -> int:
         """Impressions credited to one photo, optionally within one turn.
 
-        Summed across campaigns on purpose: the rotation's budget is «сколько
-        раз это фото показали», and a card pushed by two campaigns reaches that
+        Summed across campaigns on purpose: the rotation's budget is "how many
+        times was this photo shown", and a card pushed by two campaigns reaches that
         number twice as fast because it really was shown twice as often.
 
         ``since`` is what makes this a TURN and not a lifetime. The rotation is

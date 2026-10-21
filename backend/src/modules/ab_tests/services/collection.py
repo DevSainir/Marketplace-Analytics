@@ -22,7 +22,7 @@ This module is that subtraction, and the three things that make it safe:
 
 **And it is done per campaign.** A card is often pushed by two campaigns at
 once, and the counters used to be added together before they were stored — one
-копилка per photo, holding a mixture. That is not a detail of presentation: the
+running tally per photo, holding a mixture. That is not a detail of presentation: the
 mixture moves on its own. A campaign switched on halfway through a test raises
 every photo that follows it, and the rise reads as a photo winning. So the
 subtraction happens once per ``(campaign, day)`` pair, and every stored window

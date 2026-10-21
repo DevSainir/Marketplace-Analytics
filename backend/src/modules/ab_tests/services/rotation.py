@@ -38,9 +38,9 @@ its slot — that is what excluding it during its own turn has to mean.
 circle, so a photo comes back round; counting every impression it has ever
 gathered meant that from its second lap on it started each turn already over
 budget, the trigger fired on the first pass, and the whole test collapsed into a
-photo change every polling period. Observed in production on 2026-09-19 — a
+photo change every polling period. Observed on 2026-09-19 — a
 rotation swapping every five minutes, which is exactly the beat interval. What
-the budget means is «сколько эта картинка наберёт за ход», so
+the budget means is "how much will this picture collect in one turn", so
 ``impressions_for_active`` counts the current turn only.
 """
 
@@ -118,7 +118,7 @@ class RotationDecision:
 #: are stamped with the pass's own start time, so for any slot that is a whole
 #: number of poll periods — 5, 10, 30, 60 minutes, i.e. every value anyone
 #: actually picks — the comparison comes down to which of two passes started a
-#: few milliseconds later. Measured on production 2026-09-07: beat sends within
+#: few milliseconds later. Measured 2026-09-07: beat sends within
 #: 0.2-5.3 ms of the minute, the queue hop adds 6.3-19.4 ms, so consecutive
 #: passes drift by up to ~14 ms in either direction. Lose that coin flip and the
 #: photo waits a whole extra period — a 5-minute slot ran 10 minutes, observed.

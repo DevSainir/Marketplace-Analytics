@@ -6,11 +6,11 @@ rather than a 403 — a test names a card the caller should not know exists.
 
 The module is a product surface like monitoring and finreports
 (``require_ab_tests``): any organisation with a live subscription reaches it,
-and a manager only with the A/Б-тесты grant. It was internal-only until
+and a manager only with the «A/Б-тесты» grant. It was internal-only until
 2026-09-24, while the rotation was being built against our own catalogue.
 
 The state-changing routes carry ``WritingAccess`` on top of that.
-Reachability and writing are separate questions: a manager granted A/Б-тесты
+Reachability and writing are separate questions: a manager granted «A/Б-тесты»
 at ``read_only`` may read the results table and may not install a photo on a
 live card. Reads stay open, as everywhere else —
 the results of a rotation someone else started are still theirs to look at.
@@ -50,7 +50,7 @@ from src.modules.workspaces.contract import CurrentWorkspaceId
 router = APIRouter(
     prefix="/ab-tests",
     tags=["ab-tests"],
-    # Membership + subscription + the A/Б-тесты grant, like every other
+    # Membership + subscription + the «A/Б-тесты» grant, like every other
     # product surface. Writing to the live card is WritingAccess, per route.
     dependencies=[Depends(require_ab_tests)],
 )

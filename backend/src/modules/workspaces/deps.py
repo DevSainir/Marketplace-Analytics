@@ -68,7 +68,7 @@ def get_workspace_service(
 WorkspaceServiceDep = Annotated[WorkspaceService, Depends(get_workspace_service)]
 
 
-#: What a head may do in a кабинет granted to them: look. A verb list rather
+#: What a head may do in a workspace granted to them: look. A verb list rather
 #: than a route list, so a new writing route is refused to guests the day it
 #: exists — the same verb rule ``WritingAccess`` is audited by.
 _GUEST_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -139,7 +139,7 @@ async def get_current_workspace_id(
         HTTPException: ``400`` when the header is missing or not a UUID;
             ``404`` when the workspace does not exist OR belongs to another
             organisation (deliberately the same answer); ``403`` when a head
-            tries to change something in a кабинет granted to them to read.
+            tries to change something in a workspace granted to them to read.
     """
     if not x_workspace_id:
         raise HTTPException(
@@ -188,7 +188,7 @@ async def _enter_as_member(
     # `organization_id`, not `tenant_id`: a guest with no company of their own
     # has none, and every workspace is "another company's" to them.
     if workspace.organization_id != access.organization_id:
-        # Another company's кабинет. Open only to a head a dev granted it to,
+        # Another company's workspace. Open only to a head a dev granted it to,
         # and only to look: a guest changes nothing, spends none of that
         # seller's WB budget and enqueues nothing. Everyone else gets the same
         # 404 as for a workspace that does not exist.
@@ -278,10 +278,10 @@ async def get_member_path_workspace_id(
     refused every manager. `GET /{workspace_id}/backfill` did exactly that from
     2026-09-10 to 2026-10-17: its own guard said ``MemberAccess``, the binder
     said ``OwnerAccess``, the stricter one won, and managers got a blank product
-    page instead of the «почему тут пусто» strip — 60 to 70 refusals a week.
+    page instead of the «почему тут пусто» strip — dozens of refusals a week.
 
     The rule is the header binder's, not a looser one: the caller's own
-    organisation, or a head's grant on another company's кабинет and then only
+    organisation, or a head's grant on another company's workspace and then only
     to read. A workspace that is neither is 404, as for one that does not exist.
     The owner-only path routes keep :data:`PathWorkspaceId`, which is what still
     stands between a manager and a WB token.
@@ -301,7 +301,7 @@ async def get_member_path_workspace_id(
     Raises:
         HTTPException: ``404`` when the workspace does not exist or is neither
             the caller's nor granted to them; ``403`` when a head tries to
-            change something in a кабинет granted to them to read.
+            change something in a workspace granted to them to read.
     """
     return await _enter_as_member(
         workspace_id,

@@ -154,7 +154,7 @@ class S3MediaStore:
 
     ``reuse_connections`` decides whether the client is held open, and it is off
     by default because holding one is only safe where the event loop outlives
-    the request. Timed against production:
+    the request. Timed against a remote bucket:
 
         read() with a new client   22.9 KB   0.259 s
         opening the client itself            0.005 s

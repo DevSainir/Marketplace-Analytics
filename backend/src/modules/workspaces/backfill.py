@@ -115,7 +115,7 @@ async def start_backfill(
     Args:
         workspace_id: The workspace being backfilled.
         lanes: Which lanes this run will walk. A workspace with no advertising
-            token still gets the lane, because "нет токена" is a state worth
+            token still gets the lane, because "no token" is a state worth
             showing rather than a lane worth hiding.
     """
     try:

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, StringConstraints
 
 #: Every metric the heatmap can paint, grouped the way the picker lists them.
 MetricKey = Literal[
-    # Воронка — WB's sales funnel, one row per SKU per day.
+    # «Воронка» — WB's sales funnel, one row per SKU per day.
     "orders",
     "order_sum",
     "opens",
@@ -24,7 +24,7 @@ MetricKey = Literal[
     "cart_conversion",
     "order_conversion",
     "organic_opens",
-    # Реклама — the Promotion API's per-SKU statistics.
+    # «Реклама» — the Promotion API's per-SKU statistics.
     "spend",
     "ad_views",
     "ad_clicks",
@@ -35,12 +35,12 @@ MetricKey = Literal[
     "ad_cr",
     "cpo",
     "drr_orders",
-    # Цены и остатки — daily snapshots.
+    # «Цены и остатки» (prices and stock) — daily snapshots.
     "seller_price",
     "customer_price",
     "spp",
     "stock",
-    # Финансы — WB's settlement, which arrives weekly.
+    # «Финансы» (finance) — WB's settlement, which arrives weekly.
     "revenue",
     "sales",
     "profit",
@@ -118,7 +118,7 @@ class HeatmapResponse(BaseModel):
     ad_currencies: list[str] = Field(default_factory=list)
     #: What «Заказы, деньги» is in — WB's funnel sums, the settlement currency.
     order_currency: str = ""
-    #: Last day WB has settled for this кабинет. Finance cells after it are
+    #: Last day WB has settled for this workspace. Finance cells after it are
     #: ``None`` — WB has not calculated them — rather than zero.
     settled_to: date | None
     #: Oldest first: the grid reads left to right in time, like the monitoring
@@ -131,7 +131,7 @@ class HeatmapResponse(BaseModel):
 
 
 class HeatmapCatalogItem(BaseModel):
-    """One card of the кабинет — a filter option and a group member candidate."""
+    """One card of the workspace — a filter option and a group member candidate."""
 
     nm_id: int
     vendor_code: str
@@ -144,7 +144,7 @@ class HeatmapCatalogItem(BaseModel):
 
 
 class HeatmapCatalogResponse(BaseModel):
-    """The кабинет's catalogue, for the «Категории» and «Артикулы» filters.
+    """The workspace's catalogue, for the «Категории» and «Артикулы» filters.
 
     Items come most-ordered first over the requested window.
     """
@@ -163,7 +163,7 @@ class SkuGroupRead(BaseModel):
 
 
 class SkuGroupList(BaseModel):
-    """Every group of the кабинет, by name."""
+    """Every group of the workspace, by name."""
 
     items: list[SkuGroupRead]
 
@@ -173,7 +173,7 @@ class SkuGroupWrite(BaseModel):
 
     name: GroupName
     #: Bounded: a group is a hand-picked set, and the list is stored row per
-    #: article. Each id must be one of the кабинет's own cards.
+    #: article. Each id must be one of the workspace's own cards.
     nm_ids: list[Annotated[int, Field(ge=1)]] = Field(min_length=1, max_length=500)
 
 
@@ -191,7 +191,7 @@ class SkuNormRead(BaseModel):
 
 
 class SkuNormList(BaseModel):
-    """Every norm the кабинет has set."""
+    """Every norm the workspace has set."""
 
     items: list[SkuNormRead]
 

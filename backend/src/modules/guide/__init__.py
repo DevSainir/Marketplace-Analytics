@@ -1,12 +1,12 @@
 """Guide — the capture buffer for WB data nobody uses yet.
 
 Every other module here earns its keep: the funnel drives the matrix, the
-settlement rows drive the P&L, the advertising rows drive ДРР. This one earns
+settlement rows drive the P&L, the advertising rows drive DRR. This one earns
 nothing today. It exists because WB deletes things.
 
 Several WB feeds are served over a window that closes and never reopens — the
-заявки на возврат live fourteen days, the лента заказов a hundred and eighty
-eight, the tariff calendar seventy. A dataset we do not collect today is not a
+return claims live fourteen days, the orders feed a hundred and eighty-eight,
+the tariff calendar seventy. A dataset we do not collect today is not a
 dataset we can collect later; it is one we can never collect at all for those
 dates. So `guide` collects them now, at the cheapest cadence that does not lose
 anything, and stores WB's answer verbatim until somebody knows what to ask of

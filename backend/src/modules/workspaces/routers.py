@@ -11,7 +11,7 @@ who may do what:
   what the company IS and what it costs, and a WB token is the credential to a
   seller's live account;
 * **guest grants** (``/guests``, in ``guest_routers``) need ``dev``: they open
-  another company's кабинет, read-only, to a head.
+  another company's workspace, read-only, to a head.
 
 Until 2026-08-27 the write routes were gated on the ``dev`` role and the list
 returned every workspace on the platform. Both are now tenant-scoped: a
@@ -78,10 +78,10 @@ async def list_workspaces(
 ) -> WorkspaceListResponse:
     """List the workspaces the caller may switch between.
 
-    For a head, that is their own company's кабинеты followed by the ones a
+    For a head, that is their own company's workspaces followed by the ones a
     dev opened to them in other companies, flagged ``is_guest``.
     """
-    # A guest with no company of their own has no кабинеты of their own.
+    # A guest with no company of their own has no workspaces of their own.
     items = (
         []
         if access.organization_id is None
@@ -146,7 +146,7 @@ async def update_workspace_settings(
     body: WorkspaceSettingsUpdate,
     service: WorkspaceServiceDep,
 ) -> WorkspaceRead:
-    """Change what the кабинет shows to everyone in it.
+    """Change what the workspace shows to everyone in it.
 
     ``WritingAccess``, not ``MemberAccess``: the setting changes the page for
     every member, so a read-only manager must not flip it for the owner. Not
@@ -154,9 +154,9 @@ async def update_workspace_settings(
     credentials or bill, and the managers who read advertising are the ones
     who know whether the seller has bonuses.
 
-    The кабинет is the active one, from ``X-Workspace-Id``
+    The workspace is the active one, from ``X-Workspace-Id``
     (``CurrentWorkspaceId``), not a path id, whose binder is owner-only. That
-    binder answers 404 for another company's кабинет and lets a guest only
+    binder answers 404 for another company's workspace and lets a guest only
     read. Not audited: the setting hides or shows a figure and moves no money
     and no access.
     """
@@ -270,7 +270,7 @@ async def set_tokens(
         # A surface this workspace could not reach a moment ago is now reachable
         # — which for a newly onboarded seller is every surface, over an empty
         # catalogue. Only surfaces something reads count: a `feedback` token
-        # added to an established кабинет once re-walked its whole history
+        # added to an established workspace once re-walked its whole history
         # (2026-10-02). Discovery is what turns that into something to look at, and
         # before this call the only thing that ran it was the 06:00 MSK nightly
         # pass. Deliberately not awaited for a result: the seller's request is
@@ -303,7 +303,7 @@ async def get_backfill_status(
     with a blank product page and no explanation. It exposes only counters and
     a Russian status line — no token, no WB response, nothing tenant-specific
     beyond the workspace the caller was already proved to belong to. A head may
-    read it in a кабинет granted to them, for the same reason.
+    read it in a workspace granted to them, for the same reason.
 
     ``MemberPathWorkspaceId``, not ``PathWorkspaceId``: the latter is owner-only,
     and until 2026-10-17 it refused every manager here despite this guard.
