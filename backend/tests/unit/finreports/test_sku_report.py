@@ -1,20 +1,15 @@
 """Unit tests for the per-SKU P&L composition (the «По артикулам» cut).
 
-Same discipline as ``test_pnl_statement.py``: the aggregates below are a
-synthetic 28-day window (2026-08-03..2026-08-30) for an invented top SKU, nm
-900000101, built from round base numbers so that every expected figure can be
-worked out by hand — and the window total is the exact sum of its rows, so a
-refactor cannot quietly redefine a line.
+Same discipline as ``test_pnl_statement.py``: a synthetic 28-day window
+(2026-08-03..2026-08-30) for an invented SKU, nm 900000101, built from round
+numbers so every expected figure can be worked out by hand; the window total is
+the exact sum of its rows, so a refactor cannot quietly redefine a line.
 
-What earns a test here is everything that would fail *plausibly*:
-
-* Σ rows + unallocated must equal the window total — per-SKU money comes only
-  from that SKU's own rows, and account-level money is never smeared over SKUs;
-* an uncosted SKU's profit is ``None``, never a number that pretends the goods
-  were free;
-* a column whose source history has no coverage (orders, advertising) is ``None``,
-  never 0 — "unknown" and "there was none" read very differently on a report;
-* refund-only windows produce negative units and negative COGS, not clamps.
+What earns a test here is everything that would fail *plausibly*: Σ rows +
+unallocated must equal the window total (account-level money is never smeared
+over SKUs); an uncosted SKU's profit is ``None``, never a number that pretends
+the goods were free; a column with no source coverage (orders, advertising) is
+``None``, never 0; refund-only windows give negative units and COGS, not clamps.
 """
 
 from __future__ import annotations
