@@ -70,7 +70,7 @@ permissions:
 
 jobs:
   release:
-    name: version + changelog + announcement
+    name: version + changelog
     # On the self-hosted runner: this workflow is what cuts a version, and a
     # version that cannot be cut is a change that cannot ship. Its steps need
     # only `python3` and `gh`, both of which the runner already has.

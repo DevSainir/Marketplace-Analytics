@@ -1,5 +1,7 @@
 # Security design
 
+Last reviewed: 2026-10-21
+
 What protections this service has and how each one is enforced. Paths are relative to the
 repository root. The standing checklist that keeps new code inside this design is the `security`
 skill (`.claude/skills/security/SKILL.md`, with `references/codebase-controls.md` as the map of

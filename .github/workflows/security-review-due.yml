@@ -7,7 +7,7 @@
 #
 # TWO THINGS, and the second is the point.
 #
-# It fails when `Last reviewed:` in the hardening register is older than a
+# It fails when `Last reviewed:` in docs/security/SECURITY_DESIGN.md is older than a
 # quarter. The date is already there and already maintained, so this adds no new
 # bookkeeping — it just makes the existing field load-bearing. Clearing the
 # failure means doing the review and stamping the date, which is exactly the
@@ -48,7 +48,7 @@ env:
 
 jobs:
   due:
-    name: hardening register still current
+    name: security design still reviewed
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -62,7 +62,7 @@ jobs:
         id: reviewed
         run: |
           set -euo pipefail
-          register=docs/security/HARDENING.md
+          register=docs/security/SECURITY_DESIGN.md
           date_str=$(grep -oE 'Last reviewed: [0-9]{4}-[0-9]{2}-[0-9]{2}' "$register" \
                        | head -1 | awk '{print $3}')
           if [ -z "${date_str:-}" ]; then
@@ -73,7 +73,7 @@ jobs:
           age=$(( ( $(date -u +%s) - $(date -u -d "$date_str" +%s) ) / 86400 ))
           echo "date=$date_str" >> "$GITHUB_OUTPUT"
           echo "age=$age"       >> "$GITHUB_OUTPUT"
-          echo "Register last reviewed ${date_str} — ${age} days ago."
+          echo "Security design last reviewed ${date_str} — ${age} days ago."
 
       # Preparation, not nagging: this runs whatever the age, because the report
       # is useful on a green run too.
@@ -82,7 +82,7 @@ jobs:
           SINCE: ${{ steps.reviewed.outputs.date }}
         run: |
           set -euo pipefail
-          # The surfaces the register and the `security` skill actually care
+          # The surfaces the security design and the `security` skill care
           # about: who the caller is, what they may do, what bounds them, and
           # what ships. Deliberately not "everything" — a report that lists the
           # whole repository is one nobody reads to the end.
@@ -136,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$AGE" -gt "$MAX_AGE_DAYS" ]; then
-            echo "::error::The hardening register was last reviewed ${AGE} days ago (${REVIEWED})."
+            echo "::error::The security design was last reviewed ${AGE} days ago (${REVIEWED})."
             echo "Re-run the audit against .claude/skills/security/, then stamp 'Last reviewed:'."
             echo "The summary above lists what changed since — start there."
             exit 1
@@ -144,4 +144,4 @@ jobs:
           if [ "$AGE" -gt "$WARN_AGE_DAYS" ]; then
             echo "::warning::Review due soon — ${AGE} days since ${REVIEWED}."
           fi
-          echo "Register is ${AGE} days old; the limit is ${MAX_AGE_DAYS}."
+          echo "The security design review is ${AGE} days old; the limit is ${MAX_AGE_DAYS}."

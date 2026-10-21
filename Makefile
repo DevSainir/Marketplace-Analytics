@@ -47,8 +47,6 @@ COMPOSE_E2E := $(COMPOSE) -f backend/docker/docker-compose.e2e.yml
 COMPOSE_OBS := docker compose --project-directory backend \
 	-f backend/docker/docker-compose.observability.yml
 # Its own project too, for the same --remove-orphans reason.
-COMPOSE_ANALYST := docker compose --project-directory backend \
-	-f backend/docker/docker-compose.analyst.yml
 NPM := npm --prefix frontend
 # Playwright and k6 live with the tests they run, not at the root.
 TESTS_NPM := npm --prefix tests
@@ -58,7 +56,7 @@ TESTS_NPM := npm --prefix tests
         test-frontend test-e2e test-perf test-perf-frontend test-perf-load lint \
         format audit lock typecheck setup-test-db clean-test-db seed-e2e \
         up down stop start ps logs prune rebuild frontend-release \
-        obs-up obs-down obs-ps obs-logs analyst-up analyst-down \
+        obs-up obs-down obs-ps obs-logs \
         backup backup-verify backup-list
 
 help: ## Show this help
@@ -232,17 +230,6 @@ obs-ps: ## Status of the observability services
 
 obs-logs: ## Follow the observability services' logs
 	$(COMPOSE_OBS) logs -f prometheus alertmanager telegram-relay grafana loki alloy
-
-# --------------------------------------------------------------------------- #
-# The analyst gateway: the one way an outside analyst's SSH tunnel reaches
-# Postgres, on 127.0.0.1:5433 only. Stopping it closes the door without
-# touching the role or the service.
-# --------------------------------------------------------------------------- #
-analyst-up: ## Open the analyst gateway (127.0.0.1:5433 -> postgres)
-	$(COMPOSE_ANALYST) up -d gateway
-
-analyst-down: ## Close the analyst gateway
-	$(COMPOSE_ANALYST) stop gateway
 
 # A backend rebuild writes a fresh image layer set every time; on a small host
 # the accumulated build cache is what fills the disk and flips the Docker VM

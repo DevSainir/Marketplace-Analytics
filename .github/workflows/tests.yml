@@ -280,16 +280,6 @@ jobs:
           uv run --project backend ruff check --config backend/pyproject.toml tests/performance
           uv run --project backend ruff format --check --config backend/pyproject.toml tests/performance
 
-      # The release/deploy notification scripts. Same reason as backend/scripts
-      # above: they are real Python that runs unattended, and a release is the
-      # worst moment to find out one of them has a typo. Run from the repo root
-      # for the same config-resolution reason as the performance tier.
-      - name: Ruff + mypy (CI notification scripts)
-        run: |
-          uv run --project backend ruff check --config backend/pyproject.toml .github/scripts
-          uv run --project backend ruff format --check --config backend/pyproject.toml .github/scripts
-          uv run --project backend mypy --strict --cache-dir "$MYPY_CACHE_CI" .github/scripts
-
       - name: mypy (strict)
         working-directory: backend
         run: uv run mypy --cache-dir "$MYPY_CACHE_BACKEND" src main.py scripts
@@ -725,50 +715,3 @@ jobs:
           docker compose --project-directory backend
           -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
           down -v --remove-orphans
-
-  # ------------------------------------------------------------------ #
-  # Separate layer — performance. Opt-in only: it deliberately overloads
-  # the service it points at, so it must never run against anything shared.
-  # ------------------------------------------------------------------ #
-  # Hand the release its deploy.
-  #
-  # `deploy` normally starts itself, on the `workflow_run` event this
-  # workflow emits when it finishes green on main. That event is SUPPRESSED
-  # when the run was dispatched by GITHUB_TOKEN — the same rule that stops a
-  # bot push from triggering anything — which is exactly the case for the run
-  # the release workflow starts after it auto-merges a release PR. Left alone,
-  # a release would be tagged, announced, and never shipped.
-  #
-  # So: only for a dispatched run on main, ask `deploy` to run. A normal push
-  # is untouched and still arrives through `workflow_run` — dispatching there
-  # too would deploy the same commit twice.
-  # ------------------------------------------------------------------ #
-  deploy-after-dispatch:
-    name: hand off to deploy
-    runs-on: [self-hosted, prod-vps]
-    timeout-minutes: 5
-    # `end-to-end` is deliberately NOT a dependency any more. It now runs only
-    # on the nightly schedule or an explicit dispatch, and a SKIPPED need skips
-    # its dependants — so leaving it here would have silently stopped every
-    # release from reaching deploy, which is the failure this job exists to
-    # prevent in the first place.
-    needs: verify
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    # A job-level `permissions:` REPLACES the workflow's, it does not add to
-    # it, so naming only `actions: write` dropped `contents: read` and the
-    # checkout failed with "Repository not found" — a permissions error
-    # wearing a missing-repo costume.
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      # No checkout: nothing here reads the tree, and `GH_REPO` gives `gh` the
-      # repository context it would otherwise infer from a git remote.
-      - name: Start the deploy
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          gh workflow run deploy.yml --ref main
-          echo "Dispatched deploy for ${GITHUB_SHA:0:7}."
