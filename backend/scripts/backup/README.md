@@ -1,11 +1,11 @@
 # Database backups
 
-Nightly encrypted dump of the production PostgreSQL, pushed to two independent
+Nightly encrypted dump of the service's PostgreSQL, pushed to two independent
 object storages, with a weekly rehearsal that proves the artifact actually
 restores.
 
-Runs on the VPS at **03:00 Europe/Moscow** (`00:00` UTC — the host clock is UTC
-and Moscow is a fixed UTC+3), from `/etc/cron.d/marketplace-backup`.
+Runs on the database host at **03:00 Europe/Moscow** (`00:00` UTC — Moscow is a
+fixed UTC+3), from the cron entry in `cron/marketplace-backup`.
 
 ## What one run does
 
@@ -22,8 +22,8 @@ pg_dump ──▶ gzip ──▶ [gates 1-4] ──▶ age (2 keys) ──▶ [g
 
 The dump is **plain SQL gzipped**, not pg_dump's custom format: any `psql` of
 any version can restore it without a matching `pg_restore`, and it carries an
-end-of-dump marker that proves completeness. At ~750 MB the single-threaded
-restore costs minutes.
+end-of-dump marker that proves completeness. The single-threaded restore costs
+minutes, not hours, at this service's scale.
 
 ## The validity gates
 
@@ -36,7 +36,7 @@ A run uploads nothing until all of these pass. In order:
 | 3 | `PostgreSQL database dump complete` marker in the tail | a stream that was cut short but still gzipped cleanly |
 | 4 | size ≥ `BACKUP_MIN_BYTES`, and ≥ 50% of the previous run | an empty database; and the likelier case of a dump that lost most of its rows while staying far above any fixed floor |
 | 5a | the encrypted artifact decrypts back to a valid archive | encrypting correctly and decrypting correctly are two different claims |
-| 5b | it carries one recipient stanza per recipient | 5a can only ever test the *online* key. This is what proves the offline one — the key that survives losing this box — is really on the file |
+| 5b | it carries one recipient stanza per recipient | 5a can only ever test the *online* key. This is what proves the offline one — the key that survives losing the host — is really on the file |
 | 6 | **Sunday:** it restores into a scratch PostgreSQL | everything the other five cannot see |
 
 Gate 6 runs on the **encrypted** file — exactly the bytes that get uploaded —
@@ -65,26 +65,26 @@ by either of them:
 
 | Recipient | Private half lives | What it is for |
 |-----------|--------------------|----------------|
-| online | `BACKUP_ENCRYPTION_IDENTITY` in `backend/.env` on the VPS | so gate 6, the Sunday restore rehearsal, can still decrypt unattended |
-| offline | the maintainer's password manager, never on a server | the real disaster: this box is gone, and so is its `.env` |
+| online | `BACKUP_ENCRYPTION_IDENTITY` in `backend/.env` on the backup host | so gate 6, the Sunday restore rehearsal, can still decrypt unattended |
+| offline | the maintainer's password manager, never on a server | the real disaster: the host is gone, and so is its `.env` |
 
 The dump holds password hashes, session token families and the Fernet-encrypted
 WB tokens, so it does not sit in a bucket in the clear.
 
-**Why two keys rather than one passphrase.** Until 2026-09-21 this was
+**Why two keys rather than one passphrase.** This used to be
 `gpg --symmetric` with `BACKUP_ENCRYPTION_KEY`. That key both encrypted and
-decrypted, so it had to be on the box — and a copy of it in a password manager
-was the only thing standing between a lost VPS and a year of unreadable
-archives. An asymmetric pair splits those two jobs: the box holds a key that
+decrypted, so it had to be on the host — and a copy of it in a password manager
+was the only thing standing between a lost host and a year of unreadable
+archives. An asymmetric pair splits those two jobs: the host holds a key that
 can *write* archives it is allowed to read back, and the key that matters in a
 disaster has never been anywhere an attacker could reach it.
 
 **Why the online key is there at all.** Removing it is the stricter design, and
 it costs gate 6 — the only gate that proves the artifact restores, and the only
-one that has ever caught anything the other five could not see. A box that
+one that has ever caught anything the other five could not see. A host that
 already holds the live database gains very little from being unable to read its
 own backups, so the trade goes the other way: keep the rehearsal, accept that a
-shell on the VPS can read the archives.
+shell on the host can read the archives.
 
 `docs/security/BACKUP_KEYS.md` is the long form of all of this — the key scheme,
 what it defends against, and what it does not.
@@ -94,18 +94,19 @@ of this that a machine can check, and the failure it protects against is silent:
 a wrong character in the offline recipient yields archives nobody can ever open,
 and nothing would notice until the day that key is all there is. So gate 5b
 counts the recipient stanzas on every artifact, and
-`tests/unit/core/test_backup_encryption_recipients.py` pins both keys.
+`tests/unit/core/test_backup_encryption_recipients.py` pins both keys (paths
+relative to `backend/`).
 
 > **No private key is in the backups, and no private key is in git.** The
 > offline key exists in your password manager and nowhere else. Losing it while
-> the VPS is also gone means every archive in both buckets is noise.
+> the host is also gone means every archive in both buckets is noise.
 
 ### The old symmetric key is not finished yet
 
-`monthly/` keeps objects for 365 days, and the last symmetric artifact written
-was `monthly/marketplace-20260901T030002msk.sql.gz.gpg` — so `.gpg` objects are
-in the buckets until **2027-09-01**. `BACKUP_ENCRYPTION_KEY` must stay in
-`backend/.env` and in the password manager until then — `restore.sh` picks the
+`monthly/` keeps objects for 365 days, so the last symmetric `.gpg` artifact
+stays in the buckets for a year after the switch to `age`.
+`BACKUP_ENCRYPTION_KEY` must stay in `backend/.env` and in the password manager
+until that object expires — `restore.sh` picks the
 scheme from the file extension, so an old object and a new one are restored by
 the same command, but only if that key is still around to be used.
 
@@ -146,14 +147,14 @@ this one. Do it once after any change to the offline key.
 
 ```bash
 backend/scripts/backup/restore.sh list cloudfare daily
-backend/scripts/backup/restore.sh fetch cloudfare daily/marketplace-20260921T030000msk.sql.gz.age
-backend/scripts/backup/restore.sh load /var/backups/marketplace/artifacts/marketplace-...age <container>
+backend/scripts/backup/restore.sh fetch cloudfare daily/marketplace-<stamp>.sql.gz.age
+backend/scripts/backup/restore.sh load <work-dir>/artifacts/marketplace-<stamp>.sql.gz.age <container>
 ```
 
 `list` and `fetch` are read-only. `load` drops and recreates the target
 database, asks for the database name as confirmation, and refuses the live
-`marketplace-service-postgres-1` unless the stack is stopped and
-`BACKUP_ALLOW_PRODUCTION_RESTORE=1` is set.
+Postgres container (`BACKUP_PROTECTED_CONTAINER`) unless the stack is stopped
+and `BACKUP_ALLOW_PRODUCTION_RESTORE=1` is set.
 
 The dump is `--no-owner --no-privileges` and does **not** carry roles: the
 `marketplace` role is created by the compose stack from `POSTGRES_USER` /
@@ -161,7 +162,7 @@ The dump is `--no-owner --no-privileges` and does **not** carry roles: the
 restore into it*.
 
 **A bare-metal recovery also needs `scripts/sql/least_privilege_role.sql` re-run
-afterwards.** Checked against a real dump rather than reasoned about: the
+afterwards.** Checked against an actual dump rather than reasoned about: the
 row-level-security policies and their `ENABLE ROW LEVEL SECURITY` *do* survive
 those two flags, but `marketplace_app` and every `GRANT` to it do not — the
 flags exist to suppress exactly that. So a restored database comes back with
@@ -189,9 +190,10 @@ Optional Telegram alerting: set `BACKUP_ALERT_TELEGRAM_BOT_TOKEN` and
 `BACKUP_ALERT_TELEGRAM_CHAT_ID` and failures — plus the weekly deep-check
 result — reach a human. Unset, the job is silent but still exits non-zero.
 
-The alert itself is sent with `disable_notification`, like every other message
-this project sends (see `docs/RELEASES.md`): a 03:00 backup must not ring a
-phone, and the alert is still there at 09:00, which is when it gets acted on.
+The alert itself is sent with `disable_notification` (`lib/log.sh`): a 03:00
+backup must not ring a phone, and the alert is still there at 09:00, which is
+when it gets acted on. A network failure is retried a few times; an HTTP error
+is not, because a second try will not change the answer.
 `BACKUP_ALERT_TELEGRAM_CHAT_ID` is the maintainer's chat — backups are
 operational news, not something the whole team needs.
 
@@ -203,7 +205,8 @@ backend/scripts/backup/backup.sh --force-deep-check       # rehearse the restore
 backend/scripts/backup/backup.sh --tiers daily,weekly,monthly
 ```
 
-Logs: `/var/backups/marketplace/logs/backup-YYYYMMDD.log`, cron's own output in
+Logs: `logs/backup-YYYYMMDD.log` under `BACKUP_WORK_DIR` (default
+`/var/backups/marketplace`, set in `lib/config.sh`), cron's own output in
 `cron.log` beside it.
 
 ## Layout

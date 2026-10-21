@@ -1,11 +1,10 @@
 # Observability
 
 What this service publishes about itself, where it goes, and the decisions that
-are load-bearing rather than conventional. This closes the register's **P2.1**
-(metrics, exception aggregation) and the open half of **P2.2** (centralised
-collection, real-time alerting).
+are load-bearing rather than conventional: metrics, exception aggregation,
+centralised log collection and real-time alerting.
 
-The register's argument for leaving it unbuilt was that a `/metrics` nothing
+The argument against building any of it early was that a `/metrics` nothing
 scrapes and a Sentry client with no DSN are scaffolding pretending to be
 observability. So every sink here is off until its destination exists, and
 `sentry_enabled` is *derived* from whether a DSN was supplied rather than being
@@ -30,8 +29,8 @@ a flag that can disagree with one.
 
   Prometheus ──► Alertmanager ──► telegram-relay ──► Telegram   (IPv6 + IPv4, host network)
   Sentry  ◄──── api + worker, errors only, scrubbed before sending
-  UptimeRobot ────► https://…/healthz          (Postgres + Redis, 200 or 503)
-  UptimeRobot ────► https://…/healthz/alerts   (is Watchdog firing: alerts-ok / alerts-down)
+  external uptime monitor ────► https://…/healthz          (Postgres + Redis, 200 or 503)
+  external uptime monitor ────► https://…/healthz/alerts   (is Watchdog firing: alerts-ok / alerts-down)
 ```
 
 Two commands, and the separation between them is deliberate:
@@ -44,16 +43,15 @@ make obs-up    # the stack that watches it
 The application is instrumented whether or not the second ever runs. `/metrics`
 and `/healthz` are in the API image and the counters cost a few hundred floats,
 so turning the monitoring off costs visibility and nothing else — which is the
-property you want on a 3.8 GB box the moment memory gets tight.
+property you want on a small host the moment memory gets tight.
 
 **Two compose projects, not one, and this was learned the hard way.** The
 monitoring started as an overlay on the application's project, which put it in
-reach of the deploy's `docker compose ... up -d --remove-orphans`: a service
-that belongs to the project but is absent from the file compose is handed is by
-definition an orphan, so **every deploy silently deleted the whole stack**,
-volumes left behind, nothing said. Two deploys did exactly that on 2026-09-05
-before anyone looked — the failure mode monitoring exists to catch, and the one
-it structurally cannot catch about itself.
+reach of `docker compose ... up -d --remove-orphans` on the application: a
+service that belongs to the project but is absent from the file compose is
+handed is by definition an orphan, so **every such `up` silently deleted the
+whole stack**, volumes left behind, nothing said — the failure mode monitoring
+exists to catch, and the one it structurally cannot catch about itself.
 
 It now runs as `marketplace-observability`, joining the application's network as
 `external`. `--remove-orphans` on the app's project cannot see it. Service-name
@@ -91,14 +89,16 @@ per request.
 Two ways this codebase could produce an unbounded label, and they are different
 problems:
 
-task id is a fresh UUID for every report. Raw, one nightly harvest would add a
-permanent series per workspace per night — memory that grows with our *history*.
+**Ids we put in a path.** Several WB paths interpolate an identifier, and the
+settlement detail path (`sales-reports/detailed/{id}`) carries a new report id
+every week. Raw, the harvest would add a permanent series per workspace per
+report — memory that grows with our *history*.
 `src/integrations/wildberries/endpoints.py` collapses them to `/{id}`.
 
 **Ids a stranger chooses.** A request to a path with no route would otherwise be
 labelled with the raw path, so anyone scanning for `/wp-admin`, `/.env`,
 `/admin.php` would create one permanent series per URL they tried —
-unauthenticated, from the internet, in a process sharing a box with Postgres.
+unauthenticated, from the internet, in a process sharing a host with Postgres.
 That is a memory-exhaustion primitive. `should_group_untemplated=True` puts all
 of them on `handler="none"`, and a component test asserts it.
 
@@ -176,7 +176,7 @@ What is rotated away has already been shipped to Loki and stays searchable for
 Loki's own 14 days. What is on disk is the fallback for when Loki is the broken
 thing — which is also why the Loki Docker *driver plugin* was refused: with it
 installed, `docker logs` stops working, and a log pipeline whose failure mode is
-"you cannot read the logs" is not one to run alone on a single box.
+"you cannot read the logs" is not one to run alone on a single host.
 
 ---
 
@@ -184,35 +184,35 @@ installed, `docker logs` stops working, and a log pipeline whose failure mode is
 
 | endpoint | served by | what it means |
 |---|---|---|
-| `/healthz` on **port 8081** | nginx itself | each nginx's Docker HEALTHCHECK, and the edge's (HAProxy) check of where to route. Static `ok`. The one nginx listener without PROXY protocol, since neither checker sends it; not published. |
+| `/healthz` on **port 8081** | nginx itself | each nginx's Docker HEALTHCHECK, and the edge proxy's (HAProxy) check of where to route. Static `ok`. The one nginx listener without PROXY protocol, since neither checker sends it; not published. |
 | `/health` | the API | **liveness**. Static. Docker restarts a container that fails it — which is exactly why it must not touch a database. |
-| `/healthz` on **443** | the API, via nginx | **readiness**. Pings Postgres and Redis; 200 or 503. What UptimeRobot polls. |
-| `/healthz/alerts` on **443** | the API, via nginx | **whether alerts get out**. Asks Alertmanager if `Watchdog` is active; 200 `alerts-ok` or 503 `alerts-down`. UptimeRobot watches it as a keyword monitor on `alerts-ok`. See «Delivery». |
+| `/healthz` on **443** | the API, via nginx | **readiness**. Pings Postgres and Redis; 200 or 503. What the external uptime monitor polls. |
+| `/healthz/alerts` on **443** | the API, via nginx | **whether alerts get out**. Asks Alertmanager if `Watchdog` is active; 200 `alerts-ok` or 503 `alerts-down`. Watched externally as a keyword monitor on `alerts-ok`. See «Delivery». |
 
-Conflating the last two is the tempting mistake and it is a bad one: a liveness
-probe that fails because Postgres is down would have Docker restart every
-healthy API process in the middle of a database outage.
+Conflating the liveness and readiness probes is the tempting mistake and it is a
+bad one: a liveness probe that fails because Postgres is down would have Docker
+restart every healthy API process in the middle of a database outage.
 
 **The scrape runs the same probe, and that is not redundancy.** `dependency_up`
 used to be written only by `/healthz`, which made the `DependencyDown` alert
-(`dependency_up == 0`) quietly conditional on UptimeRobot existing and polling:
-with nobody polling, the series is absent after a restart, and an alert with no
-series never fires. The rule read as covering Postgres and Redis while covering
-nothing, and the dashboard was green either way. Prometheus now drives the probe
-itself every 15 s, so the internal alert and the external check answer the same
-question independently instead of one depending on the other.
+(`dependency_up == 0`) quietly conditional on an external monitor existing and
+polling: with nobody polling, the series is absent after a restart, and an alert
+with no series never fires. The rule read as covering Postgres and Redis while
+covering nothing, and the dashboard was green either way. Prometheus now drives
+the probe itself every 15 s, so the internal alert and the external check answer
+the same question independently instead of one depending on the other.
 
-The readiness probe never carries an exception, a host or a DSN — P0.3 removed
-that class of disclosure from the API's error path, and a public probe is the
-easiest place to put it back without noticing. It runs both checks concurrently
-under a 2 s budget each, so the worst case is the largest timeout rather than
-their sum.
+The readiness probe never carries an exception, a host or a DSN — the API's
+error path does not disclose those, and a public probe is the easiest place to
+put that class of disclosure back without noticing. It runs both checks
+concurrently under a 2 s budget each, so the worst case is the largest timeout
+rather than their sum.
 
 `nginx.ci.conf` deliberately keeps a *static* `/healthz` on its public port: it is
-CI's up-check (the container's own healthcheck moved to :8081 with production's),
-and making it depend on
-Postgres would turn a slow database start into an e2e run that times out. The
-divergence is commented in the file so nobody "fixes" it.
+CI's up-check (the container's own healthcheck moved to :8081 together with the
+main config's), and making it depend on Postgres would turn a slow database start
+into an e2e run that times out. The divergence is commented in the file so nobody
+"fixes" it.
 
 ---
 
@@ -232,7 +232,7 @@ published port, 443, serving the SPA — is unchanged.
   A **subdomain rather than a path**, and the reason is the cookie jar. As
   `example.com/grafana/` it would share a browser origin with the
   customer-facing SPA — so a flaw in Grafana would sit inside the same origin as
-  the sessions that authenticate real sellers, and the app's CSP
+  the sessions that authenticate sellers, and the app's CSP
   (`script-src 'self'`) would have to be loosened to let Grafana's own bundle
   run at all. A separate host costs one DNS record and one name on the existing
   certificate, and buys a boundary the browser enforces.
@@ -245,39 +245,22 @@ published port, 443, serving the SPA — is unchanged.
   shortcut when the page comes up blank is to loosen the *shared* snippet, which
   weakens the customer site to make a dashboard load.
 
-  Grafana still publishes `127.0.0.1:3000`, which is the way in when nginx
-  itself is the broken thing:
-
-  ```bash
-  ssh -L 3001:127.0.0.1:3000 <the production alias>
-  ```
-
-  That port must never lose its `127.0.0.1:` prefix — it is the bypass around
-  the TLS, the headers and the rate limit.
+  Grafana also publishes `127.0.0.1:3000` on the host's loopback, which is the
+  way in when nginx itself is the broken thing. That port must never lose its
+  `127.0.0.1:` prefix — it is the bypass around the TLS, the headers and the
+  rate limit.
 
 * **The certificate must cover all three names and renew by `webroot`.**
-  Written as a requirement, not a description, because on **2026-09-08 neither
-  half was true on the box** — the paragraph that used to stand here described
-  the intended end state as though it had been applied:
+  Written as a requirement, not a description. A `standalone` authenticator asks
+  certbot to bind port 80 while nginx holds it, so every automatic renewal fails
+  — and nothing reports it; the symptom, a month later, is the whole site
+  becoming unreachable.
 
-  ```
-  Domains: example.com www.example.com     ← two names, not three
-  authenticator = standalone                          ← in the renewal config
-  ```
-
-  `standalone` asks certbot to bind port 80 while nginx holds it, so every
-  automatic renewal fails. `certbot.timer` is active and `renew_before_expiry`
-  is 30 days against an expiry of **2026-10-12**, which puts the first failing
-  attempt around **2026-09-12**. Nothing reports it; the symptom, a month later,
-  is the whole site becoming unreachable. This is a live countdown, independent
-  of Grafana.
-
-  `backend/scripts/tls/issue_certificate.sh` fixes the method, adds the name,
+  `backend/scripts/tls/issue_certificate.sh` sets the method, adds the name,
   installs the deploy hook and reloads nginx in one run — see the procedure
   below. The webroot is a host directory bind-mounted into the frontend
-  container read-only: certbot writes on the host, nginx reads in the container,
-  and a webroot inside the image is one certbot could never reach — presumably
-  how the mismatch arose.
+  container read-only: certbot writes on the host, nginx reads in the container;
+  a webroot inside the image is one certbot could never reach.
 
   The pairing is guarded by `frontend/tests/integration/tls-domains.spec.js`,
   which asserts every name in the script's `DOMAINS` is answerable by the
@@ -293,19 +276,19 @@ browser will not offer a click-through on the certificate mismatch and will not
 fall back to plain HTTP.
 
 1. **DNS first.** An `A` record for the subdomain pointing at the host. HTTP-01
-   validation reaches the box by resolving the name, so the certificate cannot
+   validation reaches the host by resolving the name, so the certificate cannot
    be requested before this exists — `issue_certificate.sh` checks with
    `getent hosts` and refuses rather than half-rewriting the renewal config.
-2. **Certificate second**, from the server as root:
+2. **Certificate second**, on the host as root:
    `bash backend/scripts/tls/issue_certificate.sh`. It expands the existing
    lineage (`--cert-name`, so the paths nginx references do not move), switches
    renewal to `webroot`, installs the reload hook, and reloads nginx.
 3. **Verify on the wire**, not on disk. A renewed file and a served certificate
-   are different facts — that gap is what the deploy hook exists to close.
+   are different facts — that gap is what the reload hook exists to close.
 
 Nothing in nginx or Grafana's compose config needs editing for a subdomain that
 is already configured: the server block, the login rate limit, `GF_SERVER_ROOT_URL`
-and the secure-cookie settings are all in place and were never the blocker.
+and the secure-cookie settings are all in place.
 
 * Prometheus, Loki, Alertmanager and Alloy publish nothing at all.
 * Alloy's Docker socket mount is **read-only** — a writable one is root on the
@@ -334,36 +317,38 @@ during what" without carrying anything a caller submitted.
 
 ## Alerts
 
-`docker/observability/alerts.yml`, 28 rules in six groups. Two conventions:
-`for:` is never zero (an alert that fires on one bad scrape fires on a deploy,
-and an alert that fires on a deploy gets muted), and every annotation says what
-to *do*, because the person reading it at 03:00 is not the person who wrote it.
+`docker/observability/alerts.yml`, 35 rules in seven groups. Two conventions:
+`for:` is zero only where a single occurrence is itself the event (an alert on a
+level that fires on one bad scrape fires on every restart, and an alert that
+fires on every restart gets muted), and every annotation says what to *do*,
+because the person reading it at 03:00 is not the person who wrote it.
 
-Three are worth calling out:
+Some are worth calling out:
 
 **`RowLevelSecurityViolation`** — `for: 0m`, one occurrence is the alert. It
 should read zero forever. RLS fails closed, so an increment means no data
 crossed a boundary and the control worked; what it means is that a code path is
 reaching tenant data without passing the tenancy choke point, which is the exact
-defect the policies were installed to catch (P2.5).
+defect the policies were installed to catch (see
+`docs/security/SECURITY_DESIGN.md`).
 
-**`HarvestProducingNoRows`** — the alert that would have caught the 2026-07-30
-incident on day one. The second clause is what makes it meaningful: the harvest
-*ran* and wrote nothing, which is a different event from "the harvest did not
-run". For days, every `harvest_sku_window` reported SUCCESS with
-`funnel_rows: 0` while «Обновить» users watched unchanged numbers. No
-task-level success metric can see that.
+**`HarvestProducingNoRows`** — the second clause is what makes it meaningful:
+the harvest *ran* and wrote nothing, which is a different event from "the
+harvest did not run". A harvest can report SUCCESS with `funnel_rows: 0` for days
+while users pressing «Обновить» watch unchanged numbers. No task-level success
+metric can see that.
 
-**`SecurityControlDegraded`** — binds to the P1.2 ledger. Two of these at once
-is the correlated failure that ledger was built to surface.
+**`SecurityControlDegraded`** — binds to the degradation ledger
+(`src/core/degradation.py`). Two of these at once is the correlated failure that
+ledger was built to surface.
 
-**`WorkerKilled` and `WorkerMemoryNearLimit`** — the pair added on 2026-09-17,
-after three prefork children were OOM-killed in twelve hours with no trace in
-Prometheus at all. Both gaps were structural rather than an oversight. The
-worker publishes no `process_resident_memory_bytes`, because multiprocess mode
-drops `prometheus_client`'s default process collector — so the deployment's two
-API containers reported a resident set and the one container whose working set
-is driven by data volume reported none. And a killed child's task lands in
+**`WorkerKilled` and `WorkerMemoryNearLimit`** — added after prefork children
+were OOM-killed with no trace in Prometheus at all. Both gaps were structural
+rather than an oversight. The worker publishes no
+`process_resident_memory_bytes`, because multiprocess mode drops
+`prometheus_client`'s default process collector — so the two API containers
+reported a resident set and the one container whose working set is driven by
+data volume reported none. And a killed child's task lands in
 `celery_tasks_total{state="failure"}`, where three events in half a day is
 0.00007/s against `TaskFailureRate`'s threshold of 0.05.
 
@@ -379,19 +364,19 @@ so the work is not retried. Note the ratio's shape: a cgroup with no limit
 publishes no ceiling at all rather than a zero, which leaves the alert's
 expression undefined instead of confidently wrong.
 
-**`WorkerMetricsDirFilling`** — added on 2026-10-15, after `WorkerKilled` fired
-for three hours about something that was not memory. The worker's counters live
-in mmap files on a 32 MB tmpfs (`/tmp/prometheus-multiproc`), and a write past
-its last page is **SIGBUS**: every task, and the healthcheck, died on start from
-04:01 MSK until the worker was restarted. What filled it was the healthcheck
-itself — `celery inspect ping` imports the app, and each import in multiprocess
-mode left a `counter_<pid>.db` and a `histogram_<pid>.db` that
-`mark_process_dead` keeps by design; the 2026-09-17 sweep only ever removed
-gauges. The ping now runs with `PROMETHEUS_MULTIPROC_DIR=` (empty means absent,
-so it counts in memory), and `MetricsDirCollector` publishes
-`celery_worker_metrics_dir_bytes` against `celery_worker_metrics_dir_size_bytes`
-from `statvfs`, so the next leak is a warning at 70% rather than an outage.
-`WorkerKilled`'s text now says to read the signal first: 9 is memory, 7 is this.
+**`WorkerMetricsDirFilling`** — added after `WorkerKilled` fired for hours about
+something that was not memory. The worker's counters live in mmap files on a
+32 MB tmpfs (`/tmp/prometheus-multiproc`), and a write past its last page is
+**SIGBUS**: every task, and the healthcheck, died on start until the worker was
+restarted. What filled it was the healthcheck itself — `celery inspect ping`
+imports the app, and each import in multiprocess mode left a `counter_<pid>.db`
+and a `histogram_<pid>.db` that `mark_process_dead` keeps by design; the earlier
+sweep only ever removed gauges. The ping now runs with
+`PROMETHEUS_MULTIPROC_DIR=` (empty means absent, so it counts in memory), and
+`MetricsDirCollector` publishes `celery_worker_metrics_dir_bytes` against
+`celery_worker_metrics_dir_size_bytes` from `statvfs`, so the next leak is a
+warning at 70% rather than an outage. `WorkerKilled`'s text now says to read the
+signal first: 9 is memory, 7 is this.
 
 Two rules came out of it, both enforced by tests rather than by remembering:
 
@@ -404,94 +389,92 @@ Two rules came out of it, both enforced by tests rather than by remembering:
   fails if a metric is ever defined outside the `metrics` package, where nothing
   would arm the hook.
 * **A worker that keeps failing its healthcheck restarts itself.** Docker never
-  restarts an `unhealthy` container, which is why the outage lasted three hours.
+  restarts an `unhealthy` container, which is why that outage lasted hours.
   `docker/worker_healthcheck.sh` counts failures in a row on its own tmpfs and
   sends PID 1 SIGTERM (warm shutdown) at six — three minutes — and SIGQUIT at
   twelve; the restart policy does the rest, and the restart empties both tmpfs
   mounts. `test_worker_healthcheck.py` runs that script against a stand-in.
 
-**`PostgresCrashRecovered`** — added 2026-09-29, after three OOM kills inside
-the postgres container in five days (09-24, 09-28, 09-29 — the last one
-mid-backup) had left no trace in Prometheus. None could: the postmaster survives
-a killed backend and reinitialises in about two seconds, well inside one 15 s
+**`PostgresCrashRecovered`** — added after OOM kills inside the postgres
+container left no trace in Prometheus. None could: the postmaster survives a
+killed backend and reinitialises in about two seconds, well inside one 15 s
 scrape, so `dependency_up` never read 0. What outlasts the recovery is
 `pg_stat_bgwriter.stats_reset` — PostgreSQL discards its statistics after a crash
 and at no other time a running system chooses by itself — so the API publishes
 it at scrape time as `postgres_stats_reset_timestamp_seconds`, and the rule
-fires when it moves. It also explains a symptom that looked unrelated: after
-each kill, every `pg_stat_*` counter restarts from zero, which is why
-`n_live_tup` on production has been found wildly low.
+fires when it moves. It also explains a symptom that looks unrelated: after
+each kill, every `pg_stat_*` counter restarts from zero, so `n_live_tup` can read
+wildly low.
 
-The kills themselves were bulk writes, not the backup. In each of the three
-kernel reports two or three backends held 40-90 MB of anonymous memory against
-~5 MB for the rest; reproduced on PostgreSQL 16, a multi-row
-`INSERT … VALUES … ON CONFLICT` at 30 000 parameters left 25 MB on its
-connection after one batch and 58 MB after four sizes, through a rollback,
-because asyncpg prepares and caches every statement and each batch size was a
-new one. `src/core/upsert.py` now sends one row-wide statement through
-`executemany` — 2 MB, and eight times faster. The large virtual size of those
-backends is JIT's LLVM mapping, not memory: measured, loading it moves `VmSize`
-by ~190 MB and `RssAnon` by a few.
+The kills themselves were bulk writes, not the backup. In the kernel reports two
+or three backends held 40-90 MB of anonymous memory against ~5 MB for the rest;
+reproduced on PostgreSQL 16, a multi-row `INSERT … VALUES … ON CONFLICT` at
+30 000 parameters left 25 MB on its connection after one batch and 58 MB after
+four sizes, through a rollback, because asyncpg prepares and caches every
+statement and each batch size was a new one. `src/core/upsert.py` now sends one
+row-wide statement through `executemany` — 2 MB, and eight times faster. The
+large virtual size of those backends is JIT's LLVM mapping, not memory:
+measured, loading it moves `VmSize` by ~190 MB and `RssAnon` by a few.
 
-**`WbRateBlockEscalating`** — added 2026-09-19, and it exists because the
-quantity it watches had no metric at all. The three metrics next to it describe
-WB's limiter as a *level*: `wb_rate_limit_quota_remaining` is a gauge nothing
-decays (its own comment explains why it cannot be alerted on), and
-`wb_rate_limit_wait_seconds_total` counts how long we queued. A penalty block
-is neither — it is an **event with a magnitude**, and what matters is the
-magnitude growing from one event to the next.
+**`WbRateBlockEscalating`** — it exists because the quantity it watches had no
+metric at all. The three metrics next to it describe WB's limiter as a *level*:
+`wb_rate_limit_quota_remaining` is a gauge nothing decays (its own comment
+explains why it cannot be alerted on), and `wb_rate_limit_wait_seconds_total`
+counts how long we queued. A penalty block is neither — it is an **event with a
+magnitude**, and what matters is the magnitude growing from one event to the
+next.
 
 `wb_rate_limit_block_seconds` is therefore a histogram, observed once per block
 with the wait WB itself demanded in `X-Ratelimit-Retry`, with buckets running
-from a minute to a week. The span is not defensive: on 2026-09-17 the settlement
-endpoint went 28 197 → 18 624 → **302 940 s** against one workspace — nine hours
-to a hundred and five — and buckets stopping at an hour would have recorded all
-three as `+Inf`. That escalation was found two days later by reading logs,
-which is the failure this rule is meant to replace.
+from a minute to a week. The span is not defensive: WB has been observed to
+escalate consecutive penalty blocks on one endpoint from about nine hours to over
+a hundred, and buckets stopping at an hour would have recorded all of them as
+`+Inf`. That escalation was found by reading logs, which is the failure this
+rule is meant to replace.
 
 It records what WB **demanded**, not the longer block we then serve. The margin
 in `penalise` is our policy (`_BLOCK_MARGIN`, 1.25) and folding it in would make
 the series describe us rather than WB.
 
-*Retired 2026-09-24 — the metric and `record_publication_spread` are deleted, because the
-question was answered: the first fleet harvest on finance-api recorded 0.00-0.20 h across five
-sellers, which is our own sequential loop, and WB publishes to all sellers at once. The note
-below is kept as the reasoning that built it.*
+*Retired: `settlement_publication_spread_hours` and `record_publication_spread`
+are deleted, because the question was answered — WB publishes a settlement
+period to all sellers at once, and the spread we recorded was our own sequential
+loop. The note below is kept as the reasoning that built it.*
 
-One metric added 2026-09-21 has no alert and is not meant to get one:
-**`settlement_publication_spread_hours`** exists to answer a design question and then, most
-likely, to be deleted. On the day WB forms a settlement report every seller spends its own
-quarter-hourly requests asking the same thing — «are you serving it yet» — and one answer
-could serve the whole fleet, which at fifty sellers is the difference between a ceiling of
-twenty-three per egress address and ninety-one. That is only true if WB publishes to everyone
-at once, and nothing we held said whether it does. The histogram records how long after the
-first seller each one receives the same period.
+The metric was added to answer a design question and then, most likely, to be
+deleted. On the day WB forms a settlement report every seller spends its own
+quarter-hourly requests asking the same thing — «are you serving it yet» — and
+one answer could serve the whole fleet, which at fifty sellers is the difference
+between a ceiling of twenty-three per egress address and ninety-one. That is only
+true if WB publishes to everyone at once, and nothing we held said whether it
+does. The histogram recorded how long after the first seller each one received
+the same period.
 
-Read it as an **upper bound** on WB's own spread, never as a measurement of it: our probe
-cadence, our rate budget and any tick a seller missed are all inside the figure. A
-distribution piled into the bottom bucket is conclusive — WB published simultaneously and we
-watched it. A wide one is ambiguous, and the logs, which carry `workspace_id`, are where it
-gets interpreted. The usual split: the metric says whether the fleet saw it together, the
-logs say who was late.
+Read as an **upper bound** on WB's own spread, never as a measurement of it: our
+probe cadence, our rate budget and any tick a seller missed are all inside the
+figure. A distribution piled into the bottom bucket is conclusive — WB published
+simultaneously and we watched it. A wide one is ambiguous, and the logs, which
+carry `workspace_id`, are where it gets interpreted. The usual split: the metric
+says whether the fleet saw it together, the logs say who was late.
 
-**`settlement_payout_divergence`** (added 2026-09-22, first observed 2026-09-24 — nothing
-called it for two days) is the absolute gap, per booked settlement report, between WB's own
-`forPaySum` from `sales-reports/list` and our Σ `ppvz_for_pay` with every «Возврат» document
-negated. It is observed the moment a report is booked, when rows and total come from the same
-fetch, so a gap is ours rather than a later restatement by WB. `SettlementPayoutDisagreesWithWb`
-fires on any report a rouble or more out. The rule it tests matched all 143 reports of
-«Демо» on the day it was written; the log line («totals … here against WB's») carries the
-report id and the difference.
+**`settlement_payout_divergence`** is the absolute gap, per booked settlement
+report, between WB's own `forPaySum` from `sales-reports/list` and our Σ
+`ppvz_for_pay` with every «Возврат» document negated. It is observed the moment
+a report is booked, when rows and total come from the same fetch, so a gap is
+ours rather than a later restatement by WB. `SettlementPayoutDisagreesWithWb`
+fires on any report a rouble or more out. The log line («totals … here against
+WB's») carries the report id and the difference.
 
-**`monitoring_funnel_gap_days`** (added 2026-10-02) is the funnel's twin of the settlement
-gap: days older than the nightly cohort pass's window, still inside WB's 365-day reach, where
-an article sold and the row still lacks WB's own `orderSum` or its matured cohort. On
-2026-09-29 the backfill lane left 07.09 to a pass that, the next night, no longer read it, and
-the day's order sums were missing for three days with every run green. The cohort pass now
-re-reads up to two such days per кабинет per night (`monitoring/tasks/funnel_gaps.py`) and sets
-the gauge to what is left; `FunnelHistoryHasGaps` fires when it stays above zero for 26 hours.
-Idle rows (no orders) never count — WB's aggregate omits them, so their cohort stays empty for
-good. The log line («has N funnel day(s)») names the кабинет and the days.
+**`monitoring_funnel_gap_days`** is the funnel's twin of the settlement gap: days
+older than the nightly cohort pass's window, still inside WB's 365-day reach,
+where an article sold and the row still lacks WB's own `orderSum` or its matured
+cohort. The failure it covers: the backfill lane leaves a day to a pass that, the
+next night, no longer reads it, and that day's order sums stay missing with every
+run green. The cohort pass now re-reads up to two such days per workspace per
+night (`monitoring/tasks/funnel_gaps.py`) and sets the gauge to what is left;
+`FunnelHistoryHasGaps` fires when it stays above zero for 26 hours. Idle rows (no
+orders) never count — WB's aggregate omits them, so their cohort stays empty for
+good. The log line («has N funnel day(s)») names the workspace and the days.
 
 ### The backfill group, and why it alerts on an absence
 
@@ -500,8 +483,8 @@ catalogue, funnel, advertising, P&L. The chain has exactly one thread of
 continuation: a tick does one bounded step and enqueues the next. So a tick that
 dies before reaching its re-enqueue ends the whole walk, and **nothing reports
 it**. No exception reaches a caller, no work-done counter moves, the lane simply
-stays where it stopped. On 2026-09-10 NEVA's P&L lane died on its first tick and
-sat there for eleven hours; it was found because a person happened to look.
+stays where it stopped. A P&L lane that died on its first tick once sat there for
+eleven hours, and was found only because a person happened to look.
 
 Every metric the harvest already had measures what a run DID, and this failure
 is the absence of a run. So the signal is a gauge of what is *stuck*:
@@ -542,57 +525,50 @@ evaluates to nothing forever while its dashboard looks covered.
 
 ### Delivery
 
-Alertmanager routes to **Telegram** — the bot the backup job has alerted with
-since it was written, because an alert delivered somewhere nobody reads is
-indistinguishable from no alert. Set `ALERT_TELEGRAM_BOT_TOKEN` /
-`ALERT_TELEGRAM_CHAT_ID` in `backend/.env` to split monitoring onto its own bot;
-left empty it falls back to `BACKUP_ALERT_TELEGRAM_*`.
+Alertmanager routes to **Telegram** — the same bot the backup job alerts with,
+because an alert delivered somewhere nobody reads is indistinguishable from no
+alert. Set `ALERT_TELEGRAM_BOT_TOKEN` / `ALERT_TELEGRAM_CHAT_ID` in
+`backend/.env` to split monitoring onto its own bot; left empty it falls back to
+`BACKUP_ALERT_TELEGRAM_*`.
 
-**The road to Telegram goes through a relay, and that is not optional.** This
-box is in Russia and reaches Telegram badly — Telegram specifically. Measured on
-2026-10-15 over an hour, a fresh TCP connection to `api.telegram.org` failed
-about one time in three over IPv4 (149.154.167.220) and about one in ten over
-IPv6, while GitHub, Cloudflare and Yandex answered every round; the other IPv4
-address DNS gives, 149.154.166.110, has not answered since 2026-09-12. The
-failures are dropped SYNs, per connection, and the two families mostly fail at
-different moments. Alertmanager's container has IPv4 only (Docker's networks
-here have no IPv6, and turning it on costs the host its RA-learnt route —
-HARDENING P2.12), and on its own it makes one slow attempt and backs off.
+**The road to Telegram goes through a relay.** From some networks a fresh TCP
+connection to `api.telegram.org` fails a noticeable share of the time — dropped
+SYNs, per connection — with IPv4 and IPv6 mostly failing at different moments.
+Alertmanager's container has IPv4 only (the Docker networks here have no IPv6),
+and on its own it makes one slow attempt and backs off.
 
 So `telegram-relay` — HAProxy in TCP mode, in the **host's** network — sits in
 between. It has both families, gives each connect two seconds, and retries up to
-six times alternating between them; at the measured rates seven failures in a
-row is about one in ten thousand. TLS runs end to end: Alertmanager still
-connects to `api.telegram.org` (pinned to docker0 by `extra_hosts`) and checks
-Telegram's certificate; only the port in `api_url` (7443) says "relay". The
-relay listens on docker0's address, not a wildcard — the host's INPUT chain
-accepts everything — and forwards to Telegram's two addresses and nowhere else.
+six times alternating between them, which turns a flaky road into a reliable
+one. TLS runs end to end: Alertmanager still connects to `api.telegram.org`
+(pinned to docker0 by `extra_hosts`) and checks Telegram's certificate; only the
+port in `api_url` (7443) says "relay". The relay listens on docker0's address,
+not a wildcard, and forwards to Telegram's addresses and nowhere else.
 `tests/unit/core/test_telegram_relay_wiring.py` pins all of that across the four
-files it lives in. Owner's decision, 2026-10-15, over an IPv4-only relay inside
-Alertmanager's own namespace that would have opened nothing on the host: that
-one goes silent the day the one working IPv4 address goes the way of the other.
+files it lives in. A dual-stack relay was chosen over an IPv4-only one inside
+Alertmanager's own namespace, which would have opened nothing on the host but
+would go silent the day the IPv4 road does.
 
 The relay health-checks both roads every ten seconds, and Prometheus scrapes it
 (`telegram-relay` job). `TelegramRoadDown` (warn) fires when one road has been
 down for six hours — the shape of an address that stopped answering.
 
 **Who notices when alerts stop getting out.** Nothing that sends alerts can
-report that alerts stopped, so the witness is outside the box. `Watchdog`
+report that alerts stopped, so the witness is outside the host. `Watchdog`
 (`alerts.yml`, group `meta`) fires for as long as Alertmanager is scraped, no
 Telegram delivery has failed in 30 minutes, and the relay has at least one road
 up. It is routed to a receiver with nothing in it. The API's `/healthz/alerts`
 asks Alertmanager whether it is active (`src/core/observability/alert_path.py`,
-answer cached 15 s so a flood costs Alertmanager nothing), and UptimeRobot polls
-that page as a keyword monitor on `alerts-ok` — the same app that already pushes
-to the owner's phone when `/healthz` fails. Box down, Prometheus or Alertmanager
+answer cached 15 s so a flood costs Alertmanager nothing), and an external
+uptime monitor polls that page as a keyword monitor on `alerts-ok` — the same
+monitor that already watches `/healthz`. Host down, Prometheus or Alertmanager
 down, the relay down or out of roads, a delivery failing: each one turns the
 page to `alerts-down` within a few minutes.
 
-This replaced a push heartbeat (`ALERT_HEARTBEAT_URL`, a Better Stack heartbeat
-monitor) that was never connected: UptimeRobot's heartbeat monitors are paid,
-its keyword monitors are not, and pulling needs no account-specific URL in
-`backend/.env`. Telegram stays the only channel for the alerts themselves —
-the owner's choice, 2026-10-15.
+This pull design replaced a push heartbeat (`ALERT_HEARTBEAT_URL`) that was never
+connected: pulling needs no account-specific URL in `backend/.env`, and keyword
+monitors are widely available on free tiers. Telegram stays the only channel for
+the alerts themselves.
 
 `severity: page` skips the grouping delay (`group_wait: 0s`, repeat hourly);
 `severity: warn` groups for 30 s and repeats every four hours. An inhibit rule
@@ -611,9 +587,8 @@ would start cleanly and alert nobody.
 The rendered file is handed to uid 65534 at 0600 — the unprivileged user the
 Alertmanager image runs as — rather than left root-owned. A root-owned 0600
 config is unreadable to the container, and Alertmanager restart-loops with
-`permission denied`; that is how this first reached production. On a host where
-`chown` is not available the renderer widens to 0644 and says so, rather than
-failing.
+`permission denied`. On a host where `chown` is not available the renderer
+widens to 0644 and says so, rather than failing.
 
 The message template uses **HTML, not Markdown**, and that is not cosmetic:
 Telegram's Markdown parser rejects the whole message when underscores or
@@ -625,20 +600,19 @@ is worse than one with no formatting.
 
 ## Verified, not assumed
 
-Run against the local stack on 2026-09-04, with the API and worker rebuilt from
-this code:
+Run against the local stack, with the API and worker rebuilt from this code:
 
-* `/healthz` answered 200 from the real container with live Postgres (2.65 ms)
-  and Redis (0.18 ms) latencies.
+* `/healthz` answered 200 from the real container with live Postgres and Redis
+  latencies in the low milliseconds.
 * Prometheus scraped `api` and `worker` — the worker's exporter aggregating
   `celery_tasks_total` and `celery_task_duration_seconds` **across prefork
   children** through `prometheus_client`'s multiprocess mode.
-* All 16 alert rules loaded and evaluated with no errors. The only alert firing
+* Every alert rule loaded and evaluated with no errors. The only alert firing
   was `ApiDown{instance="api_standby"}`, which genuinely is not running locally.
 * Grafana provisioned both datasources (`OK` on each health check) and the
   dashboard, from files.
 * **The Telegram notification path**, exercised against a local capture server
-  standing in for `api.telegram.org` rather than against the real chat: a
+  standing in for `api.telegram.org` rather than against a real chat: a
   `severity: page` alert rendered correctly through the HTML template, routed
   with no grouping delay, and arrived as a `sendMessage` call with the right
   chat id. `amtool check-config` validates the file but does **not** execute the
@@ -656,10 +630,11 @@ unsatisfiable batch on first start).
 
 ---
 
-## Cost on the box
+## Resource ceilings
 
-The VPS is 2 vCPU / 3.8 GB with no swap, and it hosts more than this stack. The
-base topology already commits ~2.4 GB of ceilings. This adds **928m**:
+The stack is sized for one small host shared with the application, so every
+service carries a memory ceiling in `docker/docker-compose.observability.yml`.
+Together they add **928m** of ceilings on top of the base topology:
 
 | | ceiling |
 |---|---|
@@ -670,13 +645,11 @@ base topology already commits ~2.4 GB of ceilings. This adds **928m**:
 | alertmanager | 64m |
 | telegram-relay | 32m |
 
-That is ~3.3 GB of *ceiling* against 3.8 GB. Ceilings are not reservations —
-nothing is set aside, measured steady state for the five is roughly 250–350 MB
-together — so the over-subscription is intended, exactly as it already is for
-the base stack.
+Ceilings are not reservations — nothing is set aside, and the measured steady
+state of the whole group is a few hundred MB — so over-subscribing the host's
+memory with ceilings is intended, exactly as it already is for the base stack.
 
-**The honest reading is: this fits, and it is the last thing that fits.** Two
-consequences are load-bearing rather than advisory:
+Two consequences are load-bearing rather than advisory:
 
 * Prometheus retention is bounded by **size** (2 GB) as well as time. Time alone
   bounds how far back you can look; it does not bound the disk, because the disk
@@ -686,10 +659,10 @@ consequences are load-bearing rather than advisory:
   logging in a tight cycle is the realistic way a log store fills a disk, and
   taking Postgres down to keep every line of a runaway would be a poor trade.
 
-If the box gains co-tenants or the customer list grows, **the first thing to
-move off is Grafana** — it is the only one of the four that is idle unless
-somebody is looking at it, and pointing a hosted Grafana at this Prometheus and
-Loki costs nothing here.
+If the host gains co-tenants or the customer list grows, **the first thing to
+move off is Grafana** — it is the only one of these that is idle unless somebody
+is looking at it, and pointing a hosted Grafana at this Prometheus and Loki costs
+nothing here.
 
 ---
 
@@ -698,7 +671,7 @@ Loki costs nothing here.
 | | |
 |---|---|
 | `src/core/observability/scrubbing.py` | redaction, shared by logs and Sentry |
-| `src/core/observability/metrics.py` | every metric, defined in one place |
+| `src/core/observability/metrics/` | every metric, defined in one place |
 | `src/core/observability/collectors.py` | gauges sampled at scrape time |
 | `src/core/observability/instrument.py` | HTTP metrics, `/metrics`, `/healthz` |
 | `src/core/observability/celery_runtime.py` | worker exporter, task context, trace propagation |
@@ -709,6 +682,6 @@ Loki costs nothing here.
 | `src/core/logging.py` | the structlog pipeline |
 | `src/core/logcontext.py` | trace/request/actor/tenant/workspace binding |
 | `docker/observability/` | Prometheus, alerts, Alertmanager, Loki, Alloy, Grafana provisioning |
-| `docker/telegram-relay/haproxy.cfg` | the relay to Telegram, and the measurements behind it |
+| `docker/telegram-relay/haproxy.cfg` | the relay to Telegram, and the reasoning behind it |
 | `scripts/observability/render_alertmanager_config.sh` | renders the Alertmanager config from `.env` |
 | `docker/docker-compose.observability.yml` | the overlay |

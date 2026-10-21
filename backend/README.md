@@ -29,9 +29,11 @@ routers  ->  services  ->  repos  ->  models
 ### Security highlights (`users`)
 
 * **Refresh Token Rotation (RTR):** every `/refresh` consumes the presented
-  token and issues a brand-new access + refresh pair (`services.py`).
-* **Breach detection:** replaying an already-used refresh token revokes **all**
-  of that user's sessions and returns HTTP 401 (`TokenReuseError`).
+  token and issues a brand-new access + refresh pair (`services/auth.py`).
+* **Breach detection:** replaying an already-used refresh token revokes the
+  whole login lineage (token family) it belongs to and returns HTTP 401
+  (`TokenReuseError`); a short grace window absorbs the benign multi-tab race.
+  See `docs/security/SECURITY_DESIGN.md`.
 * **Timing-attack mitigation:** unknown-user logins still run a bcrypt verify
   against a pre-computed `DUMMY_HASH`, keeping latency constant.
 * Refresh secrets are delivered only via `HttpOnly; Secure; SameSite=Lax`
@@ -40,7 +42,7 @@ routers  ->  services  ->  repos  ->  models
 ### Analytics highlights (`monitoring`)
 
 * Raw nested WB payloads are flattened into clean relational rows during
-  ingestion (`services/ingestion.py`).
+  ingestion (`services/ingestion/`).
 * "Baseline Organic Demand" normalization (`services/normalization.py`) applies
   **OOS masking → promo-lift filtering → seasonality adjustment** as pure,
   unit-testable functions.

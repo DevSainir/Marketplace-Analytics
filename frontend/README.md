@@ -31,7 +31,7 @@ cookie managed by the backend (`withCredentials: true` on the shared client).
 - `src/core/api/axios.js` — attaches the Bearer header; on 401 it rotates the
   refresh cookie once (deduplicating concurrent 401s) and retries; if rotation
   fails it calls the unauthorized handler registered by the auth module.
-- `src/modules/auth/` — `/login` view (вход/регистрация), `useAuthStore`
+- `src/modules/auth/` — `/login` view (sign-in and sign-up), `useAuthStore`
   (login / register / logout / `bootstrap()` silent refresh on app start) and
   `installAuthGuard(router)`, which gates `meta.requiresAuth` routes, bounces
   authenticated users off `meta.guestOnly` routes, and routes dead sessions to
@@ -70,6 +70,7 @@ src/
     │   ├── components/    # Dumb presentational components
     │   │   └── styles/    # their stylesheets, `<style scoped src=…>`
     │   └── index.js       # PUBLIC API CONTRACT
+    ├── finreports/        # P&L, cost prices, stock balance
     └── profile/           # workspace switching and token administration
 ```
 

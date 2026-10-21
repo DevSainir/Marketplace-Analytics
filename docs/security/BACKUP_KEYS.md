@@ -1,231 +1,216 @@
-# Ключи бекапов: устройство, смысл, границы
+# Backup keys: the scheme, its reasoning, its limits
 
-Перевод бекапов с симметричного `gpg` на `age` с двумя получателями, 22.09.2026.
-Здесь — как это устроено и почему именно так. Что делает сам job и какие у него
-гейты — в `backend/scripts/backup/README.md`. Что решено в реестре слабостей —
-P2.10 в [HARDENING.md](HARDENING.md). Что делать, когда ключ утёк, —
-[INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md).
+Database backups are encrypted with `age` to two recipients, replacing an earlier symmetric
+`gpg` passphrase. This document explains how the key scheme works and why it is built this way.
+What the backup job itself does and which gates it runs is in `backend/scripts/backup/README.md`.
+The wider set of security controls is in [SECURITY_DESIGN.md](SECURITY_DESIGN.md).
 
-## Зачем у ключа две половины
+All key values below are placeholders. The real public keys are in
+`backend/scripts/backup/recipients/`; no private key is in this repository.
 
-Раньше схема была симметричной: одна строка-пароль, которой и зашифровали, и
-расшифровали. Замок с одним ключом на «закрыть» и на «открыть». Отсюда
-и следствие: чтобы сервер делал бекапы, ключ должен лежать на сервере — а
-значит, на сервере лежит и способ прочитать всё, что уже накоплено.
+## Why a key has two halves
 
-Асимметричная пара разделяет эти два действия:
+The old scheme was symmetric: one passphrase both encrypted and decrypted. A lock with one key
+for "close" and "open". The consequence: for the host to make backups, the key had to live on that
+host — which means the host also held the way to read everything already accumulated.
 
-* **Публичный ключ** (`age1va7ja…`) умеет только **за**шифровать. Вывести из
-  него секретный нельзя. Его можно печатать в гите, в чате, на футболке.
-  Он нужен тому, кто **пишет** бекап.
-* **Секретный ключ** (`AGE-SECRET-KEY-1…`) умеет **рас**шифровать.
-  Он нужен тому, кто **восстанавливает**.
+An asymmetric pair separates the two actions:
 
-Замок, который защёлкивается сам: захлопнуть может кто угодно, открыть — только
-владелец ключа.
+* The **public key** (`age1<public-key>`) can only **en**crypt. The private key cannot be derived
+  from it. It can be printed in git, in a chat, on a T-shirt. Whoever **writes** a backup needs it.
+* The **private key** (`AGE-SECRET-KEY-1<private-key>`) can **de**crypt. Whoever **restores**
+  needs it.
 
-Публичные половины лежат в `backend/scripts/backup/recipients/`. Это не утечка,
-это их рабочее место — и именно потому, что они не секретны, их удалось
-закрыть тестом (см. «Что проверяет машина»).
+A self-latching lock: anyone can snap it shut, only the key holder can open it.
 
-## Как выглядит артефакт изнутри
+The public halves live in `backend/scripts/backup/recipients/`. That is not a leak, it is where
+they belong — and precisely because they are not secret, they could be pinned by a test (see
+"What the machine checks").
 
-`age` не шифрует файл дважды на двух получателей. Он делает так:
+## What an artifact looks like inside
 
-1. генерирует случайный **ключ файла** — одноразовый, для этого архива;
-2. этим ключом симметрично шифрует все 270 МБ (симметричное — быстрое);
-3. **заворачивает ключ файла отдельно для каждого получателя**, используя его
-   публичный ключ.
+`age` does not encrypt the file twice for two recipients. It:
 
-Получаются две маленькие посылки с одним и тем же ключом внутри: первую
-открывает только офлайн-ключ, вторую — только онлайн.
+1. generates a random **file key** — single-use, for this archive only;
+2. encrypts the whole archive symmetrically with it (symmetric is fast);
+3. **wraps the file key separately for each recipient**, using that recipient's public key.
+
+The result is two small envelopes holding the same key: the first opens only with the offline
+key, the second only with the online one.
 
 ```
 age-encryption.org/v1
--> X25519 eOo46pRfHTiLPUzoP08Uj0Bz/OSgZrvBqYD2sHP3s1U     ← посылка №1
-MdFO5ZuIVA/bj67cpS45KvOSspWgF6Jcl4DNuRteqVQ
--> X25519 cGpamRJkJoK0DS+9HHtTrRKD4r+WFl1l4L0m0z9PMms     ← посылка №2
-JpFUMXUw9WZ9NVuWRfa0TEKjXAkXppH+bKr11CCgPro
---- RWZbMXfPWL2ReDGwtqTKFIaFf19bTgWFN0zunuNPxpQ            ← MAC заголовка
-<дальше шифртекст>
+-> X25519 <ephemeral-share-1>         ← envelope #1
+<wrapped-file-key-1>
+-> X25519 <ephemeral-share-2>         ← envelope #2
+<wrapped-file-key-2>
+--- <header-mac>                      ← header MAC
+<ciphertext follows>
 ```
 
-Поэтому файл на двух получателей больше не вдвое, а на пару сотен байт. И
-поэтому возможен gate 5b: достаточно посчитать строки `-> X25519`, чтобы
-узнать, скольким ключам артефакт реально доступен.
+So a two-recipient file is not twice the size, only a couple of hundred bytes larger. And that is
+what makes gate 5b possible: counting the `-> X25519` lines tells you how many keys can actually
+open the artifact.
 
-## Три пары и кто их держит
+## Three pairs and who holds them
 
-| Пара | Секретная половина | Публичная половина | Кто пользуется |
+| Pair | Private half | Public half | Used by |
 | --- | --- | --- | --- |
-| онлайн, база | `BACKUP_ENCRYPTION_IDENTITY` в `backend/.env` на VPS | `recipients/database.txt` | сам сервер — каждую ночь и каждое воскресенье |
-| офлайн, база | менеджер паролей, на сервере не был никогда | `recipients/database.txt` | человек, когда сервера нет |
-| офлайн, секреты | менеджер паролей | `recipients/secrets.txt` | человек, когда всё поднимается с нуля |
+| online, database | `BACKUP_ENCRYPTION_IDENTITY` in `backend/.env` on the backup host | `recipients/database.txt` | the host itself — every night and every Sunday |
+| offline, database | a password manager; never on a server | `recipients/database.txt` | a person, when the host is gone |
+| offline, secrets | a password manager | `recipients/secrets.txt` | a person, when everything is rebuilt from scratch |
 
-**Ночью** `backup.sh` читает из `database.txt` только **публичные** ключи — оба —
-и шифрует дамп на них. Секретные для этого шага не нужны вообще: сервер
-запечатывает конверт, который сам бы открыть не смог.
+**At night** `backup.sh` reads only the **public** keys from `database.txt` — both of them — and
+encrypts the dump to them. No private key is needed for this step at all: sealing the envelope
+takes nothing secret.
 
-Онлайн-секретный ключ нужен ему ровно для двух вещей, и обе — проверки:
+The host needs the online private key for exactly two things, and both are checks:
 
-* **gate 5a**, сразу после шифрования: расшифровать только что записанное и
-  убедиться, что оно разворачивается в валидный gzip;
-* **gate 6**, по воскресеньям: расшифровать артефакт целиком и залить в чистый
-  PostgreSQL в изолированном контейнере — доказать, что он восстанавливается.
+* **gate 5a**, right after encryption: decrypt what was just written and confirm it unpacks into
+  a valid gzip;
+* **gate 6**, on Sundays: decrypt the whole artifact and load it into a clean PostgreSQL in an
+  isolated container — proving that it restores.
 
-Без секретного ключа на машине обе проверки невозможны. **Это единственная
-причина, по которой онлайн-ключ существует.**
+Without a private key on the machine, both checks are impossible. **That is the only reason the
+online key exists.**
 
-Офлайн-ключи в штатной работе не участвуют нигде: ни один скрипт их не читает и
-не может прочитать.
+The offline keys play no part in routine operation: no script reads them, and none could.
 
-## Почему ключей два, а не один
+## Why two keys rather than one
 
-Они защищают разное, и разлучены поэтому.
+They protect different things, and are kept apart for that reason.
 
-В архивах базы лежат WB-токены, зашифрованные Fernet. Сам Fernet-ключ лежит в
-`.env`, то есть в бандле секретов. Пока это разные ключи, утечка одного даёт
-половину: утёк ключ от базы — у злоумышленника архивы, в которых токены
-по-прежнему шифртекст. Сведи к одному — и та же утечка отдаёт сразу всё: живые
-токены всех клиентов, пароль Postgres и оба бакета.
+The database archives contain WB tokens encrypted with Fernet. The Fernet key itself lives in
+`.env`, that is, in the secrets bundle. While these are different keys, leaking one yields half:
+leak the database key and the attacker gets archives in which the tokens are still ciphertext.
+Collapse them into one and the same leak hands over everything at once: every customer's live
+tokens, the Postgres password and the credentials for both buckets.
 
-Но главный аргумент — **разная частота использования**. Ключ от базы рабочий:
-его достают на drill, достанут при восстановлении, могут отдать другому
-человеку, чтобы он поднял копию. Каждое использование — шанс, что он окажется в
-истории шелла, во временном файле, на чужом ноутбуке. Ключ от секретов в идеале
-не достают никогда. Класть за один ключ то, что трогаешь регулярно, и то, что не
-трогаешь никогда, — значит подтянуть второе к риску первого.
+But the main argument is **different frequency of use**. The database key is a working key: it
+comes out for a drill, it will come out for a restore, it may be handed to another person so they
+can bring up a copy. Every use is a chance for it to end up in shell history, in a temporary file,
+on someone else's laptop. The secrets key ideally never comes out at all. Putting what you touch
+regularly and what you never touch behind one key drags the second up to the risk of the first.
 
-Побочно: с двумя ключами можно дать человеку восстановить базу, не отдав ему
-пароли от продакшена.
+A side benefit: with two keys, a person can be allowed to restore the database without being
+given the deployment's passwords.
 
-**Где эта логика не работает.** Если оба ключа лежат в одном менеджере под одним
-мастер-паролем, разделение даёт меньше, чем кажется: взлом менеджера забирает
-оба. Выигрыш реализуется только если обращаться с ними по-разному.
+**Where this logic fails.** If both keys sit in one password manager under one master password,
+the separation buys less than it seems: compromising the manager takes both. The gain is real
+only if they are handled differently.
 
-## Что проверяет машина, а что нет
+## What the machine checks, and what it does not
 
-Асимметрия создаёт дыру, которой не было у симметричной схемы: **правильность
-офлайн-получателя нельзя проверить на месте**, потому что ключа там нет. Ошибка
-в одном символе даёт год архивов, которые не откроет никто, и обнаруживается в
-день, когда этот ключ — всё, что осталось.
+Asymmetry creates a gap the symmetric scheme did not have: **the correctness of the offline
+recipient cannot be checked on the host**, because the key is not there. A one-character error
+yields a year of archives nobody can open, discovered on the day that key is all that is left.
 
-Закрыто двумя механизмами, ни один из которых не является внимательностью:
+Two mechanisms close it, and neither of them is "being careful":
 
-* **gate 5b** (`lib/dump.sh`) считает `-> X25519` в каждом артефакте и
-  отказывается загружать файл, если конвертов меньше, чем получателей в списке;
-* `tests/unit/core/test_backup_encryption_recipients.py` пинит обе публичные
-  строки, так что случайная правка `recipients/` валит CI.
+* **gate 5b** (`lib/dump.sh`) counts `-> X25519` in every artifact and refuses to upload a file
+  carrying fewer envelopes than there are recipients in the list;
+* `backend/tests/unit/core/test_backup_encryption_recipients.py` pins both public strings, so an
+  accidental edit to `recipients/` fails CI.
 
-**Чего не проверит никто:** что секретный ключ в менеджере паролей соответствует
-публичному в списке. Это drill — руками, на машине, которая не VPS:
+**What nobody checks automatically:** that the private key in the password manager matches the
+public key in the list. That is a manual drill, on a machine that is not the backup host:
 
 ```bash
-backend/scripts/backup/restore.sh fetch cloudfare daily/<файл>.sql.gz.age
+backend/scripts/backup/restore.sh fetch cloudfare daily/<file>.sql.gz.age
 ```
 
 ```bash
-age -d -i <файл-с-офлайн-ключом> <скачанный>.sql.gz.age | gzip -t && echo OK
+age -d -i <file-with-offline-key> <downloaded>.sql.gz.age | gzip -t && echo OK
 ```
 
-Сделан 22.09.2026. Повторять после любой ротации офлайн-ключа.
+Repeat it after any rotation of an offline key.
 
-## Что мы этим получили
+## What this scheme buys
 
-**Бекапы перестали зависеть от одной коробки.** Раньше: ключ в `.env` на
-сервере, копия у владельца. Потеряли копию, умер сервер — оба бакета
-превращаются в шум. Формально копия была, фактически это была договорённость, а
-не механизм. Офлайн-ключ по построению на сервере не был.
+**Backups no longer depend on one box.** Before: the key in `.env` on the host, a copy with the
+owner. Lose the copy and the host dies — both buckets become noise. Formally a copy existed; in
+practice it was an agreement, not a mechanism. The offline key, by construction, has never been on
+the host.
 
-**Секреты вообще начали бекапиться** — и это, честно говоря, самый практичный
-выигрыш, и он не про криптографию. Раньше при потере коробки терялся
-`FERNET_SECRET_KEY`: восстановленная база отдавала бы таблицу `workspace_tokens`,
-полную шифртекста, который нечем открыть. База есть, а WB-токены всех клиентов
-мёртвые, и каждому идти перевыпускать.
+**Secrets get backed up at all** — arguably the most practical gain, and not a cryptographic one.
+Before, losing the box meant losing `FERNET_SECRET_KEY`: a restored database would return a
+`workspace_tokens` table full of ciphertext nothing could open. The database is there, but every
+customer's WB tokens are dead and each customer has to reissue them.
 
-**Проверяемость.** Правильность получателей раньше была вопросом доверия к тому,
-кто их вписал. Теперь это два теста и один гейт.
+**Verifiability.** The correctness of the recipients used to be a matter of trusting whoever
+typed them in. Now it is a test and a gate.
 
-## От чего защищены, от чего нет
+## What it protects against, and what it does not
 
-**Защищены:**
+**Protected:**
 
-* *утечка бакета* — S3-ключи утекли, провайдер сломался, бакет по ошибке стал
-  публичным: злоумышленник забирает шифртекст. Работало и на gpg, новая схема
-  здесь ничего не меняет;
-* *полная потеря сервера* — раньше конец, если копия пароля где-то потерялась;
-* *потеря одного из ключей* — раньше ключ был один и терялся целиком;
-* *частичная компрометация* — утёк офлайн-ключ от базы: WB-токены в архивах
-  по-прежнему за Fernet, а Fernet-ключ за другим ключом.
+* *bucket leak* — S3 keys leaked, the provider was breached, a bucket was made public by mistake:
+  the attacker gets ciphertext. This held under gpg too; the new scheme changes nothing here;
+* *total loss of the host* — previously fatal if the passphrase copy had gone missing;
+* *loss of one of the keys* — previously there was one key, lost all at once;
+* *partial compromise* — the offline database key leaks: the WB tokens in the archives are still
+  behind Fernet, and the Fernet key is behind a different key.
 
-**Не защищены:**
+**Not protected:**
 
-* **рут на сервере.** Здесь надо быть честным: почти ничего не меняется. У
-  вошедшего уже есть живая база, живой `.env` и живые токены. Единственное, что
-  он дополнительно получает из-за онлайн-ключа, — **история**: удалённые строки,
-  отозванные токены, данные ушедших клиентов. Это реальная потеря и осознанный
-  размен;
-* **взлом менеджера паролей** — оба офлайн-ключа там;
-* **запись в репозиторий.** Кто может закоммитить в `main`, может дописать
-  третьего получателя в `database.txt`, и все последующие архивы будут
-  открываться его ключом. Gate 5b это не поймает: он сверяет файл со списком, а
-  список уже подменён. Ловит пин в тесте — то есть защита в CI, а не в бекапе.
+* **root on the backup host.** To be honest: almost nothing changes. Whoever is in already has the
+  live database, the live `.env` and the live tokens. The only extra thing the online key gives
+  them is **history**: deleted rows, revoked tokens, data of departed customers. That is a real
+  loss and a deliberate trade;
+* **compromise of the password manager** — both offline keys are there;
+* **write access to the repository.** Whoever can commit to `main` can add a third recipient to
+  `database.txt`, and every later archive will open with their key. Gate 5b will not catch this:
+  it checks the file against the list, and the list has already been replaced. The pin in the test
+  catches it — that is, the protection is in CI, not in the backup.
 
-## Компромиссы
+## Trade-offs
 
-**Онлайн-ключ на коробке.** Альтернатива — убрать его и потерять gate 6,
-единственную проверку, доказывающую, что архив реально восстанавливается, и
-единственную, ловящую то, чего не видят остальные пять. Размен: конфиденциальность
-истории в обмен на уверенность, что бекап рабочий. Убрать онлайн-ключ — правка
-одной строки в списке получателей, если решение когда-нибудь пересмотрят; отдать
-при этом придётся репетицию.
+**The online key on the host.** The alternative is to remove it and lose gate 6, the only check
+that proves an archive actually restores, and the only one that catches what the other five
+cannot see. The trade: confidentiality of history in exchange for confidence that the backup
+works. Removing the online key is a one-line change to the recipient list, should the decision
+ever be revisited; the rehearsal goes with it.
 
-**Один пароль превратился в два ключа плюс старый пароль.**
-`BACKUP_ENCRYPTION_KEY` нельзя удалять до **2027-09-01**, пока не истечёт
-последний `.gpg` (`monthly/marketplace-20260901T030002msk.sql.gz.gpg`). Год, в
-течение которого нельзя потерять ключ, которым уже ничего не пишется.
-`decrypt_archive` выбирает схему по расширению файла, так что обе эпохи
-восстанавливаются одной командой.
+**One passphrase became two keys plus the old passphrase.** `BACKUP_ENCRYPTION_KEY` cannot be
+deleted until the last symmetric `.gpg` archive has expired from `monthly/` (365-day retention).
+A year during which you must not lose a key that no longer writes anything. `decrypt_archive`
+picks the scheme from the file extension, so both eras restore with one command.
 
-**Бандл секретов руками.** Отказ у него один: поменяли ключ в `.env` и забыли
-перезапустить. Сторож есть — воскресный отчёт пишет `secrets bundle: STALE`.
-Это предупреждение, а не гарантия.
+**The secrets bundle is manual.** It has one failure mode: a key in `.env` changed and nobody
+re-ran the bundle. There is a watchman — the Sunday report says `secrets bundle: STALE`. That is a
+warning, not a guarantee.
 
-## Что этот переход сломал
+## What this migration gave up
 
-Стоит отдельного раздела, потому что это единственный регресс и он не очевиден.
+Worth a section of its own, because it is the one regression and it is not obvious.
 
-Симметричная схема давала побочное свойство: **подделать архив мог только тот, у
-кого есть пароль.** Шифрование и подпись были одним действием. Асимметричная так
-не умеет: публичный ключ лежит в гите, и любой, кто до него дотянулся, может
-изготовить файл, который наш ключ штатно откроет.
+The symmetric scheme had a side property: **only someone holding the passphrase could forge an
+archive.** Encryption and authentication were one act. The asymmetric scheme cannot do that: the
+public key is in git, and anyone who reaches it can produce a file our key will open normally.
 
-Практически: получивший запись в бакет может подменить ночной архив своим. Он
-расшифруется, пройдёт `gzip -t`, восстановится в PostgreSQL. Вы восстановитесь
-из дампа, который написал он. Раньше для этого нужен был пароль.
+In practice: whoever gains write access to a bucket can replace a nightly archive with their own.
+It will decrypt, pass `gzip -t`, and restore into PostgreSQL. You would restore from a dump they
+wrote. Before, that required the passphrase.
 
-`sha256` в метаданных объекта здесь не помогает: объект и его метаданные пишутся
-одними и теми же ключами, так что это подтверждение передачи, а не
-происхождения. Помогают две записи вне этого радиуса, и обе теперь есть:
+The `sha256` in the object metadata does not help: the object and its metadata are written with
+the same credentials, so it attests to the transfer, not to the origin. Two records outside that
+blast radius do help, and both exist:
 
-* **локальный журнал** `state/artifact-sha256.log` — дописывается в момент
-  записи артефакта, до загрузки; бандл секретов попадает туда наравне с
-  архивами, и по более острой причине: подделанный архив стоит восстановления
-  не тех данных, подделанный бандл — это `.env`, который написал чужой, и на
-  котором поднимется пересобранная коробка. `restore.sh fetch` сверяет скачанное с ним:
-  расхождение — отказ, отсутствие записи — предупреждение (нормальный случай
-  при восстановлении на чистой коробке). Закрывает сценарий «утекли только
-  S3-ключи»;
-* **sha256 в воскресном отчёте в Telegram** — канал, до которого не дотянутся ни
-  ключи от бакета, ни сама коробка после отправки. Закрывает сценарий «коробку
-  взяли целиком».
+* **the local ledger** `state/artifact-sha256.log` — appended when the artifact is written, before
+  upload. The secrets bundle goes into it alongside the archives, for a sharper reason: a forged
+  archive costs a restore of the wrong data, a forged bundle is an `.env` written by someone else,
+  on which a rebuilt host would come up. `restore.sh fetch` checks the download against it: a
+  mismatch is a refusal, a missing entry is a warning (the normal case when restoring on a clean
+  host). This covers the "only the S3 keys leaked" scenario;
+* **the sha256 in the weekly report** sent through the optional Telegram alert channel — a channel
+  neither the bucket keys nor the host itself can reach once the message is sent. This covers the
+  "the whole host was taken" scenario.
 
-Обе записи пинятся `tests/unit/core/test_backup_artifact_provenance.py`.
+Both records are pinned by `backend/tests/unit/core/test_backup_artifact_provenance.py`.
 
-**Что осталось незакрытым:** ежедневные архивы уходят в бакеты без
-out-of-band-отметки — в Telegram уезжает только воскресная. Это осознанно:
-ежедневное «всё хорошо» — шум, который приучает не читать сообщения об ошибках.
-Локальный журнал ежедневные покрывает, Telegram — нет. Полное решение — подпись
-артефактов (`minisign`, `ssh-keygen -Y`), то есть ещё одна пара ключей и ещё
-один ритуал; сочтено несоразмерным, пока запись в бакет требует либо рута на
-коробке, либо отдельной утечки S3-ключей.
+**What remains open:** daily archives go to the buckets without an out-of-band mark — only the
+weekly one is reported. That is deliberate: a daily "all good" is noise that trains people not to
+read failure messages. The local ledger covers the dailies; the report does not. The complete
+answer is signing artifacts (`minisign`, `ssh-keygen -Y`), which means another key pair and
+another ritual; it was judged disproportionate while writing to a bucket requires either root on
+the host or a separate leak of the S3 keys.
