@@ -415,6 +415,9 @@ That is why the bottom line is called «Маржинальная прибыль�
 
 | level | what it proves |
 |---|---|
+| `tests/unit/finreports/test_pnl_statement.py` | Arithmetic against a synthetic weekly report whose rows reconcile to its footer by construction; the blocks add up with no tolerance; mutation-checked (adding returns, commission against the full payout, separate acquiring as a deduction, COGS clamping, the sign of top-ups — each is caught by its own test) |
+| `tests/component/finreports/test_pnl_routes.py` | Transport: the default window by the Moscow day, grouping validation, tenancy of reads and writes, cost-price bounds |
+| `tests/unit/finreports/test_sku_report.py` | The SKU row's arithmetic: «к перечислению» (payout) net of the SKU's own deductions, profit `None` without a cost price, `None` ≠ 0 for orders/advertising with no coverage, negative COGS in refund windows |
 | `tests/unit/finreports/test_settlement_ingestion.py` | `TXN_UPDATE` covers the whole table (otherwise a repeated harvest would "successfully" leave columns at zero); the mapper writes every column; the period comes from WB, not from min/max `rr_dt`; the precision of `ppvz_vw` |
 | `tests/unit/finreports/test_settlement_streaming.py` | Walking a report does not accumulate pages (checked by counting live objects through `gc` — no assertion would see it otherwise); the period of a report whose rows fell on different pages stays what WB declared; a break mid-walk is not swallowed |
 | `tests/integration/finreports/test_harvest_is_atomic.py` | The real `harvest_workspace` on a real PostgreSQL: a request that fails mid-page leaves none of its rows, while batches committed before the break and earlier requests stay — and the report still counts as not fully fetched; the client inside a transaction retries on a shorter ladder than the standard one. (Until September 2026 this checked a SAVEPOINT around the whole walk — see "A settlement window is written whole or not at all") |
