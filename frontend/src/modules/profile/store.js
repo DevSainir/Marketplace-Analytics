@@ -154,7 +154,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   /**
-   * Change the active кабинет's settings — shown at once, saved on the server,
+   * Change the active workspace's settings — shown at once, saved on the server,
    * and put back if the server refuses.
    */
   async function saveSettings(settings) {

@@ -4,8 +4,8 @@
  *
  * The rows have existed since the audit trail was built and the endpoint since
  * it stopped being write-only, and nothing in the product ever rendered them.
- * That is the exact question an owner asks and cannot otherwise answer: «кто
- * убрал этого менеджера».
+ * That is the exact question an owner asks and cannot otherwise answer: "who
+ * removed this manager".
  *
  * **The line is a button.** A headline and a timestamp say that something
  * happened and nothing about what — «Изменён доступ» leaves out whose access,

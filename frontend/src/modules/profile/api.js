@@ -73,7 +73,7 @@ export async function updateTokens(workspaceId, tokens) {
 }
 
 /**
- * PATCH /v1/workspaces/current/settings — change the active кабинет's display
+ * PATCH /v1/workspaces/current/settings — change the active workspace's display
  * settings for everyone in it (a writing role required).
  *
  * @param {{ads_show_bonus: boolean}} settings
@@ -357,7 +357,7 @@ export async function fetchGuestGrants() {
 }
 
 /**
- * Every кабинет on the platform by name, for the grant form — dev only.
+ * Every workspace on the platform by name, for the grant form — dev only.
  *
  * @returns {Promise<Array<{id: string, name: string}>>}
  */
@@ -367,7 +367,7 @@ export async function fetchGrantableWorkspaces() {
 }
 
 /**
- * Open a кабинет, read-only, to an account by its email — dev only.
+ * Open a workspace, read-only, to an account by its email — dev only.
  *
  * @param {{email: string, workspaceName: string}} payload
  */

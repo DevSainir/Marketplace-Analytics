@@ -7,11 +7,12 @@
  * the same question, and both halves already existed in the API with nothing
  * rendering them:
  *
- *  - **Приглашения.** Issuing one showed its link once and then forgot it, so
- *    a link handed to the wrong person was untrackable and unrevokable from the
- *    product — and an invitation is a door standing open until it expires.
- *  - **Журнал доступа.** The audit rows have been written since the trail was
- *    built and read only over psql. «Кто убрал этого менеджера» is the question
+ *  - **Invitations («Приглашения»).** Issuing one showed its link once and
+ *    then forgot it, so a link handed to the wrong person was untrackable and
+ *    unrevokable from the product — and an invitation is a door standing open
+ *    until it expires.
+ *  - **Access log («Журнал доступа»).** The audit rows have been written since
+ *    the trail was built and read only over psql. "Who removed this manager" is the question
  *    an owner actually asks, and until now the product could not answer it.
  *
  * They also order themselves: the roster is who is in, invitations are who is

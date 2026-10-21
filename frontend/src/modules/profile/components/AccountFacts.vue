@@ -4,7 +4,7 @@
  *
  * They were stat tiles, and tiles were the wrong instrument twice over: a tile
  * is for a number that MOVES and that you came to read, and none of these is —
- * a term that ends in ten years and a count of two kabinety are standing facts,
+ * a term that ends in ten years and a count of two workspaces are standing facts,
  * checked once and then ignored. Four boxes for four constants is a dashboard
  * pretending something is happening.
  *

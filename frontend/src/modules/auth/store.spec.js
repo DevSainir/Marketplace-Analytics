@@ -369,8 +369,8 @@ describe('ending a session', () => {
    *
    * Sign out, sign in as somebody from another company, and the browser kept
    * stamping every request with the previous tenant's workspace — which the API
-   * refuses, so a perfectly valid new login met «Кабинет не
-   * найдено». Nothing leaked (the server said no), but the app was broken for
+   * refuses, so a perfectly valid new login met «Кабинет не найден».
+   * Nothing leaked (the server said no), but the app was broken for
    * the second person to use it.
    */
   it('clears the persisted workspace id on logout', async () => {

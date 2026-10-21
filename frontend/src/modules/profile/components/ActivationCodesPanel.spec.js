@@ -8,7 +8,7 @@ vi.mock('@/modules/profile/api', () => ({ createActivationCode: vi.fn() }))
 /**
  * Issuing an activation key from the profile.
  *
- * The defaults are the commercial promise: «ключ на N дней» means N days of
+ * The defaults are the commercial promise: "a key for N days" means N days of
  * service, and everything not typed is unlimited. A form that sent 30 where 14
  * was meant, or a cleared field as 0 instead of «без лимита», would sell
  * something other than what was agreed.

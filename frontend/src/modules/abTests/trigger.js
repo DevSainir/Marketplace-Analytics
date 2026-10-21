@@ -70,8 +70,9 @@ export function triggerLabel(test) {
   const parts = []
   if (usesBudget(test.trigger_mode)) parts.push(`${formatNumber(test.impression_budget)} показов`)
   if (usesSlot(test.trigger_mode)) parts.push(`${formatNumber(test.slot_minutes)} мин`)
-  // «или» rather than «и»: both are set, and the FIRST one reached ends the
-  // turn. «каждые 1 000 показов и 20 минут» would read as a test waiting for
-  // both, which is the opposite of what the mode does.
+  // «или» ("or") rather than «и» ("and"): both are set, and the FIRST one
+  // reached ends the turn. «каждые 1 000 показов и 20 минут» ("every 1,000
+  // impressions and 20 minutes") would read as a test waiting for both,
+  // which is the opposite of what the mode does.
   return `Смена фото каждые ${parts.join(' или ')}`
 }

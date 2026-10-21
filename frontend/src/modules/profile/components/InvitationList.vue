@@ -9,7 +9,7 @@
  *
  * `status` is resolved server-side against the server's clock, so two people
  * looking at the same link read the same state. Acceptance is deliberately NOT
- * a status: a link stays usable until it expires, so «кто-то вошёл» says
+ * a status: a link stays usable until it expires, so "someone joined" says
  * nothing about whether it still works — which is why the count of joiners is
  * its own column and «Отозвать» stays available on a link somebody has used.
  */
@@ -41,8 +41,8 @@ const STATUS = {
 /**
  * Revoked links are dropped entirely.
  *
- * The API keeps them — the audit trail needs them, and «кто отозвал эту
- * ссылку» is answered on the log below. But this table is for deciding what to
+ * The API keeps them — the audit trail needs them, and "who revoked this
+ * link" is answered on the log below. But this table is for deciding what to
  * do about a link that is still out there, and a revoked one has nothing left
  * to decide: it cannot be un-revoked, and it is not a door standing open.
  * Listing it only makes the reader scan past it.

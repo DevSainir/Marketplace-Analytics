@@ -17,7 +17,7 @@ vi.mock('@/modules/abTests/api', () => ({
   updateTestSettings: vi.fn(),
   uploadVariant: vi.fn(),
 }))
-// The detail view asks for the кабинет's currency; the unit tier has no network.
+// The detail view asks for the workspace's currency; the unit tier has no network.
 vi.mock('@/modules/finreports', () => ({
   useCurrencyStore: () => ({ currency: 'KGS', ensureLoaded: vi.fn() }),
 }))
@@ -170,8 +170,8 @@ describe('the detail page reports the trigger in force', () => {
     await flushPromises()
 
     // Scoped to the header: the page's empty-state help text also mentions
-    // показы, and asserting over the whole page would pass or fail on wording
-    // that has nothing to do with the trigger.
+    // «показы» (impressions), and asserting over the whole page would pass or
+    // fail on wording that has nothing to do with the trigger.
     const header = wrapper.get('header').text()
     expect(header).toContain('Смена фото каждые 30 мин')
     expect(header).not.toContain('показов')
@@ -189,8 +189,8 @@ describe('the detail page reports the trigger in force', () => {
   })
 
   it('names both bounds, joined by «или», in «показы и время»', async () => {
-    // «или», never «и»: the turn ends at the FIRST of them, and «и» would read
-    // as a photo waiting for both.
+    // «или» ("or"), never «и» ("and"): the turn ends at the FIRST of them,
+    // and «и» would read as a photo waiting for both.
     fetchTest.mockResolvedValue(
       detail({ trigger_mode: 'either', impression_budget: 1000, slot_minutes: 20 }),
     )

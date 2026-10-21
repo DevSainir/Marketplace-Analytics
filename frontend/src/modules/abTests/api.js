@@ -1,5 +1,5 @@
 /**
- * A/Б-tests module API layer — thin async wrappers over `/api/ab-tests/*`
+ * A/B tests module API layer — thin async wrappers over `/api/ab-tests/*`
  * (see backend `ab_tests/routers`).
  *
  * The photo endpoints are the reason this file is not just four GETs: an upload
@@ -169,7 +169,7 @@ export async function setVariantExcluded(testId, variantId, excluded) {
  *
  * Always `size=thumb`, and that is the whole difference between a page that
  * paints in a second and one that paints in fifteen. The originals are phone
- * photos — fourteen of them measured 78.8 MB on production — and the biggest
+ * photos — fourteen of them came to 78.8 MB — and the biggest
  * any of them is drawn at is 88 CSS pixels. The full size exists for WB, which
  * receives it from the backend and never through here.
  *

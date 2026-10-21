@@ -19,7 +19,7 @@ vi.mock('@/modules/profile/api', () => ({
   updateWorkspaceSettings: vi.fn(),
 }))
 
-/** A store with one кабинет selected, its «Промо-бонусы» switch on. */
+/** A store with one workspace selected, its «Промо-бонусы» switch on. */
 async function loadedStore() {
   fetchMe.mockResolvedValue({ email: 'a@b.c', role: 'user' })
   fetchWorkspaces.mockResolvedValue([{ id: 'ws-1', name: 'Демо', ads_show_bonus: true }])

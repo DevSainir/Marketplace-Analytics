@@ -3,13 +3,13 @@ import { mount } from '@vue/test-utils'
 import ProfileWorkspaces from '@/modules/profile/components/ProfileWorkspaces.vue'
 
 /**
- * The кабинеты list.
+ * The workspaces list.
  *
  * «Кабинет» and «Управление кабинетами» once listed the same accounts twice —
  * one copy to switch between, one to administer — so every name appeared twice
  * carrying different buttons. They are one list, and the risk in that is
  * `canManage`: choosing belongs to everybody, since the whole app is scoped to
- * the chosen кабинет and a manager who cannot change it is stuck in one.
+ * the chosen workspace and a manager who cannot change it is stuck in one.
  * Creating, deleting and WB tokens belong to an owner, matching `_owner_only`
  * on those routes. Collapse the two and forget the distinction, and every
  * manager gets a delete button.
@@ -101,7 +101,7 @@ describe('ProfileWorkspaces', () => {
   })
 
   it('says on the row how many WB tokens are set', () => {
-    // The question the list exists to answer. The primary кабинет takes one
+    // The question the list exists to answer. The primary workspace takes one
     // token per WB API category — thirteen — and every other takes one.
     const wrapper = mountPanel({
       tokenStatuses: {

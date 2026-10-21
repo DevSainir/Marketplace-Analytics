@@ -23,7 +23,7 @@ beforeEach(() => {
 
 describe('BackfillNotice', () => {
   it('says the history is still loading for the lanes the page is built on', async () => {
-    // A new кабинет's page was simply empty for the day the backfill runs,
+    // A new workspace's page was simply empty for the day the backfill runs,
     // which read as a broken service.
     const wrapper = await mountNotice(['pnl'], {
       active: true,

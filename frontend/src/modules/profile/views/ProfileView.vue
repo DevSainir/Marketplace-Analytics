@@ -4,7 +4,7 @@
  *
  * **Why three routes.** An earlier version of this page stacked every block in
  * one 672px column and was right to have no navigation: four short blocks are
- * «чуть больше экрана высоты», and splitting that would have bought navigation
+ * "a little over one screen tall", and splitting that would have bought navigation
  * and sold four near-empty screens. What changed is the content — a real
  * security section (the password, and every device this account is signed in
  * on) and a team page carrying the outstanding invitations and the access log.
@@ -49,7 +49,7 @@ const SECTIONS = [
 const sections = computed(() =>
   SECTIONS.filter((section) => {
     if (section.name === 'profile-team') return members.canManageTeam
-    // Opening another company's кабинет is a platform decision; the API
+    // Opening another company's workspace is a platform decision; the API
     // refuses everyone but a dev (`DevAccess`).
     if (section.name === 'profile-guests') return members.role === 'dev'
     return true

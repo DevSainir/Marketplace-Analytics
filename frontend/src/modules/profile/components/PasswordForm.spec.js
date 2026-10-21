@@ -53,7 +53,7 @@ describe('PasswordForm — what it refuses to send', () => {
   })
 
   it('will not submit the password that is already set', async () => {
-    // «Сменил» has to mean something. The API refuses it too; saying so here
+    // A change has to change something. The API refuses it too; saying so here
     // saves a round trip and a 422.
     const wrapper = mountForm()
 

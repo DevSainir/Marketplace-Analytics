@@ -3,9 +3,9 @@
  * The rotation as a line: which photo stood when, for how long, and what it got.
  *
  * This block used to be a status panel — the live photo and a bar counting its
- * slot down. All of that answered «что происходит прямо сейчас», which is one
+ * slot down. All of that answered "what is happening right now", which is one
  * line of text and now sits in «Итог по тесту». What no screen answered was
- * «что уже произошло»: to see that photo 3 stood nine minutes while its
+ * "what has already happened": to see that photo 3 stood nine minutes while its
  * neighbours stood an hour you had to read a column of the log and subtract.
  *
  * A timeline shows that without reading anything. Widths are proportional, so
@@ -20,8 +20,8 @@
  * A second picker appears beside it when more than one campaign paid for the
  * traffic. Choosing one narrows the line to the turns THAT campaign measured:
  * a campaign switched off during the fourth lap draws four laps, not ten with
- * six blanks. The two filters compose, because «третий круг единой ставки» is
- * a question and either half alone is a different one.
+ * six blanks. The two filters compose, because "the third lap of the unified
+ * bid" is a question and either half alone is a different one.
  *
  * That view has no upper bound: ten photos over ten laps is a hundred turns, and
  * no amount of proportion fits a hundred thumbnails across a card. Past the

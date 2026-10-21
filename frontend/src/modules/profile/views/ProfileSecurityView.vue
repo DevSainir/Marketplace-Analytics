@@ -7,7 +7,7 @@
  * flow could not be completed. It now runs on the endpoint built for a
  * signed-in caller: current password in, no code, other devices out.
  *
- * Sessions had one lever, «выйти отовсюду» — the right thing to reach for once
+ * Sessions had one lever, "sign out everywhere" — the right thing to reach for once
  * you know something is wrong, and no help at all in finding out. The list is
  * the half that was missing.
  */
@@ -74,7 +74,7 @@ async function onEndOthers() {
   ending.value = 'all'
   try {
     // One request per session rather than the account-wide lever: that one
-    // ends THIS browser too, and «завершить все другие» must not sign out the
+    // ends THIS browser too, and "end all the others" must not sign out the
     // person pressing it.
     const others = sessions.value.filter((session) => !session.is_current)
     for (const session of others) {

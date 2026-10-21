@@ -1,4 +1,4 @@
-/** Route table owned by the A/Б-tests module; exported via the Public API. */
+/** Route table owned by the A/B tests module; exported via the Public API. */
 export const abTestsRoutes = [
   {
     path: '/ab-tests',

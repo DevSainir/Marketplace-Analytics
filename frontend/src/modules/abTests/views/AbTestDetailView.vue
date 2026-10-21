@@ -1,6 +1,6 @@
 <script setup>
 /**
- * One A/Б-тест: upload the photos, then read what each of them earned.
+ * One A/B test: upload the photos, then read what each of them earned.
  *
  * Four blocks on the canvas — identity, the timeline, the totals, the results —
  * the same stack `MonitoringView` uses, so the page reads as part of the app
@@ -27,7 +27,7 @@ import VariantResultsTable from '@/modules/abTests/components/VariantResultsTabl
 const route = useRoute()
 const router = useRouter()
 const store = useAbTestsStore()
-/** The spend in «Итог по тесту» is in the кабинет's settlement currency. */
+/** The spend in «Итог по тесту» is in the workspace's settlement currency. */
 const settlement = useCurrencyStore()
 
 const test = computed(() => store.detail)

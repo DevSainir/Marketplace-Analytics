@@ -90,7 +90,7 @@ const lapsedOn = computed(() => {
 
     <div v-if="!allowed" class="gate-overlay">
       <!-- The paywall. No form: renewal is a manual transfer between two
-           humans, so the only honest next step is «напишите нам». An owner is
+           humans, so the only honest next step is "write to us". An owner is
            told to renew; a manager is told who to ask, because they cannot. -->
       <section v-if="paywalled" class="gate-card">
         <h2 class="text-h2 font-bold tracking-tight text-primary">Подписка истекла</h2>

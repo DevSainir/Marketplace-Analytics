@@ -88,8 +88,8 @@ defineExpose({ reset })
       </label>
 
       <!-- Both bounds live in ONE cell of the grid, side by side when the mode
-           reads both. They are one setting — «столько показов или столько
-           минут» — and on two rows they read as two, while a 5-item grid of
+           reads both. They are one setting — "this many impressions or this
+           many minutes" — and on two rows they read as two, while a 5-item grid of
            2 columns leaves the second one alone on a row of its own. -->
       <div class="grid gap-sm" :class="bothBounds ? 'grid-cols-2' : 'grid-cols-1'">
         <label v-if="usesBudget(form.trigger_mode)" class="block">

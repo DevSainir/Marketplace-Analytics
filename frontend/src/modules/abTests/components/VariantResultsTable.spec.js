@@ -99,9 +99,9 @@ describe('what the table says about a photo', () => {
   })
 
   it('crowns the highest CTR as the wire sends it, two digits against one', () => {
-    // The figures of NEVA's «kp-40-gr» on 28.09.2026, in the shape the API
-    // really sends: `Decimal` serialises to a string, and "8.92" > "11.24" as
-    // text. Every fixture above uses numbers, which is how that went unseen.
+    // Figures in the shape the API really sends: `Decimal` serialises to a
+    // string, and "8.92" > "11.24" as text. Every fixture above uses numbers,
+    // which is how that went unseen.
     const wrapper = build([
       variant(MAIN, { click_through: '11.24', ctr_result: '0.00', ctr_gap: '0.00' }),
       variant(ONE, { click_through: '6.91', ctr_result: '-38.52', ctr_gap: '4.33' }),
@@ -209,8 +209,8 @@ describe('filtering to one lap', () => {
       },
     })
 
-    // «Кругов» is a property of the test, not of a lap: «кругов в этом круге»
-    // is always one.
+    // «Кругов» is a property of the test, not of a lap: "laps in this lap" is
+    // always one.
     expect(row(wrapper, 'Кругов')).toEqual(['5'])
   })
 })

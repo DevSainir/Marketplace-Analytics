@@ -4,8 +4,8 @@
  *
  * The figures here exist nowhere else at this granularity — the result table
  * sums a photo's turns and the log lists them without their length — so the
- * popup is the only place «это фото стояло девять минут и собрало 150 показов»
- * is readable at all.
+ * popup is the only place "this photo stood for nine minutes and collected 150
+ * impressions" is readable at all.
  *
  * Teleported to `<body>`, for the reason `core/components/InfoHint` records: an element that
  * must escape a card has to leave the card, not out-rank it. The parent

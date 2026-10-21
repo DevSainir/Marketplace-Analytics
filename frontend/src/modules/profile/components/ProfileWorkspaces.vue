@@ -83,7 +83,7 @@ const removal = useConfirmClick()
         <span class="pf-cell pf-cell--who" role="cell">
           <span class="pf-who__mail" :title="ws.name">{{ ws.name }}</span>
           <span class="pf-cell--chips">
-            <!-- «Активно» said nothing: every кабинет in the list is active.
+            <!-- «Активно» said nothing: every workspace in the list is active.
                  What this marks is the one whose data the rest of the app is
                  currently showing — so it says that, and pairs with the
                  «Выбрать» on every other row. -->

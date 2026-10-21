@@ -119,7 +119,7 @@ describe('A/Б-tests photo object URLs', () => {
     // The bucket behind these returns an intermittent 502: the same eleven
     // objects failed on all of them once and succeeded on all of them a minute
     // later. Without a retry that photo is missing until the page is reloaded,
-    // which is what «седьмая картинка так и не загрузилась» was.
+    // which is what "the seventh picture never loaded" was.
     fetchTest.mockResolvedValue(detail(1))
     fetchVariantImage
       .mockRejectedValueOnce(new Error('502'))

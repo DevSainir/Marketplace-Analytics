@@ -1,9 +1,9 @@
 <script setup>
 /**
- * One line under a page's header while a new кабинет's history is still being
+ * One line under a page's header while a new workspace's history is still being
  * fetched from WB: «Загружаем историю из WB — Воронка продаж 40 %».
  *
- * Without it a new кабинет's «Сводка», «Реклама» or heatmap was simply empty
+ * Without it a new workspace's «Сводка», «Реклама» or heatmap was simply empty
  * for the day the backfill runs, which reads as «the service does not work».
  * The profile shows the full lanes (`BackfillStrip`); a page only names the
  * lanes its own figures come from — the summary does not care that the

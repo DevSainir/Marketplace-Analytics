@@ -1,15 +1,15 @@
 <script setup>
 /**
- * «Общие» — what this account is, and the кабинеты it can look at.
+ * «Общие» — what this account is, and the workspaces it can look at.
  *
  * The facts strip replaces five stat tiles. A tile is for a number that moves
  * and that you came to read; a term ending in ten years and a count of two
- * кабинета are standing facts, checked once and then ignored, and four boxes
+ * workspaces are standing facts, checked once and then ignored, and four boxes
  * for four constants is a dashboard pretending something is happening.
  *
  * «Компания» is gone from it entirely: the name is the owner's email for every
  * organisation created by an activation code, and nobody outside this repo
- * knows what an «организация» is here. The role says the same thing usefully.
+ * knows what an "organisation" is here. The role says the same thing usefully.
  * The term moved to the rail, where all three pages can see it.
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
@@ -32,23 +32,23 @@ const ROLE_LABELS = {
   user: 'Без компании',
 }
 
-/** Lazily loaded token statuses per кабинет id. */
+/** Lazily loaded token statuses per workspace id. */
 const tokenStatuses = reactive({})
 
-/** The кабинет whose tokens are open in the drawer, or null. */
+/** The workspace whose tokens are open in the drawer, or null. */
 const editing = reactive({ workspace: null })
 
 const canManage = computed(() => store.isDev || members.isOwner)
 
 /**
- * The кабинеты this organisation owns. A head also sees other companies'
- * кабинеты opened to them read-only (`is_guest`); those are in the switcher,
+ * The workspaces this organisation owns. A head also sees other companies'
+ * workspaces opened to them read-only (`is_guest`); those are in the switcher,
  * never here — their tokens, backfill and deletion belong to their owner.
  */
 const ownWorkspaces = computed(() => store.workspaces.filter((ws) => !ws.is_guest))
 
 /**
- * Token status for every кабинет at once, so the list can SAY which ones are
+ * Token status for every workspace at once, so the list can SAY which ones are
  * wired up. The old page asked one at a time, on expand, which is why the list
  * could not answer the question the list is for.
  */
@@ -77,11 +77,11 @@ async function onSaveTokens(tokens) {
 function onSelect(id) {
   if (id === store.currentWorkspaceId) return
   store.select(id)
-  // A reload is what guarantees no per-кабинет dataset survives the switch.
+  // A reload is what guarantees no per-workspace dataset survives the switch.
   window.location.reload()
 }
 
-/** A кабинет is being created — its own flag, so «Создаём…» never shows on a delete. */
+/** A workspace is being created — its own flag, so «Создаём…» never shows on a delete. */
 const creating = ref(false)
 
 async function onCreate(name) {

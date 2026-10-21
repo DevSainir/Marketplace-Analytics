@@ -92,7 +92,7 @@ describe('TestSummary', () => {
     })
 
     // A paused test has no finish, so the stop is the only clock that answers
-    // «сколько оно уже стоит». Asserted as "not «—»" rather than against a
+    // "how long has it been standing". Asserted as "not «—»" rather than against a
     // rendered time: the panel formats in the reader's own zone, and CI's is
     // not the developer's.
     expect(plain(wrapper.text())).toContain('Остановлен')
@@ -118,7 +118,7 @@ describe('TestSummary', () => {
     })
 
     // The one stop the rotation will not undo by itself, so the reason has to
-    // be on the screen: «На паузе» alone reads as «сломалось».
+    // be on the screen: «На паузе» alone reads as "broken".
     const text = plain(wrapper.get('[data-testid="summary-photo-conflict"]').text())
     expect(text).toContain('поменяли вручную')
     expect(text).toContain('ни одному варианту не зачтён')

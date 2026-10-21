@@ -31,7 +31,7 @@ vi.mock('@/modules/profile/api', () => ({
 }))
 
 /**
- * «Доступы»: a dev opens another company's кабинет to an account, read-only.
+ * «Доступы»: a dev opens another company's workspace to an account, read-only.
  *
  * The API is the gate (`DevAccess`); what is pinned here is that the form sends
  * what was chosen, the list follows what the server holds, and nobody but a

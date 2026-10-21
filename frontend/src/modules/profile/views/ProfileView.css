@@ -23,7 +23,7 @@
 .pf-layout {
   display: grid;
   /* Clamped rather than fixed so the two-column shape survives a 900px window.
-     It used to collapse below 1024px, which is where the rail «прыгало»: at
+     It used to collapse below 1024px, which is where the rail "jumped": at
      that width it stopped being sticky and scrolled away with the content. */
   grid-template-columns: clamp(200px, 19vw, 260px) minmax(0, 1fr);
   gap: 32px;

@@ -24,7 +24,7 @@
  * than as the caption it is.
  *
  * **When more than one campaign paid for the traffic, each figure forks.** The
- * headline stays the whole test — a photo's показы are its показы whoever
+ * headline stays the whole test — a photo's impressions are its impressions whoever
  * bought them — and under it the same number is taken apart per campaign,
  * because «Единая» and «CPC» buy different traffic at different prices and a
  * campaign that starts or stops mid-test moves the total in a way that reads
@@ -45,7 +45,7 @@ const props = defineProps({
   test: { type: Object, required: true },
   /** variant_id -> object URL for the stored original. */
   imageUrls: { type: Object, default: () => ({}) },
-  /** The кабинет's settlement currency — what the spend is in; `''` prints it bare. */
+  /** The workspace's settlement currency — what the spend is in; `''` prints it bare. */
   currency: { type: String, default: '' },
 })
 
@@ -57,7 +57,7 @@ const statusLabel = computed(() => (props.test.status === 'running' ? '' : label
 /**
  * Was the test stopped because somebody edited the card?
  *
- * A pause with no reason on the screen is the reading «сломалось». This one has
+ * A pause with no reason on the screen reads as "broken". This one has
  * a cause the seller can act on, and it is the only stop the rotation will not
  * undo by itself — so it is said in a sentence rather than left to the word
  * «На паузе».
@@ -70,7 +70,7 @@ const photoConflict = computed(() => !!props.test.photo_conflict_at)
  * The other stop a seller did not make. It undoes itself, which is exactly why
  * it has to be said: without the sentence a seller presses «Запустить», the
  * next pass finds the campaign still dry and pauses it again, and the page reads
- * as a test that «сам уходит в паузу» — NEVA, 28.09.2026, twice in two hours.
+ * as a test that "pauses on its own" — NEVA, 28.09.2026, twice in two hours.
  */
 const pausedByAds = computed(() => props.test.status === 'paused' && !!props.test.paused_by_ads)
 

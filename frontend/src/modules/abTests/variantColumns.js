@@ -83,7 +83,7 @@ export const METRICS = [
  * exactly what the unsplit row cannot show.
  *
  * `rounds_played` stays a per-campaign-whole-test figure rather than a per-lap
- * one: «кругов в этом круге» is always one.
+ * one: "laps in this lap" is always one.
  *
  * @param {object} test The test, as the detail endpoint returns it.
  * @param {number} round Lap to show, or 0 for the whole test.
@@ -178,7 +178,7 @@ function countsOf(turn, campaignId) {
  *
  * Compared as numbers, explicitly: the backend's ratios are `Decimal` and arrive
  * as strings (`"11.24"`), and two strings compare by their first character. That
- * crowned 8,92 % over 11,24 % on a live test (NEVA, «kp-40-gr», 28.09.2026) —
+ * crowned 8,92 % over 11,24 % in a running test —
  * invisible for as long as every CTR had one digit before the comma.
  *
  * @param {Array<object>} columns Projected photos.

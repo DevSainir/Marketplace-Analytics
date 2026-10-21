@@ -30,10 +30,10 @@ import {
 
 export const useMembersStore = defineStore('members', () => {
   const role = ref(null)
-  // against our own data and our own legal case. The API has always answered
-  // with this flag and the SPA never read it, so the routes and the nav link
-  // were open to every signed-in customer — the pages rendered, and only the
-  // XHR behind them came back 403.
+  // A/B tests and the labs are built for ONE seller, against our own data. The
+  // API has always answered with this flag and the SPA never read it, so the
+  // routes and the nav link were open to every signed-in customer — the pages
+  // rendered, and only the XHR behind them came back 403.
   const internalFeatures = ref(false)
   //: «Ключи активации»: a dev, or the owner of «Демо». The API refuses
   //: everyone else (`require_code_issuer`); this only decides what is drawn.
@@ -45,7 +45,7 @@ export const useMembersStore = defineStore('members', () => {
   // app with every panel empty and no explanation of what was missing.
   const organization = ref(null)
   //: A head with no company of their own: `organization` is null and yet the
-  //: app opens, on the кабинеты a dev granted them, read-only. Without this
+  //: app opens, on the workspaces a dev granted them, read-only. Without this
   //: the activation overlay would cover the very thing they were let in to see.
   const guestOnly = ref(false)
   //: The surfaces this account may reach, as the API resolves them — owners and
@@ -85,7 +85,7 @@ export const useMembersStore = defineStore('members', () => {
    * account collapses to the `dev` effective role however it is a member of its
    * company. Gating on `isOwner` alone therefore hid «Команда», the invitations
    * and the access log from a developer — the API would have answered all
-   * three (checked live: 200, not 403), and only this flag said no.
+   * three (checked: 200, not 403), and only this flag said no.
    */
   const canManageTeam = computed(() => role.value === 'owner' || role.value === 'dev')
 

@@ -3,7 +3,7 @@
  * «Рекламная кампания» — which campaign's measurements a block is showing.
  *
  * Sits to the left of the lap picker in both «Ход теста» and «Тестирование»,
- * because the two filters compose: «третий круг единой ставки» is a question
+ * because the two filters compose: "the third lap of the unified bid" is a question
  * the page can now answer, and either filter alone is a different one.
  *
  * Rendered only when more than one campaign has actually brought the test
@@ -27,7 +27,7 @@ const props = defineProps({
 defineEmits(['update:modelValue'])
 
 /**
- * «M-TRX01-BLK / 76462689 / Единая» — the article, the campaign's id in WB, and
+ * «M-TRX01-BLK / 12345678 / Единая» — the article, the campaign's id in WB, and
  * what kind of campaign it is.
  *
  * Not the campaign's own name: sellers often name a campaign after the

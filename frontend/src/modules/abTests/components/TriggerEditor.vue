@@ -59,7 +59,7 @@ function save() {
       </select>
     </label>
     <!-- Both bounds on one line, each half the width of a single one: they are
-         one setting read as «столько показов ИЛИ столько минут», and the row
+         one setting read as "this many impressions OR this many minutes", and the row
          already carries a mode select and two buttons to fit beside them. -->
     <div class="flex items-end gap-sm">
       <label v-if="usesBudget(draft.trigger_mode)" class="block">

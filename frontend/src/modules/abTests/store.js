@@ -1,5 +1,5 @@
 /**
- * A/Б-tests Pinia store (Composition-API setup style).
+ * A/B tests Pinia store (Composition-API setup style).
  *
  * Owns the module's fetching so the two views stay declarative. It exists
  * rather than each view fetching for itself because the pages are coupled in
@@ -90,7 +90,7 @@ async function fetchImageTwice(testId, variantId) {
   try {
     return await fetchVariantImage(testId, variantId)
   } catch (err) {
-    // A 4xx is an answer: «этого файла нет» does not become «есть» half a
+    // A 4xx is an answer: "this file does not exist" does not become "it does" half a
     // second later, and a rotation whose images are genuinely gone would
     // otherwise spend twenty requests proving it.
     const status = err.response?.status ?? 0
@@ -387,15 +387,15 @@ export const useAbTestsStore = defineStore('abTests', () => {
   /**
    * Fetch the open test's photos and expose them as object URLs.
    *
-   * **In parallel, and with one retry each**, both of which were paid for by a
-   * real page. The images live in object storage, the route opens a connection
+   * **In parallel, and with one retry each**, both of which were learned the hard
+   * way. The images live in object storage, the route opens a connection
    * per object, and fetching eleven of them one after another took ten to
    * fifteen seconds — long enough that the timeline drew itself in grey
    * placeholders first. That storage also returns an intermittent 502: probing
    * the same eleven objects failed on all of them once and succeeded on all of
    * them a minute later. A photo dropped on the first attempt therefore stayed
-   * missing for as long as the page was open, which is what «седьмая картинка
-   * так и не загрузилась» was.
+   * missing for as long as the page was open, which is what "the seventh picture
+   * never loaded" was.
    *
    * The cap is there because the browser serialises past six connections per
    * origin anyway, and a burst of eleven only moves the queue.

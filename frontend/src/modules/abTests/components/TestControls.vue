@@ -77,7 +77,7 @@ function start() {
       </span>
       <!-- Tinted and first, because it is the one photo the whole table is
            read against: a rotation of candidates with no baseline answers
-           «какое из них лучше» and not «стоит ли вообще менять». -->
+           "which of them is best" and not "is it worth changing at all". -->
       <label
         class="ui-btn ui-btn--primary cursor-pointer"
         :class="

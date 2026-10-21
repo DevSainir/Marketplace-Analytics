@@ -76,7 +76,7 @@ describe('ActivationGate', () => {
   })
 
   it('lets a guest with no company of their own through', async () => {
-    // A dev opened a кабинет to them; covering it with «введите ключ» would
+    // A dev opened a workspace to them; covering it with the key prompt would
     // hide the one thing they were let in to see.
     const wrapper = await mountGate({
       payload: me({

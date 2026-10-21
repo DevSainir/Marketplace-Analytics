@@ -1,6 +1,6 @@
 <script setup>
 /**
- * A/Б-тесты — the list of photo-rotation tests.
+ * A/B tests — the list of photo-rotation tests.
  *
  * The page is a stack of blocks in the app's own idiom (see the `design-system`
  * skill and `MonitoringView` as its worked example): a plain heading on the

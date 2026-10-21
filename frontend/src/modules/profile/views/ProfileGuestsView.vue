@@ -1,10 +1,10 @@
 <script setup>
 /**
- * «Доступы» — which кабинеты of other companies are open to whom. Dev only.
+ * «Доступы» — which workspaces of other companies are open to whom. Dev only.
  *
- * A grant opens one кабинет, read-only, to one account by its email: every
+ * A grant opens one workspace, read-only, to one account by its email: every
  * section, no writes. The account needs no company of its own — that is what
- * lets a dev show a кабинет to anybody who has registered. Closing a grant
+ * lets a dev show a workspace to anybody who has registered. Closing a grant
  * takes it away on the next request.
  *
  * The rail hides this page from everyone but a dev, and the API refuses them

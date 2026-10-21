@@ -11,7 +11,7 @@
  * colour, no glass in a place that does not float.
  *
  * Routes, not anchors, this time. The anchor version was right while the page
- * was «чуть больше экрана высоты»; with a real security section it is three
+ * was "a little over one screen tall"; with a real security section it is three
  * screens, and three screens under one scrollbar is a page you scroll past
  * rather than navigate.
  */

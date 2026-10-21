@@ -5,7 +5,7 @@
  * Shared by «Ход теста» and «Тестирование» because the pair has to behave
  * identically in both: the same campaigns in the same order, the same laps, and
  * the campaign on the LEFT — it is the coarser cut, and reading right to left
- * («третий круг … единой ставки») is how the sentence comes out backwards.
+ * ("the third lap … of the unified bid") is how the sentence comes out backwards.
  *
  * Each filter hides itself when it has nothing to offer. One campaign is not a
  * choice, and a test that has not completed a lap has no lap to pick.
