@@ -32,6 +32,9 @@ Columns:
 
 | Date | Task | Area | Type | Size | Why | Commits |
 |---|---|---|---|---|---|---|
+| 2026-10-23 | `make demo` names its three steps and what the first run costs | Infrastructure | improvement | S | A first run builds for about 3.5 minutes with only the BuildKit log on screen, so it was unclear whether it was working | `725d21ae` |
+| 2026-10-23 | One name, Marketplace Analytics, from the header to the Docker images | UI | improvement | M | The project went by five names at once, and on screen by none of its own | `b48bcee6` `c4d683ad` |
+| 2026-10-23 | The labs sandboxes removed | UI | improvement | M | 92 files copied from the monitoring and advertising pages, in no menu: a sixth of the frontend | `824a1f35` |
 | 2026-10-22 | README with screenshots of the demo, and CLAUDE.md pointed at it | Process | docs | M | The repository had no front page: nothing said what the product is or how to see it | `6effa63e` `4a2d0239` |
 | 2026-10-22 | CI runs on GitHub-hosted runners | Infrastructure | infrastructure | S | `tests` and `release` waited for a self-hosted runner this repository does not have | `5a6e871b` |
 | 2026-10-22 | The monitoring design sandbox shows the workspace's own data | Monitoring | improvement | M | It rendered synthesised fixtures, so the two designs could not be compared on the same numbers | `cc7e3109` `e2a32064` |
