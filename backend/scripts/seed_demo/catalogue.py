@@ -226,7 +226,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
         rate=Decimal("210"),
         ctr=0.034,
         search_share=0.62,
-        first_day_ago=120,
+        first_day_ago=400,
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 2,
@@ -241,7 +241,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
         rate=Decimal("260"),
         ctr=0.041,
         search_share=0.86,
-        first_day_ago=120,
+        first_day_ago=400,
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 3,
@@ -256,7 +256,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
         rate=Decimal("150"),
         ctr=0.027,
         search_share=0.0,
-        first_day_ago=120,
+        first_day_ago=400,
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 4,
@@ -271,7 +271,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
         rate=Decimal("7.5"),
         ctr=0.031,
         search_share=0.7,
-        first_day_ago=120,
+        first_day_ago=400,
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 5,

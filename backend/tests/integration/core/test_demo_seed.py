@@ -67,7 +67,7 @@ async def test_the_seeded_week_has_no_gaps_on_the_pnl(
     """Newest week: every article sold and costed, and no «unknown» caveat."""
     monkeypatch.setattr(settings, "ab_tests_media_dir", str(tmp_path))
     # Five weeks of history and two reports cover the newest week; the demo's
-    # full four months take three times as long to write and prove nothing more.
+    # full year takes ten times as long to write and proves nothing more.
     monkeypatch.setattr(simulation, "HISTORY_DAYS", 35)
     monkeypatch.setattr(settlement, "REPORTS", 2)
     workspace_id = await create_identity(db_session)
