@@ -84,7 +84,7 @@ def _load_job() -> dict[str, Any]:
     return dict(yaml.safe_load(_LOAD_WORKFLOW.read_text())["jobs"]["k6"])
 
 
-def test_the_load_profiles_never_run_on_the_production_box() -> None:
+def test_the_load_profiles_never_run_on_a_self_hosted_runner() -> None:
     """The one job in this repository that must never run on a self-hosted runner.
 
     Moving it onto one is a single-word edit that reads like routine cleanup.
@@ -101,9 +101,8 @@ def test_the_load_profiles_never_run_on_the_production_box() -> None:
 
     assert "self-hosted" not in labels, (
         f"the k6 job runs on {labels}. These profiles exist to overload their target; "
-        "the self-hosted runner shares two cores with the live API."
+        "a self-hosted runner shares its machine with whatever else runs there."
     )
-    assert "prod-vps" not in labels, labels
 
 
 def test_the_load_stack_is_a_throwaway_of_its_own() -> None:

@@ -1,22 +1,17 @@
 # ---------------------------------------------------------------------------
-# The k6 load profiles, on their own schedule and their own runner.
+# The k6 load profiles, on their own schedule and their own stack.
 #
-# WHY THIS IS NOT IN tests.yml. Not tidiness: `tests` gates the deploy. A red
-# load profile means "the service got slower", which is worth waking up to and
-# is NOT a reason to stop shipping — wiring it into the gate would eventually
-# get the gate ignored.
+# WHY THIS IS NOT IN tests.yml. A red load profile means "the service got
+# slower", which is worth looking at and is NOT a reason to call main broken —
+# wiring it into the test gate would eventually get the gate ignored.
 #
-# WHY NOT ON THE VPS RUNNER. Everything else in this repository moved onto the
-# production box to stop burning hosted minutes. These profiles must not
-# follow, and the reason is in what they are: `matrix-spike` drives 120
-# concurrent users and `auth-flood` 60 requests a second, deliberately trying
-# to overload whatever they are aimed at. A box serving production is the most
-# shared thing available. A step below asserts the runner is a hosted one, so
-# a future `runs-on:` edit fails loudly instead of DDoSing the live API.
-#
-# THE BUDGET, since hosted minutes are what forced all of this. The profiles
-# are about nine billed minutes a day — some 270 a month against a 2000-minute
-# allowance.
+# ONLY ON A HOSTED RUNNER, and the reason is in what the profiles are:
+# `matrix-spike` drives 120 concurrent users and `auth-flood` 60 requests a
+# second, deliberately trying to overload whatever they are aimed at. On a
+# machine that also runs anything else — a self-hosted runner beside a
+# deployment, say — that is not a test. A step below asserts the runner is a
+# hosted one, so a future `runs-on:` edit fails loudly instead of overloading
+# whatever shares the box.
 # ---------------------------------------------------------------------------
 
 name: load
@@ -59,7 +54,7 @@ jobs:
       # The guard that matters most in this file. `runs-on` above is a hosted
       # label today; this fails the run if it ever stops being one, before a
       # single request is generated.
-      - name: Refuse to generate load from the production box
+      - name: Refuse to generate load anywhere but a hosted runner
         run: |
           set -euo pipefail
           if [ "${RUNNER_ENVIRONMENT:-}" != "github-hosted" ]; then
@@ -74,7 +69,6 @@ jobs:
         run: |
           set -euo pipefail
           cp .env.example .env
-          printf 'FERNET_SECRET_KEY=%s\n' "$(openssl rand 32 | base64 | tr '+/' '-_')" >> .env
 
       # Three overlays, in order: the real topology, the throwaway isolation
       # (plain-HTTP nginx, `:e2e` tags, memory caps), and the load overlay that

@@ -9,9 +9,14 @@
 # slowest part of the working day.
 #
 # The k6 load profiles under tests/performance/*.js are not here at all, by
-# their own contract: they exist to overload what they point at, so they are
-# run deliberately, by hand, against something nobody else is using. Only the
-# pytest half of that directory — tests/performance/resilience — is in CI.
+# their own contract: they exist to overload what they point at, so they run
+# in `load.yml`, nightly, against a stack of their own. Only the pytest half of
+# that directory — tests/performance/resilience — is in this file.
+#
+# Every job runs on a GitHub-hosted `ubuntu-latest` runner: a fresh VM per
+# job, with Postgres and Redis as service containers. Nothing survives a run,
+# so nothing has to be cleaned up after one, and the dependency caches go
+# through GitHub's cache service (setup-uv, setup-node).
 
 name: tests
 
@@ -22,8 +27,8 @@ name: tests
 # straight to `main` and no PR is opened for it. The only pull request this
 # repository ever sees is the one Release Please opens — and a PR opened by
 # GITHUB_TOKEN has its workflow runs HELD at `action_required` until a human
-# clicks «Approve and run». Nobody ever does: `release` merges that PR seconds
-# later, deliberately, without waiting for it.
+# clicks «Approve and run». Nobody ever does: `release` merges that PR,
+# deliberately, without waiting for it.
 #
 # An unapproved run does not stay politely pending. GitHub EXPIRES it the
 # moment it is superseded — release-please pushes twice, the version bump and
@@ -33,15 +38,13 @@ name: tests
 # The annotation underneath is the true one: "This workflow run required
 # approval but was not approved before it expired."
 #
-# So every release cut two red checks beside a release that was fine. Nothing
-# was ever broken by it — `deploy` gates on the `main` run, not the PR's — but
-# a red build that everyone is told to ignore is a red build nobody reads, and
-# that is the part worth fixing.
+# So every release cut two red checks beside a release that was fine, and a red
+# build that everyone is told to ignore is a red build nobody reads.
 #
 # Nothing is lost. The release PR's contents land on `main` in the merge commit
-# seconds later and are tested there in full, before anything deploys. To test
-# a branch by hand, dispatch this workflow against it — which also offers
-# `run_slow_tiers`, more than a PR run ever gave.
+# and are tested there in full. To test a branch by hand, dispatch this
+# workflow against it — which also offers `run_slow_tiers`, more than a PR run
+# ever gave.
 #
 # The head branch cannot be filtered out instead: `pull_request.branches`
 # matches the BASE branch, and the approval is held at run level, so no job-
@@ -49,25 +52,8 @@ name: tests
 on:
   push:
     branches: [main]
-  # The browser tier, nightly. The hour is MEASURED, not assumed: four days of
-  # Prometheus history bucketed by hour of day put the trough at 21:00-02:00
-  # UTC (00:00-05:00 MSK), where total process CPU sits at a p95 of 0.007 core
-  # against 0.027 at the 11:00 MSK peak, and HTTP traffic is flat zero. Any
-  # hour in that band is equally quiet, so the beat schedule breaks the tie.
-  #
-  # 23:30 UTC = 02:30 MSK sits in the widest gap in that schedule
-  # (src/core/celery_app.py, whose crontabs are Europe/Moscow):
-  #
-  #   02:00 MSK  finreports.harvest_finance  — hourly at :00, MSK 0-4 and 8-23
-  #   [ 02:30 MSK — this run, 30 minutes clear on either side ]
-  #   03:00 MSK  finreports.harvest_finance
-  #   04:30 MSK  auth.purge_expired_refresh_tokens
-  #   06:00 MSK  monitoring.harvest_all        — the heavy one
-  #   07:00 MSK  monitoring.refresh_buyout_cohorts
-  #
-  # Only ab_tests.poll_rotations (every 5 minutes, sub-second) overlaps at all,
-  # and the job is capped below so that even an overrun cannot reach the 06:00
-  # harvest with anything the kernel has not already bounded.
+  # The browser tier, nightly, plus the informational audits and the coverage
+  # floor (see the steps that read `github.event_name == 'schedule'`).
   schedule:
     - cron: '30 23 * * *'
   workflow_dispatch:
@@ -81,14 +67,11 @@ on:
 # single push to main. `release` merges its PR with GITHUB_TOKEN, which triggers
 # no workflow, so it dispatches this one by hand — and a dispatched run on main
 # landed in the same group as the push run already going and killed it. Every
-# push therefore ended in a red "cancelled" that meant nothing was wrong, which
-# is exactly the kind of red this repository has spent several commits removing.
+# push therefore ended in a red "cancelled" that meant nothing was wrong.
 #
 # Splitting by event keeps what the cancellation is FOR — a second push
 # superseding the first, a re-dispatch superseding an earlier dispatch — and
 # drops only the cross-event collision, which was never anything but collateral.
-# Two runs can now overlap; the VPS runner is single, so they queue rather than
-# compete.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
@@ -105,61 +88,24 @@ env:
 
 jobs:
   # ------------------------------------------------------------------ #
-  # WHERE THESE JOBS RUN
-  #
-  # Every job runs on the self-hosted runner on the production VPS (label
-  # `prod-vps`). There is exactly ONE runner, and that is
-  # a resource decision rather than an oversight: two vCPUs are shared with the
-  # live API and the Celery worker, so jobs QUEUE instead of competing. The
-  # systemd unit caps the runner at 130% CPU and 1400 MiB, runs it at Nice=10,
-  # and gives it best-effort I/O at the lowest priority — not the idle class,
-  # which was tried first and starved a checkout outright when a large prune
-  # ran beside it (2026-09-09).
-  #
-  # The performance DIRECTORY splits in two here, and the split is the whole
-  # reason its pytest half could move onto this box while it ran hosted for
-  # months. `resilience/` exhausts pools and engines IT OWNS, against the
-  # integration tier's throwaway database — the load never leaves the test
-  # process, so "must never run against anything shared" does not describe it.
-  # The k6 profiles beside it are the half that sentence was written for: 120
-  # concurrent VUs and 60 requests a second aimed at a real API. Those are not
-  # in this file and must not be, because a box serving production is the most
-  # shared thing available.
-  #
-  # `end-to-end` DOES run here, but only on the nightly schedule and only
-  # behind the isolation in docker-compose.e2e.yml — a separate compose
-  # project, `:e2e` image tags and ports 8080/8443, because the base file names
-  # the production project and a careless invocation would recreate the live
-  # stack. A `docker build` also escapes this runner's cgroup (it runs under
-  # dockerd), which is why that job's limits are enforced by Compose instead.
-  # ------------------------------------------------------------------ #
   # Gates 0-2 — style, types, the fast tiers and integration, in ONE job.
   #
-  # These were three jobs — `quality`, `fast`, `integration` — ordered so that a
-  # lint failure stopped the pipeline before the slower tests ran. That ordering
-  # bought nothing once CI moved to a single self-hosted runner: they already
-  # serialised, so the "cheap feedback first" property now comes from step ORDER
-  # inside this job, which is the same guarantee for free. What the split did
-  # still cost was real — a repeated checkout, `uv sync` and `npm ci`, plus a
-  # ~25s gap between each pair, roughly 85s of a 7m31s run (measured 2026-09-09)
-  # spent setting the same machine up three times.
+  # One job rather than three because the three would each pay for the same
+  # checkout, `uv sync` and `npm ci`, and a gap between them. The "cheap
+  # feedback first" property comes from step ORDER instead: ruff answers in
+  # seconds, then mypy, then the fast tiers, and integration — which needs
+  # Postgres and Redis — last.
   #
-  # Steps stay ordered cheapest-first for the reason the jobs used to be: ruff
-  # answers in seconds, then mypy, then the fast tiers, and integration — which
-  # needs Postgres and Redis — last.
-  #
-  # The cost of merging is granularity: one red X now covers lint, types and
-  # every tier below e2e, so the step name is what tells you which gate failed.
+  # The cost of merging is granularity: one red X covers lint, types and every
+  # tier below e2e, so the step name is what tells you which gate failed.
   # ------------------------------------------------------------------ #
   verify:
     name: lint + types + fast + integration + resilience
-    runs-on: [self-hosted, prod-vps]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    # Hoisted from the integration job this absorbed. They idle through the
-    # lint and fast steps, which costs a few tens of MB and saves starting them
-    # in a second job — along with that job's checkout, its `uv sync` and the
-    # ~25s gap between the two.
+    # Started with the job and idle through the lint and fast steps; the
+    # integration and resilience tiers at the end are what need them.
     services:
       postgres:
         image: postgres:16-alpine
@@ -182,78 +128,16 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    env:
-      # Persistent, and outside `_work` so a job cleanup cannot take them.
-      # These are the whole point of a long-lived runner: the second run
-      # resolves nothing and downloads nothing.
-      #
-      # `_work` is not a safe place for any of it. `actions/checkout` defaults
-      # to `clean: true`, which runs `git clean -ffdx` — and that removes
-      # IGNORED files too, so `.venv`, `node_modules` and `.mypy_cache` are
-      # deleted before every run. That is why mypy was always doing a cold
-      # check: measured locally 2026-09-09, `mypy --strict` over this tree is
-      # 8.1s cold and 0.35s incremental, and CI paid the cold price every time.
-      # mypy validates its cache against file contents, so a stale entry is
-      # re-checked rather than trusted.
-      UV_CACHE_DIR: /home/gha/.cache/uv
-      npm_config_cache: /home/gha/.cache/npm
-      # The resolved virtualenv itself, not just the package cache. `uv sync`
-      # then relinks an existing environment instead of building one.
-      UV_PROJECT_ENVIRONMENT: /home/gha/.venvs/marketplace-backend
-      # Two caches, not one: the backend is checked under the settings in
-      # backend/pyproject.toml and the CI scripts under an explicit `--strict`.
-      # Sharing a directory between two option sets makes mypy invalidate one
-      # with the other and quietly hands back the cold time this is here to
-      # avoid.
-      MYPY_CACHE_BACKEND: /home/gha/.cache/mypy/backend
-      MYPY_CACHE_CI: /home/gha/.cache/mypy/ci-scripts
 
     steps:
-      # A persistent runner accumulates what a hosted one throws away. This box
-      # has 48 GB shared with production, and a full disk has already taken it
-      # down once.
-      #
-      # BEFORE the work, not after: a job that fails or is cancelled never
-      # reaches an "after" step, and the next run is exactly when the space is
-      # needed. Only build cache and DANGLING images are touched — a plain
-      # `prune -a` would be judged against running containers alone, and this
-      # host keeps images (the migrate one) whose container has legitimately
-      # exited.
-      - name: Reclaim disk if it is tight
-        run: |
-          avail=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
-          echo "${avail}G available on /."
-          if [ "${avail:-99}" -lt 8 ]; then
-            echo "Below the 8G floor — reclaiming."
-            docker builder prune -af || true
-            docker image prune -f || true
-            df -h /
-          fi
-
-      # Unconditional, unlike the step above: what it removes is never wanted.
-      # The postgres and redis images each declare a VOLUME, so every run's
-      # service containers get two anonymous volumes, and the runner removes
-      # the containers but not those. 628 of them (22.8 GB) filled the disk
-      # and failed the nightly backup on 2026-10-07 and 10-08. Since Docker 23
-      # a plain `volume prune` takes only ANONYMOUS volumes no container holds:
-      # production's named ones are out of its reach without `-a`, and this
-      # run's own service volumes are held by their running containers.
-      - name: Remove volumes earlier runs' service containers left behind
-        run: docker volume prune -f || true
-
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          # No `enable-cache`: that round-trips the cache through GitHub's
-          # cache service every run, and this runner's disk persists. But
-          # dropping it is NOT sufficient on its own — setup-uv then points
-          # UV_CACHE_DIR at `_work/_temp/setup-uv-cache`, which the runner
-          # clears per job, so the cache was simply gone rather than local.
-          # `UV_CACHE_DIR` in the job env above is what actually makes it
-          # persist.
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
       # `--locked` fails rather than silently re-resolving, so CI can never
       # install a dependency set the committed uv.lock does not describe.
@@ -262,9 +146,9 @@ jobs:
         run: uv sync --locked
 
       # Every importable path, not just src/tests: main.py is the ASGI
-      # entrypoint, alembic/ holds hand-edited migrations, and scripts/ is run
-      # against production data. Leaving them unchecked was a silent gap —
-      # formatting had already drifted in alembic/versions/.
+      # entrypoint, alembic/ holds hand-edited migrations, and scripts/ writes
+      # to databases. Leaving them unchecked was a silent gap — formatting had
+      # already drifted in alembic/versions/.
       - name: Ruff (backend)
         working-directory: backend
         run: |
@@ -282,16 +166,14 @@ jobs:
 
       - name: mypy (strict)
         working-directory: backend
-        run: uv run mypy --cache-dir "$MYPY_CACHE_BACKEND" src main.py scripts
+        run: uv run mypy src main.py scripts
 
       # Audits the RUNTIME set only — what actually ships. `--disable-pip`
       # because the export is fully pinned, so pip-audit has nothing to resolve.
       #
-      # Stays on EVERY push while its informational twin moved to the nightly
-      # run. The two are not the same kind of check: this one gates, and the
-      # eight seconds it costs are the price of not shipping a known CVE in
-      # something that runs on the server. Cadence is a security control, so it
-      # is not traded for pipeline time.
+      # On EVERY push, unlike its informational twin below: this one gates, and
+      # the seconds it costs are the price of not shipping a known CVE.
+      # Cadence is a security control, so it is not traded for pipeline time.
       - name: pip-audit (runtime dependencies)
         working-directory: backend
         timeout-minutes: 5
@@ -303,10 +185,8 @@ jobs:
       # server, yet they DO execute on a runner holding a checkout and a token,
       # so "nobody looks at them" is the wrong answer; blocking every push on an
       # advisory in a tool's own transitive (today: `pip`, pulled in by
-      # pip-audit itself) is the other wrong answer.
-      #
-      # NIGHTLY, since 2026-09-09. Nothing is gated on it, so running it on
-      # every push only spent budget to tell us the same thing four times a day.
+      # pip-audit itself) is the other wrong answer. Nightly: nothing is gated
+      # on it, so once a day says everything four runs a day would.
       - name: pip-audit (dev dependencies, informational)
         if: github.event_name == 'schedule' || inputs.run_slow_tiers
         working-directory: backend
@@ -319,8 +199,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          # Same reasoning as uv above: the npm cache persists between runs
-          # here, and `npm_config_cache` in the job env pins where.
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -335,16 +215,12 @@ jobs:
         run: npm run format:check
 
       # Gate on what actually SHIPS. The dev tree carries advisories with no
-      # fixed version available (js-yaml via @redocly/openapi-core, js-beautify
-      # via @vue/test-utils — both already on their latest release), and
-      # blocking every push on an unfixable finding just teaches people to
-      # ignore the gate. The production tree is audited strictly.
+      # fixed version available, and blocking every push on an unfixable
+      # finding just teaches people to ignore the gate. The production tree is
+      # audited strictly.
       #
-      # Kept on every push for the same reason as the runtime pip-audit: it
-      # gates, and with the flags below it answers in about two seconds.
-      #
-      # The `--fetch-*` flags and the timeouts are not tidiness; they are the
-      # fix for a deploy this repository actually lost on 2026-09-04.
+      # The `--fetch-*` flags and the timeout are not tidiness; they are the fix
+      # for a release this repository actually lost on 2026-09-04.
       #
       # `--omit=dev` puts npm on the LEGACY quick-audit endpoint
       # (`/-/npm/v1/security/audits/quick`), which npm's own output says is
@@ -354,14 +230,10 @@ jobs:
       # Measured on the same tree that afternoon: the stock command took 7m01s
       # to fail, the same audit with the flags below answered correctly in 2.6s.
       #
-      # When the budget ran out GitHub CANCELLED the job, and a cancelled job
-      # makes the run `cancelled` — which the deploy would not ship, because it
-      # required `success`. So an advisory lookup nobody was gated on quietly
-      # held a release. `continue-on-error` never covered that: it
-      # swallows a non-zero exit and says nothing about a process that does not
-      # return. A step that outlives its OWN timeout fails instead, and
-      # `continue-on-error` absorbs that — which is what "informational" always
-      # meant to say.
+      # When the budget ran out GitHub CANCELLED the job, and a cancelled run is
+      # not a green one — so an advisory lookup nobody was gated on quietly held
+      # a release. `continue-on-error` never covered that: it swallows a
+      # non-zero exit and says nothing about a process that does not return.
       #
       # The gating audit also refuses to turn npm's uptime into our release
       # gate: a report showing vulnerabilities fails the build, an endpoint that
@@ -389,18 +261,15 @@ jobs:
         timeout-minutes: 2
         run: npm audit --audit-level=high --fetch-timeout=15000 --fetch-retries=2
 
-      # Coverage is measured on the NIGHTLY run now, not on every push.
-      # Instrumentation is most of the difference between this tier taking ~21s
-      # on a developer's machine and 91s here (measured 2026-09-09), which on a
-      # two-core box shared with production is a large slice of the whole
-      # push-to-deploy budget spent computing a number that moves a few times a
-      # month.
+      # Coverage is measured on the NIGHTLY run, not on every push.
+      # Instrumentation is most of what this tier costs, and the number moves a
+      # few times a month.
       #
-      # The floor is UNCHANGED and still a ratchet — 68% today, raise it as the
-      # suite grows, never lower it to make a red build green. It is simply
-      # enforced by the 23:30 UTC run, so a coverage regression is caught the
-      # next morning rather than at push. Everything about which tiers carry
-      # the pyramid's weight is unaffected: the same tests run either way.
+      # The floor is still a ratchet — 68% today, raise it as the suite grows,
+      # never lower it to make a red build green. It is simply enforced by the
+      # nightly run, so a coverage regression is caught the next morning rather
+      # than at push. Which tiers carry the pyramid's weight is unaffected: the
+      # same tests run either way.
       - name: Backend unit + component tiers
         working-directory: backend
         env:
@@ -423,23 +292,22 @@ jobs:
         run: npm run test
 
       # The SPA build is part of the product, so a build break is a red
-      # pipeline — not a surprise during the next deploy. Seconds to run, and
-      # it is the only gate that compiles every template and resolves every
-      # import for real.
+      # pipeline. Seconds to run, and it is the only gate that compiles every
+      # template and resolves every import for real.
       - name: Build the SPA
         working-directory: frontend
         run: npm run build
 
       # ---------------------------------------------------------------- #
-      # The integration tier, formerly its own job.
+      # The integration tier.
       #
       # Its environment is declared per STEP rather than on the job, and that
-      # is the point of the merge rather than an afterthought: hoisting
-      # ENVIRONMENT, the POSTGRES_*/REDIS_* pair and a JWT signing key to job
-      # level would hand them to the unit and component tiers too, which have
-      # never run with them. Those tiers are supposed to be unable to reach a
-      # database; giving them the credentials for one is how a unit test
-      # quietly starts depending on Postgres and nobody notices for a month.
+      # is deliberate: hoisting ENVIRONMENT, the POSTGRES_*/REDIS_* pair and a
+      # JWT signing key to job level would hand them to the unit and component
+      # tiers too, which have never run with them. Those tiers are supposed to
+      # be unable to reach a database; giving them the credentials for one is
+      # how a unit test quietly starts depending on Postgres and nobody notices
+      # for a month.
       # ---------------------------------------------------------------- #
       - name: Generate an ephemeral encryption key
         run: |
@@ -468,15 +336,13 @@ jobs:
       # because that is what its own conftest asks for: it runs against
       # `marketplace_test`, the throwaway database the integration tier
       # creates, and skips with "run the integration tier once to create it"
-      # when that database is missing. As a separate job it had to re-create
-      # the database by running one migration test first — two minutes of
-      # setup around eleven tests that finish in four and a half seconds.
+      # when that database is missing.
       #
-      # It ran hosted, gated behind `run_slow_tiers`, and that flag is not set
-      # by the nightly schedule — so across the 200 most recent runs it had
-      # never once executed. A tier that guards pool exhaustion, reclaimed
-      # transactions and write races is worth more than that, and at five
-      # seconds it is cheaper than deciding when to run it.
+      # It once ran in a job of its own behind `run_slow_tiers`, a flag the
+      # nightly schedule does not set — so across 200 runs it never executed
+      # once. A tier that guards pool exhaustion, reclaimed transactions and
+      # write races is worth more than that, and at five seconds it is cheaper
+      # than deciding when to run it.
       #
       # Repository root, not `backend/`: this tier is cross-stack and takes its
       # config from tests/pytest.ini.
@@ -493,46 +359,39 @@ jobs:
         run: uv run --project backend pytest -c tests/pytest.ini tests/performance
 
   # ------------------------------------------------------------------ #
-  # Gate 3 — end-to-end. Full stack + a real browser. Manual / main only.
+  # Gate 3 — end-to-end. Full stack + a real browser. Nightly or on demand.
   # ------------------------------------------------------------------ #
   end-to-end:
     name: end-to-end
-    runs-on: [self-hosted, prod-vps]
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
     needs: verify
-    # No longer on every push to main. It ran there for the reassurance rather
-    # than the gate — it fires AFTER the code is already on main, and deploy
-    # keys off the run's conclusion — and each run now costs the production
-    # box's own capacity rather than a hosted runner's. Nightly in the measured
-    # trough gives the same signal at a time when nothing is competing for it.
+    # Not on every push: it fires AFTER the code is already on main, so per
+    # push it would buy reassurance rather than a gate. Nightly gives the same
+    # signal once a day.
     if: github.event_name == 'schedule' || inputs.run_slow_tiers
 
-    # THE THREE FACTS THAT KEEP THIS OFF PRODUCTION'S TOES. The base compose
-    # file declares `name: marketplace-analytic`, so a bare `docker compose -f
-    # ... up --build` on this host targets the LIVE project: it would recreate
-    # the running containers with the plain-HTTP CI nginx config, aimed at a
-    # throwaway database. Hence:
+    # The stack runs as its OWN Compose project. On this runner nothing else
+    # is running, but the same commands are the ones a developer runs on a
+    # machine that may hold a development stack — and the base compose file
+    # declares `name: marketplace-analytic`, so a bare `docker compose -f …`
+    # would recreate that stack's containers against a throwaway database.
     #
     #   COMPOSE_PROJECT_NAME  a separate project — separate containers,
     #                         networks and volumes
-    #   FRONTEND_HTTP_PORT    8080/8443, because production is serving on
-    #                         80/443 and Compose merges `ports` rather than
-    #                         replacing them
+    #   FRONTEND_HTTP_PORT    8080/8443, off the ports a real stack serves on
     #   (and docker-compose.e2e.yml retags every built image `:e2e`, because
-    #    image tags are global to the daemon and would otherwise overwrite the
-    #    image production restarts from)
+    #    image tags are global to the daemon)
     #
     # The guard step below fails the job if the first of these is ever lost.
+    # Seeding runs through `docker compose exec` in the same project, so no
+    # step addresses a container by name — `test_ci_never_targets_production`
+    # fails one that does.
     env:
       COMPOSE_PROJECT_NAME: marketplace-analytic-e2e
       FRONTEND_HTTP_PORT: '8080'
       FRONTEND_HTTPS_PORT: '8443'
       E2E_BASE_URL: http://localhost:8080
-      # There used to be a fourth fact here, learned the hard way on
-      # 2026-09-10: a seed script that reached for a postgres container BY NAME,
-      # outside Compose, and whose default name was production's. The seed now
-      # runs through `docker compose exec` like everything else in this job, so
-      # the project name above is the only target there is.
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -540,23 +399,20 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
 
+      # The template runs a local stack as it is (its Fernet key is refused
+      # anywhere but ENVIRONMENT=local, which is what the stack runs as here).
       - name: Prepare the backend environment
         working-directory: backend
-        run: |
-          set -euo pipefail
-          cp .env.example .env
-          # openssl, not python+cryptography: this job installs no Python
-          # dependencies, and the runner's system python has no `cryptography`.
-          # A Fernet key is just 32 random bytes in urlsafe base64.
-          printf 'FERNET_SECRET_KEY=%s\n' "$(openssl rand 32 | base64 | tr '+/' '-_')" >> .env
+        run: cp .env.example .env
 
-      # Belt and braces, because the failure mode here is an OUTAGE rather than
-      # a red build: ask Compose what it actually resolved, and refuse to
-      # continue if it names the production project or the production port.
+      # Ask Compose what it actually resolved, and refuse to continue if it
+      # names the base project or binds the ports a real stack serves on.
       # Placed after the step above because `config` interpolates backend/.env
       # and cannot resolve anything until it exists.
-      - name: Refuse to run against the production project
+      - name: Refuse to run as the base project
         run: |
           set -euo pipefail
           cfg=$(docker compose --project-directory backend \
@@ -564,66 +420,31 @@ jobs:
             config --format json)
           resolved=$(printf '%s' "$cfg" | jq -r '.name')
           echo "Compose resolved the project to: ${resolved}"
-          # The edge holds the public ports since 2026-10; no nginx publishes one.
           printf '%s' "$cfg" | jq -r '.services.edge.ports[] | "  edge publishes \(.published) -> \(.target)"'
           if [ "$resolved" != "marketplace-analytic-e2e" ]; then
             echo "::error::Refusing to start: this would target '${resolved}', not marketplace-analytic-e2e." >&2
             exit 1
           fi
           if printf '%s' "$cfg" | jq -e '[.services[] | (.ports // [])[] | select((.published|tostring) == "80" or (.published|tostring) == "443")] | length > 0' >/dev/null; then
-            echo "::error::Refusing to start: the e2e stack would bind port 80 or 443, which production serves on." >&2
+            echo "::error::Refusing to start: the e2e stack would bind port 80 or 443." >&2
             exit 1
           fi
           echo "Isolation checks passed."
 
-      # BEFORE the work, for the same reason the disk reclaim in `verify` is:
-      # the teardown at the bottom of this job is `if: always()`, and
-      # `always()` is a promise the runner can only keep while it is alive. On
-      # 2026-09-19 it was not — the box ran out of memory mid-tier, the runner
-      # lost communication, and no further step of any kind executed. The
-      # throwaway stack was left running, `restart: unless-stopped` (since
-      # fixed in docker-compose.e2e.yml) brought it back on every boot, and
-      # 1.5 GB of test containers sat on a 3.9 GB box with no swap beside the
-      # live service until somebody rebooted and removed them by hand.
-      #
-      # So the invariant is established here rather than only promised at the
-      # end: whatever the last run left behind, this one starts from nothing.
-      # Scoped by project name alone — never `-f`, which would resolve the
-      # base file and name the PRODUCTION project — and `|| true` because the
-      # overwhelmingly common case is that there is nothing to remove.
-      - name: Remove any stack a previous run left behind
-        run: |
-          set -euo pipefail
-          if [ "${COMPOSE_PROJECT_NAME}" != "marketplace-analytic-e2e" ]; then
-            echo "::error::Refusing to clean up: project is '${COMPOSE_PROJECT_NAME}'." >&2
-            exit 1
-          fi
-          leftover=$(docker ps -aq --filter "label=com.docker.compose.project=marketplace-analytic-e2e" | wc -l)
-          echo "${leftover} leftover marketplace-analytic-e2e container(s)."
-          if [ "${leftover}" -gt 0 ]; then
-            echo "::warning::A previous run did not tear its stack down; removing it."
-          fi
-          docker compose -p marketplace-analytic-e2e down -v --remove-orphans || true
-
       # The e2e overlay builds the frontend's self-contained `e2e` target,
-      # which carries a plain-HTTP config and its own copy of the bundle.
-      # Without it nginx cannot load its config at all — the production one
-      # hard-requires the Let's Encrypt key pair, which no runner has — so the
-      # container restart-loops and nothing is ever served. Production's
-      # frontend instead reads its config and bundle from a release directory
-      # the deploy installs on the host, which is why this needs a distinct
-      # image rather than a mounted config file.
+      # which carries a plain-HTTP config and its own copy of the bundle. The
+      # production config hard-requires a Let's Encrypt key pair no runner
+      # has, and without it nginx cannot load its config at all.
       - name: Start the stack
         run: >-
           docker compose --project-directory backend
           -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
           up -d --build
 
-      # Assert a real 200. The previous gate used `curl -sf`, which treats a
-      # redirect as success and does not follow it — so it passed against a
-      # stack that served only "301 https://localhost/".
+      # Assert a real 200. `curl -sf` treats a redirect as success and does not
+      # follow it — so it once passed against a stack that served only
+      # "301 https://localhost/".
       - name: Wait for the stack to serve the SPA
-        working-directory: backend
         run: |
           for _ in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${E2E_BASE_URL}/" || true)
@@ -649,21 +470,15 @@ jobs:
           -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
           exec -T api python -m scripts.seed_e2e_fixtures
 
-      # No `--with-deps`. That flag shells out to apt, which the unprivileged
-      # runner user cannot do; the system libraries were installed once, by
-      # hand, when the runner was provisioned. The browser download itself is
-      # cached in ~/.cache/ms-playwright and persists between runs here, so
-      # this is a no-op after the first night.
       - name: Install Playwright and its browser
         working-directory: tests
         run: |
           npm ci
-          npx playwright install chromium
+          npx playwright install --with-deps chromium
 
-      # `E2E_BASE_URL` comes from the job env now; repeating it here with the
-      # production port is exactly the sort of drift the guard step exists for.
-      # `--workers=1` is already the config's default (see playwright.config.js
-      # for why serial is both cheaper and more correct), so nothing is passed.
+      # `E2E_BASE_URL` comes from the job env; `--workers=1` is already the
+      # config's default (see playwright.config.js for why serial is both
+      # cheaper and more correct), so nothing is passed.
       - name: End-to-end tier
         working-directory: tests
         run: npm run test:e2e
@@ -684,15 +499,3 @@ jobs:
           docker compose --project-directory backend
           -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
           logs --tail=200
-
-      # ALWAYS, and this step did not need to exist on a hosted runner because
-      # the whole machine was thrown away afterwards. Here the box keeps
-      # running: a stack left up would hold ~1 GB and two published ports until
-      # somebody noticed, and the next night's run would find its own volumes
-      # already populated. `-v` because the throwaway database is the point.
-      - name: Tear the stack down
-        if: always()
-        run: >-
-          docker compose --project-directory backend
-          -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml
-          down -v --remove-orphans

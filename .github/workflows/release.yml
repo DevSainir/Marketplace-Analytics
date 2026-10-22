@@ -71,10 +71,9 @@ permissions:
 jobs:
   release:
     name: version + changelog
-    # On the self-hosted runner: this workflow is what cuts a version, and a
-    # version that cannot be cut is a change that cannot ship. Its steps need
-    # only `python3` and `gh`, both of which the runner already has.
-    runs-on: [self-hosted, prod-vps]
+    # A hosted runner: the steps need release-please, uv and `gh`, nothing
+    # else, and nothing here touches a running stack.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
@@ -143,23 +142,17 @@ jobs:
       # workflow — the same rule the uv.lock push above relies on to avoid
       # looping. A human merge triggers two things, and both would go missing:
       #
-      #   * `tests`, whose green run is what `deploy` waits for. Without it the
-      #     version bump would sit on main, released but never shipped — the
-      #     exact failure v0.1.1 had, arrived at from the other direction.
+      #   * `tests`, whose run on the merged commit is the release's proof.
+      #     Without it the version bump would sit on main, tagged but never
+      #     tested — the exact failure v0.1.1 had, arrived at from the other
+      #     direction.
       #   * `release` itself, which is what notices the merged PR and creates
       #     the tag and the GitHub Release. Without
       #     it the PR would merge and no release would ever be cut.
       #
       # `workflow_dispatch` is the documented exception to that rule, so both
       # are started explicitly. A dispatched `tests` on main runs the same
-      # tiers a push does (`end-to-end` keys off the branch, `performance` is
-      # opt-in either way), so the deploy gate keeps its full strength.
-      #
-      # The suppression bites one level deeper than it first appears, and cost
-      # v0.5.2 its deploy: the `workflow_run` event that `tests` normally emits
-      # to start `deploy` is ALSO suppressed when the run was dispatched by
-      # GITHUB_TOKEN. `tests` therefore hands off to `deploy` itself for
-      # dispatched runs on main — see `deploy-after-dispatch` in tests.yml.
+      # tiers a push does, so the merged commit is checked in full.
       #
       # To HOLD a release, label the PR `hold-release`: the merge is skipped
       # and the PR stays open, which is what leaving it open used to mean.
@@ -212,7 +205,7 @@ jobs:
           # merge issued while that recomputation is still in flight is refused
           # with "Base branch was modified" — which is a race, not a conflict.
           # Observed 2026-08-17 (v0.7.6): one failure in twelve runs, and the
-          # release sat unmerged while the deploy of the same commit succeeded.
+          # release sat unmerged.
           #
           # A merge commit, not a squash: the announcement builds its list with
           # `git log --no-merges`, which is what keeps "Merge pull request #12…"
@@ -236,17 +229,16 @@ jobs:
           done
 
           if [ -z "$merged" ]; then
-            # Deliberately a failure: the deploy of this commit has already
-            # happened, so a silent skip would leave main's version fields behind
-            # with nothing pointing at why. The next push re-runs this workflow
-            # and merges the PR then.
+            # Deliberately a failure: a silent skip would leave main's version
+            # fields behind with nothing pointing at why. The next scheduled or
+            # dispatched run merges the PR then.
             echo "::error::Could not merge release PR #${PR_NUMBER} after 5 attempts."
             exit 1
           fi
 
           # Both of these would have happened on their own had a person clicked
-          # the button. Started in this order so the pipeline that gates the
-          # deploy is already moving before release-please cuts the tag.
+          # the button. Started in this order so the merged commit's tests are
+          # already running when release-please cuts the tag.
           gh workflow run tests.yml --ref main
           gh workflow run release.yml --ref main
           echo "Dispatched tests + release for the merged commit."

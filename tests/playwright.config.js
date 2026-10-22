@@ -25,14 +25,10 @@ export default defineConfig({
   // directory so `--project` selects a tier.
   outputDir: './.artifacts',
 
-  // ONE worker, everywhere. This was two under CI, which was affordable on a
-  // hosted runner with four idle cores and is not on the self-hosted one: that
-  // box serves production, has two vCPUs, and a second Chromium is another
-  // ~250 MB resident competing with the live API and the Celery worker. Serial
-  // is also what these tests already wanted — they share one backend and one
-  // seeded account, and parallel logins rotate each other's refresh cookies,
-  // which the backend correctly reads as token reuse and answers by revoking
-  // every session.
+  // ONE worker, everywhere. Not for the runner's sake: these tests share one
+  // backend and one seeded account, and parallel logins rotate each other's
+  // refresh cookies, which the backend correctly reads as token reuse and
+  // answers by revoking every session.
   workers: 1,
   fullyParallel: false,
 
@@ -59,11 +55,11 @@ export default defineConfig({
       // test rather than as the memory pressure it is. Writing that buffer to
       // /tmp costs a little speed and removes the need for the memory.
       //
-      // The rest stop the browser reaching for what this box has to keep for
-      // production: no GPU process, no extensions, and nothing running in the
-      // background between tests. The heap cap is the backstop the runner's
-      // own cgroup cannot provide — Chromium is a child of the test process,
-      // so a runaway renderer would otherwise be bounded only by the box.
+      // The rest keep the browser to what the tests need: no GPU process, no
+      // extensions, and nothing running in the background between tests. The
+      // heap cap is the backstop for a runaway renderer — Chromium is a child
+      // of the test process, so it would otherwise be bounded only by the box
+      // the stack under test shares with it.
       args: [
         '--disable-dev-shm-usage',
         '--disable-gpu',

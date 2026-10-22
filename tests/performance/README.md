@@ -14,7 +14,7 @@ halves differently because of it:
   `.github/workflows/load.yml` runs the three of them nightly. They aim real
   load at a real API — 120 concurrent VUs in the spike, 60 requests a second
   in the flood — so they must never point at anything shared, which rules out
-  any self-hosted runner that sits next to a running deployment.
+  a self-hosted runner that sits next to a running deployment.
   The workflow asserts `RUNNER_ENVIRONMENT=github-hosted` before generating a
   single request, and a unit test asserts the job never carries the
   `self-hosted` label.

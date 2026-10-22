@@ -28,26 +28,28 @@
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# ISOLATION, added 2026-09-09 when the browser tier moved onto the production
-# VPS's own runner. Read this before running the stack anywhere that matters.
+# ISOLATION, added 2026-09-09 when the browser tier ran on a host that also
+# served the live stack. CI now runs it on a throwaway VM, but the same stack
+# runs on developers' machines beside their own; read this before running it
+# anywhere that matters.
 #
 # The base file declares `name: marketplace-analytic`, so `docker compose -f
-# docker-compose.yml -f docker-compose.e2e.yml up --build` targets THE
-# PRODUCTION PROJECT. On the VPS that recreates the live containers with the
-# plain-HTTP nginx config below, pointed at a throwaway database — an outage
-# dressed as a test run. The command must therefore always carry an explicit
+# docker-compose.yml -f docker-compose.e2e.yml up --build` targets THE BASE
+# PROJECT. Wherever that project is running, that recreates its containers
+# with the plain-HTTP nginx config below, pointed at a throwaway database —
+# on the host it was written for, an outage dressed as a test run. The command must therefore always carry an explicit
 # `-p marketplace-analytic-e2e`, and tests.yml asserts that it does.
 #
 # A distinct project is necessary but NOT sufficient. Image tags are global to
 # the daemon, so a build that kept the base file's `marketplace-analytic-api:
-# latest` would overwrite the image production restarts from, whatever project
-# built it. Hence the `:e2e` tags below — scalars, which an overlay REPLACES
+# latest` would overwrite the image the base stack restarts from, whatever
+# project built it. Hence the `:e2e` tags below — scalars, which an overlay REPLACES
 # (unlike `ports` and `volumes`, which it merges).
 #
 # The caps are the third leg. Compose limits are enforced by the kernel on the
-# container, so unlike the runner's own systemd limits they also bound a
-# `docker build`'s children and anything the stack spawns. Sized to leave the
-# live stack its working set on a 4 GB box.
+# container, so they also bound anything the stack spawns. Sized, on the host
+# this was written for, to leave the live stack beside it its working set on a
+# 4 GB box — and still what keeps the tier from crowding a laptop.
 #
 # The budget is stated here in full because getting it wrong took the service
 # down on 2026-09-19, and the comment this replaces was itself part of how:
@@ -106,8 +108,8 @@ services:
     cpus: 0.25
 
   # The twin, on the same `:e2e` image. Without its own entry it would inherit
-  # the base file's `:latest` — production's tag — and the base file's build,
-  # which on this box would overwrite the image production restarts from.
+  # the base file's `:latest` — the base stack's tag — and the base file's
+  # build, which would overwrite the image that stack restarts from.
   frontend_standby:
     image: marketplace-analytic-frontend:e2e
     restart: "no"
