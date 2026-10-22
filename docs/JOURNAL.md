@@ -12,8 +12,7 @@ Ready-made views open from a link with a tag: `#week`, `#month`, `#quarter`,
 `heatmap`, `ui`, `access`, `infra`, `security`, `process`).
 
 Rows up to 2026-10-17 were reconstructed from the commit history: every `fix`, `feat`,
-`feat-minor` and `perf` commit since 2026-07-09 was grouped into tasks. A few rows list no
-commits: their work lived only in files that are not part of this repository.
+`feat-minor` and `perf` commit since 2026-07-09 was grouped into tasks.
 
 Columns:
 
@@ -56,7 +55,6 @@ Columns:
 | 2026-10-12 | P&L penalty reasons open behind «N причин», so an article row stays one line high | P&L | improvement | S | An article with several penalty reasons took up several table rows | `f666c4bb` |
 | 2026-10-12 | An article's sizes became rows of the same P&L table, without their own "Total" | P&L | improvement | M | A separate size table repeated the article row, and its "Buyout" seemed not to add up | `0d1175ee` `db478520` |
 | 2026-10-12 | A sortable table header shows the pointer cursor | UI | improvement | S | Nothing said that the header could be clicked | `5690515c` |
-| 2026-10-10 | Each analyst gets a database login of their own, revoked one person at a time | Access | improvement | M | A second person needed read access to the database, and there was one shared login | |
 | 2026-10-10 | Search-query clusters are harvested again, for every workspace | Monitoring | bug | S | The block had been empty since 8 Sep: the harvest was switched off, and only the display came back | `8cf855e2` |
 | 2026-10-10 | Table tooltips stay inside the table, and the P&L hints are shorter | UI | improvement | S | A tooltip near the table's right edge hung off the card, and the P&L hints spelled out long formulas | `678e58a6` |
 | 2026-10-10 | An "Actions" edit is no longer lost while the same day is still saving | Monitoring | bug | S | A budget and a dropdown choice made in one go: the choice stayed on screen but never reached the server | `414ddceb` |
@@ -93,7 +91,6 @@ Columns:
 | 2026-10-02 | A daily history of card ratings and reviews | Monitoring | feature | M | The rating was overwritten every night, so a jump could not be explained after the fact | `f1ff85d4` |
 | 2026-10-02 | The funnel backfill no longer loses days, and holes in the history raise an alert | Monitoring | bug | M | One day was read by no pass at all: order sums stayed empty for three days while every run was green | `9f05b751` |
 | 2026-10-02 | A new token backfills only the history it unlocks | Infrastructure | bug | M | Adding a reviews token reset all four backfills of a workspace, and the whole history started over | `dd2da9fe` |
-| 2026-10-02 | A method for finding the supplying warehouse from the WB storefront, and a daily storefront snapshot | Monitoring | docs | M | Since 16 Aug WB no longer names the warehouse in the API, while the storefront shows where each size ships from | |
 | 2026-10-02 | A hint on the "Overall" CTR: which clicks and impressions it is computed from | Monitoring | improvement | S | Dividing the figures visible on screen gave a CTR that did not exist | `0e9ffc91` |
 | 2026-10-02 | A visible outline on ghost buttons, and an inset chevron on dropdowns | UI | improvement | S | The "Refresh" and "Delete test" outlines blended into the background, and the dropdown arrow stuck to the edge | `5d7c810a` `33669f0e` |
 | 2026-10-01 | A hand-set norm per article in the heatmap, with Ctrl+Z undo | Heatmap | feature | M | The seller sets their own norm, and the row is coloured against it instead of the median | `72e23e7f` `23d4083a` `c106f268` |
@@ -175,7 +172,6 @@ Columns:
 | 2026-09-14 | Three alerts no longer page because of WB's publication schedule | Infrastructure | infrastructure | S | In one day a stream of alarms and all-clears arrived about a service that was working | `7c5bc79a` |
 | 2026-09-12 | A release once a week, not on every push | Process | infrastructure | S | Dozens of releases went out in three days, and a release cancelled its own CI | `f5eab7e2` |
 | 2026-09-12 | Load tests in CI: resilience on every push, the k6 profiles on a schedule of their own | Infrastructure | infrastructure | M | The resilience tier never once started in 200 runs | `e1daa626` `8990909d` |
-| 2026-09-12 | The e2e seed loads again after the warehouse-marks table was dropped | Infrastructure | infrastructure | S | The nightly browser tier failed before its first test, and so did loading the seed locally | |
 | 2026-09-11 | A new workspace loads its whole history by itself: catalogue, funnel, advertising and P&L | Monitoring | feature | L | A new seller with sales going back years had only a month of data; the history was loaded by hand with a script | `e5ce7603` `0bb45840` `4bb9925e` `f5b4c68e` `86a90d90` `def8039b` `3cc1eff9` `d22a345d` `9f52514c` `c3c2e2c3` |
 | 2026-09-11 | An alert when a new seller's history stops arriving | Infrastructure | infrastructure | M | A new workspace's P&L import died at the first step and sat there for 11 hours until someone looked | `d4bfb2d0` `81cfd2ac` |
 | 2026-09-11 | A/B: a test stops if someone else changes the card's photo | A/B tests | feature | M | The main photo was once rewritten 13 hours after a rotation; a running test would have credited the impressions to the wrong photo | `f4e0098b` |
