@@ -1,4 +1,4 @@
-# marketplace_service
+# Marketplace Analytic Service
 
 Analytics for sellers on the Wildberries (WB) marketplace. FastAPI + Celery backend, Vue 3 SPA,
 PostgreSQL + Redis, everything in Docker. A modular monolith:
@@ -101,6 +101,11 @@ make lint typecheck   # ruff + eslint + mypy --strict
 ```
 
 `make` with no target lists every runner, including the e2e and performance tiers.
+
+To look at the app rather than test it, `make demo` runs the whole stack on fabricated data at
+http://localhost:8080 — its own Compose project, no WB token, the login printed at the end
+(`backend/scripts/seed_demo/`, `backend/docker/docker-compose.demo.yml`). Every run re-seeds, so
+log in again after one; `make demo-down` removes it.
 
 The Makefile drives pytest through `uv`, which lives in `~/.local/bin` and is **not** on a
 non-interactive shell's PATH — `make test-fast` there dies with `uv: command not found`. Either
