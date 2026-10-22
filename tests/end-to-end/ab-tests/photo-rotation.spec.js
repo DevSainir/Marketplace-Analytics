@@ -47,10 +47,12 @@ test("a test is created, takes photos, and shows them as columns of the result t
   // The article is picked from the workspace's catalogue, never typed: a
   // free-text field let a test be created against article `1`, which nothing
   // downstream could rotate, advertise, or upload a photo to.
+  // The demo shop's T-shirt (backend/scripts/seed_demo/catalogue.py), which
+  // `scripts.seed_e2e_fixtures` writes into the primary workspace.
   await page.getByTestId("sku-search").click();
-  await page.getByTestId("sku-search").fill("995716075");
+  await page.getByTestId("sku-search").fill("9000000106");
   await page.getByTestId("sku-option").first().click();
-  await expect(page.getByTestId("picked-sku")).toContainText("995716075");
+  await expect(page.getByTestId("picked-sku")).toContainText("9000000106");
 
   // A single-bound mode sends only the bound it reads: the API refuses a body
   // carrying the other one, so a form that rendered both fields here would 422

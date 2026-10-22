@@ -2,10 +2,9 @@
 # Producing the artifact: pg_dump → gzip → validity gates → age.
 #
 # The dump is plain SQL rather than pg_dump's custom format on purpose. It is
-# restorable by any `psql` of any vintage without a matching pg_restore, it
-# ends in a marker line that proves the dump ran to completion, and it is the
-# same shape as backend/scripts/dump_seed.sh — one restore procedure to learn,
-# not two. At 751 MB the single-threaded restore costs minutes, not hours.
+# restorable by any `psql` of any vintage without a matching pg_restore, and it
+# ends in a marker line that proves the dump ran to completion. At 751 MB the
+# single-threaded restore costs minutes, not hours.
 
 # Runs a one-shot Postgres container on the stack's network. Used both for
 # pg_dump and for the psql probes; the image is the one the stack already

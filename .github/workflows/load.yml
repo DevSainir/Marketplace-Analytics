@@ -41,7 +41,6 @@ env:
   FRONTEND_HTTP_PORT: '8080'
   FRONTEND_HTTPS_PORT: '8443'
   PERF_API_URL: http://localhost:8000
-  SEED_PG_CONTAINER: marketplace-analytic-load-postgres-1
   # Pinned with its checksum, the way every action in this repository is pinned
   # by SHA. A load runner that fetches "latest" is a load runner whose results
   # change for reasons nobody committed.
@@ -66,10 +65,6 @@ jobs:
           if [ "${RUNNER_ENVIRONMENT:-}" != "github-hosted" ]; then
             echo "::error::This job generates overload traffic and must run on a hosted runner." >&2
             echo "::error::RUNNER_ENVIRONMENT=${RUNNER_ENVIRONMENT:-unset}. Refusing." >&2
-            exit 1
-          fi
-          if [ "${SEED_PG_CONTAINER}" = "marketplace-analytic-postgres-1" ]; then
-            echo "::error::SEED_PG_CONTAINER names production's database. Refusing." >&2
             exit 1
           fi
           echo "Hosted runner, throwaway project ${COMPOSE_PROJECT_NAME}. Proceeding."
@@ -107,13 +102,9 @@ jobs:
           echo "::error::The stack did not become healthy in time." >&2
           exit 1
 
-      # The profiles read reports from the database, so they need a catalogue and an account
+      # The profiles read reports from the database, so they need a shop and an account
       # — the same two things the browser tier needs, seeded the same way.
-      - name: Load the catalogue seed
-        working-directory: backend
-        run: ./scripts/load_seed.sh
-
-      - name: Seed the load-test account and workspaces
+      - name: Seed the load-test account, workspaces and shop
         run: >-
           docker compose --project-directory backend
           -f backend/docker/docker-compose.yml

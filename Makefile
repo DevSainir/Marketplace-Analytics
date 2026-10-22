@@ -95,10 +95,7 @@ test-backend: ## Every backend tier
 test-e2e: ## Playwright user journeys against a running stack
 	$(TESTS_NPM) run test:e2e
 
-seed-e2e: ## Offline fixtures the browser tier needs (account, workspaces, catalogue owner)
-	# The committed dump predates multi-tenancy, so its product cards land with
-	# workspace_id NULL and are invisible to every workspace until claimed.
-	cd backend && ./scripts/load_seed.sh
+seed-e2e: ## Offline fixtures the browser tier needs (account, workspaces, the demo shop)
 	cd backend && uv run python -m scripts.seed_e2e_fixtures
 
 # --------------------------------------------------------------------------- #

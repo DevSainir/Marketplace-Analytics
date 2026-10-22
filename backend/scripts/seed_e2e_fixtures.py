@@ -1,36 +1,29 @@
 """Provision the offline fixtures the end-to-end tier needs, in one run.
 
 The browser tier drives a REAL stack, so it needs three things to exist before
-Playwright opens a page — and none of them are supplied by the schema, the
-migrations, or a seed dump loaded by ``load_seed.sh``:
+Playwright opens a page — and none of them are supplied by the schema or the
+migrations:
 
-1. **An account it can log in as.** ``dump_seed.sh`` deliberately never dumps
-   the ``auth`` schema (dev credentials must not travel between hosts), and the
-   registration form is invite-gated, so a fresh database has nobody in it.
+1. **An account it can log in as.** The registration form leads to an account
+   that belongs to no company and can reach nothing, so a fresh database has
+   nobody the tier could use.
 2. **At least two workspaces.** Every data request carries ``X-Workspace-Id``,
    and the header is rejected unless the workspace row exists. Two, not one, so
    the "switching workspace re-scopes every request" journey has somewhere to
    switch to instead of skipping itself.
-3. **SKUs the account can actually see.** This is the subtle one. A seed dump
-   from before multi-tenancy is a problem: its ``COPY monitoring.product_card`` names
-   only ``(nm_id, vendor_code, title, synced_at)``. Loading it leaves every
-   card with ``workspace_id IS NULL``, and ``workspace_sku_select()`` filters
-   those out of every query — so the catalogue is present in the database and
-   invisible to the entire application. The SKU-search journey then finds
-   nothing, for a reason no error message would explain.
-4. **One week of finreports facts.** The seed dump covers the ``monitoring``
-   schema only, so on a fresh database the P&L has no weeks to offer and its
-   journey fails on a page that is working exactly as designed. The facts are
-   spread over two tables that only mean something together — see
-   :func:`_ensure_finreports_week`.
+3. **A shop in the first one.** The catalogue, its funnel, advertising and
+   settlement weeks — the same fabricated shop `make demo` shows
+   (:mod:`scripts.seed_demo`), written into the primary workspace. Without it
+   the SKU search finds nothing and the P&L has no weeks to offer, and both
+   journeys fail on pages that are working exactly as designed.
 
-Unlike ``seed_workspace.py`` / ``seed_harvest.py`` this script is **fully
-offline**: it touches no WildBerries surface, needs no API token, and finishes
-in well under a second. That is what makes it usable from CI.
+Like the demo, this is **fully offline**: it touches no WildBerries surface and
+needs no API token. That is what makes it usable from CI.
 
 Every step is idempotent — an existing account keeps its id (its password is
-reset to the expected one), existing workspaces are reused, and only *unclaimed*
-cards are adopted. Re-running is the intended way to repair a half-seeded stack.
+reset to the expected one), existing workspaces are reused, and the shop is
+written only into a primary workspace that has no catalogue yet. Re-running is
+the intended way to repair a half-seeded stack.
 
 Run from the ``backend`` directory (``.env`` populated, migrations applied)::
 
@@ -47,13 +40,15 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from scripts.seed_e2e_finreports import ensure_finreports_week
+from scripts.seed_demo.shop import populate_workspace
+from scripts.seed_demo.tenancy import real_data
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal, engine
 from src.core.security import hash_password
+from src.core.timeutils import moscow_today
 from src.modules.monitoring.models import ProductCard
 from src.modules.organizations.models import (
     DEFAULT_SUBSCRIPTION_DAYS,
@@ -91,17 +86,15 @@ class SeedReport:
         email: The account the tier will log in as.
         account_created: ``True`` when the user row did not exist before.
         workspaces: Names of the workspaces present after the run, oldest first.
-        cards_claimed: Product cards adopted out of ``workspace_id IS NULL``.
+        shop_written: ``True`` when the shop was written by this run.
         cards_visible: Cards the primary workspace can see after the run.
-        finreports_week_created: ``True`` when the finreports week was added.
     """
 
     email: str
     account_created: bool
     workspaces: list[str]
-    cards_claimed: int
+    shop_written: bool
     cards_visible: int
-    finreports_week_created: bool
 
 
 async def _ensure_account(session: AsyncSession, *, email: str, password: str) -> tuple[User, bool]:
@@ -245,31 +238,6 @@ async def _ensure_workspaces(
     return existing
 
 
-async def _claim_unowned_cards(session: AsyncSession, workspace_id: uuid.UUID) -> int:
-    """Adopt every ``workspace_id IS NULL`` product card into one workspace.
-
-    Only unclaimed rows are touched, so a card already owned by a workspace is
-    never re-tenanted — that would silently move real harvested data between
-    tenants on a stack where this script is run by accident.
-
-    Args:
-        session: Open async session (the caller owns the transaction).
-        workspace_id: The workspace adopting the orphaned catalogue.
-
-    Returns:
-        The number of cards claimed.
-    """
-    # `returning` rather than `rowcount`: the async Result protocol does not
-    # expose a row count, and counting the returned keys is exact either way.
-    result = await session.execute(
-        update(ProductCard)
-        .where(ProductCard.workspace_id.is_(None))
-        .values(workspace_id=workspace_id)
-        .returning(ProductCard.nm_id)
-    )
-    return len(result.scalars().all())
-
-
 async def _count_visible_cards(session: AsyncSession, workspace_id: uuid.UUID) -> int:
     """Count the cards a workspace can see (what the SKU search will find)."""
     stmt = (
@@ -281,7 +249,7 @@ async def _count_visible_cards(session: AsyncSession, workspace_id: uuid.UUID) -
 
 
 async def seed(*, email: str, password: str) -> SeedReport:
-    """Provision the account, the workspaces, and the catalogue ownership.
+    """Provision the account, the workspaces, and the shop in the first of them.
 
     One transaction: a half-applied seed (an account with no visible SKUs) is
     the exact state that makes the browser tier fail confusingly, so it is
@@ -301,20 +269,26 @@ async def seed(*, email: str, password: str) -> SeedReport:
         organization = await _ensure_organization(session, owner=account)
         workspaces = await _ensure_workspaces(session, organization_id=organization.id)
         primary = workspaces[0]
-        claimed = await _claim_unowned_cards(session, primary.id)
+        # The shop's WB ids are fixed, so it is written once: a primary
+        # workspace that already sees a catalogue keeps it. And never beside
+        # real data — a stray local run once put a fixture week into a
+        # developer's workspace, where it skewed every window covering it.
+        found = await real_data(session)
+        shop_written = not found and not await _count_visible_cards(session, primary.id)
+        if shop_written:
+            await populate_workspace(session, primary.id, moscow_today())
+        elif found:
+            listed = ", ".join(f"{count} {kind}" for kind, count in found.items())
+            print(f"  SKIPPED the shop: this database already holds {listed}.")
         visible = await _count_visible_cards(session, primary.id)
-        # After the claim, so the fixture week can adopt a card the workspace
-        # can actually see.
-        week_created = await ensure_finreports_week(session, primary.id)
         await session.commit()
 
     return SeedReport(
         email=email,
         account_created=created,
         workspaces=[workspace.name for workspace in workspaces],
-        cards_claimed=claimed,
+        shop_written=shop_written,
         cards_visible=visible,
-        finreports_week_created=week_created,
     )
 
 
@@ -322,7 +296,7 @@ def _parse_args() -> argparse.Namespace:
     """Parse the command-line options."""
     parser = argparse.ArgumentParser(
         description="Seed the offline fixtures the end-to-end tier needs (account, "
-        "workspaces, catalogue ownership). Touches no WildBerries API."
+        "workspaces, the demo shop). Touches no WildBerries API."
     )
     parser.add_argument(
         "--email",
@@ -349,14 +323,9 @@ async def main() -> None:
     print(
         f"E2E fixtures ready: account {report.email} {verb}; "
         f"workspaces={report.workspaces}; "
-        f"cards claimed={report.cards_claimed}, visible={report.cards_visible}; "
-        f"finreports week={'created' if report.finreports_week_created else 'already present'}"
+        f"shop={'written' if report.shop_written else 'already present'}, "
+        f"cards visible={report.cards_visible}"
     )
-    if not report.cards_visible:
-        print(
-            "  WARNING: the primary workspace can see no SKUs. Load the catalogue "
-            "first (backend/scripts/load_seed.sh), then re-run this script."
-        )
 
 
 if __name__ == "__main__":

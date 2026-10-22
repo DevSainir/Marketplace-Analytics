@@ -528,15 +528,11 @@ jobs:
       FRONTEND_HTTP_PORT: '8080'
       FRONTEND_HTTPS_PORT: '8443'
       E2E_BASE_URL: http://localhost:8080
-      # A FOURTH fact, learned the hard way on 2026-09-10. The three above
-      # isolate everything that goes through Compose; `scripts/load_seed.sh`
-      # does not — it reaches for a postgres container BY NAME, and its old
-      # default was production's. The first (and only) nightly run of this job
-      # truncated production's monitoring schema. The script now derives the
-      # name from COMPOSE_PROJECT_NAME and refuses any stack whose api declares
-      # ENVIRONMENT=production; naming it here as well makes the target visible
-      # in the log rather than implied.
-      SEED_PG_CONTAINER: marketplace-analytic-e2e-postgres-1
+      # There used to be a fourth fact here, learned the hard way on
+      # 2026-09-10: a seed script that reached for a postgres container BY NAME,
+      # outside Compose, and whose default name was production's. The seed now
+      # runs through `docker compose exec` like everything else in this job, so
+      # the project name above is the only target there is.
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -578,15 +574,6 @@ jobs:
             echo "::error::Refusing to start: the e2e stack would bind port 80 or 443, which production serves on." >&2
             exit 1
           fi
-          # The seed target is checked here too, because it is the one thing in
-          # this job that Compose does not resolve — `config` above cannot see
-          # it, and it is what actually reached production.
-          seed_pg=$(printf '%s' "$cfg" | jq -r '.services.postgres.container_name // "marketplace-analytic-e2e-postgres-1"')
-          if [ "${SEED_PG_CONTAINER}" = "marketplace-analytic-postgres-1" ]; then
-            echo "::error::Refusing to start: SEED_PG_CONTAINER names production's database." >&2
-            exit 1
-          fi
-          echo "Seed will target: ${SEED_PG_CONTAINER} (compose postgres: ${seed_pg})"
           echo "Isolation checks passed."
 
       # BEFORE the work, for the same reason the disk reclaim in `verify` is:
@@ -653,16 +640,10 @@ jobs:
             logs --tail=100
           exit 1
 
-      # The browser tier needs three things no migration supplies: an account
-      # (the auth schema is deliberately never dumped), a second workspace to
-      # switch to, and — the subtle one — a catalogue the workspace can SEE.
-      # The committed dump predates multi-tenancy, so every product_card lands
-      # with workspace_id NULL and is filtered out of every query.
-      - name: Load the catalogue seed
-        working-directory: backend
-        run: ./scripts/load_seed.sh
-
-      - name: Seed the end-to-end account and workspaces
+      # The browser tier needs three things no migration supplies: an account,
+      # a second workspace to switch to, and a shop in the first one — the same
+      # fabricated shop `make demo` shows, written offline with no WB token.
+      - name: Seed the end-to-end account, workspaces and shop
         run: >-
           docker compose --project-directory backend
           -f backend/docker/docker-compose.yml -f backend/docker/docker-compose.e2e.yml

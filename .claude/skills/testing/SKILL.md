@@ -160,8 +160,10 @@ ports (8080/8443), and a guard step that fails the job if either is ever lost.
 
 **That fence only covers what goes through Compose.** A seed script that addresses a container
 *by name* (`docker exec <container> …`) is outside it, and if the name it defaults to belongs to
-the other stack, the seed lands there — while every Compose guard passes. That happened once,
-and `tests/unit/core/test_ci_never_targets_production.py` now pins both halves of the fix.
+the other stack, the seed lands there — while every Compose guard passes. That happened once;
+seeding now runs as `docker compose exec` inside the job's own project, and
+`tests/unit/core/test_ci_never_targets_production.py` fails any workflow step that addresses a
+container by name.
 
 So, before adding or editing any step of a tier that stands up infrastructure:
 
@@ -170,10 +172,11 @@ So, before adding or editing any step of a tier that stands up infrastructure:
   passed explicitly, not defaulted.
 * **A default that names a real, non-test resource is a bug**, even in a script "only ever run
   in CI".
-* **Make destructive scripts recognise a live stack themselves.** `backend/scripts/load_seed.sh`
-  reads `ENVIRONMENT` from the *target stack's* api container and refuses `production`. Note
-  where it reads it from: a checkout's `backend/.env` is a copy of `.env.example` and says
-  `local` whatever container is being addressed.
+* **Make destructive scripts recognise a live stack themselves.** `scripts.seed_demo` empties
+  the database it writes to, so it refuses unless the process it runs in says
+  `ENVIRONMENT=local` and the database holds no account, catalogue card or settlement row that is
+  not the demo's (`scripts/seed_demo/tenancy.py`). Run inside the stack, those settings are the
+  target container's own — a checkout's `backend/.env` says `local` whatever is being addressed.
 * **`monitoring` and `finreports` refuse an unannounced `TRUNCATE`** (a statement-level
   trigger; opt in with `SET LOCAL app.allow_truncate = 'on'`, and every attempt lands in
   `organizations.audit_log`). A fixture path that needs to empty a table must say so; if a
