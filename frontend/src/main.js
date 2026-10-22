@@ -14,7 +14,7 @@ import '@/core/styles/ui-next/skin.css'
 import router from '@/core/router'
 import { installStaleAssetReload } from '@/core/router/staleAssets'
 import { installAuthGuard } from '@/modules/auth'
-import { installInternalGuard, installWorkspaceGuard } from '@/modules/profile'
+import { installWorkspaceGuard } from '@/modules/profile'
 
 const app = createApp(App)
 
@@ -30,8 +30,6 @@ installAuthGuard(router)
 // Workspace context (X-Workspace-Id) resolved before any authenticated view
 // fires its first API call. Must come AFTER the auth guard (needs a session).
 installWorkspaceGuard(router)
-// Last: it needs the session (auth guard) and asks /organizations/me itself.
-installInternalGuard(router)
 
 // Last: it records the target of each navigation, after the guards above
 // have had their say, so a reload for stale assets lands where the person

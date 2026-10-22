@@ -26,7 +26,6 @@ function me(overrides = {}) {
     user_id: 'u-1',
     email: 'new@example.com',
     role: 'user',
-    internal_features: false,
     can_write: false,
     organization: null,
     subscription: null,

@@ -21,9 +21,6 @@ const props = defineProps({
   userEmail: { type: String, default: null },
   workspaces: { type: Array, default: () => [] },
   currentWorkspaceId: { type: String, default: null },
-  // Whether the viewer is one of us. Governs the links to surfaces built for a
-  // single seller — see `require_internal` on the API side.
-  internalFeatures: { type: Boolean, default: false },
   // Which sections this account may reach — one grant per link below. A link
   // to one it cannot is not a shortcut, it is an invitation to a locked door.
   modules: { type: Array, default: () => [] },
@@ -41,15 +38,11 @@ const NAV = [
   { to: '/advertising', label: 'Реклама', module: 'advertising' },
 ]
 
-// Hiding the link is cosmetic — `installInternalGuard` is what actually
-// refuses the route, and the API refuses it again. This only stops us
-// advertising a section the person is then told does not exist.
+// Hiding the link is cosmetic — `ActivationGate` is what actually refuses the
+// page (`meta.module`), and the API refuses it again. This only stops us
+// advertising a section the person is then told they cannot open.
 const visibleNav = computed(() =>
-  NAV.filter(
-    (link) =>
-      (!link.internal || props.internalFeatures) &&
-      (!link.module || props.modules.includes(link.module)),
-  ),
+  NAV.filter((link) => !link.module || props.modules.includes(link.module)),
 )
 
 // On a phone the links outrun the pill and the nav scrolls sideways — which

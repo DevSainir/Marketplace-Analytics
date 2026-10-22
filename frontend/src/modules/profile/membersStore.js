@@ -30,10 +30,6 @@ import {
 
 export const useMembersStore = defineStore('members', () => {
   const role = ref(null)
-  // Whether the viewer is one of us: a dev, or a member of the primary
-  // organisation. `installInternalGuard` and the nav read it, so a surface
-  // built only for us is neither linked nor rendered for a customer.
-  const internalFeatures = ref(false)
   //: «Ключи активации»: a dev, or the owner of the primary organisation. The API refuses
   //: everyone else (`require_code_issuer`); this only decides what is drawn.
   const canIssueCodes = ref(false)
@@ -128,7 +124,6 @@ export const useMembersStore = defineStore('members', () => {
     try {
       const me = await fetchOrganizationMe()
       role.value = me.role
-      internalFeatures.value = Boolean(me.internal_features)
       canIssueCodes.value = Boolean(me.can_issue_codes)
       canWrite.value = Boolean(me.can_write)
       organization.value = me.organization ?? null
@@ -330,7 +325,6 @@ export const useMembersStore = defineStore('members', () => {
     hasOrganization,
     guestOnly,
     activate,
-    internalFeatures,
     canIssueCodes,
     canWrite,
     members,

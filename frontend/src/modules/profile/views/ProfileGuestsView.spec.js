@@ -50,7 +50,6 @@ function me(role) {
     user_id: 'u-1',
     email: 'dev@example.com',
     role,
-    internal_features: true,
     has_access: true,
     can_write: true,
     modules: [],

@@ -31,7 +31,6 @@ function me(overrides = {}) {
     user_id: 'u-1',
     email: 'owner@example.com',
     role: 'owner',
-    internal_features: false,
     has_access: true,
     can_write: true,
     modules: ['monitoring', 'finreports'],

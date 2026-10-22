@@ -94,7 +94,6 @@ describe('«Реклама»', () => {
     const wrapper = mountHeader({
       isAuthenticated: true,
       authResolved: true,
-      internalFeatures: false,
       modules: ['advertising'],
     })
 
@@ -105,7 +104,6 @@ describe('«Реклама»', () => {
     const wrapper = mountHeader({
       isAuthenticated: true,
       authResolved: true,
-      internalFeatures: true,
       modules: ['monitoring', 'finreports'],
     })
 

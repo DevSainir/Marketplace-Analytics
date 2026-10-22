@@ -6,8 +6,6 @@
  * whole page); «Куда ушли деньги» — the headline strip over one card per kind
  * of campaign; the daily chart with DRR; the
  * per-article table.
- *
- * Internal-only while it is being built (route meta and the API both say so).
  */
 import { computed, onMounted } from 'vue'
 

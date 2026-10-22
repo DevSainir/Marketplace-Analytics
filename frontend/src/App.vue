@@ -67,7 +67,6 @@ function onSelectWorkspace(id) {
       :user-email="auth.userEmail"
       :workspaces="workspace.workspaces"
       :current-workspace-id="workspace.currentWorkspaceId"
-      :internal-features="members.internalFeatures"
       :modules="members.modules"
       @logout="onLogout"
       @select-workspace="onSelectWorkspace"
