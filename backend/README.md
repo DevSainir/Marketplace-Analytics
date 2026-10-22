@@ -61,10 +61,24 @@ does, and callers never learn which form they are importing from. See the
 
 ## Running locally
 
+From the repository root. The quickest look is the demo — the whole stack on
+fabricated data, no WB token, at <http://localhost:8080>:
+
 ```bash
-cp .env.example .env          # then fill secrets (JWT_SECRET_KEY, WB tokens…)
+cp backend/.env.example backend/.env   # works as is for local use
+make demo                              # build, start, seed; `make demo-down` removes it
+```
+
+For development against the stack, copy
+`docker/docker-compose.override.yml.example` to `docker/docker-compose.override.yml`
+(it publishes the api, Postgres and Redis on loopback), then:
+
+```bash
 make up                       # api :8000, worker, postgres :5432, redis :6379
 ```
+
+WB tokens are not environment variables: they are stored per workspace,
+encrypted, and entered in the app.
 
 Everything docker lives in `docker/` — the Dockerfile, its `.dockerignore`, and
 all three compose files. `make up`/`down`/`ps`/`logs` wrap them; for anything

@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# Overlay for `make demo`: the whole stack on fabricated data, on a laptop,
+# with no WildBerries token and no TLS certificate.
+#
+#   make demo         # build, start, seed, print the URL and the demo login
+#   make demo-down    # stop it and delete its data
+#
+# It is always run as its OWN compose project (`marketplace-analytic-demo`, set
+# by the Makefile), so its containers and its Postgres volume never touch a
+# development stack started with `make up` on the same machine — and
+# `scripts.seed_demo`, which fills the database it is pointed at, only ever
+# sees the demo's.
+#
+# WHAT IT CHANGES, AND WHY. Everything else is the real topology — the edge,
+# both nginx, both api instances, the migrate job, the worker:
+#
+# * nginx serves plain HTTP (`e2e` target, ../frontend/docker/nginx.ci.conf).
+#   The production config hard-requires a Let's Encrypt key pair, and without
+#   it nginx refuses to load at all. The image gets its own `:demo` tag because
+#   the base file's `:latest` names the TLS build.
+# * The refresh cookie is not `Secure`. The demo is served over http://, and
+#   Safari drops a `Secure` cookie on http://localhost, so the session would
+#   not survive a reload there. `ENVIRONMENT=local` is what permits this;
+#   any deployed environment refuses to start with it.
+# * Beat is not started. Every scheduled task asks WildBerries for something
+#   with the workspace's token, and the demo workspace has none: the schedule
+#   would only fill the worker's log with refusals. The worker itself runs,
+#   so a button that queues a task gets an answer rather than a spinner.
+# * A/B-test photos live on a volume both api instances share. With no bucket
+#   configured the module stores them on local disk, and the two instances
+#   would otherwise each see only what was written through themselves.
+#
+# The edge's ports come from FRONTEND_HTTP_PORT / FRONTEND_HTTPS_PORT, which
+# the Makefile sets (8080 / 8443 by default), because Compose MERGES `ports`
+# from an overlay rather than replacing them.
+# ---------------------------------------------------------------------------
+
+services:
+  frontend:
+    image: marketplace-analytic-frontend:demo
+    build:
+      target: e2e
+
+  frontend_standby:
+    image: marketplace-analytic-frontend:demo
+    build:
+      target: e2e
+
+  api:
+    environment:
+      REFRESH_COOKIE_SECURE: "false"
+    volumes:
+      - ab_test_media:/app/.data
+
+  api_standby:
+    environment:
+      REFRESH_COOKIE_SECURE: "false"
+    volumes:
+      - ab_test_media:/app/.data
+
+  beat:
+    profiles: ["scheduler"]
+
+volumes:
+  ab_test_media:

@@ -56,6 +56,7 @@ TESTS_NPM := npm --prefix tests
         test-frontend test-e2e test-perf test-perf-frontend test-perf-load lint \
         format audit lock typecheck setup-test-db clean-test-db seed-e2e \
         up down stop start ps logs prune rebuild frontend-release \
+        demo demo-logs demo-down \
         obs-up obs-down obs-ps obs-logs \
         backup backup-verify backup-list
 
@@ -196,6 +197,53 @@ start: ## Wake a parked stack — NOT a rebuild; run `up` after editing backend 
 
 ps: ## Status of every service
 	$(COMPOSE) ps
+
+# --------------------------------------------------------------------------- #
+# The demo — the whole stack on fabricated data. No WB token, no certificate.
+#
+# Its OWN compose project, so it never shares containers or a database with a
+# `make up` stack on the same machine, and no local override: the edge on
+# DEMO_HTTP_PORT is the only thing it publishes. What the overlay changes, and
+# why, is in the header of backend/docker/docker-compose.demo.yml.
+#
+# `make demo` is safe to re-run: it rebuilds what changed and regenerates the
+# demo data, re-dated so its newest day is yesterday.
+# --------------------------------------------------------------------------- #
+DEMO_PROJECT := marketplace-analytic-demo
+DEMO_HTTP_PORT ?= 8080
+DEMO_HTTPS_PORT ?= 8443
+# The edge publishes "${FRONTEND_HTTP_PORT}:8080", so prefixing the port with an
+# address is what keeps the demo on loopback rather than on every interface.
+COMPOSE_DEMO := FRONTEND_HTTP_PORT=127.0.0.1:$(DEMO_HTTP_PORT) \
+	FRONTEND_HTTPS_PORT=127.0.0.1:$(DEMO_HTTPS_PORT) \
+	docker compose --project-directory backend -p $(DEMO_PROJECT) \
+	-f backend/docker/docker-compose.yml -f backend/docker/docker-compose.demo.yml
+
+demo: ## Run the app on fabricated data at http://localhost:8080 — no WB token needed
+	@test -f backend/.env || { \
+	  echo "backend/.env is missing. Create it from the template first:" >&2; \
+	  echo "  cp backend/.env.example backend/.env" >&2; exit 1; }
+	@# nginx mounts this directory; created here so Docker does not create it as root.
+	@mkdir -p .frontend-releases
+	$(COMPOSE_DEMO) up -d --build
+	@echo "Waiting for http://localhost:$(DEMO_HTTP_PORT) to answer..."
+	@for _ in $$(seq 1 60); do \
+	  code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:$(DEMO_HTTP_PORT)/ || true); \
+	  [ "$$code" = "200" ] && exit 0; sleep 2; \
+	done; \
+	echo "The demo did not start serving in time. See: make demo-logs" >&2; exit 1
+	$(COMPOSE_DEMO) exec -T api python -m scripts.seed_demo
+	@echo ""
+	@echo "  Demo is up:  http://localhost:$(DEMO_HTTP_PORT)"
+	@echo "  Log in as:   demo@example.com / demo-password"
+	@echo "  Stop it:     make demo-down"
+	@echo ""
+
+demo-logs: ## Follow the demo stack's logs
+	$(COMPOSE_DEMO) logs -f
+
+demo-down: ## Stop the demo and DELETE its data (its own volumes only)
+	$(COMPOSE_DEMO) down -v --remove-orphans
 
 logs: ## Follow the logs of every service
 	$(COMPOSE) logs -f

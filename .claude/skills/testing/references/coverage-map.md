@@ -34,6 +34,11 @@ first mention.
   and `/openapi.json` are a `local`-only affordance; every internet-reachable environment
   withholds them); DSN encoding; UUIDv7 ordering; the Moscow vs operating clocks; Fernet
   encryption.
+  Also **the demo** (`test_demo_seed.py`, `test_demo_stack.py`): the fabricated shop
+  `make demo` writes is a pure function of the calendar date, so a re-seed leaves every settled
+  day as it was; its tables agree (the funnel contains its ads, every sale satisfies WB's payout
+  identity, every report states the payout its rows add up to); and the demo stays a Compose
+  project of its own, on loopback, with the plain-HTTP nginx and no scheduler.
   Also the **client address** a per-IP control is allowed to key on (`test_client_ip.py`): the
   address the proxy wrote beats a client-chosen forwarded chain, and anything that is not an IP
   is refused rather than becoming a counter key an attacker can mint at will.
@@ -565,6 +570,11 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   to the workspace's revenue — plus the six-page column default and a clean downgrade. The guard
   rule itself ("any of" for the groups, an empty set refused when built) is
   `unit/organizations/test_module_guards.py`.
+* `core/` — **the demo seed's guard** (`test_demo_seed.py`): it refuses a database holding an
+  account or a catalogue card that is not the demo's — it empties every table before writing —
+  and lets a freshly migrated one through. The same file seeds the shop and builds the newest
+  week's P&L through the real service and loaders: every article sold and costed, no «unknown»
+  caveat, which is what the demo exists to show.
 * `core/` — the **least-privilege database role** (`test_least_privilege_role.py`). A SQL file
   nobody executes is a plan, so this one reads the shipped script, applies it to a real
   PostgreSQL and then *connects as the role it creates*. The interesting assertions are the
@@ -900,6 +910,8 @@ absorbs one auth-rate-limit throttle with a windowed retry (see `tier-contracts.
 
 **Setup:** `npm install && npm run setup:e2e` (Chromium, ~150 MB).
 **Credentials:** `E2E_EMAIL` / `E2E_PASSWORD`, defaulting to the seeded `dev-preview@example.com`.
+**Data:** `scripts.seed_e2e_fixtures` writes the demo shop (`scripts/seed_demo/`) into the
+account's primary workspace, so the journeys run against the same articles `make demo` shows.
 
 ---
 
