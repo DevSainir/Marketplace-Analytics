@@ -45,7 +45,7 @@ def test_the_demo_is_a_compose_project_of_its_own() -> None:
     command = _compose_demo()
 
     assert "-p $(DEMO_PROJECT)" in command
-    assert re.search(r"^DEMO_PROJECT := marketplace-analytic-demo$", _MAKEFILE.read_text(), re.M)
+    assert re.search(r"^DEMO_PROJECT := marketplace-analytics-demo$", _MAKEFILE.read_text(), re.M)
     assert "override" not in command
 
 

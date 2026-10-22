@@ -34,7 +34,7 @@
 -- with -v so it does not reach the file or the shell history of anyone reading
 -- this later:
 --
---   docker exec -i marketplace-analytic-postgres-1 \
+--   docker exec -i marketplace-analytics-postgres-1 \
 --     psql -U marketplace -d marketplace \
 --          -v app_password="$(read -rs P; echo "$P")" \
 --          < least_privilege_role.sql

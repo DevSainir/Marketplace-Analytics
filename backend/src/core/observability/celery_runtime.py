@@ -165,7 +165,7 @@ def _version() -> str:
     from importlib.metadata import PackageNotFoundError, version
 
     try:
-        return version("marketplace-analytic-service")
+        return version("marketplace-analytics")
     except PackageNotFoundError:
         return "unknown"
 

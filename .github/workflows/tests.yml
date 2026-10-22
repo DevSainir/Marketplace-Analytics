@@ -374,7 +374,7 @@ jobs:
     # The stack runs as its OWN Compose project. On this runner nothing else
     # is running, but the same commands are the ones a developer runs on a
     # machine that may hold a development stack — and the base compose file
-    # declares `name: marketplace-analytic`, so a bare `docker compose -f …`
+    # declares `name: marketplace-analytics`, so a bare `docker compose -f …`
     # would recreate that stack's containers against a throwaway database.
     #
     #   COMPOSE_PROJECT_NAME  a separate project — separate containers,
@@ -388,7 +388,7 @@ jobs:
     # step addresses a container by name — `test_ci_never_targets_production`
     # fails one that does.
     env:
-      COMPOSE_PROJECT_NAME: marketplace-analytic-e2e
+      COMPOSE_PROJECT_NAME: marketplace-analytics-e2e
       FRONTEND_HTTP_PORT: '8080'
       FRONTEND_HTTPS_PORT: '8443'
       E2E_BASE_URL: http://localhost:8080
@@ -421,8 +421,8 @@ jobs:
           resolved=$(printf '%s' "$cfg" | jq -r '.name')
           echo "Compose resolved the project to: ${resolved}"
           printf '%s' "$cfg" | jq -r '.services.edge.ports[] | "  edge publishes \(.published) -> \(.target)"'
-          if [ "$resolved" != "marketplace-analytic-e2e" ]; then
-            echo "::error::Refusing to start: this would target '${resolved}', not marketplace-analytic-e2e." >&2
+          if [ "$resolved" != "marketplace-analytics-e2e" ]; then
+            echo "::error::Refusing to start: this would target '${resolved}', not marketplace-analytics-e2e." >&2
             exit 1
           fi
           if printf '%s' "$cfg" | jq -e '[.services[] | (.ports // [])[] | select((.published|tostring) == "80" or (.published|tostring) == "443")] | length > 0' >/dev/null; then

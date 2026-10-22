@@ -16,7 +16,7 @@ Run from the ``backend`` directory::
 
 In production, in the worker container (the interpreter with the dependencies)::
 
-    docker exec marketplace-analytic-worker-1 /app/.venv/bin/python \\
+    docker exec marketplace-analytics-worker-1 /app/.venv/bin/python \\
         -m scripts.grant_guest --email … --workspace … --by …
 """
 

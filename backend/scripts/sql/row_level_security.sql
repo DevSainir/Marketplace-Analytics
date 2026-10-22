@@ -20,7 +20,7 @@
 -- tenants still can. Applied in the other order, nothing happens until step 1,
 -- which is safe but means the control is not live when you think it is.
 --
---   docker exec -i marketplace-analytic-postgres-1 \
+--   docker exec -i marketplace-analytics-postgres-1 \
 --     psql -U marketplace -d marketplace < row_level_security.sql
 --
 -- WHAT A MISSING TENANT DOES. The policies read

@@ -1,4 +1,4 @@
-"""FastAPI application entrypoint for the Marketplace Service.
+"""FastAPI application entrypoint for Marketplace Analytics.
 
 Wires the module routers into a single ASGI app, installs a global exception
 handler that maps semantic :class:`AppError` domain errors onto HTTP responses,

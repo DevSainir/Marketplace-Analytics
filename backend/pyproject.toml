@@ -1,7 +1,7 @@
 [project]
-name = "marketplace-analytic-service"
+name = "marketplace-analytics"
 version = "0.40.0" # x-release-please-version
-description = "Marketplace Automation modular monolith (WildBerries harvesting & analytics)."
+description = "Analytics for Wildberries sellers: a FastAPI and Celery modular monolith."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.111",

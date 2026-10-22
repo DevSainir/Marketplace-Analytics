@@ -34,7 +34,7 @@ each standing on its own, pushed as they are finished, with anything unfinished 
 flag. That keeps other workers unblocked; a worktree only hides the work from them.
 
 The one legitimate branch is the release bot's,
-`release-please--branches--main--components--marketplace-analytic-service`. Nobody commits to it
+`release-please--branches--main--components--marketplace-analytics`. Nobody commits to it
 by hand — Release Please owns it, and merging its PR cuts the release (`docs/RELEASES.md`).
 
 ### If you are on a branch anyway

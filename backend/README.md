@@ -1,4 +1,4 @@
-# Marketplace Service — Backend
+# Marketplace Analytics — Backend
 
 A **modular monolith** for automating WildBerries marketplace operations, built
 on FastAPI + async SQLAlchemy 2.0 + Celery, following strict Clean Architecture

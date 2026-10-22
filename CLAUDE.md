@@ -1,4 +1,4 @@
-# Marketplace Analytic Service
+# Marketplace Analytics
 
 Analytics for sellers on the Wildberries (WB) marketplace. FastAPI + Celery backend, Vue 3 SPA,
 PostgreSQL + Redis, everything in Docker. A modular monolith:

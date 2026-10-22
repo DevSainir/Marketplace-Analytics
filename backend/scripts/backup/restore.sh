@@ -28,7 +28,7 @@ BACKEND_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # shellcheck source=lib/upload.sh
 . "${SCRIPT_DIR}/lib/upload.sh"
 
-PROTECTED_CONTAINER="${BACKUP_PROTECTED_CONTAINER:-marketplace-analytic-postgres-1}"
+PROTECTED_CONTAINER="${BACKUP_PROTECTED_CONTAINER:-marketplace-analytics-postgres-1}"
 
 usage() {
     sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'

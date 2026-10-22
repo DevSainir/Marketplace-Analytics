@@ -30,7 +30,7 @@ _TESTS_WORKFLOW = _ROOT / ".github" / "workflows" / "tests.yml"
 _LOAD_WORKFLOW = _ROOT / ".github" / "workflows" / "load.yml"
 
 #: The production stack's Compose project.
-_PRODUCTION_PROJECT = "marketplace-analytic"
+_PRODUCTION_PROJECT = "marketplace-analytics"
 
 #: A docker command that names its container itself instead of letting Compose
 #: resolve it inside the job's project.
@@ -75,7 +75,7 @@ def test_the_end_to_end_tier_declares_a_project_of_its_own() -> None:
     """
     env = dict(_end_to_end_job()["env"])
 
-    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-analytic-e2e"
+    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-analytics-e2e"
     assert env["COMPOSE_PROJECT_NAME"] != _PRODUCTION_PROJECT
 
 
@@ -114,7 +114,7 @@ def test_the_load_stack_is_a_throwaway_of_its_own() -> None:
     """
     env = dict(_load_job().get("env") or yaml.safe_load(_LOAD_WORKFLOW.read_text())["env"])
 
-    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-analytic-load"
+    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-analytics-load"
     assert env["COMPOSE_PROJECT_NAME"] != _PRODUCTION_PROJECT
 
 

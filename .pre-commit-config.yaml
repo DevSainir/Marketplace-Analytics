@@ -1,4 +1,4 @@
-# Pre-commit hooks for the marketplace_service monorepo.
+# Pre-commit hooks for the Marketplace Analytics monorepo.
 #   backend/  -> Python 3.12 (ruff lint+format, mypy strict)
 #   frontend/ -> Vue 3 (eslint)
 #   commit-msg -> Conventional Commits (commitizen)

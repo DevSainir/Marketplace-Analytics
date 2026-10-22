@@ -41,9 +41,9 @@ groups:
             Это правило горит всегда и никуда не отправляется. Его читает
             /healthz/alerts, а ту страницу проверяет UptimeRobot. Если UptimeRobot
             сообщил, что страница не отвечает «alerts-ok», значит алерты не
-            доходят. Проверьте `docker exec marketplace-analytic-observability-alertmanager-1
+            доходят. Проверьте `docker exec marketplace-analytics-observability-alertmanager-1
             wget -qO- localhost:9093/metrics | grep notifications_failed`, логи
-            `marketplace-analytic-observability-telegram-relay-1`.
+            `marketplace-analytics-observability-telegram-relay-1`.
 
       - alert: TelegramRoadDown
         expr: max(haproxy_backend_active_servers{job="telegram-relay",proxy="telegram"}) < 2
@@ -58,7 +58,7 @@ groups:
           summary: "Одна из двух дорог до Telegram не работает шесть часов."
           description: >-
             Алерты пока доходят по второй дороге, но запаса больше нет. Посмотрите
-            логи `marketplace-analytic-observability-telegram-relay-1`: какой сервер (ipv6
+            логи `marketplace-analytics-observability-telegram-relay-1`: какой сервер (ipv6
             или ipv4) в состоянии DOWN. Если адрес Telegram перестал отвечать,
             найдите рабочий (curl --resolve api.telegram.org:443:<ip>
             https://api.telegram.org/bot0:x/getMe, ответ 401 значит дорога есть)
@@ -116,7 +116,7 @@ groups:
             поэтому это значение сдвинулось. Восстановление занимает секунды,
             но в этот момент рвутся все соединения. Скорее всего, ядро убило
             процесс Postgres по лимиту памяти контейнера. На сервере выполните
-            `docker logs --since 1h marketplace-analytic-postgres-1 | grep
+            `docker logs --since 1h marketplace-analytics-postgres-1 | grep
             "terminated by signal"`, затем `dmesg -T | grep oom-kill`. Отчёт
             ядра о нехватке памяти показывает, какой процесс занял память.
 
@@ -404,7 +404,7 @@ groups:
             Процесс убит снаружи. Задача не переигрывается: сообщение
             подтверждено, и всё, что она не успела сделать, просто не сделано
             до следующего тика. Сначала узнайте сигнал:
-            `docker logs marketplace-analytic-worker-1 | grep "exited with"`.
+            `docker logs marketplace-analytics-worker-1 | grep "exited with"`.
             signal 9 (SIGKILL) — это ядро за перерасход памяти: смотрите
             `celery_worker_memory_bytes` за тот же час и
             `dmesg -T | grep -i "killed process"`. Виноват не последний кусок,
@@ -455,11 +455,11 @@ groups:
             Когда она дойдёт до 100 %, каждая задача будет падать с SIGBUS
             до перезапуска воркера. Обычно там несколько сотен КБ. Посмотрите,
             чьи файлы копятся:
-            `docker exec marketplace-analytic-worker-1 ls /tmp/prometheus-multiproc`.
+            `docker exec marketplace-analytics-worker-1 ls /tmp/prometheus-multiproc`.
             Много `counter_<pid>`/`histogram_<pid>` от разных pid значит, что
             какой-то процесс импортирует приложение с включённым режимом
             multiprocess и уходит. Так было с проверкой здоровья до 15.10.
-            Срочно: `docker restart marketplace-analytic-worker-1` очищает папку.
+            Срочно: `docker restart marketplace-analytics-worker-1` очищает папку.
 
   # -------------------------------------------------------------------------
       - alert: SettlementHistoryHasGaps
@@ -690,7 +690,7 @@ groups:
           summary: "{{ $labels.handler }} отвечает 5xx: {{ $value | humanize }} раз за 5 минут."
           description: >-
             Один роут падает у всех, кто его открывает. Трассировка — в логах
-            api: `docker logs --since 15m marketplace-analytic-api-1 | grep
+            api: `docker logs --since 15m marketplace-analytics-api-1 | grep
             "Exception in ASGI"`. Если это началось с последнего деплоя —
             откатите релиз (backend/scripts/deploy/rollback.sh).
 

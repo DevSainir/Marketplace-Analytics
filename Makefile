@@ -206,7 +206,7 @@ ps: ## Status of every service
 # `make demo` is safe to re-run: it rebuilds what changed and regenerates the
 # demo data, re-dated so its newest day is yesterday.
 # --------------------------------------------------------------------------- #
-DEMO_PROJECT := marketplace-analytic-demo
+DEMO_PROJECT := marketplace-analytics-demo
 DEMO_HTTP_PORT ?= 8080
 DEMO_HTTPS_PORT ?= 8443
 # The edge publishes "${FRONTEND_HTTP_PORT}:8080", so prefixing the port with an

@@ -1,4 +1,4 @@
-# Marketplace Analytic Service
+# Marketplace Analytics
 
 Analytics for sellers on [Wildberries](https://www.wildberries.ru), the Russian online
 marketplace. It pulls a seller's data from the Wildberries seller APIs every night —
@@ -162,8 +162,8 @@ down:
 (`make demo DEMO_HTTP_PORT=9080` to use another).
 
 ```bash
-git clone https://github.com/DevSainir/Marketplace-Analytic-Service.git
-cd Marketplace-Analytic-Service
+git clone https://github.com/DevSainir/Marketplace-Analytics.git
+cd Marketplace-Analytics
 cp backend/.env.example backend/.env   # works as is for local use
 make demo
 ```

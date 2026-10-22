@@ -146,7 +146,7 @@ def test_the_e2e_stack_never_runs_a_production_image() -> None:
     untagged = sorted(
         name
         for name, svc in base.items()
-        if str(svc.get("image", "")).startswith("marketplace-analytic-")
+        if str(svc.get("image", "")).startswith("marketplace-analytics-")
         and not str((e2e.get(name) or {}).get("image", "")).endswith(":e2e")
     )
 

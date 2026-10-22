@@ -155,8 +155,8 @@ First-time setup for the browser tier: `npm install && npm run setup:e2e`.
 ## Tests that stand up their own infrastructure
 
 The end-to-end tier brings up a whole stack, and the Docker host it runs on may be serving
-another one. It is fenced off by Compose: its own project name (`marketplace-analytic-e2e`), its own
-ports (8080/8443), and a guard step that fails the job if either is ever lost.
+another one. It is fenced off by Compose: its own project name (`marketplace-analytics-e2e`),
+its own ports (8080/8443), and a guard step that fails the job if either is ever lost.
 
 **That fence only covers what goes through Compose.** A seed script that addresses a container
 *by name* (`docker exec <container> …`) is outside it, and if the name it defaults to belongs to

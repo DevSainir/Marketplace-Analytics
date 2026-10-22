@@ -19,7 +19,7 @@ Environment = Literal["local", "staging", "production"]
 class AppSettings(BaseSettings):
     """Application identity, deployment environment and logging."""
 
-    app_name: str = Field(default="Marketplace Service")
+    app_name: str = Field(default="Marketplace Analytics")
     environment: Environment = Field(default="local")
     debug: bool = Field(default=False)
     log_level: str = Field(default="INFO")

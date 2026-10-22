@@ -29,7 +29,7 @@ set -euo pipefail
 # Both nginx behind the edge. A renewed certificate that reaches one of them
 # leaves the other presenting the old one until it expires — and from then on
 # half of all connections fail TLS.
-CONTAINERS="marketplace-analytic-frontend-1 marketplace-analytic-frontend_standby-1"
+CONTAINERS="marketplace-analytics-frontend-1 marketplace-analytics-frontend_standby-1"
 
 if ! command -v docker >/dev/null; then
   echo "[tls-hook] docker not on PATH; cannot reload nginx." >&2

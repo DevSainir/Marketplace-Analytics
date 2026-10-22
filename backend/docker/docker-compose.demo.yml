@@ -5,7 +5,7 @@
 #   make demo         # build, start, seed, print the URL and the demo login
 #   make demo-down    # stop it and delete its data
 #
-# It is always run as its OWN compose project (`marketplace-analytic-demo`, set
+# It is always run as its OWN compose project (`marketplace-analytics-demo`, set
 # by the Makefile), so its containers and its Postgres volume never touch a
 # development stack started with `make up` on the same machine — and
 # `scripts.seed_demo`, which fills the database it is pointed at, only ever
@@ -37,12 +37,12 @@
 
 services:
   frontend:
-    image: marketplace-analytic-frontend:demo
+    image: marketplace-analytics-frontend:demo
     build:
       target: e2e
 
   frontend_standby:
-    image: marketplace-analytic-frontend:demo
+    image: marketplace-analytics-frontend:demo
     build:
       target: e2e
 

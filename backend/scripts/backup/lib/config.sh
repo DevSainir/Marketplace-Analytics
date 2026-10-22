@@ -75,7 +75,7 @@ apply_backup_defaults() {
     # stack's network, rather than `docker exec` into the running Postgres.
     # pg_dump's memory would otherwise count against the postgres container's
     # 384 MB cgroup ceiling and could get the live database OOM-killed at 03:00.
-    : "${BACKUP_DOCKER_NETWORK:=marketplace-analytic_default}"
+    : "${BACKUP_DOCKER_NETWORK:=marketplace-analytics_default}"
     : "${BACKUP_PG_HOST:=postgres}"
     : "${BACKUP_PG_IMAGE:=postgres:16-alpine}"
     : "${BACKUP_AWSCLI_IMAGE:=amazon/aws-cli:2.36.19}"

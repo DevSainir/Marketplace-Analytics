@@ -32,7 +32,7 @@ discovery.docker "containers" {
 discovery.relabel "containers" {
 	targets = discovery.docker.containers.targets
 
-	// `/marketplace-analytic-api-1` -> `marketplace-analytic-api-1`.
+	// `/marketplace-analytics-api-1` -> `marketplace-analytics-api-1`.
 	rule {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/(.*)"
@@ -51,7 +51,7 @@ discovery.relabel "containers" {
 	// collect, and they would count against the same ingestion budget.
 	//
 	// BOTH projects, deliberately. The monitoring lives in its own compose
-	// project (`marketplace-analytic-observability`) so the application's deploy cannot
+	// project (`marketplace-analytics-observability`) so the application's deploy cannot
 	// delete it, and a rule naming only the application would have quietly
 	// stopped collecting Loki's, Alertmanager's and Alloy's own output as a
 	// side effect of that split — the logs you want when the monitoring is what
@@ -63,7 +63,7 @@ discovery.relabel "containers" {
 	// the json-file driver is kept for.
 	rule {
 		source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
-		regex         = "marketplace-analytic|marketplace-analytic-observability"
+		regex         = "marketplace-analytics|marketplace-analytics-observability"
 		action        = "keep"
 	}
 }

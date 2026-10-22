@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 JOURNAL = ROOT / "docs" / "JOURNAL.md"
 TEMPLATE = Path(__file__).with_suffix(".html")
 PLACEHOLDER = "__JOURNAL_DATA__"
-REPO_URL = "https://github.com/DevSainir/Marketplace-Analytic-Service"
+REPO_URL = "https://github.com/DevSainir/Marketplace-Analytics"
 
 HEADER = ("Date", "Task", "Area", "Type", "Size", "Why", "Commits")
 AREAS = (

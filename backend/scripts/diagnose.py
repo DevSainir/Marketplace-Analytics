@@ -7,8 +7,8 @@ session is not using this script, and that is the thing to notice in review.
 
 In production, copy the probe into the worker container and run it there::
 
-    docker cp probe.py marketplace-analytic-worker-1:/app/
-    docker exec marketplace-analytic-worker-1 /app/.venv/bin/python \
+    docker cp probe.py marketplace-analytics-worker-1:/app/
+    docker exec marketplace-analytics-worker-1 /app/.venv/bin/python \
       /app/scripts/diagnose.py /app/probe.py
 
 The probe itself is a plain async body, written as if it were the inside of a

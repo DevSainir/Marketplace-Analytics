@@ -1,1 +1,1 @@
-"""Marketplace Service backend source root package."""
+"""Marketplace Analytics backend source root package."""

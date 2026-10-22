@@ -7,7 +7,7 @@
 #
 # A deploy is expected to leave two things behind for this:
 #
-#   * marketplace-analytic-{api,worker}:previous — the images the RUNNING
+#   * marketplace-analytics-{api,worker}:previous — the images the RUNNING
 #     containers were created from, tagged before the new build. Taken off the
 #     containers rather than off `:latest`, so a deploy that follows an
 #     auto-rollback does not record the bad build as "previous".
@@ -32,7 +32,7 @@
 # `git pull --ff-only` still works; the rollback lives in the images alone.
 set -euo pipefail
 
-DEPLOY_PATH="${DEPLOY_PATH:-/srv/marketplace_service}"
+DEPLOY_PATH="${DEPLOY_PATH:-/srv/marketplace-analytics}"
 cd "$DEPLOY_PATH"
 
 COMPOSE="docker compose --project-directory backend -f backend/docker/docker-compose.yml"
@@ -40,7 +40,7 @@ RELEASES="$DEPLOY_PATH/.frontend-releases"
 
 # Check everything BEFORE changing anything: a rollback that stops half-way
 # leaves the api on one build and the SPA on another.
-for image in marketplace-analytic-api marketplace-analytic-worker; do
+for image in marketplace-analytics-api marketplace-analytics-worker; do
   if ! docker image inspect "${image}:previous" > /dev/null 2>&1; then
     echo "rollback: no ${image}:previous image — nothing to roll back to." >&2
     exit 1
@@ -52,7 +52,7 @@ if [ -n "$previous_release" ] && [ ! -d "$RELEASES/$previous_release" ]; then
   exit 1
 fi
 
-for image in marketplace-analytic-api marketplace-analytic-worker; do
+for image in marketplace-analytics-api marketplace-analytics-worker; do
   docker tag "${image}:previous" "${image}:latest"
 done
 
