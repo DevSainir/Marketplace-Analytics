@@ -63,7 +63,7 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     responses={
         200: {"description": "Диапазон рассчитанных дней кабинета."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Раздел доступен только внутренним учётным записям."},
+        403: {"description": "Нет раздела «Сводка»."},
     },
 )
 async def get_summary_span(
@@ -86,7 +86,7 @@ async def get_summary_span(
     responses={
         200: {"description": "Сводные показатели кабинета за период."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Раздел доступен только внутренним учётным записям."},
+        403: {"description": "Нет раздела «Сводка»."},
         422: {"description": "Период инвертирован или длиннее допустимого."},
     },
 )

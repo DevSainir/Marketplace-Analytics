@@ -52,7 +52,7 @@ organisation.
 * Which rung of the ladder is narrowest and still works? Default to narrower.
 * Is the guard on the *router* or per-route? Router-level means a new route cannot forget it.
 * Does a **write** need `WritingAccess` rather than `MemberAccess`?
-* Is the internal-only surface actually internal, or merely undocumented?
+* Is a dev-only surface actually behind `DevAccess`, or merely undocumented?
 
 **Trap:** a guard that overrides authentication instead of composing with it. In tests, a
 fixture replacing the access dependency must still depend on `CurrentUser`, or every

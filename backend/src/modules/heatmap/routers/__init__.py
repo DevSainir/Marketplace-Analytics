@@ -15,8 +15,8 @@ Both resolve through ``require_member``, so a lapsed subscription is refused
 before anything is asked. Writes add ``WritingAccess`` per route
 (:mod:`.groups`, :mod:`.norms`).
 
-It was behind ``require_internal`` too while it lived under /labs; opened to
-every subscribed organisation on 2026-09-30.
+It was open to us alone while it lived under /labs; opened to every
+subscribed organisation on 2026-09-30.
 """
 
 from fastapi import APIRouter, Depends

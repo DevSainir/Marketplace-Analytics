@@ -123,8 +123,6 @@ class MeResponse(BaseModel):
     email: EmailStr
     #: The collapsed role the whole UI keys off (dev / owner / manager / user).
     role: EffectiveRole
-    #: ``True`` when the internal-only surfaces should be shown.
-    internal_features: bool
     #: ``False`` once the subscription is past its grace window — the flag the
     #: SPA draws its paywall from. Every tenant-scoped route already refuses
     #: such a caller (``require_member``); this is what lets the app say so

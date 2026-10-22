@@ -121,8 +121,8 @@ but cannot drop or create a table or disable the audit trigger.
 Authorisation is a ladder of guards in `backend/src/modules/organizations/contract.py`, each
 narrower than the last: `CurrentAccess` (a valid token) → `MemberAccess` (member of an
 organisation with a live subscription — also the paywall) → `WritingAccess` (a role that writes)
-→ `OwnerAccess` (workspaces, WB tokens, members, billing), plus `InternalAccess`, `DevAccess` and
-`CodeIssuerAccess` for internal surfaces.
+→ `OwnerAccess` (workspaces, WB tokens, members, billing), plus `DevAccess` and
+`CodeIssuerAccess` for our own administration (guest grants, activation codes).
 
 * `resolve_access()` (`backend/src/modules/organizations/services/access.py`) is the one place
   the platform role, the membership role and subscription state combine; the resulting

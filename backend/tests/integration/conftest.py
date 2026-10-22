@@ -264,8 +264,9 @@ async def organization(db_session: AsyncSession) -> Organization:
 
     Every workspace now belongs to one (``organization_id`` is NOT NULL), so a
     test that needs a workspace needs one of these first. Non-primary by
-    default: the primary flag unlocks the internal-only features, and a test
-    that gets it by accident would be asserting against the wrong tenant.
+    default: the primary flag lets the owner issue activation codes and keeps
+    harvests running past the subscription, and a test that gets it by accident
+    would be asserting against the wrong tenant.
 
     It comes **paid up**, because activation always leaves a subscription row
     and since 2026-09-09 an organisation without one reaches nothing at all:

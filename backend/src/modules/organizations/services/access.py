@@ -65,7 +65,7 @@ class EffectiveRole(enum.StrEnum):
     which one wins.
     """
 
-    #: Us. Every feature, every internal surface, no subscription gate.
+    #: Us. Every feature, the dev-only administration, no subscription gate.
     DEV = "dev"
     #: Bought the subscription. Controls workspaces and managers.
     OWNER = "owner"
@@ -134,7 +134,7 @@ class OrganizationAccess:
         role: The collapsed :class:`EffectiveRole`.
         subscription: Where their organisation sits on the expiry ramp.
         is_primary_org: ``True`` when their organisation is OURS — which is
-            what unlocks the internal-only surfaces for its members.
+            what lets its owner issue activation codes.
     """
 
     user_id: uuid.UUID
@@ -267,16 +267,6 @@ class OrganizationAccess:
         if self.role is EffectiveRole.USER:
             return self.is_guest_only
         return module.value in self.modules
-
-    @property
-    def sees_internal_features(self) -> bool:
-        """Whether the internal-only surfaces are reachable for this caller.
-
-        They are built for one seller — ours — against our own data, and are
-        reachable by devs and by members of the primary organisation, and by
-        nobody else.
-        """
-        return self.is_dev or self.is_primary_org
 
     @property
     def can_issue_codes(self) -> bool:

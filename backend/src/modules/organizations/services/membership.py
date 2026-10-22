@@ -82,7 +82,6 @@ class OrganizationService:
             user_id=access.user_id,
             email=email,
             role=access.role,
-            internal_features=access.sees_internal_features,
             has_access=access.has_access,
             can_write=access.can_write,
             # The EFFECTIVE list, not the stored one. `access.modules` holds

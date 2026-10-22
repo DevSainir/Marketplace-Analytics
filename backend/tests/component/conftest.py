@@ -351,7 +351,7 @@ def access_factory(user: User, organization_id: uuid.UUID) -> Callable[..., Orga
 
     Every guard in the application resolves through ``get_current_access``, so
     overriding that ONE dependency with one of these decides what the caller may
-    do — role, subscription state and internal-feature access all at once.
+    do — role, subscription state and the primary-organisation flag at once.
     """
 
     def _build(

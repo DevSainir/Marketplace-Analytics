@@ -51,7 +51,7 @@ async def test_a_fresh_account_resolves_to_the_powerless_user_role(
     assert access.role is EffectiveRole.USER
     assert access.organization_id is None
     assert access.can_write is False
-    assert access.sees_internal_features is False
+    assert access.can_issue_codes is False
 
 
 async def test_a_dev_outranks_their_membership_role(db_session: AsyncSession) -> None:
@@ -70,38 +70,39 @@ async def test_a_dev_outranks_their_membership_role(db_session: AsyncSession) ->
 
     assert access.role is EffectiveRole.DEV
     assert access.organization_id == org.id
-    assert access.sees_internal_features is True
+    assert access.can_issue_codes is True
 
 
-async def test_a_member_of_the_primary_organisation_sees_internal_features(
+async def test_the_owner_of_the_primary_organisation_may_issue_codes(
     db_session: AsyncSession,
 ) -> None:
-    """Our own team reaches the internal-only surfaces through their organisation."""
-    worker = await persist_user(db_session, "worker@example.com")
+    """The primary flag is read off the organisation row, and its owner sells accounts."""
+    owner = await persist_user(db_session, "owner@example.com")
     org = await OrganizationRepository(db_session).create(name="Наша", is_primary=True)
     await MembershipRepository(db_session).create(
-        organization_id=org.id, user_id=worker.id, role=MemberRole.MANAGER
+        organization_id=org.id, user_id=owner.id, role=MemberRole.OWNER
     )
 
-    access = await resolve_access(db_session, user_id=worker.id, platform_role=worker.role)
+    access = await resolve_access(db_session, user_id=owner.id, platform_role=owner.role)
 
-    assert access.role is EffectiveRole.MANAGER
-    assert access.sees_internal_features is True
+    assert access.role is EffectiveRole.OWNER
+    assert access.can_issue_codes is True
 
 
-async def test_a_customers_manager_does_not_see_internal_features(
+async def test_a_customers_owner_may_not_issue_codes(
     db_session: AsyncSession,
 ) -> None:
-    """The same role in a different organisation reaches none of it."""
-    worker = await persist_user(db_session, "worker@example.com")
+    """The same role in a different organisation would be minting free accounts."""
+    owner = await persist_user(db_session, "owner@example.com")
     org = await OrganizationRepository(db_session).create(name="ООО Ромашка")
     await MembershipRepository(db_session).create(
-        organization_id=org.id, user_id=worker.id, role=MemberRole.MANAGER
+        organization_id=org.id, user_id=owner.id, role=MemberRole.OWNER
     )
 
-    access = await resolve_access(db_session, user_id=worker.id, platform_role=worker.role)
+    access = await resolve_access(db_session, user_id=owner.id, platform_role=owner.role)
 
-    assert access.sees_internal_features is False
+    assert access.role is EffectiveRole.OWNER
+    assert access.can_issue_codes is False
 
 
 async def test_a_tenant_with_no_subscription_row_reaches_nothing(

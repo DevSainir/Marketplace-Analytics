@@ -57,7 +57,7 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     responses={
         200: {"description": "Дни, за которые у кабинета есть реклама."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Раздел доступен только внутренним учётным записям."},
+        403: {"description": "Нет раздела «Реклама»."},
     },
 )
 async def get_advertising_span(
@@ -74,7 +74,7 @@ async def get_advertising_span(
     responses={
         200: {"description": "Реклама кабинета за период."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Раздел доступен только внутренним учётным записям."},
+        403: {"description": "Нет раздела «Реклама»."},
         422: {"description": "Период инвертирован или длиннее допустимого."},
     },
 )

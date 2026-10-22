@@ -15,8 +15,9 @@ application code, because both are the kind that is cheap to violate under
 concurrency and expensive to discover afterwards:
 
 * **At most one primary organisation.** :attr:`Organization.is_primary` marks
-  *ours*, and it is what unlocks the internal-only surfaces. A second row
-  carrying it would silently hand another company the surfaces built only for us.
+  *ours*: its owner issues activation codes, and its harvests run whatever its
+  own billing rows say. A second row carrying it would let another company's
+  owner mint paid accounts and keep its harvests running unpaid.
 * **At most one owner per organisation.** Two owners is not a richer model, it
   is an unresolvable argument about who may remove whom.
 """
@@ -145,9 +146,9 @@ class Organization(Base):
             change and an ownership transfer — anchoring the name to whoever
             currently owns the row would rename the company when its owner
             leaves it. The owner may edit it afterwards.
-        is_primary: ``True`` for OUR organisation, which unlocks the surfaces
-            built only for us. Exactly one row may carry it;
-            see the partial index below.
+        is_primary: ``True`` for OUR organisation, whose owner issues
+            activation codes and whose harvests never wait on a subscription.
+            Exactly one row may carry it; see the partial index below.
         created_at: Server-assigned creation timestamp (UTC).
         members: Everyone who belongs to this organisation.
         subscription: The one subscription row governing its access.

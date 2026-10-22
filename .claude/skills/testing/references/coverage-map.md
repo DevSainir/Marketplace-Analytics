@@ -399,10 +399,10 @@ through the relay.
 Owns the wiring: route paths and verbs, the DI graph resolving, auth/tenancy/role guards, request
 validation and response shaping, cookies, and domain error → HTTP status mapping. Per module:
 
-* `summary` — the internal-only guard, the workspace header scoping the read, and the window
-  being bounded *before* any aggregation runs (a multi-year window over the whole settlement
-  table is a denial of service with a valid token attached); refused without its own page grant
-  even to a holder of «Мониторинг» and P&L, and opened by that grant alone.
+* `summary` — the workspace header scoping the read, and the window being bounded *before* any
+  aggregation runs (a multi-year window over the whole settlement table is a denial of service
+  with a valid token attached); refused without its own page grant even to a holder of
+  «Мониторинг» and P&L, and opened by that grant alone.
 * `heatmap` — the same window bound (366 days inclusive), its closed metric list, the bound on
   the article filter, a paying customer let in and a lapsed one refused, group and norm writes
   refused to a read-only manager, a group of another workspace answered 404, the page refused
@@ -411,9 +411,9 @@ validation and response shaping, cookies, and domain error → HTTP status mappi
   opened by any one page that carries the filter (`GROUP_MODULES`: «Сводка», P&L, «Тепловая
   карта», «Реклама») and by none of the others; in `test_heatmap_norm_routes.py` the hand-set
   norms are refused without the heatmap grant and their metric, article and value are bounded.
-* `advertising` — internal-only while it is built, the monitoring grant required and finreports
-  not (every member of ours reads the whole page, by the owner's decision), the header scoping the
-  read, a window over 366 days or inverted refused without echoing the dates.
+* `advertising` — a paying customer let in, the page refused without its own «Реклама» grant and
+  opened by that grant alone (neither «Мониторинг» nor P&L is asked for, by the owner's decision),
+  the header scoping the read, a window over the cap or inverted refused without echoing the dates.
 * `workspaces` — the `dev` role gate on admin routes and tokens never appearing in a response;
   and in `test_workspace_settings.py` the workspace's «Промо-бонусы» (promo bonuses) switch: saved
   by a writer and listed back, refused to a read-only manager, 404 in another company's workspace,

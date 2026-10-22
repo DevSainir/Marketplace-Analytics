@@ -24,9 +24,9 @@ The guards compose, and each one is strictly narrower than the last:
 ``OwnerAccess``
     Require ``owner`` (or ``dev``). Workspaces, tokens, members, billing.
 
-``InternalAccess`` is separate rather than a fifth rung: it is not more
-authority inside a tenant, it is a different question — whether this caller is
-one of *us*."""
+``DevAccess`` and ``CodeIssuerAccess`` are separate rather than further rungs:
+they are not more authority inside a tenant, they ask a different question —
+whether this caller is one of *us*."""
 
 from __future__ import annotations
 
@@ -246,29 +246,6 @@ async def require_owner(access: MemberAccess) -> OrganizationAccess:
 OwnerAccess = Annotated[OrganizationAccess, Depends(require_owner)]
 
 
-async def require_internal(access: CurrentAccess) -> OrganizationAccess:
-    """Require a caller who is one of us.
-
-    For surfaces built for one seller against our own data.
-    Reachable by devs and by members of the primary organisation, by nobody
-    else.
-
-    Not built on :data:`MemberAccess`: a dev without an organisation still gets
-    through, because these routes are ours rather than a tenant's.
-
-    Raises:
-        PermissionDeniedError: Anyone else. Phrased as "not available" rather
-            than "you are not us", since to a customer this feature does not
-            exist.
-    """
-    if not access.sees_internal_features:
-        raise PermissionDeniedError("Раздел недоступен.")
-    return access
-
-
-InternalAccess = Annotated[OrganizationAccess, Depends(require_internal)]
-
-
 async def require_dev(access: CurrentAccess) -> OrganizationAccess:
     """Require the platform ``dev`` role (activation-code administration).
 
@@ -286,8 +263,8 @@ DevAccess = Annotated[OrganizationAccess, Depends(require_dev)]
 async def require_code_issuer(access: CurrentAccess) -> OrganizationAccess:
     """Require a dev, or the owner of the primary organisation.
 
-    Narrower than :data:`InternalAccess`, which also admits our managers: a
-    code is a paid account handed out, and that is the owner's call.
+    Not every member of the primary organisation, only its owner: a code is a
+    paid account handed out, and that is the owner's call.
 
     Raises:
         PermissionDeniedError: Anyone else.

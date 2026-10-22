@@ -27,7 +27,7 @@ class OrganizationRepository:
         return await self._session.get(Organization, organization_id)
 
     async def get_primary(self) -> Organization | None:
-        """Return OUR organisation — the one that unlocks internal surfaces.
+        """Return OUR organisation — the one whose owner issues activation codes.
 
         At most one row can carry the flag (a partial unique index enforces it),
         so this is a lookup, not a search.

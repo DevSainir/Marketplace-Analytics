@@ -192,36 +192,6 @@ def test_a_dev_is_exempt_from_an_expired_subscription() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# The internal-only surfaces
-# --------------------------------------------------------------------------- #
-def test_a_dev_sees_the_internal_features() -> None:
-    """The surfaces built only for us are reachable by a dev."""
-    assert _access(role=EffectiveRole.DEV).sees_internal_features is True
-
-
-def test_a_member_of_the_primary_organisation_sees_the_internal_features() -> None:
-    """Our own team reaches them through their organisation, not a dev role."""
-    access = _access(role=EffectiveRole.MANAGER, is_primary_org=True)
-
-    assert access.sees_internal_features is True
-
-
-@pytest.mark.parametrize("role", [EffectiveRole.OWNER, EffectiveRole.MANAGER])
-def test_an_ordinary_tenant_does_not_see_the_internal_features(role: EffectiveRole) -> None:
-    """They were built for one seller, against one seller's data.
-
-    This is the assertion that keeps a new customer out of the surfaces tried
-    out on OUR workspaces before anyone else's.
-    """
-    assert _access(role=role, is_primary_org=False).sees_internal_features is False
-
-
-def test_a_user_with_no_organisation_sees_no_internal_features() -> None:
-    """`is_primary_org` is False for a caller with no organisation at all."""
-    assert _access(role=EffectiveRole.USER).sees_internal_features is False
-
-
-# --------------------------------------------------------------------------- #
 # Who may issue activation codes
 # --------------------------------------------------------------------------- #
 def test_a_dev_may_issue_codes() -> None:
@@ -237,7 +207,7 @@ def test_the_owner_of_the_primary_organisation_may_issue_codes() -> None:
 
 
 def test_a_manager_of_the_primary_organisation_may_not_issue_codes() -> None:
-    """Seeing our internal features is not the same as selling paid accounts."""
+    """Working inside our organisation is not the same as selling paid accounts."""
     access = _access(role=EffectiveRole.MANAGER, is_primary_org=True)
 
     assert access.can_issue_codes is False

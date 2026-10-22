@@ -4792,8 +4792,6 @@ export interface components {
        */
       email: string
       role: components['schemas']['EffectiveRole']
-      /** Internal Features */
-      internal_features: boolean
       /** Has Access */
       has_access: boolean
       /** Can Write */
@@ -10757,7 +10755,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Раздел доступен только внутренним учётным записям. */
+      /** @description Нет раздела «Сводка». */
       403: {
         headers: {
           [name: string]: unknown
@@ -10808,7 +10806,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Раздел доступен только внутренним учётным записям. */
+      /** @description Нет раздела «Сводка». */
       403: {
         headers: {
           [name: string]: unknown
@@ -11417,7 +11415,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Раздел доступен только внутренним учётным записям. */
+      /** @description Нет раздела «Реклама». */
       403: {
         headers: {
           [name: string]: unknown
@@ -11468,7 +11466,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Раздел доступен только внутренним учётным записям. */
+      /** @description Нет раздела «Реклама». */
       403: {
         headers: {
           [name: string]: unknown
