@@ -33,6 +33,9 @@ Columns:
 
 | Date | Task | Area | Type | Size | Why | Commits |
 |---|---|---|---|---|---|---|
+| 2026-10-22 | README with screenshots of the demo, and CLAUDE.md pointed at it | Process | docs | M | The repository had no front page: nothing said what the product is or how to see it | `6effa63e` `4a2d0239` |
+| 2026-10-22 | CI runs on GitHub-hosted runners | Infrastructure | infrastructure | S | `tests` and `release` waited for a self-hosted runner this repository does not have | `5a6e871b` |
+| 2026-10-22 | The monitoring design sandbox shows the workspace's own data | Monitoring | improvement | M | It rendered synthesised fixtures, so the two designs could not be compared on the same numbers | `cc7e3109` `e2a32064` |
 | 2026-10-22 | `make demo`: the whole app on a fabricated shop, no WB token needed | Infrastructure | feature | L | A fresh clone showed empty pages: the only seed had been a dump of real data, and every feed needs a seller's token | `d2c14e8d` `65d1176d` `a5315848` `c1c37c05` `8bea3fae` `07019603` |
 | 2026-10-17 | Journal of finished work: the file, a filterable page and the history back to July | Process | docs | L | A finished task simply disappeared from the backlog, so "what got done?" had nothing to point at | `a9672d26` `680277eb` |
 | 2026-10-17 | Managers see how a workspace's history backfill is going | Access | bug | S | Since 10 Sep a manager was refused and saw a blank page instead of the "why is this empty" strip | `74e7f420` `e8e8d2fa` |
