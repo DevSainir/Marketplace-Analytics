@@ -6,7 +6,7 @@ either is lost.
 
 That fence does not cover everything: `scripts/load_seed.sh` does not go through
 Compose. It runs `docker exec` against a container **named by a shell default**,
-and if that default is `marketplace-service-postgres-1` — the production stack's
+and if that default is `marketplace-analytic-postgres-1` — the production stack's
 container — a seed run on a Docker host shared with production truncates the
 live `monitoring` schema: harvested history, pinned SKUs and per-day notes.
 
@@ -29,7 +29,7 @@ _LOAD_WORKFLOW = _ROOT / ".github" / "workflows" / "load.yml"
 
 #: The production stack's Compose project, and therefore the prefix of every
 #: container name that belongs to the live service.
-_PRODUCTION_PROJECT = "marketplace-service"
+_PRODUCTION_PROJECT = "marketplace-analytic"
 _PRODUCTION_POSTGRES = f"{_PRODUCTION_PROJECT}-postgres-1"
 
 #: The scripts that reach a database by container name rather than through
@@ -95,8 +95,8 @@ def test_the_end_to_end_tier_names_the_database_it_seeds() -> None:
     """
     env = dict(_end_to_end_job()["env"])
 
-    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-e2e"
-    assert env["SEED_PG_CONTAINER"].startswith("marketplace-e2e")
+    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-analytic-e2e"
+    assert env["SEED_PG_CONTAINER"].startswith("marketplace-analytic-e2e")
     assert env["SEED_PG_CONTAINER"] != _PRODUCTION_POSTGRES
 
 
@@ -137,8 +137,8 @@ def test_the_load_stack_is_a_throwaway_of_its_own() -> None:
     """
     env = dict(_load_job().get("env") or yaml.safe_load(_LOAD_WORKFLOW.read_text())["env"])
 
-    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-load"
-    assert env["SEED_PG_CONTAINER"].startswith("marketplace-load")
+    assert env["COMPOSE_PROJECT_NAME"] == "marketplace-analytic-load"
+    assert env["SEED_PG_CONTAINER"].startswith("marketplace-analytic-load")
     assert env["SEED_PG_CONTAINER"] != _PRODUCTION_POSTGRES
 
 

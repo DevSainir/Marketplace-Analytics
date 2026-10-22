@@ -1,5 +1,5 @@
 [project]
-name = "marketplace-service"
+name = "marketplace-analytic-service"
 version = "0.40.0" # x-release-please-version
 description = "Marketplace Automation modular monolith (WildBerries harvesting & analytics)."
 requires-python = ">=3.12"

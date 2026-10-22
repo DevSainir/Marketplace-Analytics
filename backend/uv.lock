@@ -1337,7 +1337,7 @@ wheels = [
 ]
 
 [[package]]
-name = "marketplace-service"
+name = "marketplace-analytic-service"
 version = "0.40.0"
 source = { editable = "." }
 dependencies = [

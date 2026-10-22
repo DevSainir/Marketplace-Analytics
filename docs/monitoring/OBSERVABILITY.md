@@ -53,7 +53,7 @@ handed is by definition an orphan, so **every such `up` silently deleted the
 whole stack**, volumes left behind, nothing said — the failure mode monitoring
 exists to catch, and the one it structurally cannot catch about itself.
 
-It now runs as `marketplace-observability`, joining the application's network as
+It now runs as `marketplace-analytic-observability`, joining the application's network as
 `external`. `--remove-orphans` on the app's project cannot see it. Service-name
 DNS still works across the boundary because Compose gives every container a
 network alias equal to its service name and Docker's embedded DNS resolves those

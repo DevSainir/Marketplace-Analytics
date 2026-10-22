@@ -55,7 +55,7 @@
 # walk's page size. See its `mem_limit` for what happened when it was not.
 # ---------------------------------------------------------------------------
 
-name: marketplace-service
+name: marketplace-analytic
 
 # ---------------------------------------------------------------------------
 # LOG ROTATION, applied to every service below.
@@ -163,7 +163,7 @@ services:
     # are extracted, not compressed, which is how 6.9 GB of images became 18 GB
     # of snapshots and eventually a deploy that died on `no space left on
     # device` (2026-09-05).
-    image: marketplace-service-api:latest
+    image: marketplace-analytic-api:latest
     mem_limit: 384m
     cpus: 1.0
     env_file:
@@ -195,7 +195,7 @@ services:
       dockerfile: docker/Dockerfile
       target: api
     # Shared with `migrate` and, through the anchor, with `api_standby`.
-    image: marketplace-service-api:latest
+    image: marketplace-analytic-api:latest
     restart: unless-stopped
     logging: *logging
     # Roomier than the 110 MB it idles at: an XLSX export builds the whole
@@ -347,7 +347,7 @@ services:
     # it costs the deploy time, not the site. It was 2 s while this nginx was
     # the only one and every second of stopping was a second of outage.
     stop_grace_period: 30s
-    image: marketplace-service-frontend:latest
+    image: marketplace-analytic-frontend:latest
     depends_on:
       # Both members must be up before nginx starts: its upstream block resolves
       # every member's name at load time, and an unresolvable one is a hard
@@ -397,7 +397,7 @@ services:
       dockerfile: docker/Dockerfile
       target: worker
     # Shared with `beat`, which runs the same image with a different command.
-    image: marketplace-service-worker:latest
+    image: marketplace-analytic-worker:latest
     restart: unless-stopped
     logging: *logging
     # The largest ceiling in the stack: the harvest prices a settlement window,
@@ -495,7 +495,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: worker
-    image: marketplace-service-worker:latest
+    image: marketplace-analytic-worker:latest
     restart: unless-stopped
     logging: *logging
     mem_limit: 192m

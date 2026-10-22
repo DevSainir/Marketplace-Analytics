@@ -31,15 +31,15 @@
 # ISOLATION, added 2026-09-09 when the browser tier moved onto the production
 # VPS's own runner. Read this before running the stack anywhere that matters.
 #
-# The base file declares `name: marketplace-service`, so `docker compose -f
+# The base file declares `name: marketplace-analytic`, so `docker compose -f
 # docker-compose.yml -f docker-compose.e2e.yml up --build` targets THE
 # PRODUCTION PROJECT. On the VPS that recreates the live containers with the
 # plain-HTTP nginx config below, pointed at a throwaway database — an outage
 # dressed as a test run. The command must therefore always carry an explicit
-# `-p marketplace-e2e`, and tests.yml asserts that it does.
+# `-p marketplace-analytic-e2e`, and tests.yml asserts that it does.
 #
 # A distinct project is necessary but NOT sufficient. Image tags are global to
-# the daemon, so a build that kept the base file's `marketplace-service-api:
+# the daemon, so a build that kept the base file's `marketplace-analytic-api:
 # latest` would overwrite the image production restarts from, whatever project
 # built it. Hence the `:e2e` tags below — scalars, which an overlay REPLACES
 # (unlike `ports` and `volumes`, which it merges).
@@ -90,7 +90,7 @@ services:
     cpus: 0.1
 
   frontend:
-    image: marketplace-service-frontend:e2e
+    image: marketplace-analytic-frontend:e2e
     restart: "no"
     # The self-contained variant: it carries its own release (the built SPA,
     # the snippets and nginx.ci.conf) instead of reading one from the host.
@@ -109,7 +109,7 @@ services:
   # the base file's `:latest` — production's tag — and the base file's build,
   # which on this box would overwrite the image production restarts from.
   frontend_standby:
-    image: marketplace-service-frontend:e2e
+    image: marketplace-analytic-frontend:e2e
     restart: "no"
     build:
       target: e2e
@@ -119,29 +119,29 @@ services:
   # The four Python services share one image each in the base file; both tags
   # are redirected so neither production image can be rebuilt from here.
   api:
-    image: marketplace-service-api:e2e
+    image: marketplace-analytic-api:e2e
     restart: "no"
     mem_limit: 320m
     cpus: 0.4
 
   api_standby:
-    image: marketplace-service-api:e2e
+    image: marketplace-analytic-api:e2e
     restart: "no"
     mem_limit: 256m
     cpus: 0.25
 
   migrate:
-    image: marketplace-service-api:e2e
+    image: marketplace-analytic-api:e2e
     restart: "no"
 
   worker:
-    image: marketplace-service-worker:e2e
+    image: marketplace-analytic-worker:e2e
     restart: "no"
     mem_limit: 320m
     cpus: 0.4
 
   beat:
-    image: marketplace-service-worker:e2e
+    image: marketplace-analytic-worker:e2e
     restart: "no"
     # 96m until 2026-09-19, which is below what beat actually resident-sets
     # (~148m on the live stack). The kernel killed it every 45 seconds and

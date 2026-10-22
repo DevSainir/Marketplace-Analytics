@@ -37,11 +37,11 @@ permissions:
   contents: read
 
 env:
-  COMPOSE_PROJECT_NAME: marketplace-load
+  COMPOSE_PROJECT_NAME: marketplace-analytic-load
   FRONTEND_HTTP_PORT: '8080'
   FRONTEND_HTTPS_PORT: '8443'
   PERF_API_URL: http://localhost:8000
-  SEED_PG_CONTAINER: marketplace-load-postgres-1
+  SEED_PG_CONTAINER: marketplace-analytic-load-postgres-1
   # Pinned with its checksum, the way every action in this repository is pinned
   # by SHA. A load runner that fetches "latest" is a load runner whose results
   # change for reasons nobody committed.
@@ -68,7 +68,7 @@ jobs:
             echo "::error::RUNNER_ENVIRONMENT=${RUNNER_ENVIRONMENT:-unset}. Refusing." >&2
             exit 1
           fi
-          if [ "${SEED_PG_CONTAINER}" = "marketplace-service-postgres-1" ]; then
+          if [ "${SEED_PG_CONTAINER}" = "marketplace-analytic-postgres-1" ]; then
             echo "::error::SEED_PG_CONTAINER names production's database. Refusing." >&2
             exit 1
           fi

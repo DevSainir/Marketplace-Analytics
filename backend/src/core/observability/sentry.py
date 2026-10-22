@@ -74,7 +74,7 @@ def _release() -> str:
     ``docs/RELEASES.md``) and cannot be a number somebody forgot to bump.
     """
     try:
-        return version("marketplace-service")
+        return version("marketplace-analytic-service")
     except PackageNotFoundError:
         # Running from a source tree that was never installed — a developer's
         # checkout. An unknown release is better than refusing to report.

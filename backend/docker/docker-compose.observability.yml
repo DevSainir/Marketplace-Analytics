@@ -100,11 +100,11 @@
 # If the application stack is not up, this file fails to start with a clear
 # "network not found" — which is the right answer, because there would be
 # nothing to watch.
-name: marketplace-observability
+name: marketplace-analytic-observability
 
 networks:
   default:
-    name: marketplace-service_default
+    name: marketplace-analytic_default
     external: true
 
 # The same rotation policy the base stack applies to every service, for the same

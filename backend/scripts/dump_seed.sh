@@ -20,7 +20,7 @@ set -euo pipefail
 # this script runs in is the other half of that mistake: pointed at a live
 # stack it would write real sellers' catalogue data into a seed file meant to
 # be shared.
-PROJECT="${COMPOSE_PROJECT_NAME:-marketplace-service}"
+PROJECT="${COMPOSE_PROJECT_NAME:-marketplace-analytic}"
 CONTAINER="${SEED_PG_CONTAINER:-${PROJECT}-postgres-1}"
 DB_USER="${POSTGRES_USER:-marketplace}"
 DB_NAME="${POSTGRES_DB:-marketplace}"

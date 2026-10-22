@@ -508,7 +508,7 @@ jobs:
     if: github.event_name == 'schedule' || inputs.run_slow_tiers
 
     # THE THREE FACTS THAT KEEP THIS OFF PRODUCTION'S TOES. The base compose
-    # file declares `name: marketplace-service`, so a bare `docker compose -f
+    # file declares `name: marketplace-analytic`, so a bare `docker compose -f
     # ... up --build` on this host targets the LIVE project: it would recreate
     # the running containers with the plain-HTTP CI nginx config, aimed at a
     # throwaway database. Hence:
@@ -524,7 +524,7 @@ jobs:
     #
     # The guard step below fails the job if the first of these is ever lost.
     env:
-      COMPOSE_PROJECT_NAME: marketplace-e2e
+      COMPOSE_PROJECT_NAME: marketplace-analytic-e2e
       FRONTEND_HTTP_PORT: '8080'
       FRONTEND_HTTPS_PORT: '8443'
       E2E_BASE_URL: http://localhost:8080
@@ -536,7 +536,7 @@ jobs:
       # name from COMPOSE_PROJECT_NAME and refuses any stack whose api declares
       # ENVIRONMENT=production; naming it here as well makes the target visible
       # in the log rather than implied.
-      SEED_PG_CONTAINER: marketplace-e2e-postgres-1
+      SEED_PG_CONTAINER: marketplace-analytic-e2e-postgres-1
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -570,8 +570,8 @@ jobs:
           echo "Compose resolved the project to: ${resolved}"
           # The edge holds the public ports since 2026-10; no nginx publishes one.
           printf '%s' "$cfg" | jq -r '.services.edge.ports[] | "  edge publishes \(.published) -> \(.target)"'
-          if [ "$resolved" != "marketplace-e2e" ]; then
-            echo "::error::Refusing to start: this would target '${resolved}', not marketplace-e2e." >&2
+          if [ "$resolved" != "marketplace-analytic-e2e" ]; then
+            echo "::error::Refusing to start: this would target '${resolved}', not marketplace-analytic-e2e." >&2
             exit 1
           fi
           if printf '%s' "$cfg" | jq -e '[.services[] | (.ports // [])[] | select((.published|tostring) == "80" or (.published|tostring) == "443")] | length > 0' >/dev/null; then
@@ -581,8 +581,8 @@ jobs:
           # The seed target is checked here too, because it is the one thing in
           # this job that Compose does not resolve — `config` above cannot see
           # it, and it is what actually reached production.
-          seed_pg=$(printf '%s' "$cfg" | jq -r '.services.postgres.container_name // "marketplace-e2e-postgres-1"')
-          if [ "${SEED_PG_CONTAINER}" = "marketplace-service-postgres-1" ]; then
+          seed_pg=$(printf '%s' "$cfg" | jq -r '.services.postgres.container_name // "marketplace-analytic-e2e-postgres-1"')
+          if [ "${SEED_PG_CONTAINER}" = "marketplace-analytic-postgres-1" ]; then
             echo "::error::Refusing to start: SEED_PG_CONTAINER names production's database." >&2
             exit 1
           fi
@@ -607,16 +607,16 @@ jobs:
       - name: Remove any stack a previous run left behind
         run: |
           set -euo pipefail
-          if [ "${COMPOSE_PROJECT_NAME}" != "marketplace-e2e" ]; then
+          if [ "${COMPOSE_PROJECT_NAME}" != "marketplace-analytic-e2e" ]; then
             echo "::error::Refusing to clean up: project is '${COMPOSE_PROJECT_NAME}'." >&2
             exit 1
           fi
-          leftover=$(docker ps -aq --filter "label=com.docker.compose.project=marketplace-e2e" | wc -l)
-          echo "${leftover} leftover marketplace-e2e container(s)."
+          leftover=$(docker ps -aq --filter "label=com.docker.compose.project=marketplace-analytic-e2e" | wc -l)
+          echo "${leftover} leftover marketplace-analytic-e2e container(s)."
           if [ "${leftover}" -gt 0 ]; then
             echo "::warning::A previous run did not tear its stack down; removing it."
           fi
-          docker compose -p marketplace-e2e down -v --remove-orphans || true
+          docker compose -p marketplace-analytic-e2e down -v --remove-orphans || true
 
       # The e2e overlay builds the frontend's self-contained `e2e` target,
       # which carries a plain-HTTP config and its own copy of the bundle.

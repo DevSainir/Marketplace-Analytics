@@ -38,9 +38,9 @@ die() {
 # on the live database.
 #
 # So the target is derived from the compose project instead: the e2e tier
-# exports COMPOSE_PROJECT_NAME=marketplace-e2e, which now names its own
+# exports COMPOSE_PROJECT_NAME=marketplace-analytic-e2e, which now names its own
 # postgres rather than production's.
-PROJECT="${COMPOSE_PROJECT_NAME:-marketplace-service}"
+PROJECT="${COMPOSE_PROJECT_NAME:-marketplace-analytic}"
 CONTAINER="${SEED_PG_CONTAINER:-${PROJECT}-postgres-1}"
 DB_USER="${POSTGRES_USER:-marketplace}"
 DB_NAME="${POSTGRES_DB:-marketplace}"

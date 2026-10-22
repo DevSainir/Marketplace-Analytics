@@ -54,7 +54,7 @@ logger = get_logger(__name__)
 RANGE_URL = "https://api.pwnedpasswords.com/range/{prefix}"
 
 #: HIBP asks that callers identify themselves.
-USER_AGENT = "marketplace-service-password-check"
+USER_AGENT = "marketplace-analytic-service-password-check"
 
 
 class PasswordBreachCheckLike(Protocol):
