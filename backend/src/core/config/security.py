@@ -15,6 +15,13 @@ from __future__ import annotations
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+#: The Fernet key ``.env.example`` ships, so a copied template runs the local
+#: stack and the demo as it is. A key is needed even with no WB token stored:
+#: the refresh-token grace record is encrypted with it too. It decodes to
+#: ``local-only-fernet-key-not-secret``, and the line below is what makes that
+#: true — every non-local environment refuses to start with it.
+LOCAL_FERNET_KEY = "bG9jYWwtb25seS1mZXJuZXQta2V5LW5vdC1zZWNyZXQ="
+
 #: Placeholder secrets shipped in defaults / ``.env.example``. A production
 #: deployment that still carries one of these has forgotten to configure the
 #: environment — startup must fail rather than run with a forgeable key.
@@ -26,6 +33,7 @@ PLACEHOLDER_SECRETS: frozenset[str] = frozenset(
         "change-me-super-secret-key",
         "insecure-development-key",
         "redis-dev-password",
+        LOCAL_FERNET_KEY,
     }
 )
 

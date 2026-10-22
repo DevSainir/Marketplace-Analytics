@@ -15,6 +15,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from src.core.config import Settings
+from src.core.config.security import LOCAL_FERNET_KEY
 
 #: A configuration that passes every hardening check, used as the base for
 #: single-field mutations below.
@@ -68,6 +69,7 @@ def test_local_environment_tolerates_placeholder_secrets(
         ("POSTGRES_PASSWORD", "change-me-in-prod", "POSTGRES_PASSWORD"),
         ("REDIS_PASSWORD", "redis-dev-password", "REDIS_PASSWORD"),
         ("FERNET_SECRET_KEY", "", "FERNET_SECRET_KEY"),
+        ("FERNET_SECRET_KEY", LOCAL_FERNET_KEY, "FERNET_SECRET_KEY"),
         ("DEBUG", "true", "DEBUG must be false"),
         ("WB_FAKE_HARVEST", "true", "WB_FAKE_HARVEST"),
     ],

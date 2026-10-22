@@ -17,11 +17,19 @@ npm run types:api    # regenerate src/core/api/schema.d.ts from the backend
 
 ## Configuration
 
+The SPA needs no environment file: the project's one template is
+`backend/.env.example`, and nothing in it is for the frontend.
+
 The backend base URL is read from the environment — never hardcoded — but it
 needs no configuration in either environment that exists. `src/core/api/axios.js`
 falls back to the relative `/api`, which the Vite dev proxy serves in dev and
-nginx serves in prod. Set `VITE_API_URL` only to point a build at a *remote*
-backend; see `.env.example`.
+nginx serves in prod. The two optional variables:
+
+- `VITE_API_URL` — point a *build* at a remote backend
+  (e.g. `VITE_API_URL=https://staging.example.com/api npm run build`). Setting
+  it to `/api` would be a no-op.
+- `VITE_PROXY_TARGET` — where the dev server's `/api` proxy goes
+  (default `http://localhost:8000`; see `vite.config.js`).
 
 ## Authentication
 
