@@ -32,6 +32,7 @@ Columns:
 
 | Date | Task | Area | Type | Size | Why | Commits |
 |---|---|---|---|---|---|---|
+| 2026-10-23 | The internal-only access gate removed, API to SPA | Access | improvement | S | No route had used it since the labs went; an unused guard on the access ladder is one a new route could pick up by habit | `446c7d6f` `2c4734ee` |
 | 2026-10-23 | `make demo` names its three steps and what the first run costs | Infrastructure | improvement | S | A first run builds for about 3.5 minutes with only the BuildKit log on screen, so it was unclear whether it was working | `725d21ae` |
 | 2026-10-23 | One name, Marketplace Analytics, from the header to the Docker images | UI | improvement | M | The project went by five names at once, and on screen by none of its own | `b48bcee6` `c4d683ad` |
 | 2026-10-23 | The labs sandboxes removed | UI | improvement | M | 92 files copied from the monitoring and advertising pages, in no menu: a sixth of the frontend | `824a1f35` |
