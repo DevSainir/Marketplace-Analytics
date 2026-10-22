@@ -13,6 +13,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from src.core.exceptions import UserInputError
+
 #: An ad campaign type: «Единая» / «Руч. поиск» / «Руч. полки» / «CPC».
 RkType = Literal["uni", "manual_search", "manual_shelves", "cpc"]
 
@@ -58,7 +60,7 @@ class DayActionState(BaseModel):
         and enforcing it here keeps the store the single source of truth.
         """
         if self.first_rk_type is not None and self.first_rk_type == self.second_rk_type:
-            raise ValueError("«Первая РК» and «Вторая РК» must be different campaign types.")
+            raise UserInputError("«Первая РК» and «Вторая РК» must be different campaign types.")
         return self
 
     def is_empty(self) -> bool:

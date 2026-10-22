@@ -122,7 +122,7 @@ async def test_absent_kinds_are_left_untouched() -> None:
     The admin form submits only what changed; treating absence as deletion
     would wipe a workspace's credentials on every save.
     """
-    workspace = make_workspace(organization_id=ORG_ID, name="ИП Демо", is_primary=True)
+    workspace = make_workspace(organization_id=ORG_ID, name="Demo Shop", is_primary=True)
     tokens = FakeWorkspaceTokenRepository()
     service = _service(FakeWorkspaceRepository([workspace]), tokens)
     await service.set_tokens(

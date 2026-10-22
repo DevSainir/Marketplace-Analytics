@@ -67,8 +67,8 @@ describe.each(Object.keys(CONFS))('%s nginx: both api instances unreachable', (w
   it('answers in the error envelope the SPA parses, not HTML', () => {
     // extractErrorMessage() reads `{error: {code, message}}` and falls through
     // to a generic string for anything else, so the shape here is what decides
-    // whether the user reads a sentence about a restart or «Непредвиденная
-    // ошибка». The Content-Type has to agree, or Axios hands over a string.
+    // whether the user reads a sentence about a restart or "Unexpected
+    // error". The Content-Type has to agree, or Axios hands over a string.
     const block = namedLocation(read(which), '@api_down')
 
     expect(block).toContain('default_type application/json;')

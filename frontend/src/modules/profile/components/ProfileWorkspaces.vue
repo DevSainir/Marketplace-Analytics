@@ -139,7 +139,7 @@ const removal = useConfirmClick()
               :disabled="busy"
               @click="removal.press(ws.id, () => emit('remove', ws.id))"
             >
-              {{ removal.isArmed(ws.id) ? confirmLabel('Удалить') : 'Удалить' }}
+              {{ removal.isArmed(ws.id) ? confirmLabel('Delete') : 'Delete' }}
             </button>
           </template>
         </span>

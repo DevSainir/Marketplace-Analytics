@@ -78,8 +78,8 @@ describe('PnlDashboardCards', () => {
   })
 
   it('takes the logistics share from the chosen base', () => {
-    expect(mountCards().text()).toContain('13,05% от продаж') // 318 420 / 2 440 200
-    expect(mountCards({}, { base: 'paid' }).text()).toContain('16,69% от продаж') // / 1 908 236
+    expect(mountCards().text()).toContain('13.05% от продаж') // 318 420 / 2 440 200
+    expect(mountCards({}, { base: 'paid' }).text()).toContain('16.69% от продаж') // / 1 908 236
   })
 
   it('shows the advertising share under «Прочие удержания»', () => {

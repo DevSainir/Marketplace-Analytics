@@ -10,7 +10,7 @@ This failure was quieter than the engine's and so more dangerous: the funnel's
 rate-gate ``acquire`` is the first Redis op in ``monitoring.harvest_sku_window``,
 and the gate catches only :class:`RedisError` — not the ``RuntimeError: Event
 loop is closed`` a stranded socket raises. A failed source is a tolerated
-partial harvest, so every «Обновить все SKU» after the worker's first task kept
+partial harvest, so every "Refresh all SKUs" after the worker's first task kept
 reporting success while persisting ``funnel_rows: 0``. No error, no missing
 task, just no data.
 

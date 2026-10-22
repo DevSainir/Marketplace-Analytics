@@ -5,8 +5,8 @@ Content — product cards: ``POST /content/v2/get/cards/list``.
 Verified live shape (2026-07): {"cards": [ {nmID, vendorCode, title,
 brand, sizes: [{chrtID, techSize, wbSize, skus}], ...}, ... ],
 "cursor": {updatedAt, nmID, total}}. This is the authoritative source for
-the human-readable vendor code (the portal's «Артикул продавца») and size label
-(«Размер вещи» == ``techSize``); the stocks endpoint carries only chrtID.
+the human-readable vendor code (the portal's vendor code) and size label
+(the item size, ``techSize``); the stocks endpoint carries only chrtID.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class WBCardDimensions(RawBase):
 class WBCardSize(RawBase):
     """One size variant of a product card.
 
-    ``tech_size`` is WB's human size label (the seller-portal «Размер вещи»
+    ``tech_size`` is WB's human size label (the seller portal's item size
     column, e.g. ``"52/170-177"`` / ``"L"`` / ``"42"``); ``wb_size`` is WB's
     alternate scale (e.g. ``"2XL/ 170-177"`` / ``"46"``). ``chrt_id`` is the
     join key back to the label-less stock rows.
@@ -94,8 +94,8 @@ class WBCard(RawBase):
     nm_id: int = Field(alias="nmID")
     vendor_code: str = Field(default="", alias="vendorCode")
     title: str = Field(default="", alias="title")
-    #: WB's «Предмет», the subject (e.g. «Костюмы»). What the heatmap's «Категории» filter
-    #: and «По категории» cut group by; blank when WB returns none.
+    #: WB's subject — the category (e.g. "Suits"). What the heatmap's "Categories"
+    #: filter and "By category" cut group by; blank when WB returns none.
     subject_name: str = Field(default="", alias="subjectName")
     brand: str = Field(default="", alias="brand")
     dimensions: WBCardDimensions | None = None

@@ -53,14 +53,14 @@ class FeedbackPage:
 
 
 class WBFeedbacksClient(BaseWBClient):
-    """The seller's review list, «Вопросы и отзывы» scope."""
+    """The seller's review list, "Questions and reviews" scope."""
 
     def __init__(self, settings: Settings, *, token: str) -> None:
         """Build the client.
 
         Args:
             settings: Transport configuration and the feedbacks host.
-            token: The workspace's «Вопросы и отзывы» (or unified) token.
+            token: The workspace's "Questions and reviews" (or unified) token.
         """
         super().__init__(
             base_url=settings.wb_feedbacks_base_url,

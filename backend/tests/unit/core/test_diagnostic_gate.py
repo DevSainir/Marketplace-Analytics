@@ -84,7 +84,7 @@ async def test_the_owners_privileges_are_dropped(session: _FakeSession) -> None:
     assert "SET LOCAL ROLE marketplace_app" in session.statements
 
 
-async def test_the_one_allowed_кабинет_is_bound(session: _FakeSession) -> None:
+async def test_the_one_allowed_workspace_is_bound(session: _FakeSession) -> None:
     """The tenant is announced the way a request announces it."""
     async with diagnostic_session():
         pass
@@ -92,7 +92,7 @@ async def test_the_one_allowed_кабинет_is_bound(session: _FakeSession) ->
     assert session.params[-1] == {"value": str(DIAGNOSTIC_WORKSPACE)}
 
 
-async def test_a_caller_cannot_name_a_different_кабинет() -> None:
+async def test_a_caller_cannot_name_a_different_workspace() -> None:
     """There is no parameter to pass one through.
 
     The mistake to prevent is choosing a workspace, so the gate does not offer the choice —

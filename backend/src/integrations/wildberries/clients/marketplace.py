@@ -2,12 +2,12 @@
 
 Wraps the two seller-warehouse endpoints on
 ``marketplace-api.wildberries.ru``. Both were verified live on 2026-08-13 with
-a real «Маркетплейс» token.
+a real "Marketplace" token.
 
 Two behaviours that no amount of reading the docs would have told us:
 
 * **The token category is the whole gate.** Every other scope answers this host
-  with ``401 {"detail": "token scope not allowed"}`` — including «Поставки»
+  with ``401 {"detail": "token scope not allowed"}`` — including "Supplies"
   (Supplies), whose own ``/api/v1/warehouses`` returns WB's acceptance directory and looks
   deceptively like the answer.
 * **A read-only token is enough**, even though the stocks read is an HTTP POST.
@@ -30,7 +30,7 @@ class WBMarketplaceClient(BaseWBClient):
 
         Args:
             settings: Transport configuration (base URL, timeouts, retries).
-            token: The workspace's «Маркетплейс»-scope bearer token. No other
+            token: The workspace's "Marketplace"-scope bearer token. No other
                 category authenticates this host.
         """
         super().__init__(

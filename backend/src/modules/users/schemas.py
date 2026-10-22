@@ -11,6 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from src.core.exceptions import UserInputError
 from src.core.security import PASSWORD_MAX_BYTES
 
 
@@ -40,14 +41,14 @@ def _validate_password(value: str) -> str:
     # longer password would give a false sense of extra entropy. Bytes, not
     # characters: Cyrillic is two bytes apiece and reaches the limit at ~36.
     if len(value.encode("utf-8")) > PASSWORD_MAX_BYTES:
-        raise ValueError(f"Пароль слишком длинный (максимум {PASSWORD_MAX_BYTES} байт).")
+        raise UserInputError(f"Пароль слишком длинный (максимум {PASSWORD_MAX_BYTES} байт).")
     # `str.islower`/`isupper` are Unicode-aware, so «пароль» and «ПАРОЛЬ» count
     # exactly as their Latin equivalents do. An all-Cyrillic password is a
     # first-class one here and must not be refused for being Cyrillic.
     if not any(char.islower() for char in value):
-        raise ValueError("Пароль должен содержать хотя бы одну строчную букву.")
+        raise UserInputError("Пароль должен содержать хотя бы одну строчную букву.")
     if not any(char.isupper() for char in value):
-        raise ValueError("Пароль должен содержать хотя бы одну заглавную букву.")
+        raise UserInputError("Пароль должен содержать хотя бы одну заглавную букву.")
     return value
 
 

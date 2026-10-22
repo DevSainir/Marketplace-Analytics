@@ -85,13 +85,13 @@ const DATA_TIMEOUT_MS = 15_000
 export const AUTH_TIMEOUT_MS = 3_000
 
 /**
- * Budget for a settlement window — the P&L and «Сводка» reads.
+ * Budget for a settlement window — the P&L and Summary reads.
  *
  * These are the only calls whose cost scales with how much history the workspace
- * has, and «Вся история» on the largest one is a genuine ~20 s of arithmetic
+ * has, and "All time" on the largest one is a genuine ~20 s of arithmetic
  * the first time it is asked for: the settlement rollup it is served from is
  * built on demand and verified against the detail on every read. On the shared
- * 15 s budget that came back as «Нет связи с сервером» — the one error message
+ * 15 s budget that came back as "Can't reach the server" — the one error message
  * that is certainly wrong, because the server was working the whole time.
  *
  * Harvests keep the rollup warm, so the common path is seconds; this is the
@@ -185,17 +185,17 @@ export function extractErrorMessage(error) {
   // (the monitoring store's poll-ceiling message, for one) and must survive.
   if (error.isAxiosError) {
     // Worth telling apart: one of these is worth retrying, the other is not.
-    if (!error.response) return 'Нет связи с сервером. Проверьте подключение и повторите попытку.'
+    if (!error.response) return "Can't reach the server. Check your connection and try again."
     // The proxy's own answers: no body of ours, so nothing else to go on. A
     // timeout is the one a seller meets on a heavy report, and «unexpected»
     // would hide that waiting less — a shorter period — is the way out.
     const status = error.response.status
-    if (status === 504) return 'Сервер не успел посчитать ответ. Попробуйте период покороче.'
+    if (status === 504) return 'The server ran out of time. Try a shorter period.'
     if (status === 502 || status === 503)
-      return 'Сервер временно недоступен. Повторите через минуту.'
-    return 'Непредвиденная ошибка. Повторите попытку позже.'
+      return 'The server is temporarily unavailable. Try again in a minute.'
+    return 'Unexpected error. Please try again later.'
   }
-  return error.message ?? 'Непредвиденная ошибка'
+  return error.message ?? 'Unexpected error'
 }
 
 /**

@@ -59,7 +59,7 @@ describe('whose period it is', () => {
     expect(recallPeriod('finreports', EDGE)).toEqual({ from: '2026-07-13', to: '2026-07-19' })
   })
 
-  it('keeps each кабинет apart', () => {
+  it('keeps each workspace apart', () => {
     rememberPeriod('summary', '2026-06-01', '2026-06-30')
 
     setWorkspaceId('ws-2')
@@ -78,7 +78,7 @@ describe('where a remembered period lands', () => {
     })
   })
 
-  it('extends «Вся история» instead of sliding it', () => {
+  it('extends "All time" instead of sliding it', () => {
     // Anchored at both ends: preserving its LENGTH would walk the start forward
     // and quietly drop the oldest days out of the total.
     rememberPeriod('finreports', '2024-01-29', '2026-07-19', EDGE)

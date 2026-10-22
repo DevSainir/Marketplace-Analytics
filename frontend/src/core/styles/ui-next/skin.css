@@ -135,10 +135,10 @@
   outline-color: var(--ui-action);
 }
 
-/* The «Корзины» metric accent, back to the indigo it has always been. The teal
+/* The "Add to cart" metric accent, back to the indigo it has always been. The teal
    this briefly became was chosen to keep the funnel rows away from the action
-   colour, but it landed on «Затраты» green instead — the funnel then read as
-   money, which is the one thing it is not. The chart draws «Корзины» blue
+   colour, but it landed on "Spend" green instead — the funnel then read as
+   money, which is the one thing it is not. The chart draws "Add to cart" blue
    (#2A78D6) for the same reason; the two blues differ because one sits on a
    white row and the other on a plotted line, but they say the same thing. */
 .text-accent-indigo {
@@ -418,7 +418,7 @@ textarea {
 }
 
 /* ==========================================================================
-   10 · THE BLOCK BAND — giving «Цены/Остатки» and «Действия» a real backdrop
+   10 · THE BLOCK BAND — giving "Prices/Stock" and "Actions" a real backdrop
    These tiles sit inside the table card, which is opaque, so glass on them
    would have had nothing to refract and would have read as milky rectangles.
    The fix is to give them something behind: the card stops painting its own
@@ -477,7 +477,7 @@ textarea {
 }
 
 /* Now the tiles can be real glass. All three bands under the grid wear the
-   same pane: the «Цены/Остатки» tiles, the «Действия» answer cards and the
+   same pane: the "Prices/Stock" tiles, the "Actions" answer cards and the
    day-comment cards. */
 .day-block,
 .day-action-card,
@@ -492,7 +492,7 @@ textarea {
   border: 0;
 }
 
-/* The «Цены» and «Остатки» tiles carry NO tint of their own. Two coloured
+/* The "Prices" and "Stock" tiles carry NO tint of their own. Two coloured
    fills plus the glass plus whatever shows through it was three colour signals
    stacked on one small tile, and the tints were the least informative of the
    three — the tiles are already labelled. The band had its own orbs behind it
@@ -512,7 +512,7 @@ textarea {
 
 /* ==========================================================================
    11 · THE STOCK TABLE'S FROZEN PANE
-   «Размер»/«Всего» is a sticky pane with the warehouse columns scrolling under
+   "Size"/"Total" is a sticky pane with the warehouse columns scrolling under
    it, so it cannot be glass for the same reason the matrix rail cannot: its
    job is to MASK what passes beneath. It gets the separation without the
    transparency — the same rim, top highlight and seam shadow the glass panels
@@ -580,7 +580,7 @@ body > .wh-menu .text-action {
 
 /* ==========================================================================
    13 · THE BLOCK ROWS' LABEL CELLS
-   «ЦЕНЫ/ОСТАТКИ», «КОММЕНТАРИИ» and «ДЕЙСТВИЯ» sit in the frozen rail, which
+   "PRICES/STOCK", "COMMENTS" and "ACTIONS" sit in the frozen rail, which
    is opaque everywhere else because the metric ribbon has to be masked as it
    slides underneath. In THESE three rows what slides under is the block band —
    the glass tiles themselves — so the rail can join them without a legibility
@@ -595,12 +595,12 @@ body > .wh-menu .text-action {
 .app-datatable--matrix tbody.matrix-comments td:first-child,
 .app-datatable--matrix tbody.matrix-actions td:first-child {
   /* 0.68, not the 0.50 the tiles use. The rail is the one glass surface here
-     with something HIGH-CONTRAST passing under it: at 0.50 a red «Понизили»
+     with something HIGH-CONTRAST passing under it: at 0.50 a red "Lowered"
      select from a scrolled-off day printed a visible pink smudge through the
-     word «ДЕЙСТВИЯ». More film and more blur damps that to nothing while the
+     word "ACTIONS". More film and more blur damps that to nothing while the
      ground behind — orbs and grain, all low-contrast — still reads through. */
   /* 0.92. These three panes sit over the ribbon, and the ribbon is dense
-     figures — «250», «1 909», a red «Понизили» — which printed straight
+     figures — "250", "1,909", a red "Lowered" — which printed straight
      through at 0.78. This is the same conclusion the calendar reached: a
      surface with high-contrast content behind it cannot be very transparent
      and stay readable, so it keeps the blur, the lit edge and the rim, and
@@ -771,7 +771,7 @@ body > .wh-menu .text-action {
   padding-left: 18px;
 }
 
-/* «ЦЕНЫ/ОСТАТКИ» loses its split colouring. The two words were tinted to
+/* "PRICES/STOCK" loses its split colouring. The two words were tinted to
    match block tints that no longer exist — a label pointing at a signal that
    has been removed is just noise. */
 .app-datatable--matrix .matrix-blocks .text-action,

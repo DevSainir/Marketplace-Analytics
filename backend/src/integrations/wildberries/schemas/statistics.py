@@ -8,7 +8,7 @@ is prefixed ``S`` for a buyout (sale) and ``R`` for a return;
 ``date`` is the operation's SALE date (when the customer accepted / returned
 the item — NOT the order date), ``lastChangeDate`` drives incremental
 pagination (``dateFrom`` filters on it with ``flag=0``). ``finishedPrice``
-is what the customer actually paid (matches the portal's «Выкупили, ₽»).
+is what the customer actually paid (matches the portal's bought-out amount).
 
 """
 

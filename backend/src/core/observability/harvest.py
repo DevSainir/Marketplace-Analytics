@@ -3,7 +3,7 @@
 The distinction this module exists for is one this codebase has already paid
 for. After the Redis pool leak, every ``harvest_sku_window`` after a worker's
 first task lost its ``sales-funnel`` source and kept reporting **success** with
-``funnel_rows: 0`` — for days, while «Обновить» users watched unchanged numbers
+``funnel_rows: 0`` — for days, while "Refresh" users watched unchanged numbers
 and concluded the button did nothing
 (:func:`src.core.tasks.run_task` carries the full account).
 

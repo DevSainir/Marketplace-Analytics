@@ -3,7 +3,7 @@
  * A product card's photo, at one of three fixed sizes.
  *
  * Three screens show the seller their own catalogue — the monitoring SKU
- * search, «Сравнение SKU» and the per-SKU P&L — and on all three the picture is
+ * search, "SKU comparison" and the per-SKU P&L — and on all three the picture is
  * what a seller recognises a card by, faster than either article number. The
  * component exists rather than three `<img>` tags because the fallback is the
  * hard part and it has to behave the same everywhere: an empty slot must occupy
@@ -59,7 +59,7 @@ const showImage = computed(() => !!props.src && !failed.value)
     <img
       v-if="showImage"
       :src="src"
-      :alt="label ? `Фото ${label}` : 'Фото товара'"
+      :alt="label ? `Photo of ${label}` : 'Product photo'"
       class="h-full w-full object-cover"
       loading="lazy"
       decoding="async"

@@ -199,7 +199,7 @@ export function variantTitle(variant) {
 /** A count; «—» when there is none — an unknown is not a zero (see `core/utils/format`). */
 export const count = formatNumber
 
-/** A percentage as the WB cabinet writes it, «12,35%» (see `core/utils/format`). */
+/** A percentage as the WB seller portal writes it, «12,35%» (see `core/utils/format`). */
 export const percent = formatPercent
 
 /**

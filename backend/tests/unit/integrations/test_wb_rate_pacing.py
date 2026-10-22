@@ -1,6 +1,6 @@
 """Unit tests for the client-side pacing of WB's per-endpoint token buckets.
 
-Every rule here was learned from the 2026-07-30 incident, when «Обновить»
+Every rule here was learned from the 2026-07-30 incident, when "Refresh"
 (Refresh) appeared never to work. The mechanism, measured live that morning:
 
 * the analytics surface meters per endpoint, three tokens deep per seller token,

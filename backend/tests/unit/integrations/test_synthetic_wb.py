@@ -126,13 +126,13 @@ async def test_synthetic_stock_lands_on_the_skus_real_sizes() -> None:
 
 
 async def test_synthetic_stock_spans_every_warehouse() -> None:
-    """Each warehouse gets rows, so the «Остатки по складам» panel has columns."""
+    """Each warehouse gets rows, so the "Stock by warehouse" panel has columns."""
     async with build_analytics_client(
         _fake(), token="t", size_ids_by_nm={101: [1, 2, 3, 4]}
     ) as client:
         rows = await client.fetch_warehouse_stocks(nm_ids=[101])
 
-    assert {row.warehouse_name for row in rows} == {"Коледино", "Электросталь", "Казань"}
+    assert {row.warehouse_name for row in rows} == {"Koledino", "Elektrostal", "Kazan"}
 
 
 async def test_synthetic_stock_falls_back_for_an_uncatalogued_sku() -> None:

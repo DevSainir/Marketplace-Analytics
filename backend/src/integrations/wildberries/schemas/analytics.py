@@ -120,7 +120,7 @@ class WBFunnelAggregateSelected(RawBase):
     ``buyoutPercent`` is WB's own figure and satisfies
     ``buyout_count / (buyout_count + cancel_count)`` exactly (verified live:
     567 / (567 + 965) = 37% = WB's reported 37) — the two counts ARE the
-    definition of «Процент выкупа», so we store them and never round-trip
+    definition of "Buyout rate", so we store them and never round-trip
     through the percent.
 
     The funnel counts (``openCount``/``cartCount``/``orderCount``) mirror the

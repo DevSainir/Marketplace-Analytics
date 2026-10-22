@@ -197,7 +197,7 @@ export function trackSize(turns) {
  * «08.09» and «12:05 МСК», as two parts.
  *
  * Moscow, spelled out, because WB operates in Moscow time and the seller reads
- * these next to figures from the WB cabinet — the same rule «История действий»
+ * these next to figures from the WB seller portal — the same rule «История действий»
  * follows. Two parts because the ends of the track are where the block is
  * narrowest: one such stamp on one line is the width of two thumbnails.
  *

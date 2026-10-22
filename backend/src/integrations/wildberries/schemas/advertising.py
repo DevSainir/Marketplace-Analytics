@@ -156,7 +156,7 @@ class WBNormQueryStat(RawBase):
     """Metrics of one search cluster on one day (search zone only).
 
     ``norm_query`` is the cluster's own text — the normalized search phrase WB
-    grouped the queries under. It is what «Поиск по кластерам» searches, so it
+    grouped the queries under. It is what "Search by clusters" searches, so it
     is kept even though the zone-split aggregate sums clusters away. WB has been
     observed to omit it on aggregate-looking rows; those default to ``""`` and
     are dropped by the cluster ingest rather than persisted under a blank key.
@@ -201,7 +201,7 @@ class WBNormQueryItem(RawBase):
 # --------------------------------------------------------------------------- #
 # The ONLY WB surface that names how an advertising charge was funded. Verified
 # live 2026-09-15 on one workspace: one row per write-off, carrying
-# `paymentType` («Баланс» — the seller's own money — or «Кэшбэк», which WB pays
+# `paymentType` (balance — the seller's own money — or cashback, which WB pays
 # out of the bonus pool `/adv/v1/balance` reports under `cashbacks`).
 #
 # Two fields of this payload are traps, and both have already produced a wrong
@@ -212,7 +212,7 @@ class WBNormQueryItem(RawBase):
 #   month of cashback into a single row — measured: a month of cashback read
 #   as one write-off.
 # * `currency` VARIES INSIDE ONE WINDOW. August-September 2026 returned 96
-#   «Баланс» rows in RUB against 223 in KGS on the same account. Summing
+#   balance rows in RUB against 223 in KGS on the same account. Summing
 #   `updSum` without splitting by currency adds unlike units.
 #
 # Both are why the ingested grain keeps `currency` in the primary key and never

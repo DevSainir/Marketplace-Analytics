@@ -109,8 +109,8 @@ describe('401 refresh-retry interceptor', () => {
 
 describe('extractErrorMessage', () => {
   it('reads the domain error envelope', () => {
-    const err = { response: { data: { error: { code: 'x', message: 'Доменная ошибка' } } } }
-    expect(extractErrorMessage(err)).toBe('Доменная ошибка')
+    const err = { response: { data: { error: { code: 'x', message: 'Domain error' } } } }
+    expect(extractErrorMessage(err)).toBe('Domain error')
   })
 
   it('reads FastAPI string detail', () => {
@@ -129,7 +129,7 @@ describe('extractErrorMessage', () => {
     // users — the SPA shows this string unaltered.
     const err = { isAxiosError: true, message: 'Network Error' }
     expect(extractErrorMessage(err)).toBe(
-      'Нет связи с сервером. Проверьте подключение и повторите попытку.',
+      "Can't reach the server. Check your connection and try again.",
     )
   })
 
@@ -138,22 +138,20 @@ describe('extractErrorMessage', () => {
     // 504» reached the logistics page verbatim before this.
     const err = { isAxiosError: true, response: { status: 504, data: '<html>' } }
 
-    expect(extractErrorMessage(err)).toBe(
-      'Сервер не успел посчитать ответ. Попробуйте период покороче.',
-    )
+    expect(extractErrorMessage(err)).toBe('The server ran out of time. Try a shorter period.')
   })
 
   it('distinguishes a server answer it cannot read from no answer at all', () => {
     const err = { isAxiosError: true, response: { status: 500, data: {} } }
-    expect(extractErrorMessage(err)).toBe('Непредвиденная ошибка. Повторите попытку позже.')
+    expect(extractErrorMessage(err)).toBe('Unexpected error. Please try again later.')
   })
 
   it('keeps a message the app raised itself', () => {
     // Our own throws are already written for the reader, in Russian. Replacing
     // them with a generic transport line is how the monitoring store's
     // poll-ceiling explanation got lost.
-    expect(extractErrorMessage(new Error('Обновление не завершилось за отведённое время'))).toBe(
-      'Обновление не завершилось за отведённое время',
+    expect(extractErrorMessage(new Error('The refresh did not finish in time'))).toBe(
+      'The refresh did not finish in time',
     )
   })
 })

@@ -99,7 +99,7 @@ ANALYTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #:
 #: One per minute is WB's published figure for it and costs the harvest nothing:
 #: a run makes exactly ONE sales call per workspace. What it does stop is a
-#: person leaning on «Обновить» — every press fires this account-wide feed, and
+#: person leaning on "Refresh" — every press fires this account-wide feed, and
 #: it is the harshest limiter WB exposes (a 39-second 429 backoff, measured).
 STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
     # Ten tokens, one back every minute. NOT ten a minute, which is how
@@ -115,7 +115,7 @@ STATISTICS_ENDPOINT_BUCKETS: Mapping[str, tuple[int, float]] = {
 #: How long a background walk must let a token sit before it may take it.
 #:
 #: Several things want the report endpoint: the harvest tick, a seller
-#: pressing «Обновить», and the history backfill. Without an order they simply
+#: pressing "Refresh", and the history backfill. Without an order they simply
 #: race, and the loser is whoever asked second — which on 2026-09-12 was the
 #: fresh report, waiting behind history nobody needed today.
 #:
@@ -202,7 +202,7 @@ def finance_reports_rate_gate(settings: Settings, *, token: str) -> RateGate:
 
     Args:
         settings: Bucket parameters and the Redis DSN.
-        token: The workspace's «Финансы» token — the bucket is per token, and
+        token: The workspace's "Finance" token — the bucket is per token, and
             WB meters per seller account, so one seller's walk never throttles
             another's.
 
@@ -375,7 +375,7 @@ def catalogue_rate_gate(settings: Settings, *, token: str, surface: str) -> Rate
 
 
 def feedbacks_rate_gate(settings: Settings, *, token: str) -> RateGate:
-    """Build the pacing gate for the «Вопросы и отзывы» surface.
+    """Build the pacing gate for the "Questions and reviews" surface.
 
     Two callers share it: the daily review history walks ``/api/v1/feedbacks``
     page by page, and the `guide` capture reads reviews and questions monthly.
@@ -383,7 +383,7 @@ def feedbacks_rate_gate(settings: Settings, *, token: str) -> RateGate:
 
     Args:
         settings: Bucket parameters and the Redis DSN.
-        token: The workspace's «Вопросы и отзывы» (or unified) token.
+        token: The workspace's "Questions and reviews" (or unified) token.
 
     Returns:
         A Redis-backed :class:`TokenBucketRateGate`, or :class:`NullRateGate`

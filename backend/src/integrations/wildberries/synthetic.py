@@ -18,12 +18,12 @@ Two properties are load-bearing:
   identical between local and prod.
 
 Deliberately synthesised: funnel history, stocks, seller prices, and customer
-(storefront) prices — the facts that drive «Заказы»/«Выкупы»/«Остатки»/«СПП»
+(storefront) prices — the facts that drive "Orders"/"Buyouts"/"Stock"/"WB discount"
 (orders, buyouts, stock, SPP).
 Deliberately empty: advertising and the account-wide sales feed (their absence
 is a valid state the pipeline already tolerates) and the buyout-cohort aggregate
 (WB serves it catalogue-wide with no SKU filter, so a DB-free client cannot know
-which SKUs to answer for — «Процент выкупа» simply stays blank locally).
+which SKUs to answer for — "Buyout rate" simply stays blank locally).
 """
 
 from __future__ import annotations
@@ -119,9 +119,9 @@ def _funnel_day(nm_id: int, day: date, price: float) -> WBFunnelHistoryDay:
 
 # Synthetic warehouses stock is spread across — labels only, purely cosmetic.
 _WAREHOUSES: tuple[tuple[str, str], ...] = (
-    ("Коледино", "Центральный"),
-    ("Электросталь", "Центральный"),
-    ("Казань", "Приволжский"),
+    ("Koledino", "Central"),
+    ("Elektrostal", "Central"),
+    ("Kazan", "Volga"),
 )
 
 
@@ -246,8 +246,8 @@ class SyntheticAnalyticsClient(_SyntheticWBClient, WBAnalyticsClient):
 
     async def fetch_funnel_cohort_day(self, *, day: date) -> list[WBFunnelAggregateRow]:
         """No synthetic cohorts: the real endpoint is catalogue-wide and takes
-        no SKU filter, so a DB-free client has no basis to answer. «Процент
-        выкупа» therefore stays blank under fake harvesting."""
+        no SKU filter, so a DB-free client has no basis to answer. "Buyout
+        rate" therefore stays blank under fake harvesting."""
         return []
 
 
@@ -339,7 +339,7 @@ class SyntheticMarketplaceClient(_SyntheticWBClient, WBMarketplaceClient):
             *configured,
             WBFbsWarehouse(
                 id=3300771,
-                name="Иван  - Тула НЕ УДАЛЯТЬ!!!",
+                name="Ivan  - Tula DO NOT DELETE!!!",
                 office_id=507,
                 cargo_type=1,
                 delivery_type=1,
@@ -363,7 +363,7 @@ class SyntheticMarketplaceClient(_SyntheticWBClient, WBMarketplaceClient):
 
 
 class SyntheticCardClient(_SyntheticWBClient, WBCardClient):
-    """Storefront customer prices, so «СПП» has a value below the seller price."""
+    """Storefront customer prices, so "WB discount" has a value below the seller price."""
 
     async def fetch_customer_prices(self, nm_ids: list[int]) -> list[WBCardProduct]:
         """A storefront node per SKU, priced ~10% under the seller price (in

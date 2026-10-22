@@ -111,11 +111,14 @@ Redis:
   is English-identified throughout, so a Russian sentence explaining an English name reads as two
   halves of different files, and the same rule has a mechanical edge on the commit side
   (`git-workflow`).
-* **Everything written for a user stays Russian**: UI copy, exception messages, alert text. That is
-  not a leftover, it is enforced — `backend/tests/unit/core/test_messages_are_russian.py` fails on
-  an English one. `allowed-confusables` in `backend/pyproject.toml` keeps RUF001-003 off the
-  Latin-lookalike letters those strings are built from; the list is per LETTER and not per context,
-  so a Russian word outside it (a «б», say) trips the check wherever it is written.
+* **Everything written for a user is English too**: UI copy, exception messages, alert text. The
+  one exception is the labels WB itself sends in Russian and the code matches on — operation names,
+  report headers, payment types — and those live only in the files
+  `backend/tests/unit/core/test_the_repository_is_in_english.py` lists, each with its reason; it
+  fails on Cyrillic anywhere else. Tests name those labels through `tests/support/wb_labels.py`
+  rather than spelling them. A validator's message meant for the screen is raised as
+  `src.core.exceptions.UserInputError`: the 422 handler in `main.py` forwards that and replaces
+  every other `ValueError`, whose text can quote the submitted value back.
 * Routes declare their status code and their documented failure responses explicitly.
 * `make lint typecheck` (ruff, eslint, `mypy --strict`) is a gate, not a suggestion.
 

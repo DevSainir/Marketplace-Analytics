@@ -38,7 +38,7 @@ def run_task[T](coro: Coroutine[object, object, T]) -> T:
     harvest, so every ``harvest_sku_window`` after the worker's first task lost
     its ``sales-funnel`` source to ``Event loop is closed`` — silently, because
     the gate only catches :class:`RedisError` and a failed source is a tolerated
-    partial harvest. «Обновить все SKU» kept reporting success with
+    partial harvest. "Refresh all SKUs" kept reporting success with
     ``funnel_rows: 0``.
 
     Draining here rather than in each task body is the point: the invariant

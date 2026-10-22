@@ -87,7 +87,7 @@ export default {
           hover: 'rgb(var(--ui-action-hover-rgb) / <alpha-value>)',
         },
 
-        // Metric accents in the daily table (e.g. «Корзины» rows).
+        // Metric accents in the daily table (e.g. "Add to cart" rows).
         accent: {
           indigo: '#4F46E5',
         },

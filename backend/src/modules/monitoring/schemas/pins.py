@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.core.exceptions import UserInputError
 from src.modules.monitoring.constants import MAX_NM_IDS_PER_REQUEST
 
 # Chip tints are stored and exchanged as ``#rrggbb``. The palette itself lives
@@ -62,5 +63,5 @@ class PinReorderRequest(BaseModel):
     def _reject_duplicates(cls, value: list[int]) -> list[int]:
         """Reject a repeated ``nm_id``, which has no single position."""
         if len(set(value)) != len(value):
-            raise ValueError("Артикулы не должны повторяться.")
+            raise UserInputError("Артикулы не должны повторяться.")
         return value

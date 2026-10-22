@@ -45,7 +45,7 @@ function title(row) {
  * «08.09.2026, 12:05 МСК».
  *
  * Moscow, spelled out, because WB operates in Moscow time and the seller reads
- * these next to figures from the WB cabinet. A local-time rendering would put
+ * these next to figures from the WB seller portal. A local-time rendering would put
  * this table and that one an unexplained few hours apart.
  */
 function moment(iso) {

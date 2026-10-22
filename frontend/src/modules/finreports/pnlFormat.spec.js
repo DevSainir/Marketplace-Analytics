@@ -29,12 +29,12 @@ describe('usePnlMoney', () => {
     // so the advertising cells are in the payout currency like the rest.
     const wrapper = mount(pageWith({ settlement: 'KGS' }))
 
-    expect(plain(wrapper.text())).toBe('57 600с | 1 539с')
+    expect(plain(wrapper.text())).toBe('KGS 57,600 | KGS 1,539')
   })
 
   it('prints bare figures when no page declared the currencies', () => {
     const wrapper = mount(Figures)
 
-    expect(plain(wrapper.text())).toBe('57 600 | 1 539')
+    expect(plain(wrapper.text())).toBe('57,600 | 1,539')
   })
 })

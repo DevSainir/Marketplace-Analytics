@@ -19,7 +19,7 @@ from fastapi import UploadFile
 from src.core.exceptions import ValidationError
 from src.core.uploads import read_capped
 
-TOO_LARGE = "Файл слишком большой."
+TOO_LARGE = "The file is too large."
 
 
 def _upload(payload: bytes) -> UploadFile:
@@ -52,7 +52,7 @@ async def test_one_byte_over_the_ceiling_is_refused() -> None:
     """The first byte past the limit ends the read."""
     payload = b"x" * 8193
 
-    with pytest.raises(ValidationError, match="слишком большой"):
+    with pytest.raises(ValidationError, match="too large"):
         await read_capped(_upload(payload), max_bytes=8192, too_large=TOO_LARGE)
 
 

@@ -132,7 +132,7 @@ class SecuritySettings(BaseSettings):
     # A test is a deliberate, weeks-long thing a human sets up. Hundreds is
     # already generous; thousands means something is generating them.
     max_ab_tests_per_workspace: int = Field(default=500, ge=1)
-    # Heatmap groups are named hand-picked sets of articles («спандекс_двойка»).
+    # Heatmap groups are named hand-picked sets of articles ("spandex_two_piece").
     # A workspace has tens of product lines at most; a thousand means a script.
     max_sku_groups_per_workspace: int = Field(default=200, ge=1)
     # Comments are bounded by DATE rather than by count, because they carry no
@@ -143,7 +143,7 @@ class SecuritySettings(BaseSettings):
     # structurally, with no COUNT on the write path.
     sku_comment_max_days_from_today: int = Field(default=400, ge=1)
 
-    # Per-WORKSPACE budget on enqueueing WB re-harvests («Обновить»). Keyed on
+    # Per-WORKSPACE budget on enqueueing WB re-harvests ("Refresh"). Keyed on
     # the tenant rather than the address because that is who spends the queue
     # and the WB rate budget behind it: one account on one IP can hold several
     # workspaces, and one workspace is reachable from every device its members

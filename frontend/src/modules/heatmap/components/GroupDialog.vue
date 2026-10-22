@@ -150,7 +150,7 @@ function close() {
         :disabled="busy"
         @click="remove"
       >
-        {{ removal.isArmed('group') ? confirmLabel('Удалить') : 'Удалить' }}
+        {{ removal.isArmed('group') ? confirmLabel('Delete') : 'Delete' }}
       </button>
       <button type="button" class="ui-btn" :disabled="busy" @click="close">Отмена</button>
       <button type="button" class="ui-btn ui-btn--primary" :disabled="!canSave" @click="save">

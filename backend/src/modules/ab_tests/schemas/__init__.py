@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from src.core.exceptions import UserInputError
 from src.core.exceptions import ValidationError as DomainValidationError
 from src.modules.ab_tests.models import TriggerMode
 from src.modules.ab_tests.services.triggers import resolve as resolve_trigger
@@ -74,7 +75,7 @@ class AbTestCreate(BaseModel):
         except DomainValidationError as exc:
             # Pydantic turns a ValueError into a 422; an AppError raised here
             # would escape as a 500 instead.
-            raise ValueError(str(exc)) from exc
+            raise UserInputError(str(exc)) from exc
 
         object.__setattr__(self, "impression_budget", resolved.impression_budget)
         object.__setattr__(self, "slot_minutes", resolved.slot_minutes)

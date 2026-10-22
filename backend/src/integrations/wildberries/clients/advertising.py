@@ -214,7 +214,7 @@ class WBAdvertisingClient(BaseWBClient):
 
         Endpoint: ``GET /adv/v1/upd?from=YYYY-MM-DD&to=YYYY-MM-DD``. This is the
         only WB surface that says whether a charge came out of the seller's own
-        money («Баланс») or out of WB's bonus pool («Кэшбэк») — ``fullstats``
+        money ("Balance") or out of WB's bonus pool ("Cashback") — ``fullstats``
         reports the impressions either way funded with no split at all, and a
         cashback write-off never reaches the settlement report because it has no
         invoice document to name.
@@ -276,7 +276,7 @@ class WBAdvertisingClient(BaseWBClient):
         the limiter allows ~10 requests/min. Each response item carries one
         ``dailyStats`` entry per day x search cluster; summing clusters per day
         yields the campaign's search-zone slice, which the analytics layer
-        subtracts from fullstats totals to derive the recommendations («полки»,
+        subtracts from fullstats totals to derive the recommendations ("shelves",
         shelves) zone for unified-bid campaigns.
 
         Args:

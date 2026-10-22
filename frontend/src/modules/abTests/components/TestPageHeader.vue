@@ -63,7 +63,7 @@ const removal = useConfirmClick()
         data-testid="delete-test"
         @click="removal.press('test', () => emit('delete'))"
       >
-        {{ removal.isArmed('test') ? confirmLabel('Удалить тест') : 'Удалить тест' }}
+        {{ removal.isArmed('test') ? confirmLabel('Delete test') : 'Delete test' }}
       </button>
     </div>
 

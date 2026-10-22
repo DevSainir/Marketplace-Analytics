@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: The visual rules of this app's UI — the canvas/surface plane, the card recipe, the shared container width, the typography scale, which component library to reach for, the `ui-next` glass look and the two places glass must not go (a data grid, anything z-indexed inside a card), and the words the UI uses («кабинет», never «рабочее пространство»). Use this whenever you write or change anything a user will look at — a new page or view, a card, table, dropdown, button, form, header or empty state, any Tailwind classes, any colour or contrast question, any change to Russian UI copy or terminology, or any request phrased as "make it look right", "style this" or "match the rest of the app". Structural questions about where a component file belongs go to the frontend-architecture skill.
+description: The visual rules of this app's UI — the canvas/surface plane, the card recipe, the shared container width, the typography scale, which component library to reach for, the `ui-next` glass look and the two places glass must not go (a data grid, anything z-indexed inside a card), and the words the UI uses ("workspace", never "cabinet"). Use this whenever you write or change anything a user will look at — a new page or view, a card, table, dropdown, button, form, header or empty state, any Tailwind classes, any colour or contrast question, any change to UI copy or terminology, or any request phrased as "make it look right", "style this" or "match the rest of the app". Structural questions about where a component file belongs go to the frontend-architecture skill.
 ---
 
 # Design system
@@ -81,7 +81,7 @@ What it changes and why — each was measured off shipping products, not guessed
   | Behind it | Fill |
   | --- | --- |
   | Ambient ground only | 0.55–0.62 (nav, header, tooltip, ⋮ menu) |
-  | Frame + a colour orb | 0.55 (the «Цены/Остатки»/«Действия» tiles) |
+  | Frame + a colour orb | 0.55 (the "Prices/Stock"/"Actions" tiles) |
   | Dense figures | 0.92–0.97 (the block label panes, the calendar) |
 
 Two hard constraints, both established by experiment rather than by reading:
@@ -106,20 +106,34 @@ read it before making anything narrow.
 ## One word for one thing
 
 What a seller switches between — one WB seller account with its own catalogue, its own P&L
-and its own tokens — is a **«кабинет»** (workspace). Full form «Личный кабинет», short form
-«Кабинет», plural «Кабинеты». Never «рабочее пространство»: it is a calque of the English
-"workspace", it is not what the marketplace calls a seller's account, and it was used in eleven
-places while «кабинет» was used in none.
-
-The code still says `workspace` everywhere — model, table, store, header, route — and that
-stays. The identifier is not the noun a user reads, renaming it would be a migration across
-four modules, and English identifiers behind a Russian UI is how this whole codebase works.
-**The rule is about the words on the screen.**
+and its own tokens — is a **workspace**, plural workspaces, exactly as the code calls it. Never
+"cabinet": it is the calque of the word the Russian-language marketplace uses for a seller's
+account, and it means nothing to an English reader. WB's own site is "the WB seller portal".
+An "account" is only ever the person's sign-in.
 
 Both halves are machine-enforced, because a naming rule nobody can fail is one that drifts
 back: `frontend/tests/integration/naming.spec.js` scans every `.vue`/`.js` a user can read,
-and `backend/tests/unit/core/test_messages_are_russian.py` scans the exception messages the
-API hands to a client. Add a new banned word to both.
+and `backend/tests/unit/core/test_client_messages_use_seller_vocabulary.py` scans the
+exception messages the API hands to a client. Add a new banned word to both.
+
+The rest of the vocabulary, so a term reads the same on every page:
+
+| Thing | The word on the screen |
+| --- | --- |
+| A seller's article | **SKU**; WB's id for it is the **WB ID** (`nm_id`), the seller's own the **vendor code** |
+| WB's subject | **Category** |
+| An order the buyer kept | **Buyout**; the share of them, **buyout rate** |
+| Advertising spend over sales (or orders) | **ACoS (sales)** / **ACoS (orders)** |
+| WB's own discount on top of the seller's | **WB discount** |
+| What WB transfers to the seller | **Payout** |
+| The goods' own cost | **Cost price** |
+| An advertising campaign | **Campaign**; its bid types **Unified bid**, **Manual search**, **Manual shelves**, **CPC** |
+| A refresh from WB | **Refresh** |
+| The second press of an irreversible action | **Really …?** (`confirmClick.js`) |
+
+Spelling is American (rubles, catalog, canceled); a date is written day first with the month as
+a word ("22 Oct 2026"), a time on the Moscow clock with "MSK"; money carries its sign in front
+("₽1,091,260", "KGS 68,000").
 
 ## Few words, and those carry the meaning
 
@@ -129,8 +143,8 @@ missing — is shown by an icon, a colour, a badge or a dedicated block, and the
 lives behind it in a tooltip or a popover. A sentence added to the page to explain
 something is the wrong answer even when the sentence is right.
 
-The words that do appear are laconic: the most meaning in the fewest words. «WB ещё не
-отдал вчера», not «К сожалению, Wildberries пока не предоставил данные за вчерашний день».
+The words that do appear are laconic: the most meaning in the fewest words. "WB hasn't sent
+yesterday yet", not "Unfortunately, Wildberries has not yet provided the data for yesterday".
 No apologies, no "please", no restating what the icon already says. A user should get the
 problem at a glance and the detail in one hover.
 
@@ -162,12 +176,12 @@ extends the shared one rather than growing a local copy.
 | Need | Use |
 | --- | --- |
 | Any button | `.ui-btn` + `--primary` / `--ghost` / `--danger` (+ `.is-armed`) / `--good` / `--sm`; `.ui-icon-btn` for an icon. In `assets/main.css`'s components layer, so utilities still win |
-| An irreversible action | `core/utils/confirmClick.js` — two presses, «Точно …?», withdraws after 4 s |
+| An irreversible action | `core/utils/confirmClick.js` — two presses, "Really …?", withdraws after 4 s |
 | A text field / a select | `.ui-input` / `.ui-select` (+ `--sm`); width is the caller's |
 | A search box | `core/components/SearchField.vue` — it draws the one ✕; the browser's own is hidden for every `.ui-input[type=search]` |
-| A filter over articles («Предметы», «Бренды», «Артикулы») | `core/components/FilterMenu.vue` — a glass, searchable checklist, several choices; never a native `<select>` |
-| «Группы» | `GroupsFilter` from `@/modules/heatmap` — beside «Предметы» and «Бренды» on every page that has them; the list is one store (`useGroupsStore`), so a group made on one page is on all of them, and `articlesOfGroups` turns the choice into nm_ids |
-| How a table or chart is cut («Артикулы · Предметы · Бренды · Группы») | `core/components/GroupingChips.vue`, at the top right of the block it cuts and outside it — beside the block title (summary, advertising), at the right end of the filter row above it (heatmap, balance), or before «Строк на странице» (P&L). Rows by subject/brand/group are sums of their articles (`splitBy` from `@/modules/heatmap`); the «Итого» is summed over the articles, because by group one article sits in several rows |
+| A filter over articles ("Categories", "Brands", "SKUs") | `core/components/FilterMenu.vue` — a glass, searchable checklist, several choices; never a native `<select>` |
+| "Groups" | `GroupsFilter` from `@/modules/heatmap` — beside "Categories" and "Brands" on every page that has them; the list is one store (`useGroupsStore`), so a group made on one page is on all of them, and `articlesOfGroups` turns the choice into nm_ids |
+| How a table or chart is cut ("SKUs · Categories · Brands · Groups") | `core/components/GroupingChips.vue`, at the top right of the block it cuts and outside it — beside the block title (summary, advertising), at the right end of the filter row above it (heatmap, balance), or before "Rows per page" (P&L). Rows by subject/brand/group are sums of their articles (`splitBy` from `@/modules/heatmap`); the "Total" is summed over the articles, because by group one article sits in several rows |
 | A chosen option among a few | `.ui-chip` / `.is-on` (filled with the action colour, never a raised white card) |
 | An on/off mode | `core/components/UiSwitch.vue` |
 | A status | `.ui-badge` + `.is-ok` / `.is-warn` / `.is-bad` / `.is-soft` / `.is-on` / `.is-quiet` |
@@ -175,12 +189,12 @@ extends the shared one rather than growing a local copy.
 | A headline figure | `core/components/KpiTile.vue` |
 | An explanation on a label | `core/components/InfoHint.vue` — never a `title` attribute. One short plain sentence, no formulas |
 | Any floating tip over a table | Teleported, and kept inside the table's visible area: `visibleArea(anchor)` on open + `v-fit-inside` on the bubble (`core/utils/tipFit.js`). A tip that hangs past the card's edge is a bug |
-| A list behind one cell (an article's penalty reasons) | Never extra lines in the cell — a table row is one line high. A count pill («5 причин») beside the figure, and ONE card per table, opened on click, owned by the table rather than the cell (PrimeVue re-renders a cell on a row click and would close it): `finreports/components/PnlPenaltyReasons.vue` |
-| Child rows under a row (an article's sizes) | Rows of the SAME table, in the same columns, under their parent: tinted, smaller, a size pill in the frozen column, blank where the child has no such figure, no «Итого» of their own (the parent row is it). Never a nested table — see `finreports/pnlSkuTree.js` |
-| A modal question | `core/components/UiDialog.vue` («Отмена» before the main action) |
+| A list behind one cell (an article's penalty reasons) | Never extra lines in the cell — a table row is one line high. A count pill ("5 reasons") beside the figure, and ONE card per table, opened on click, owned by the table rather than the cell (PrimeVue re-renders a cell on a row click and would close it): `finreports/components/PnlPenaltyReasons.vue` |
+| Child rows under a row (an article's sizes) | Rows of the SAME table, in the same columns, under their parent: tinted, smaller, a size pill in the frozen column, blank where the child has no such figure, no "Total" of their own (the parent row is it). Never a nested table — see `finreports/pnlSkuTree.js` |
+| A modal question | `core/components/UiDialog.vue` ("Cancel" before the main action) |
 | Loading, empty, failed | `core/components/DataState.vue`; a reload keeps the figures in `BusyRegion.vue` |
-| More records | `core/components/ShowMoreButton.vue` — «Показать ещё (N)» |
-| A table | PrimeVue or a hand-drawn `<table>` inside `.app-datatable`; `SortIcon.vue` for a hand-drawn sort. A figure column reads from the right — head, cells and «Итого»: `class="col-num"` on a PrimeVue `<Column>`, `text-right tabular-nums` on a hand-drawn one. Identifiers («Артикул WB») and text stay left |
+| More records | `core/components/ShowMoreButton.vue` — "Show more (N)" |
+| A table | PrimeVue or a hand-drawn `<table>` inside `.app-datatable`; `SortIcon.vue` for a hand-drawn sort. A figure column reads from the right — head, cells and "Total": `class="col-num"` on a PrimeVue `<Column>`, `text-right tabular-nums` on a hand-drawn one. Identifiers ("WB ID") and text stay left |
 | A number | `core/utils/format.js` — «—» is no figure, «0» is zero; never `toLocaleString` in a page |
 
 Left different on purpose — do not "fix" these:
@@ -189,18 +203,18 @@ Left different on purpose — do not "fix" these:
   leave empty cells blank: every pixel saved is one more warehouse column, and a «—» in every
   empty cell is noise.
 * The heatmap prints percentages without «%» — the unit is in the metric's name.
-* The change-password form has its own «показать пароль»: one press shows all three fields.
+* The change-password form has its own "show password": one press shows all three fields.
 
 ### Dates and periods
 
 A period is picked with `core/components/PeriodSelector.vue`, one day with `DayPicker.vue` —
 both drawn in `CalendarShell.vue`, so they share the trigger, the popover and its phone layout
 (one month below 640px, 44px days). A page never draws a date control or quick presets of its
-own: the presets (7/30/90 and «Вся история» or «180 дней») live only in the calendar's footer.
+own: the presets (7/30/90 and "All time" or "180 days") live only in the calendar's footer.
 Two rows of presets for one window is how the summary once lit two of them at once.
 
 A page states its bounds and the calendar enforces them as greyed days: `history-from` (first
-day with data — also what turns «180 дней» into «Вся история»), `max` (last pickable day),
+day with data — also what turns "180 days" into "All time"), `max` (last pickable day),
 `max-days` (longest window, both ends counted — mirror the backend's cap, whose
 `MAX_WINDOW_DAYS` counts days *between* the ends, hence the `+ 1`), and `preset-end`. Every
 preset window, the one lit preset and a page's default window come from `presetWindow` /

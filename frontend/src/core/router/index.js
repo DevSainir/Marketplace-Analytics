@@ -27,7 +27,7 @@ const coreRoutes = [
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     component: () => import('@/core/views/NotFoundView.vue'),
-    meta: { title: 'Страница не найдена' },
+    meta: { title: 'Page not found' },
   },
 ]
 

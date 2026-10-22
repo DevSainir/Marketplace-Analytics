@@ -42,16 +42,16 @@ function routePaths() {
 }
 
 describe('static files in public/', () => {
-  it('никогда не занимают путь маршрута', () => {
+  it('never take a route path', () => {
     const directories = new Set(publicDirectories())
     const clashes = routePaths().filter((path) => directories.has(path))
 
     expect(
       clashes,
-      'Каталог в public/ с именем маршрута перехватывает его в nginx ' +
-        '(`try_files $uri $uri/`) и страница отдаёт 403. Переименуйте каталог ' +
-        'или положите файл без каталога-тёзки:\n' +
-        clashes.map((c) => `  public${c}/ закрывает маршрут ${c}`).join('\n'),
+      'A directory in public/ named like a route captures it in nginx ' +
+        '(`try_files $uri $uri/`) and the page answers 403. Rename the directory ' +
+        'or keep the file out of a same-named directory:\n' +
+        clashes.map((c) => `  public${c}/ shadows the route ${c}`).join('\n'),
     ).toEqual([])
   })
 })

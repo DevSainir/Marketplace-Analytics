@@ -63,7 +63,7 @@ async def check_ab_tests(
         answer.model_dump_json()
         return len(answer.variants)
 
-    listed = await attempt(session, report, "A/Б list", listing)
+    listed = await attempt(session, report, "A/B list", listing)
     await attempt(session, report, "A/Б test", detail)
 
 

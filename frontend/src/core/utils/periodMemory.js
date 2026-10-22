@@ -86,7 +86,7 @@ export function recallPeriod(page, edge = {}) {
   const wasOnLatest = Boolean(before.to) && saved.to === before.to
   if (!wasOnLatest || !edge.to || edge.to === before.to) return { from: saved.from, to: saved.to }
 
-  // «Вся история» is extended, not slid: it is anchored at both ends, and
+  // "All time" is extended, not slid: it is anchored at both ends, and
   // preserving its LENGTH would walk its start forward and quietly drop the
   // oldest days from the total.
   const wholeHistory = Boolean(before.from) && saved.from === before.from && Boolean(edge.from)

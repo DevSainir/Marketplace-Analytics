@@ -31,7 +31,7 @@ _SIZES: dict[str, tuple[int, int]] = {
     "2046161763208": (995716075, 965033858),
     "2046161763215": (995716075, 965033859),
 }
-_LABEL = "Москва (Внуково) (FBS)"
+_LABEL = "Moscow (Vnukovo) (FBS)"
 
 
 def test_stock_is_filed_under_the_configured_warehouse_label() -> None:
@@ -124,7 +124,7 @@ def _warehouse(warehouse_id: int, name: str) -> WBFbsWarehouse:
 
 def test_a_configured_label_wins_over_the_sellers_own_name() -> None:
     """The name WB reports is a working note; the configured label is the header."""
-    warehouse = _warehouse(9945803, "Иван  - Москва (Внуково) НЕ УДАЛЯТЬ!!!")
+    warehouse = _warehouse(9945803, "Ivan  - Moscow (Vnukovo) DO NOT DELETE!!!")
 
     assert label_for(warehouse, {9945803: _LABEL}) == _LABEL
 

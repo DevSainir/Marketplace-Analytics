@@ -2,7 +2,7 @@
 
 The unit tier proves the transport consults the gate. What it cannot prove is
 the part that actually broke on 2026-07-30: the budget has to be shared between
-Celery's prefork WORKERS. The nightly cohort pass and an interactive «Обновить»
+Celery's prefork WORKERS. The nightly cohort pass and an interactive "Refresh"
 for the same workspace are different OS processes holding one WB token, and each
 pacing itself politely still overruns WB's bucket by however many processes are
 running. Only shared state fixes that, so it is tested against real Redis and
@@ -10,7 +10,7 @@ its real Lua execution.
 
 The peek (`retry_after`) is here for the same reason: it is a second Lua script
 that has to agree with the first about the same bucket while writing nothing to
-it. «Обновить» answers a seller out of that number instead of enqueueing a
+it. "Refresh" answers a seller out of that number instead of enqueueing a
 harvest that would sit still waiting for WB, so a peek that lied — or that spent
 a token — would be worse than not having one.
 """
@@ -212,7 +212,7 @@ async def test_a_penalty_survives_longer_than_the_keys_ordinary_lifetime(
 
 
 async def test_an_open_bucket_peeks_as_available_now(redis_client: Any) -> None:
-    """Nothing spent, nothing to wait for — «Обновить» goes straight through."""
+    """Nothing spent, nothing to wait for — "Refresh" goes straight through."""
     gate = _gate(redis_client)
 
     assert await gate.retry_after(ENDPOINT) == 0.0
@@ -290,7 +290,7 @@ async def test_a_reserving_caller_lets_an_urgent_one_go_first(redis_client: Any)
     """Priority, decided in the bucket rather than by agreement between callers.
 
     Several things want the settlement endpoint's four requests an hour: the
-    hourly harvest, a seller pressing «Обновить», and the history backfill.
+    hourly harvest, a seller pressing "Refresh", and the history backfill.
     Without an order they race, and the loser is whoever asked second — on
     2026-09-12 that was the fresh report, queued behind history nobody needed
     that day.

@@ -32,7 +32,7 @@ defineEmits(['update:modelValue'])
  *
  * Not the campaign's own name: sellers often name a campaign after the
  * article's WB number, so the name read as an article id rather than a
- * campaign. The id is what the seller finds in the WB cabinet.
+ * campaign. The id is what the seller finds in the WB seller portal.
  */
 const options = computed(() =>
   props.campaigns.map((campaign) => ({

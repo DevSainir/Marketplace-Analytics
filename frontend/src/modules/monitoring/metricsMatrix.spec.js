@@ -158,7 +158,7 @@ describe('buildMetricsMatrix', () => {
     expect(blockCell(matrix.priceRows, 'customer_price', 0).editable).toBe(true)
     // SPP is derived but still editable (display override); its value still shows.
     expect(blockCell(matrix.priceRows, 'spp', 0).editable).toBe(true)
-    expect(blockCell(matrix.priceRows, 'spp', 0).display).toBe('30,00%')
+    expect(blockCell(matrix.priceRows, 'spp', 0).display).toBe('30.00%')
     // Block cells address the backend «total» bucket for edits.
     expect(blockCell(matrix.priceRows, 'seller_price', 0)).toMatchObject({
       raw: 1000,
@@ -223,8 +223,8 @@ describe('buildMetricsMatrix', () => {
     expect(cell(matrix, 'spend', 0, 'total')).toBe('75')
     expect(cell(matrix, 'views', 0, 'total')).toBe(formatNumber(150))
     expect(cell(matrix, 'clicks', 0, 'total')).toBe(formatNumber(200))
-    expect(cell(matrix, 'traffic_share', 0, 'uni_shelves')).toBe('46,67%')
-    expect(cell(matrix, 'buyout_percent', 0, 'total')).toBe('50,00%')
+    expect(cell(matrix, 'traffic_share', 0, 'uni_shelves')).toBe('46.67%')
+    expect(cell(matrix, 'buyout_percent', 0, 'total')).toBe('50.00%')
     expect(cell(matrix, 'order_sum', 0, 'manual_search')).toBe('500')
   })
 
@@ -242,8 +242,8 @@ describe('buildMetricsMatrix', () => {
     // A pay-per-click campaign's bid is the CPC row itself, so the two zone
     // cells must address cpc_search/cpc_shelves and nothing beside them.
     // «CPC» prints tenths — a click costs single units of money.
-    expect(cell(matrix, 'cpc', 0, 'cpc_search')).toBe('12,5')
-    expect(cell(matrix, 'cpc', 0, 'cpc_shelves')).toBe('9,4')
+    expect(cell(matrix, 'cpc', 0, 'cpc_search')).toBe('12.5')
+    expect(cell(matrix, 'cpc', 0, 'cpc_shelves')).toBe('9.4')
     expect(cell(matrix, 'cpc', 0, 'uni_search')).toBe('')
     expect(cellObj(matrix, 'views', 0, 'cpc_search')).toMatchObject({
       raw: 25,
@@ -286,7 +286,7 @@ describe('buildMetricsMatrix', () => {
 
     const first = (rows, key) => rows.find((r) => r.key === key).cells.find((c) => c.raw != null)
 
-    expect(first(matrix.rows, 'spend').display).toBe('15с')
+    expect(first(matrix.rows, 'spend').display).toBe('KGS 15')
     expect(first(matrix.rows, 'order_sum').unit).toBe('₽')
     expect(first(matrix.rows, 'ctr').unit).toBe('')
     expect(matrix.rows.find((r) => r.key === 'spend').label).toBe('Затраты')
@@ -298,7 +298,7 @@ describe('buildMetricsMatrix', () => {
     const cell = matrix.rows.find((r) => r.key === 'spend').cells.find((c) => c.raw != null)
 
     expect(cell.figure).toBe('15')
-    expect(cell.unit).toBe('с')
+    expect(cell.unit).toBe('KGS')
   })
 
   it('signs spend from a window across the ad account switch with both currencies', () => {
@@ -308,7 +308,7 @@ describe('buildMetricsMatrix', () => {
 
     const cell = matrix.rows.find((r) => r.key === 'spend').cells.find((c) => c.raw != null)
 
-    expect(cell.unit).toBe('с+₽')
+    expect(cell.unit).toBe('KGS+₽')
   })
 
   it("signs each day's cells with that day's own currencies when the backend states them", () => {
@@ -328,7 +328,7 @@ describe('buildMetricsMatrix', () => {
         .map((c) => c.unit)
 
     expect(units('spend', 'uni_search')[0]).toBe('₽')
-    expect(units('order_sum', 'total').every((unit) => unit === 'с')).toBe(true)
+    expect(units('order_sum', 'total').every((unit) => unit === 'KGS')).toBe(true)
     expect(matrix.priceRows[0].cells.find((c) => c.raw != null).unit).toBe('₽')
   })
 
@@ -393,7 +393,7 @@ describe('patchMetricsMatrix', () => {
     expect(patchMetricsMatrix(view, PRODUCT, { prices: 'RUB', ads: ['KGS'] })).toBe(true)
 
     const spend = view.rows.find((r) => r.key === 'spend').cells.find((c) => c.raw != null)
-    expect(spend.display).toBe('15с')
+    expect(spend.display).toBe('KGS 15')
   })
 
   it('takes the campaign links from the patched product', () => {

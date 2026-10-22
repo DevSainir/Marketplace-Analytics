@@ -45,7 +45,7 @@ describe('production Content-Security-Policy', () => {
   })
 
   it('lets the SKU thumbnails load from WB’s own image CDN', () => {
-    // The monitoring SKU search, «Сравнение SKU» and the per-SKU P&L show the
+    // The monitoring SKU search, "SKU comparison" and the per-SKU P&L show the
     // seller's card photos. Those are public, unauthenticated links on
     // `basket-NN.wbbasket.ru`, so `<img>` loads them directly rather than
     // through the API the way the A/B variants are — proxying hundreds of

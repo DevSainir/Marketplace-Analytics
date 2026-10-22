@@ -32,6 +32,7 @@ from scripts.seed_demo.catalogue import (
     DemoSku,
 )
 from scripts.seed_demo.economics import sale_amounts
+from tests.support import wb_labels as wb
 
 _TODAY = date(2026, 10, 22)  # a Thursday
 _WORKSPACE = uuid.UUID("019f657a-0000-7000-8000-00000000de00")
@@ -106,7 +107,7 @@ def test_each_report_states_the_payout_its_rows_add_up_to(
     for header in headers:
         own = [row for row in rows if row["report_id"] == header["report_id"]]
         summed = sum(
-            (-r["ppvz_for_pay"] if r["doc_type_name"] == "Возврат" else r["ppvz_for_pay"])
+            (-r["ppvz_for_pay"] if r["doc_type_name"] == wb.REFUND else r["ppvz_for_pay"])
             for r in own
         )
         assert summed == header["wb_for_pay_sum"]

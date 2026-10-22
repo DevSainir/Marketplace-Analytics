@@ -30,7 +30,13 @@
  * number (see main.css and `MatrixMetricsRows.vue`).
  * «Каталог» is a legacy WB zone kept for workbook parity; it is always empty.
  */
-import { currencySign, formatMoneyFigure, formatNumber, formatPercent } from '@/core/utils/format'
+import {
+  currencySign,
+  formatMoneyFigure,
+  formatNumber,
+  formatPercent,
+  withCurrency,
+} from '@/core/utils/format'
 import { campaignIdsByDay } from '@/modules/monitoring/campaignLinks'
 
 // Missing values render as BLANK cells (was an em dash — the dashes read as
@@ -395,7 +401,7 @@ function resolveRaw(values, bucketCount, bucketIndex, dayIndex) {
 function cellParts(def, raw, currency) {
   const figure = def.format(raw)
   const unit = def.money && raw != null ? currencySign(currency) : ''
-  return { figure, unit, display: figure + unit }
+  return { figure, unit, display: unit ? withCurrency(figure, currency) : figure }
 }
 
 /**

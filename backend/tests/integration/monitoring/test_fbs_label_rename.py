@@ -32,15 +32,15 @@ _RENAME_DB_NAME = "marketplace_fbs_rename_check"
 _BEFORE_THE_RENAME = "b4f1e7c92d05"
 _THE_RENAME = "c7e4a1d90b62"
 
-_OLD_LABEL = "Москва (Белая дача) (FBS)"
-_NEW_LABEL = "Белая дача - Москва (FBS)"
+_OLD_LABEL = "Moscow (Belaya Dacha) (FBS)"
+_NEW_LABEL = "Belaya Dacha - Moscow (FBS)"
 _WAREHOUSE_ID = 9990254
 
 #: Vnukovo needs no seeding here — ``b4f1e7c92d05`` writes it, under the label
 #: it had been harvesting under. It is in every assertion below because a
 #: rename that misses the row a previous migration seeded is the same failure
 #: as one that misses a row discovery wrote.
-_SEEDED_NEW_LABEL = "Внуково - Москва (FBS)"
+_SEEDED_NEW_LABEL = "Vnukovo - Moscow (FBS)"
 
 #: An FBO warehouse in the same table, to prove the rename is a rename and not
 #: a broad UPDATE that catches whatever else is filed nearby.
@@ -103,7 +103,7 @@ def _seed_a_warehouse_with_history(dsn: str) -> None:
         conn.execute(
             sa.text(
                 "INSERT INTO monitoring.fbs_warehouse (warehouse_id, label, wb_name) "
-                "VALUES (:id, :label, 'Иван - Москва (Белая дача) НЕ УДАЛЯТЬ!!!')"
+                "VALUES (:id, :label, 'Ivan - Moscow (Belaya Dacha) DO NOT DELETE!!!')"
             ).bindparams(id=_WAREHOUSE_ID, label=_OLD_LABEL)
         )
         for stat_date, quantity in ((date(2026, 8, 20), 200), (date(2026, 8, 21), 180)):

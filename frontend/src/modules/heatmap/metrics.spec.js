@@ -19,23 +19,23 @@ const printed = (key, value, grid = currencies) => {
 
 describe('a money figure carries its own currency sign', () => {
   it('signs a price with the currency WB states for prices', () => {
-    expect(printed('seller_price', 4120)).toBe('4 120₽')
+    expect(printed('seller_price', 4120)).toBe('₽4,120')
   })
 
   it("signs the orders in money with WB's funnel sums' currency, not the prices'", () => {
-    expect(printed('order_sum', 8240)).toBe('8 240с')
+    expect(printed('order_sum', 8240)).toBe('KGS 8,240')
   })
 
   it('signs advertising with the ad account currency', () => {
-    expect(printed('cpc', 23)).toBe('23с')
+    expect(printed('cpc', 23)).toBe('KGS 23')
   })
 
   it('carries both signs when the window crosses the account switching currency', () => {
-    expect(printed('spend', 900, { ...currencies, ads: ['KGS', 'RUB'] })).toBe('900с+₽')
+    expect(printed('spend', 900, { ...currencies, ads: ['KGS', 'RUB'] })).toBe('KGS+₽900')
   })
 
   it('signs the settlement figures with the settlement currency', () => {
-    expect(printed('profit', 1240)).toBe('1 240с')
+    expect(printed('profit', 1240)).toBe('KGS 1,240')
   })
 
   it('adds no sign to a count', () => {
@@ -55,14 +55,14 @@ describe('cellText', () => {
   it('signs a spend cell with its own campaigns currency, column by column', () => {
     const row = { total: null, values: [900, 800], units: ['RUB', 'KGS'], total_unit: '' }
 
-    expect(plain(cellText(row, 0, spend, currencies))).toBe('900₽')
-    expect(plain(cellText(row, 1, spend, currencies))).toBe('800с')
+    expect(plain(cellText(row, 0, spend, currencies))).toBe('₽900')
+    expect(plain(cellText(row, 1, spend, currencies))).toBe('KGS 800')
     expect(cellText(row, 'total', spend, currencies)).toBe('—')
   })
 
   it("falls back to the grid's currency for a metric with no per-cell units", () => {
     const row = { total: 12, values: [12] }
 
-    expect(plain(cellText(row, 0, metricOf('order_sum'), currencies))).toBe('12с')
+    expect(plain(cellText(row, 0, metricOf('order_sum'), currencies))).toBe('KGS 12')
   })
 })

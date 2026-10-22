@@ -99,7 +99,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <nav class="ui-secnav" aria-label="Разделы страницы">
+  <nav class="ui-secnav" aria-label="Page sections">
     <button
       v-for="s in sections"
       :key="s.id"

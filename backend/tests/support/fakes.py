@@ -226,7 +226,7 @@ class FakeWorkspaceRepository:
         return workspace
 
     async def set_ads_show_bonus(self, workspace: Workspace, value: bool) -> None:
-        """Store the «Промо-бонусы» switch of one workspace."""
+        """Store the "Promo bonuses" switch of one workspace."""
         workspace.ads_show_bonus = value
 
     async def delete(self, workspace: Workspace) -> None:
@@ -275,7 +275,7 @@ class FakeWorkspaceTokenRepository:
 def make_workspace(
     *,
     organization_id: uuid.UUID,
-    name: str = "ИП Тестовый",
+    name: str = "Test Shop",
     is_primary: bool = False,
     search_clusters_enabled: bool = False,
     workspace_id: uuid.UUID | None = None,

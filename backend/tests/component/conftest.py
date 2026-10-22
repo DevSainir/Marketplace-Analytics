@@ -61,7 +61,7 @@ def redis_store(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
 
     ONE fixture, because there is one seam. Every caller resolves the client by
     calling ``get_redis()``, which reads this module global at call time, so
-    replacing it redirects the rate limiter, the «Обновить» task binding and its
+    replacing it redirects the rate limiter, the "Refresh" task binding and its
     enqueue budget, the refresh replay-grace window and the session-revocation
     watermark together — and, more to the point, redirects the next control
     somebody adds without anyone remembering to come back here.
@@ -292,13 +292,13 @@ def foreign_organization_id() -> uuid.UUID:
 @pytest.fixture
 def workspace(organization_id: uuid.UUID) -> Workspace:
     """A non-primary workspace (stores a single ``unified`` WB token)."""
-    return make_workspace(organization_id=organization_id, name="ИП Тестовый")
+    return make_workspace(organization_id=organization_id, name="Test Shop")
 
 
 @pytest.fixture
 def primary_workspace(organization_id: uuid.UUID) -> Workspace:
     """The primary workspace (stores one token per WB category)."""
-    return make_workspace(organization_id=organization_id, name="ИП Демо", is_primary=True)
+    return make_workspace(organization_id=organization_id, name="Demo Shop", is_primary=True)
 
 
 @pytest.fixture

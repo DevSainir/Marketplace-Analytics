@@ -33,7 +33,7 @@ from src.modules.monitoring.services.analytics.annotations import DayAnnotationA
 #: A resolved catalogue card. Creating a test now requires one, because the
 #: article is checked against the workspace catalogue before anything is
 #: written — `nm_id=1` used to be accepted straight off the body.
-_CARD = WorkspaceCard(nm_id=995716075, vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК", title="Брюки")
+_CARD = WorkspaceCard(nm_id=995716075, vendor_code="KID_DRESS_FLORAL", title="Trousers")
 
 
 class FakeCostRepo:
@@ -174,7 +174,7 @@ async def test_a_note_on_a_nearby_day_is_saved(settings_override: Any) -> None:
 
     with settings_override(sku_comment_max_days_from_today=30):
         await _annotations(repo).set_day_note(
-            nm_id=1, comment_date=moscow_today() - timedelta(days=1), body="был всплеск"
+            nm_id=1, comment_date=moscow_today() - timedelta(days=1), body="there was a spike"
         )
 
     assert len(repo.written) == 1
@@ -260,7 +260,7 @@ async def test_a_workspace_at_its_test_bound_cannot_create_another(
     ):
         await _catalog(repo).create_test(
             workspace_id=uuid.uuid4(),
-            payload=AbTestCreate(nm_id=_CARD.nm_id, name="проверка"),
+            payload=AbTestCreate(nm_id=_CARD.nm_id, name="check"),
             # A resolved card: the bound is about how many tests exist, not which
             # article they name. `nm_id=1` used to be accepted here and by the
             # live API, which is why the article is now resolved first.

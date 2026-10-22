@@ -2,7 +2,7 @@
  * The calendar's vocabulary and arithmetic, shared by every date picker.
  *
  * Split out of `PeriodSelector` because none of it is about a popover: the
- * Russian month/weekday names, the 6x7 grid a month is drawn on, the windows
+ * month/weekday names, the 6x7 grid a month is drawn on, the windows
  * the quick presets stand for and the days a page lets the user click. Pages
  * only state their bounds — first day, last day, longest window — and both
  * the presets and the greyed-out days follow from them, so no page keeps its
@@ -12,42 +12,28 @@
 
 import { computed } from 'vue'
 
+import { MONTHS } from '@/core/utils/calendarWords'
 import { isoDaysAgo, isoLocalDate } from '@/core/utils/dates'
 
-/** Monday-first, matching the grid the picker draws. */
-export const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+export { MONTHS, WEEKDAYS, formatDay } from '@/core/utils/calendarWords'
 
-export const MONTHS = [
-  'Январь',
-  'Февраль',
-  'Март',
-  'Апрель',
-  'Май',
-  'Июнь',
-  'Июль',
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь',
-]
 export const PRESETS = [
-  { label: '7 дней', days: 7 },
-  { label: '30 дней', days: 30 },
-  { label: '90 дней', days: 90 },
-  { label: '180 дней', days: 180 },
+  { label: '7 days', days: 7 },
+  { label: '30 days', days: 30 },
+  { label: '90 days', days: 90 },
+  { label: '180 days', days: 180 },
 ]
 
 /**
  * The footer's presets for a picker: 7/30/90 and a fourth that depends on
- * whether the page knows where its data begins — «Вся история» from that day
- * when it does, «180 дней» when it does not. «Вся история» carries `days: 0`;
+ * whether the page knows where its data begins — "All time" from that day
+ * when it does, "180 days" when it does not. "All time" carries `days: 0`;
  * {@link presetWindow} resolves it.
  *
  * @param {string} [historyFrom] The page's first day, ISO; empty = stock presets.
  */
 export function presetsFor(historyFrom = '') {
-  return historyFrom ? [...PRESETS.slice(0, -1), { label: 'Вся история', days: 0 }] : PRESETS
+  return historyFrom ? [...PRESETS.slice(0, -1), { label: 'All time', days: 0 }] : PRESETS
 }
 
 /**
@@ -65,23 +51,16 @@ export function shiftIso(iso, days) {
   return isoLocalDate(date)
 }
 
-/** "2026-07-11" → "11.07.2026": how every date picker in the app writes a day. */
-export function formatDay(iso) {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-')
-  return `${d}.${m}.${y}`
-}
-
 /**
  * The window a preset of {@link presetsFor} applies.
  *
- * A rolling window ending on `end`, or for «Вся история» everything from
+ * A rolling window ending on `end`, or for "All time" everything from
  * `historyFrom`. Either is then held inside the page's own bounds: it never
  * starts before the first day the page has data for, and never runs longer
- * than `maxDays` — «90 дней» on a workspace a month old is that month, not a
+ * than `maxDays` — "90 days" on a workspace a month old is that month, not a
  * window the calendar would refuse to draw.
  *
- * @param {number} days The preset's length; 0 = «Вся история».
+ * @param {number} days The preset's length; 0 = "All time".
  * @param {{end?: string, historyFrom?: string, maxDays?: number}} [bounds]
  *   `end` — last day, ISO, empty = today; `historyFrom` — first day with data;
  *   `maxDays` — longest window the page answers for, both ends counted, 0 = none.
@@ -99,14 +78,14 @@ export function presetWindow(days, { end = '', historyFrom = '', maxDays = 0 } =
  * Which preset, if any, stands for the window on screen — at most ONE.
  *
  * Two presets can produce the same window once it is held inside the page's
- * bounds: on a workspace with exactly thirty days of history «30 дней» and «Вся
- * история» are the same dates. Marking both read as two choices made at once,
- * so «Вся история» wins such a tie and otherwise the shortest match does.
+ * bounds: on a workspace with exactly thirty days of history "30 days" and "All
+ * time" are the same dates. Marking both read as two choices made at once,
+ * so "All time" wins such a tie and otherwise the shortest match does.
  *
  * @param {string} from Window on screen, ISO.
  * @param {string} to Window on screen, ISO.
  * @param {{end?: string, historyFrom?: string, maxDays?: number}} [bounds] As for {@link presetWindow}.
- * @returns {number|null} The preset's `days` (0 = «Вся история»), or `null` for a hand-picked window.
+ * @returns {number|null} The preset's `days` (0 = "All time"), or `null` for a hand-picked window.
  */
 export function activePreset(from, to, bounds = {}) {
   const matches = presetsFor(bounds.historyFrom).filter((preset) => {
@@ -121,10 +100,10 @@ export function activePreset(from, to, bounds = {}) {
  * The rolling window one preset stands for, with no bounds applied.
  *
  * `end` is the day it finishes on — today for live traffic data, or the
- * caller's newest SETTLED day for the P&L, where «7 дней» ending today would
+ * caller's newest SETTLED day for the P&L, where "7 days" ending today would
  * include days no WB report covers yet and read as a collapse in sales.
  *
- * The end day COUNTS as one of the N: «7 дней» to the 10th is the 4th to the
+ * The end day COUNTS as one of the N: "7 days" to the 10th is the 4th to the
  * 10th. Off by one here is a whole day appearing or vanishing, which is why it
  * lives beside `PRESETS` rather than inside a component.
  *

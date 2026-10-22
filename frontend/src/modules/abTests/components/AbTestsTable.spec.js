@@ -33,7 +33,7 @@ describe('a test can be deleted from the list', () => {
 
     await wrapper.get('[data-testid="delete-test"]').trigger('click')
 
-    expect(wrapper.get('[data-testid="delete-test"]').text()).toBe('Точно удалить?')
+    expect(wrapper.get('[data-testid="delete-test"]').text()).toBe('Really delete?')
     expect(wrapper.emitted('delete')).toBeUndefined()
 
     await wrapper.get('[data-testid="delete-test"]').trigger('click')
@@ -42,7 +42,7 @@ describe('a test can be deleted from the list', () => {
   })
 
   it('disarms the first row when a second one is armed', async () => {
-    // Two rows both reading «Точно удалить?» is an invitation to delete the
+    // Two rows both reading "Really delete?" is an invitation to delete the
     // wrong test with the next click.
     const wrapper = table([row(), row({ id: 'bbbb', name: 'Второй' })])
     const buttons = wrapper.findAll('[data-testid="delete-test"]')
@@ -50,8 +50,8 @@ describe('a test can be deleted from the list', () => {
     await buttons[0].trigger('click')
     await buttons[1].trigger('click')
 
-    expect(buttons[0].text()).toBe('Удалить')
-    expect(buttons[1].text()).toBe('Точно удалить?')
+    expect(buttons[0].text()).toBe('Delete')
+    expect(buttons[1].text()).toBe('Really delete?')
     expect(wrapper.emitted('delete')).toBeUndefined()
   })
 })

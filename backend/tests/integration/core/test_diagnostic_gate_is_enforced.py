@@ -41,7 +41,7 @@ def gated(monkeypatch: pytest.MonkeyPatch, engine: Any, isolated: None) -> None:
     monkeypatch.setattr(diagnostics.settings, "diagnostic_workspace_id", str(MINE))
 
 
-async def test_a_probe_with_no_where_clause_sees_one_кабинет(gated: None) -> None:
+async def test_a_probe_with_no_where_clause_sees_one_workspace(gated: None) -> None:
     """A query that asks for everything gets one workspace's rows.
 
     Deliberately unscoped: a probe that scoped its own SQL would pass with the

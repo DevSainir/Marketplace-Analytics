@@ -1,8 +1,8 @@
 <script setup>
 /**
- * The quick presets in the period picker's footer — «7 дней», «30 дней»,
- * «90 дней», and «Вся история» when the page knows its first day or
- * «180 дней» when it does not. The only presets in the app: no page draws its
+ * The quick presets in the period picker's footer — "7 days", "30 days",
+ * "90 days", and "All time" when the page knows its first day or
+ * "180 days" when it does not. The only presets in the app: no page draws its
  * own beside the calendar.
  *
  * Split out of `PeriodSelector` (a component is capped at 250 lines): the
@@ -25,7 +25,7 @@ const props = defineProps({
   awaitingEnd: { type: Boolean, default: false },
   /** Day the presets end on (ISO); empty = today. */
   presetEnd: { type: String, default: '' },
-  /** The page's first day (ISO); set, «180 дней» gives way to «Вся история». */
+  /** The page's first day (ISO); set, "180 days" gives way to "All time". */
   historyFrom: { type: String, default: '' },
   /** Longest window the page answers for; 0 = no limit. */
   maxDays: { type: Number, default: 0 },
@@ -50,7 +50,7 @@ function pick(days) {
 <template>
   <div class="mt-md border-t border-border-subtle pt-sm sm:flex sm:items-center sm:gap-xs">
     <span class="mb-xs block text-tiny text-muted sm:mb-0 sm:mr-auto">
-      {{ awaitingEnd ? 'Выберите конец периода' : 'Быстрый выбор:' }}
+      {{ awaitingEnd ? 'Pick the end of the period' : 'Quick pick:' }}
     </span>
     <!-- Four abreast need ~290px; a one-month popover has 252, so two by two. -->
     <div class="grid grid-cols-2 gap-xs sm:flex">

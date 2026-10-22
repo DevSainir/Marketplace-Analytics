@@ -66,7 +66,7 @@ def test_a_skipped_page_is_printed_and_does_not_fail_the_deploy(
 def test_one_broken_page_fails_the_deploy_whatever_else_rendered() -> None:
     """Every other page opening is no excuse: one 500 is a page a seller cannot use."""
     report = SmokeReport(
-        cards=[1], rendered={"cards": 1, "heatmap": 3}, failures=["A/Б list: ValueError: x"]
+        cards=[1], rendered={"cards": 1, "heatmap": 3}, failures=["A/B list: ValueError: x"]
     )
 
     assert verdict(report) == EXIT_BROKEN
@@ -74,6 +74,6 @@ def test_one_broken_page_fails_the_deploy_whatever_else_rendered() -> None:
 
 def test_no_card_to_open_is_not_a_pass_even_when_other_pages_rendered() -> None:
     """The cards are what the probe exists for; not finding any is "not checked", exit 3."""
-    report = SmokeReport(cards=[], rendered={"monitoring list": 0, "A/Б list": 2})
+    report = SmokeReport(cards=[], rendered={"monitoring list": 0, "A/B list": 2})
 
     assert verdict(report) == EXIT_CANNOT_CHECK

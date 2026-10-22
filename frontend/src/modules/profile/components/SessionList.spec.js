@@ -86,7 +86,7 @@ describe('SessionList — deciding about the others', () => {
     ])
 
     const button = () =>
-      wrapper.findAll('button').find((b) => ['Завершить', 'Точно завершить?'].includes(b.text()))
+      wrapper.findAll('button').find((b) => ['Sign out', 'Really sign out?'].includes(b.text()))
     await button().trigger('click')
     await button().trigger('click')
 
@@ -100,11 +100,11 @@ describe('SessionList — deciding about the others', () => {
       session({ family_id: 'phone' }),
     ])
 
-    const end = wrapper.findAll('button').find((b) => b.text() === 'Завершить')
+    const end = wrapper.findAll('button').find((b) => b.text() === 'Sign out')
     await end.trigger('click')
 
     expect(wrapper.emitted('end')).toBeUndefined()
-    expect(end.text()).toBe('Точно завершить?')
+    expect(end.text()).toBe('Really sign out?')
   })
 
   it('offers nothing to end when there is nothing else', () => {

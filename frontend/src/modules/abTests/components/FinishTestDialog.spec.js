@@ -70,7 +70,7 @@ describe('the finish dialog', () => {
     const texts = options().map((el) => el.textContent.replace(/\s+/g, ' ').trim())
     expect(texts).toHaveLength(4)
     expect(texts[0]).toContain('Главное')
-    expect(texts[0]).toContain('CTR 6,91%')
+    expect(texts[0]).toContain('CTR 6.91%')
     expect(texts[2]).toContain('На карточке')
     expect(texts[3]).toContain('Убрано')
     expect(texts[3]).toContain('CTR —')

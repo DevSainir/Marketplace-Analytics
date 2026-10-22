@@ -68,7 +68,7 @@ class RateLimiter:
             window_seconds=self._window,
         )
         if not within_budget:
-            raise RateLimitError("Слишком много запросов. Попробуйте позже.")
+            raise RateLimitError("Too many requests. Please try again later.")
 
 
 async def consume_budget(*, scope: str, subject: str, limit: int, window_seconds: int) -> bool:
@@ -76,7 +76,7 @@ async def consume_budget(*, scope: str, subject: str, limit: int, window_seconds
 
     The counting half of :class:`RateLimiter`, separated so a caller that keys
     on something other than the client address can reuse it. The rate limiter
-    keys on the IP; the «Обновить» enqueue guard keys on the workspace, because
+    keys on the IP; the "Refresh" enqueue guard keys on the workspace, because
     the resource it protects — the Celery queue and the WB budget behind it — is
     spent per tenant, and a tenant is not one address.
 

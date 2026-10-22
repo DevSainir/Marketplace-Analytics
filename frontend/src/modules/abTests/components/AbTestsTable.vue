@@ -2,7 +2,7 @@
 /**
  * The list of tests, one row each.
  *
- * Mirrors the seller cabinet's own list with two deliberate differences. There
+ * Mirrors the seller portal's own list with two deliberate differences. There
  * are no «А» and «Б» columns: a rotation runs up to ten photos, so the count is
  * a number rather than two fixed slots. And there are no filters — the search
  * box already matches the name, both articles and the status, so a filter panel
@@ -91,7 +91,7 @@ function formatDate(value) {
                 data-testid="delete-test"
                 @click="onDelete(test.id)"
               >
-                {{ removal.isArmed(test.id) ? confirmLabel('Удалить') : 'Удалить' }}
+                {{ removal.isArmed(test.id) ? confirmLabel('Delete') : 'Delete' }}
               </button>
             </td>
           </tr>
@@ -135,7 +135,7 @@ function formatDate(value) {
             data-testid="delete-test-phone"
             @click="onDelete(test.id)"
           >
-            {{ removal.isArmed(test.id) ? confirmLabel('Удалить') : 'Удалить' }}
+            {{ removal.isArmed(test.id) ? confirmLabel('Delete') : 'Delete' }}
           </button>
         </div>
       </li>

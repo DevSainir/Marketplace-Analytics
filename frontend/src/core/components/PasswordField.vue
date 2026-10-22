@@ -41,9 +41,9 @@ const revealed = ref(false)
     <button
       type="button"
       class="password-toggle"
-      :aria-label="revealed ? 'Скрыть пароль' : 'Показать пароль'"
+      :aria-label="revealed ? 'Hide password' : 'Show password'"
       :aria-pressed="revealed"
-      :title="revealed ? 'Скрыть пароль' : 'Показать пароль'"
+      :title="revealed ? 'Hide password' : 'Show password'"
       @click="revealed = !revealed"
     >
       <!-- Drawn inline: two icons, no icon dependency, and `currentColor` keeps

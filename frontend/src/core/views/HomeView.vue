@@ -15,22 +15,22 @@
         class="inline-flex items-center gap-sm rounded-full border border-border-subtle bg-surface px-md py-xs text-tiny font-medium text-muted shadow-soft"
       >
         <span class="h-1.5 w-1.5 rounded-full bg-status-positive"></span>
-        Данные Wildberries · live
+        Wildberries data · live
       </span>
 
-      <!-- 36px over a 402pt screen breaks «маркетплейса» onto a line of its own
+      <!-- 36px over a 402pt screen breaks "analytics" onto a line of its own
            and pushes the call to action below the fold; 30px keeps the whole
            hero — chip, headline, promise, buttons — on the first screen. -->
       <h1
         class="mt-lg text-4xl font-bold tracking-tight text-primary phone:mt-md phone:text-3xl sm:text-6xl"
       >
-        Аналитика маркетплейса
-        <span class="text-action">без лишнего шума.</span>
+        Marketplace analytics
+        <span class="text-action">without the noise.</span>
       </h1>
 
       <div class="mt-xl flex justify-center phone:mt-lg">
         <RouterLink to="/monitoring" class="ui-btn ui-btn--primary w-full sm:w-auto">
-          Открыть мониторинг →
+          Open monitoring →
         </RouterLink>
       </div>
     </section>

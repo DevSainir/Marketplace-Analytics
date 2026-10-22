@@ -23,7 +23,7 @@ from src.core.client_ip import resolve_client_ip
 from src.core.config import settings
 from src.core.database import dispose_engine
 from src.core.disconnect import CancelOnDisconnect
-from src.core.exceptions import AppError
+from src.core.exceptions import AppError, UserInputError
 from src.core.logcontext import bind_request, new_request_id, reset_context
 from src.core.logging import adopt_uvicorn_loggers, configure_logging, get_logger
 from src.core.observability.instrument import (
@@ -248,83 +248,82 @@ async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
-#: Pydantic's own ``msg`` is English prose ("String should have at least 8
-#: characters"), and `extractErrorMessage` in the SPA puts it straight in front
-#: of the user. Mapped by error TYPE rather than by matching on its text, which
-#: is not a stable interface.
+#: Pydantic's own ``msg`` is written for developers ("Input should be a valid
+#: UUID, invalid character: expected an optional prefix of `urn:uuid:`…"), and
+#: `extractErrorMessage` in the SPA puts it straight in front of the user.
+#: Mapped by error TYPE rather than by matching on its text, which is not a
+#: stable interface.
 #:
 #: Only ``ctx`` limits are interpolated — ``min_length`` and friends are
 #: constants from our own schema, never the submitted value. That distinction
 #: is the whole reason `handle_validation_error` drops ``input`` and ``ctx``
 #: from the response: a rejected password must not come back in the body.
-_RU_VALIDATION: dict[str, str] = {
-    "missing": "Обязательное поле.",
-    "string_too_short": "Слишком короткое значение — минимум {min_length}.",
-    "string_too_long": "Слишком длинное значение — максимум {max_length}.",
-    "string_pattern_mismatch": "Значение имеет недопустимый формат.",
-    "value_error": "Некорректное значение.",
-    "int_parsing": "Ожидается целое число.",
-    "float_parsing": "Ожидается число.",
-    "bool_parsing": "Ожидается «да» или «нет».",
-    "datetime_parsing": "Некорректная дата.",
-    "date_parsing": "Некорректная дата.",
-    "uuid_parsing": "Некорректный идентификатор.",
-    "enum": "Недопустимое значение.",
-    "greater_than": "Значение должно быть больше {gt}.",
-    "greater_than_equal": "Значение должно быть не меньше {ge}.",
-    "less_than": "Значение должно быть меньше {lt}.",
-    "less_than_equal": "Значение должно быть не больше {le}.",
-    "too_short": "Слишком мало элементов.",
-    "too_long": "Слишком много элементов.",
-    "json_invalid": "Тело запроса не является корректным JSON.",
+_VALIDATION_MESSAGES: dict[str, str] = {
+    "missing": "This field is required.",
+    "string_too_short": "Too short — at least {min_length} characters.",
+    "string_too_long": "Too long — at most {max_length} characters.",
+    "string_pattern_mismatch": "The value is not in a valid format.",
+    "value_error": "Invalid value.",
+    "int_parsing": "A whole number is expected.",
+    "float_parsing": "A number is expected.",
+    "bool_parsing": "Yes or no is expected.",
+    "datetime_parsing": "Invalid date.",
+    "date_parsing": "Invalid date.",
+    "uuid_parsing": "Invalid identifier.",
+    "enum": "This value is not allowed.",
+    "greater_than": "Must be greater than {gt}.",
+    "greater_than_equal": "Must be at least {ge}.",
+    "less_than": "Must be less than {lt}.",
+    "less_than_equal": "Must be at most {le}.",
+    "too_short": "Too few items.",
+    "too_long": "Too many items.",
+    "json_invalid": "The request body is not valid JSON.",
 }
 
 
-def _russian_validation_message(error: dict[str, object]) -> str:
-    """Render one Pydantic error in Russian.
+def _validation_message(error: dict[str, object]) -> str:
+    """Render one Pydantic error as a sentence for the person who sent it.
 
     Args:
         error: One entry from ``RequestValidationError.errors()``.
 
     Returns:
-        A Russian sentence. Falls back to a generic one for any error type not
-        listed — a type we have not seen is still not an excuse to show English.
+        A short sentence. Falls back to a generic one for any error type not
+        listed — a type we have not seen is still not an excuse to show
+        pydantic's developer prose.
     """
     kind = str(error.get("type", ""))
-    # A `value_error` is the one type that can already be OURS: a
-    # `field_validator` raising `ValueError` lands here, and this codebase's
-    # validators write Russian aimed at the person (see
-    # `users/schemas._validate_password`). Pydantic prefixes them with
-    # "Value error, ". Passing those through is the difference between
-    # "Пароль должен содержать хотя бы одну заглавную букву." and a flat
-    # "Некорректное значение." that says nothing.
+    context = error.get("ctx")
+    # A `value_error` is the one type that can already be OURS: a validator
+    # raising `UserInputError` lands here (see `users/schemas._validate_password`),
+    # and passing it through is the difference between "The password needs at
+    # least one uppercase letter." and a flat "Invalid value." that says nothing.
     #
-    # Detected by alphabet rather than by a registry: every message pydantic
-    # itself produces is English, and every one we write is Russian. Our
-    # validators never interpolate the submitted value, which is what makes it
-    # safe to forward — the rule the rest of this handler exists to enforce.
-    if kind == "value_error":
-        own = str(error.get("msg", "")).removeprefix("Value error, ").strip()
-        if own and any("а" <= char.lower() <= "я" or char.lower() == "ё" for char in own):
-            return own
-    # An address is the one field where "Некорректное значение." is uselessly
-    # vague, and it is also the commonest thing a person mistypes here.
+    # Recognised by the exception's class, which pydantic keeps in ``ctx``,
+    # rather than by its text: a third-party validator's message (the email
+    # checker's, say) can quote the submitted value, and ours never do — the
+    # rule the rest of this handler exists to enforce.
+    if kind == "value_error" and isinstance(context, dict):
+        cause = context.get("error")
+        if isinstance(cause, UserInputError) and str(cause).strip():
+            return str(cause).strip()
+    # An address is the one field where "Invalid value." is uselessly vague, and
+    # it is also the commonest thing a person mistypes here.
     location = error.get("loc", ())
     if (
         kind == "value_error"
         and isinstance(location, (list, tuple))
         and any("email" in str(part) for part in location)
     ):
-        return "Некорректный адрес электронной почты."
-    template = _RU_VALIDATION.get(kind, "Некорректное значение.")
-    context = error.get("ctx")
+        return "Invalid email address."
+    template = _VALIDATION_MESSAGES.get(kind, "Invalid value.")
     if isinstance(context, dict):
         try:
             return template.format(**context)
         except (KeyError, IndexError, ValueError):
             # A template whose placeholder this error does not carry: the
-            # generic half of the sentence is still true and still Russian.
-            return _RU_VALIDATION.get(kind, "Некорректное значение.").split(" — ")[0]
+            # generic half of the sentence is still true.
+            return template.split(" — ")[0]
     return template
 
 
@@ -347,8 +346,8 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
     client needs to know WHICH field it got wrong, and the field names are
     already public in the request schema it just submitted.
 
-    ``msg`` is replaced with a Russian rendering — Pydantic writes English, and
-    the SPA shows this string to the user unaltered.
+    ``msg`` is replaced with a sentence of our own — Pydantic writes for
+    developers, and the SPA shows this string to the user unaltered.
     """
     logger.info(
         "Validation error on %s %s (%d field(s)).",
@@ -365,7 +364,7 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
                 {
                     "type": error.get("type", "value_error"),
                     "loc": [str(part) for part in error.get("loc", ())],
-                    "msg": _russian_validation_message(error),
+                    "msg": _validation_message(error),
                 }
                 for error in exc.errors()
             ]

@@ -124,10 +124,10 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           >
             {{
               busy === 'all'
-                ? 'Завершаем…'
+                ? 'Signing out…'
                 : ending.isArmed('all')
-                  ? confirmLabel('Завершить все')
-                  : 'Завершить все'
+                  ? confirmLabel('Sign out all')
+                  : 'Sign out all'
             }}
           </button>
         </header>
@@ -151,10 +151,10 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           >
             {{
               busy === session.family_id
-                ? 'Завершаем…'
+                ? 'Signing out…'
                 : ending.isArmed(session.family_id)
-                  ? confirmLabel('Завершить')
-                  : 'Завершить'
+                  ? confirmLabel('Sign out')
+                  : 'Sign out'
             }}
           </button>
         </article>

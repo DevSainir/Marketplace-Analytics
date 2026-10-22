@@ -2,14 +2,14 @@
 /**
  * What a block shows in place of its figures: loading, nothing, or a failure.
  *
- * One look for all three, on every page. Before this, «loading» was a card on
+ * One look for all three, on every page. Before this, "loading" was a card on
  * the P&L, a bare line on the heatmap and nothing at all on the A/B list; an
  * error was red text on one page, a pink plate on another and a GREY card on a
- * third; and the words ran to a dozen variants («Загрузка…», «Загружаю
- * данные…», «Считаем отчёт…»). Pages now pick a `kind` and, at most, their own
+ * third; and the words ran to a dozen variants ("Loading…", "Loading
+ * data…", "Calculating the report…"). Pages now pick a `kind` and, at most, their own
  * wording for an empty block.
  *
- * A first load is the small bar with «Загружаем…» at the top left of where
+ * A first load is the small bar with "Loading…" at the top left of where
  * the block will be — the summary's original, and deliberately not a card: a
  * big empty box announces a block before there is anything to put in it.
  *
@@ -36,8 +36,8 @@ const props = defineProps({
   layout: { type: String, default: 'card' },
 })
 
-const EMPTY = 'Нет данных за выбранный период'
-const FAILED = 'Не удалось загрузить'
+const EMPTY = 'No data for the selected period'
+const FAILED = "Couldn't load"
 
 const frame = computed(() => {
   if (props.layout === 'bare') return 'px-md py-xl text-center'
@@ -50,7 +50,7 @@ const frame = computed(() => {
 </script>
 
 <template>
-  <BusyBar v-if="kind === 'loading'" label="Загружаем…" />
+  <BusyBar v-if="kind === 'loading'" label="Loading…" />
 
   <p
     v-else-if="layout === 'line'"

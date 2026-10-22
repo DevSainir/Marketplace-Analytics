@@ -185,11 +185,11 @@ describe('moneyFormatter', () => {
 
   it('signs the balance with its currency, one character for the som', () => {
     // A three-letter code per cell would cost a whole warehouse of screen width.
-    expect(plain(moneyFormatter('KGS')(57600))).toBe('57 600с')
+    expect(plain(moneyFormatter('KGS')(57600))).toBe('KGS 57,600')
   })
 
   it('prints no sign when the currency is unknown, and a dash for a missing figure', () => {
-    expect(plain(moneyFormatter('')(57600))).toBe('57 600')
+    expect(plain(moneyFormatter('')(57600))).toBe('57,600')
     expect(moneyFormatter('KGS')(null)).toBe('—')
   })
 })

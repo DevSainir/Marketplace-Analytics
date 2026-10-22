@@ -128,7 +128,7 @@ describe('the unit on the matrix', () => {
 
     const spend = store.matrixView.rows.find((row) => row.key === 'spend')
     expect(spend.label).toBe('Затраты')
-    expect(spend.cells.find((cell) => cell.bucket === 'total').display).toBe('75с')
+    expect(spend.cells.find((cell) => cell.bucket === 'total').display).toBe('KGS 75')
   })
 
   it('prints spend with no sign while WB has named no currency', async () => {

@@ -4,7 +4,7 @@
  *
  * There were five: the browser's `title`, advertising's ⓘ with a glass bubble,
  * a copy of that inside the summary's cards, the A/B tests' dark bubble, and a
- * «Как использовать» link. This is the A/B mechanics in the advertising look.
+ * "How to use" link. This is the A/B mechanics in the advertising look.
  *
  * Why not `title`: it waits about a second, cannot be styled and does not
  * exist on touch — "I hover and nothing is there". Why teleported: the labels

@@ -101,9 +101,9 @@ async def test_a_client_error_still_speaks_for_itself(
 ) -> None:
     """A 4xx message is written for the person who caused it and must survive.
 
-    This is the half the fix must not break: "Воркспейс «X» уже существует" is
+    This is the half the fix must not break: `Workspace "X" already exists` is
     the answer, not an internal detail, and blanket-replacing every message
-    would have turned every actionable error into "что-то пошло не так".
+    would have turned every actionable error into "something went wrong".
     """
     response = await client.put(
         "/api/v1/monitoring/pins/order",
@@ -128,7 +128,7 @@ def test_the_rule_is_keyed_on_the_status_not_the_class() -> None:
         http_status = 503
 
     leaked = NewUpstreamError("internal detail nobody vetted")
-    client_error = ValidationError("Дата начала позже даты конца.")
+    client_error = ValidationError("The start date is after the end date.")
 
     assert leaked.public_message != "internal detail nobody vetted"
-    assert client_error.public_message == "Дата начала позже даты конца."
+    assert client_error.public_message == "The start date is after the end date."

@@ -26,7 +26,7 @@ it('shows the SKU’s clusters without anyone typing a phrase', () => {
 
   expect(wrapper.text()).toContain('носки мужские')
   // formatNumber uses ru-RU grouping, i.e. a non-breaking space.
-  expect(wrapper.text().replace(/\u00a0/g, ' ')).toContain('1 000')
+  expect(wrapper.text().replace(/\u00a0/g, ' ')).toContain('1,000')
 })
 
 it('renders an unreported average ad position as a dash, not zero', () => {

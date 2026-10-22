@@ -95,7 +95,7 @@ describe('what the table says about a photo', () => {
     ])
 
     expect(row(wrapper, 'Результат')).toEqual(['0%', '-37%'])
-    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '1,25% ↓'])
+    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '1.25% ↓'])
   })
 
   it('crowns the highest CTR as the wire sends it, two digits against one', () => {
@@ -108,7 +108,7 @@ describe('what the table says about a photo', () => {
       variant(TWO, { click_through: '8.92', ctr_result: '-20.64', ctr_gap: '2.32' }),
     ])
 
-    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '4,33% ↓', '2,32% ↓'])
+    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '4.33% ↓', '2.32% ↓'])
   })
 
   it('calls the captured photo «Главное» instead of «Вариант 0»', () => {
@@ -141,7 +141,7 @@ describe('an excluded photo', () => {
     ])
 
     expect(wrapper.findAll('[data-testid="variant-column"]')).toHaveLength(2)
-    expect(row(wrapper, 'Показов')).toEqual(['10 000', '8 000'].map((s) => s.replace(' ', ' ')))
+    expect(row(wrapper, 'Показов')).toEqual(['10,000', '8,000'].map((s) => s.replace(' ', ' ')))
     expect(wrapper.findAll('[data-testid="variant-column"]')[1].classes()).toContain('is-excluded')
   })
 
@@ -191,8 +191,8 @@ describe('filtering to one lap', () => {
       },
     })
 
-    expect(row(wrapper, 'Показов')).toEqual(['1 000', '1 000'].map((s) => s.replace(' ', ' ')))
-    expect(row(wrapper, 'CTR')).toEqual(['5,00%', '1,00%'])
+    expect(row(wrapper, 'Показов')).toEqual(['1,000', '1,000'].map((s) => s.replace(' ', ' ')))
+    expect(row(wrapper, 'CTR')).toEqual(['5.00%', '1.00%'])
     expect(row(wrapper, 'Результат')).toEqual(['0%', '-80%'])
   })
 

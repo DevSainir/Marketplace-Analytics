@@ -21,7 +21,7 @@ class AppError(Exception):
     #: OUR failure rather than the caller's — every status of 500 or more.
     #:
     #: A 4xx message is written for the person who caused it and is meant to be
-    #: read ("Кабинет «X» уже существует"). A 5xx message is written for
+    #: read (`Workspace "X" already exists`). A 5xx message is written for
     #: whoever debugs it, and on this codebase that means upstream text: a
     #: pydantic report naming our WB schema fields, the WB path we called, the
     #: fact that one code path shells out to curl. None of that is the caller's
@@ -29,7 +29,7 @@ class AppError(Exception):
     #: tried — is not even the caller's tenant. The handler in ``main.py``
     #: substitutes this and logs the real message, which is the way round it
     #: should always have been.
-    client_message: str = "Внутренняя ошибка сервера. Повторите попытку позже."
+    client_message: str = "Internal server error. Please try again later."
 
     def __init__(self, message: str | None = None) -> None:
         """Store an optional human-readable message alongside the class code."""
@@ -45,6 +45,19 @@ class AppError(Exception):
     def public_message(self) -> str:
         """Return the message that may be sent to the client."""
         return self.client_message if self.is_internal_failure else self.message
+
+
+class UserInputError(ValueError):
+    """A validator's complaint written for the person who typed the value.
+
+    Raised from a pydantic ``field_validator`` or ``model_validator`` instead of
+    a bare ``ValueError`` when the message is meant to reach the screen. The
+    422 handler in ``main.py`` forwards this message and replaces every other
+    ``value_error`` with a generic sentence, because a third-party validator's
+    text can quote the submitted value back — the one thing that handler exists
+    to keep out of a response. The message must therefore never interpolate
+    the input either.
+    """
 
 
 class NotFoundError(AppError):
@@ -118,4 +131,4 @@ class IntegrationError(AppError):
 
     code = "integration_error"
     http_status = 502
-    client_message = "Внешний сервис временно недоступен. Повторите попытку позже."
+    client_message = "An external service is temporarily unavailable. Please try again later."

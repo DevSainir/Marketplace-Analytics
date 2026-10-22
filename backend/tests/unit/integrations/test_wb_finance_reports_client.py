@@ -29,6 +29,7 @@ from src.integrations.wildberries.endpoints import (
 )
 from src.integrations.wildberries.rate_limit import FINANCE_REPORT_ENDPOINT_BUCKETS
 from src.integrations.wildberries.schemas import WBFinanceReportHeader, WBFinanceReportRow
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.unit
 
@@ -44,25 +45,25 @@ SAMPLE_ROW: dict[str, Any] = {
     "rrdId": 4100000000123,
     "giId": 30000001,
     "dlvPrc": 1.15,
-    "subjectName": "Джинсы",
+    "subjectName": "Jeans",
     "nmId": 900000104,
     "brandName": "NORTH LINE",
     "vendorCode": "m-jnx01-blk",
-    "title": "Джинсы прямые демо",
+    "title": "Straight jeans demo",
     "techSize": "52",
     "sku": "2000000000107",
     "quantity": 0,
     "retailPrice": "0",
     "retailAmount": "0",
-    "officeName": "Склад WB",
-    "sellerOperName": "Логистика",
+    "officeName": "WB warehouse",
+    "sellerOperName": wb.LOGISTICS,
     "rrDate": "2026-08-17",
     "shkId": 30000000042,
     "retailPriceWithDisc": "0",
     "deliveryAmount": 1,
     "returnAmount": 0,
     "deliveryService": "72.40",
-    "giBoxTypeName": "Микс",
+    "giBoxTypeName": "Mix",
     "spp": 0,
     "kvwBase": 0,
     "kvw": 0,
@@ -72,7 +73,7 @@ SAMPLE_ROW: dict[str, Any] = {
     "paidStorage": "1.25",
     "paidAcceptance": "0",
     "sellerPromo": "0",
-    "country": "Киргизия",
+    "country": "Kyrgyzstan",
     "warehouseLogisticsCoeff": 1.15,
 }
 
@@ -93,8 +94,8 @@ def test_every_renamed_field_lands_where_the_mapping_reads_it() -> None:
     assert row.ts_name == "52"  # techSize
     assert row.barcode == "2000000000107"  # sku
     assert row.currency_name == "KGS"  # currency
-    assert row.site_country == "Киргизия"  # country
-    assert row.supplier_oper_name == "Логистика"  # sellerOperName
+    assert row.site_country == "Kyrgyzstan"  # country
+    assert row.supplier_oper_name == wb.LOGISTICS  # sellerOperName
     assert row.supplier_promo == Decimal(0)  # sellerPromo
     assert row.retail_price_withdisc_rub == Decimal(0)  # retailPriceWithDisc
     assert row.delivery_rub == Decimal("72.40")  # deliveryService
@@ -126,9 +127,9 @@ def test_the_camel_case_default_still_covers_the_unrenamed_fields() -> None:
     """Forty-five fields only changed spelling, and must not need an entry."""
     row = WBFinanceReportRow.model_validate(SAMPLE_ROW)
 
-    assert row.subject_name == "Джинсы"
+    assert row.subject_name == "Jeans"
     assert row.brand_name == "NORTH LINE"
-    assert row.gi_box_type_name == "Микс"
+    assert row.gi_box_type_name == "Mix"
     assert row.delivery_amount == 1
     assert row.shk_id == 30000000042
 
@@ -138,7 +139,7 @@ def test_the_new_fields_worth_having_are_kept() -> None:
     `warehouseLogisticsCoeff` the warehouse's logistics coefficient."""
     row = WBFinanceReportRow.model_validate(SAMPLE_ROW)
 
-    assert row.title == "Джинсы прямые демо"
+    assert row.title == "Straight jeans demo"
     assert row.warehouse_logistics_coeff == Decimal("1.15")
 
 

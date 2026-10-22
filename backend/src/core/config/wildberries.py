@@ -34,14 +34,14 @@ class WildberriesSettings(BaseSettings):
     # Finance surface: seller balance / settlement (finreports currency context).
     wb_finance_base_url: str = Field(default="https://finance-api.wildberries.ru")
     # Marketplace surface: seller-owned (FBS) warehouses and their stock. Needs
-    # a «Маркетплейс»-scope token; no other category authenticates this host.
+    # a "Marketplace"-scope token; no other category authenticates this host.
     wb_marketplace_base_url: str = Field(default="https://marketplace-api.wildberries.ru")
-    # Returns surface: buyer return claims («Заявки на возврат»). Captured by
+    # Returns surface: buyer return claims ("Return requests"). Captured by
     # the `guide` module only — WB keeps them fourteen days and nothing else
     # carries the buyer's own words about why the item came back.
     wb_returns_base_url: str = Field(default="https://returns-api.wildberries.ru")
-    # Feedbacks surface: reviews and buyer questions. Needs the «Вопросы и
-    # отзывы» scope; every other category answers it 403.
+    # Feedbacks surface: reviews and buyer questions. Needs the "Questions and
+    # reviews" scope; every other category answers it 403.
     wb_feedbacks_base_url: str = Field(default="https://feedbacks-api.wildberries.ru")
     # The public storefront's review summary for one card group — `valuation`,
     # `valuationSum` and the score distribution WB rates the card from. No
@@ -50,7 +50,7 @@ class WildberriesSettings(BaseSettings):
     # Every FBS warehouse WB lists for the seller is discovered and read, so a
     # warehouse opened in the portal needs no deploy. ``False`` switches FBS off.
     wb_fbs_harvest_enabled: bool = True
-    # Search clusters («Поиск по кластерам»): the per-cluster grain of the SAME
+    # Search clusters ("Search by clusters"): the per-cluster grain of the SAME
     # ``normquery`` response the search-ZONE split is built from, so switching
     # it off saves no WB request — only the writes into
     # ``monitoring.advertising_cluster_stat_daily``. On for EVERY workspace, not
@@ -66,12 +66,12 @@ class WildberriesSettings(BaseSettings):
     # It once looked unbackfillable because the endpoint answers "nothing" in
     # two different shapes and neither is an error.
     wb_search_cluster_harvest_enabled: bool = True
-    # Column headers by warehouse id, written «<точка> - <город> (FBS)»: the
+    # Column headers by warehouse id, written "<point> - <city> (FBS)": the
     # warehouse's own name first, because that is what distinguishes it from
     # its neighbours, then the city. The header is truncated to its first
-    # letters in «Остатки по складам», so what a reader gets is «Внуково…» and
-    # «Белая дача…» rather than two columns that both read «Москва (…».
-    # The city is dropped where it would only repeat the name («Бишкек»), and
+    # letters in "Stock by warehouse", so what a reader gets is "Vnukovo…" and
+    # "Belaya Dacha…" rather than two columns that both read "Moscow (…".
+    # The city is dropped where it would only repeat the name ("Bishkek"), and
     # a warehouse with no meaningful region keeps its name alone.
     #
     # Anything absent is labelled from WB's own name, which is a seller's
@@ -81,12 +81,12 @@ class WildberriesSettings(BaseSettings):
     # that stores it (see monitoring/models/fbs_warehouses.py).
     wb_fbs_warehouse_labels: dict[int, str] = Field(
         default_factory=lambda: {
-            9945803: "Внуково - Москва (FBS)",  # ships
-            9990254: "Белая дача - Москва (FBS)",  # ships (since 20.08)
-            9931578: "Бишкек (FBS)",
-            9830567: "EDBS - Бишкек (FBS)",
-            9041173: "Тест товаров (FBS)",
-            9684293: "Тест 2 (FBS)",
+            9945803: "Vnukovo - Moscow (FBS)",  # ships
+            9990254: "Belaya Dacha - Moscow (FBS)",  # ships (since 20.08)
+            9931578: "Bishkek (FBS)",
+            9830567: "EDBS - Bishkek (FBS)",
+            9041173: "Product test (FBS)",
+            9684293: "Test 2 (FBS)",
         }
     )
 
@@ -154,7 +154,7 @@ class WildberriesSettings(BaseSettings):
     wb_statistics_bucket_refill_seconds: float = Field(default=60.0, gt=0)
     # A call may queue this long for a token before it gives up — below one
     # refill, so a second call inside the minute fails fast instead of holding
-    # a task. That is what stops a person leaning on «Обновить» from queueing
+    # a task. That is what stops a person leaning on "Refresh" from queueing
     # the account-wide sales feed.
     wb_statistics_max_queue_seconds: float = Field(default=45.0, gt=0)
     # The «catalogue» family — content, prices and common (tariffs). All three
@@ -175,7 +175,7 @@ class WildberriesSettings(BaseSettings):
     # the next client from repeating it.
     wb_catalogue_bucket_capacity: int = Field(default=5, ge=1)
     wb_catalogue_bucket_refill_seconds: float = Field(default=1.0, gt=0)
-    # The «Вопросы и отзывы» surface. NOT measured by us: WB's documentation
+    # The "Questions and reviews" surface. NOT measured by us: WB's documentation
     # gives the category three requests a second with a burst of six, and this
     # paces at a third of that — three deep, one token a second. The header
     # clamp corrects it downward on the first answer if WB disagrees. Re-measure

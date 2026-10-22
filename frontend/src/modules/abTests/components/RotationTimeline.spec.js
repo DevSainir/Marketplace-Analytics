@@ -101,7 +101,7 @@ describe('RotationTimeline', () => {
     expect(tip.textContent).toContain('Вариант 1')
     expect(tip.textContent).toContain('1 ч 0 мин')
     expect(tip.textContent).toContain('56')
-    expect(tip.textContent).toContain('4,54%')
+    expect(tip.textContent).toContain('4.54%')
 
     await wrapper.get('[data-testid="timeline-segment"]').trigger('mouseleave')
     expect(document.querySelector('[role="tooltip"]')).toBeNull()

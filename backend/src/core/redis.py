@@ -135,7 +135,7 @@ async def drain_redis_pool() -> None:
     every ``monitoring.harvest_sku_window`` after the worker's first task,
     because the funnel's rate-gate ``acquire`` is the first Redis op in the
     harvest and the gate only catches :class:`RedisError`, not this
-    ``RuntimeError`` — so «Обновить все SKU» kept succeeding with
+    ``RuntimeError`` — so "Refresh all SKUs" kept succeeding with
     ``funnel_rows: 0``. See :func:`src.core.tasks.run_task`, which drains this
     pool alongside the engine at every task boundary.
 

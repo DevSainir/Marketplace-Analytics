@@ -100,7 +100,7 @@ function joined(iso) {
             :disabled="saving === manager.user_id"
             @click="removal.press(manager.user_id, () => emit('remove', manager.user_id))"
           >
-            {{ removal.isArmed(manager.user_id) ? confirmLabel('Удалить') : 'Удалить' }}
+            {{ removal.isArmed(manager.user_id) ? confirmLabel('Delete') : 'Delete' }}
           </button>
         </span>
       </div>

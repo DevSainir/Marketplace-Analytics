@@ -33,7 +33,7 @@
  *
  * Header (3 rows, as in the workbook):
  *   «Дата» · «Тип получения трафика» (groups) · «Зоны показов» (leaf columns).
- * A group that ran a campaign that day links to it in WB's advertising cabinet;
+ * A group that ran a campaign that day links to it in WB's advertising portal;
  * hovering shows the id, selectable and copyable (`campaignLinks.js`).
  */
 import { nextTick, onMounted, ref, watch } from 'vue'

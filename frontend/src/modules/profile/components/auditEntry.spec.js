@@ -151,8 +151,8 @@ describe('detailRows — a subscription change', () => {
     )
 
     expect(labelled(rows, 'Кто изменил')).toBe('dev@example.com')
-    expect(labelled(rows, 'Действует до')).toBe('19 октября 2026 г.')
-    expect(labelled(rows, 'Было: до')).toBe('5 октября 2026 г.')
+    expect(labelled(rows, 'Действует до')).toBe('19 October 2026')
+    expect(labelled(rows, 'Было: до')).toBe('5 October 2026')
   })
 
   it('says a change made straight in SQL was made by hand, not by the system', () => {

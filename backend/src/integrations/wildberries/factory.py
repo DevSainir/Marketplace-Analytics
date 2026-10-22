@@ -86,7 +86,7 @@ def build_card_client(settings: Settings) -> WBCardClient:
 def build_marketplace_client(settings: Settings, *, token: str) -> WBMarketplaceClient:
     """The FBS (seller-warehouse) stock client — real or synthetic.
 
-    ``token`` must be «Маркетплейс»-scope; every other category answers this
+    ``token`` must be "Marketplace"-scope; every other category answers this
     surface with 401. A workspace without one has no FBS visibility at all, and
     the harvest skips the source rather than failing.
     """

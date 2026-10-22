@@ -1,12 +1,12 @@
 /**
  * The app's one confirmation for an action that cannot be undone: the first
- * press asks «Точно удалить?», the second one does it, and a question left
+ * press asks "Really delete?", the second one does it, and a question left
  * unanswered withdraws itself after a few seconds.
  *
- * Pages used to do this four ways — three wordings («Точно?», «Точно
- * удалить?», «Точно удалить тест?»), a reset after four seconds on one page
+ * Pages used to do this four ways — three wordings ("Sure?", "Really
+ * delete?", "Really delete the test?"), a reset after four seconds on one page
  * and never on the others, a red armed state on one and a neutral one on
- * another — and «Отозвать», «Завершить все» and «Очистить» fired on the first
+ * another — and "Revoke", "Finish all" and "Clear" fired on the first
  * press. A browser `confirm()` was never the answer: it is off-brand, blocks
  * the page and reads the same for every action.
  *
@@ -16,17 +16,17 @@
  */
 import { onBeforeUnmount, ref } from 'vue'
 
-/** How long an unanswered «Точно …?» stands before it withdraws itself. */
+/** How long an unanswered "Really …?" stands before it withdraws itself. */
 export const CONFIRM_RESET_MS = 4000
 
 /**
- * The question a button asks once armed: «Удалить тест» → «Точно удалить тест?».
+ * The question a button asks once armed: "Delete test" → "Really delete test?".
  *
  * @param {string} label The button's own label.
  * @returns {string}
  */
 export function confirmLabel(label) {
-  return `Точно ${label.charAt(0).toLowerCase()}${label.slice(1)}?`
+  return `Really ${label.charAt(0).toLowerCase()}${label.slice(1)}?`
 }
 
 /**

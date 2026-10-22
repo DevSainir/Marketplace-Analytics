@@ -135,7 +135,7 @@ describe('BalanceTable', () => {
 
     expect(headers).toEqual(['По остаткам', 'В пути', 'По себестоимости'])
     // 80 lying in the two warehouses, 5 in transit, and 64 000 + 4 000 of money.
-    expect(bruki).toEqual(['80', '5', '68\u00a0000с'])
+    expect(bruki).toEqual(['80', '5', 'KGS 68,000'])
     // A SKU with nothing moving leaves the column blank — a column of zeros
     // down a catalogue that mostly sits still buries the rows that move.
     expect([...rowTotals.querySelectorAll('tbody tr')[1].children][1].textContent.trim()).toBe('')
@@ -154,8 +154,8 @@ describe('BalanceTable', () => {
     )
 
     // 72 lying in Тула at 800 — the 5 in transit are not priced into the cell.
-    expect(tula.textContent.replace(/\s+/g, ' ').trim()).toBe('72|57 600с')
-    expect(shelfMoney).toEqual(['112', '69\u00a0600с'])
+    expect(tula.textContent.replace(/\s+/g, ' ').trim()).toBe('72|KGS 57,600')
+    expect(shelfMoney).toEqual(['112', 'KGS 69,600'])
     wrapper.unmount()
   })
 })

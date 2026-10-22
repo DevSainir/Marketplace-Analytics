@@ -446,7 +446,7 @@ describe('buildMetricChart', () => {
 
       const hover = hoverOf(chart, [point(0, 'Затраты', 20)])
 
-      expect(hover).toContain('20с')
+      expect(hover).toContain('KGS 20')
     })
 
     it("states each day's spend in that day's own currency", () => {
@@ -469,8 +469,8 @@ describe('buildMetricChart', () => {
       )
       const chart = buildMetricChart(view, { metrics: ['spend'], groups: SKU_METRIC_GROUPS })
 
-      expect(hoverOf(chart, [point(0, 'Затраты', 20, 1)])).toContain('20₽')
-      expect(hoverOf(chart, [point(0, 'Затраты', 30, 2)])).toContain('30с')
+      expect(hoverOf(chart, [point(0, 'Затраты', 20, 1)])).toContain('₽20')
+      expect(hoverOf(chart, [point(0, 'Затраты', 30, 2)])).toContain('KGS 30')
     })
 
     it("states a price beside spend in its own unit, not the spend's", () => {
@@ -483,8 +483,8 @@ describe('buildMetricChart', () => {
 
       const hover = hoverOf(chart, [point(0, 'Затраты', 20), point(1, 'Цена продавца', 200)])
 
-      expect(hover).toContain('20с')
-      expect(hover).toContain('200₽')
+      expect(hover).toContain('KGS 20')
+      expect(hover).toContain('₽200')
     })
 
     it('prints money with no unit while the currency is unknown', () => {

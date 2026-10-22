@@ -8,7 +8,7 @@ import ProfileTeam from '@/modules/profile/components/ProfileTeam.vue'
  * Removing is what actually withdraws access from somebody who has already
  * joined — revoking their invitation does not — so it cannot be undone from
  * this screen and asks twice. The arming is PER ROW: a confirm that armed the
- * whole list would put «Точно удалить?» under a name nobody meant to touch.
+ * whole list would put "Really delete?" under a name nobody meant to touch.
  *
  * The grant editor is a drawer now, so this component states a grant and asks
  * the parent to open it. That is what makes the list stay a list: the old panel
@@ -66,17 +66,17 @@ describe('ProfileTeam', () => {
 
   it('does NOT remove on the first press', async () => {
     const wrapper = mountPanel()
-    const remove = button(rows(wrapper)[0], 'Удалить')
+    const remove = button(rows(wrapper)[0], 'Delete')
 
     await remove.trigger('click')
 
     expect(wrapper.emitted('remove')).toBeUndefined()
-    expect(remove.text()).toBe('Точно удалить?')
+    expect(remove.text()).toBe('Really delete?')
   })
 
   it('emits the manager on the second press', async () => {
     const wrapper = mountPanel()
-    const remove = button(rows(wrapper)[0], 'Удалить')
+    const remove = button(rows(wrapper)[0], 'Delete')
 
     await remove.trigger('click')
     await remove.trigger('click')
@@ -85,12 +85,12 @@ describe('ProfileTeam', () => {
   })
 
   it('asks again per manager rather than arming the whole list', async () => {
-    // Otherwise «Точно удалить?» appears under a name nobody meant to touch.
+    // Otherwise "Really delete?" appears under a name nobody meant to touch.
     const wrapper = mountPanel()
 
-    await button(rows(wrapper)[0], 'Удалить').trigger('click')
+    await button(rows(wrapper)[0], 'Delete').trigger('click')
 
-    expect(button(rows(wrapper)[1], 'Удалить').text()).toBe('Удалить')
+    expect(button(rows(wrapper)[1], 'Delete').text()).toBe('Delete')
   })
 
   it('says so when there is nobody to configure', () => {

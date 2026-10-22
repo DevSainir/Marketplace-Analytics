@@ -10,7 +10,7 @@
  * The hover card is not decoration. The link is built from WB's own URL shape
  * (`wbLinks.js`), which WB can change without notice; the id in the card is
  * selectable and copyable, so the campaign can still be found by hand in the
- * cabinet if the link ever stops landing.
+ * seller portal if the link ever stops landing.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 

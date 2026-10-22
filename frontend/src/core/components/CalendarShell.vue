@@ -16,7 +16,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 defineProps({
-  /** Caption before the trigger («Период», «День»); empty = none. */
+  /** Caption before the trigger ("Period", "Day"); empty = none. */
   label: { type: String, default: '' },
   /** Accessible name of the popover. */
   ariaLabel: { type: String, required: true },
@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
             type="button"
             class="nav-btn"
             :disabled="!canGoPrev"
-            aria-label="Предыдущий месяц"
+            aria-label="Previous month"
             @click="emit('shift', -1)"
           >
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">
@@ -133,7 +133,7 @@ onBeforeUnmount(() => {
             type="button"
             class="nav-btn"
             :disabled="!canGoNext"
-            aria-label="Следующий месяц"
+            aria-label="Next month"
             @click="emit('shift', 1)"
           >
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75">

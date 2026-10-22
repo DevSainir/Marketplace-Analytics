@@ -16,17 +16,17 @@ import {
 } from '@/core/utils/calendarModel'
 
 describe('presetsFor', () => {
-  it('offers «Вся история» when the page knows where its data starts', () => {
+  it('offers "All time" when the page knows where its data starts', () => {
     expect(presetsFor('2024-01-29').map((p) => p.label)).toEqual([
-      '7 дней',
-      '30 дней',
-      '90 дней',
-      'Вся история',
+      '7 days',
+      '30 days',
+      '90 days',
+      'All time',
     ])
   })
 
-  it('offers «180 дней» when it does not', () => {
-    expect(presetsFor('').map((p) => p.label)).toEqual(['7 дней', '30 дней', '90 дней', '180 дней'])
+  it('offers "180 days" when it does not', () => {
+    expect(presetsFor('').map((p) => p.label)).toEqual(['7 days', '30 days', '90 days', '180 days'])
   })
 })
 
@@ -36,7 +36,7 @@ describe('presetWindow', () => {
   })
 
   it('never starts before the first day the page has data for', () => {
-    // «90 дней» on a workspace a month old is that month, not a window reaching
+    // "90 days" on a workspace a month old is that month, not a window reaching
     // into days the calendar greys out.
     const window = presetWindow(90, { end: '2026-10-04', historyFrom: '2026-09-05' })
 
@@ -51,8 +51,8 @@ describe('presetWindow', () => {
 })
 
 describe('activePreset', () => {
-  it('marks only «Вся история» when another preset produces the same dates', () => {
-    // History exactly thirty days long: «30 дней» and «Вся история» are one
+  it('marks only "All time" when another preset produces the same dates', () => {
+    // History exactly thirty days long: "30 days" and "All time" are one
     // window. Both lit read as two choices made at once.
     const bounds = { end: '2026-10-04', historyFrom: '2026-09-05' }
 

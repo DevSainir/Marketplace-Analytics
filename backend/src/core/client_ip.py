@@ -85,7 +85,7 @@ class ClientInfo:
     ``ip_address`` is resolved by :func:`resolve_client_ip`, which is the only
     client-address signal on the request a control may key on. ``user_agent`` is
     the opposite: a header the client writes and may put anything in. It is
-    stored verbatim and never parsed here — the SPA turns it into «Chrome на
+    stored verbatim and never parsed here — the SPA turns it into "Chrome on
     macOS», and a value it cannot make sense of is shown as nothing rather than
     guessed at. Nothing authorises on it.
     """

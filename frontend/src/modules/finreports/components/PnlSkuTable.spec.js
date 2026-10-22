@@ -94,16 +94,16 @@ describe('per-SKU rows', () => {
     expect(text).toContain('Брюки') // «Тип предмета» (subject)
     expect(text).toContain('NORTH LINE') // «Бренд» (brand)
     expect(text).toContain(grouped(2140)) // orders — from the funnel, not the settlement
-    expect(text).toContain('31,22%') // buyout — like «Процент выкупа» in the WB workspace
-    expect(text).toContain('8,13%') // returns
+    expect(text).toContain('31.22%') // buyout — like «Процент выкупа» in the WB workspace
+    expect(text).toContain('8.13%') // returns
     expect(text).toContain(grouped(2440200)) // sales — seller price (net of returns)
     expect(text).toContain(grouped(4150)) // average cheque — sales per net unit, same base
-    expect(text).toContain('21,80%') // SPP
+    expect(text).toContain('21.80%') // SPP
     expect(text).toContain(grouped(318420)) // logistics
     expect(text).toContain(grouped(358680)) // cost of goods
     expect(text).toContain(grouped(214500)) // advertising — gross, as WB's workspace shows it
     expect(text).toContain(`-${grouped(38600)}`) // bonuses — a deduction from it
-    expect(text).toContain('175,69%') // ROI
+    expect(text).toContain('175.69%') // ROI
     expect(text).not.toContain('ROMI')
     expect(text).toContain(grouped(1164735)) // payout («К перечислению»)
     expect(text).toContain(grouped(630155)) // net profit
@@ -318,14 +318,14 @@ describe('рамки, размеры и «Итого»', () => {
       rows: [row({ revenue_seller_price: '800000.00', logistics_total: '344000.00' })],
     })
 
-    const cell = wrapper.findAll('td').find((td) => td.text().includes('43,00%'))
+    const cell = wrapper.findAll('td').find((td) => td.text().includes('43.00%'))
     expect(cell.find('.text-status-negative').exists()).toBe(true)
   })
 
   it('подсвечивает зелёным то, что лучше нижней рамки', () => {
     const wrapper = mountTable({ rows: [row({ roi_pct: '212.40' })] })
 
-    const cell = wrapper.findAll('td').find((td) => td.text() === '212,40%')
+    const cell = wrapper.findAll('td').find((td) => td.text() === '212.40%')
     expect(cell.find('.text-status-positive').exists()).toBe(true)
   })
 
@@ -341,8 +341,8 @@ describe('рамки, размеры и «Итого»', () => {
       ],
     })
 
-    const logistics = wrapper.findAll('td').find((td) => td.text().includes('24,00%'))
-    const roi = wrapper.findAll('td').find((td) => td.text() === '120,00%')
+    const logistics = wrapper.findAll('td').find((td) => td.text().includes('24.00%'))
+    const roi = wrapper.findAll('td').find((td) => td.text() === '120.00%')
     expect(logistics.find('.text-status-negative').exists()).toBe(false)
     expect(roi.find('.text-status-negative').exists()).toBe(false)
     expect(roi.find('.text-status-positive').exists()).toBe(false)
@@ -431,10 +431,10 @@ describe('рамки, размеры и «Итого»', () => {
     // The backend sends Decimals as strings; the percentage formatter accepts
     // only a number, so without the conversion the whole column silently turns
     // into «—».
-    expect(wrapper.text()).toContain('23,41%')
+    expect(wrapper.text()).toContain('23.41%')
     // The logistics share is taken from the size's revenue at the chosen base:
     // 68 540 / 365 200, not the backend's share at the buyer's price.
-    expect(wrapper.text()).toContain('18,77%')
+    expect(wrapper.text()).toContain('18.77%')
   })
 })
 
@@ -442,7 +442,7 @@ describe('ДРР: ноль это «не крутили», а не «крути�
   it('не красит нулевой ДРР зелёным', () => {
     const wrapper = mountTable({ rows: [row({ advertising: '0', advertising_pct: '0' })] })
 
-    const zeros = wrapper.findAll('td').filter((td) => td.text() === '0,00%')
+    const zeros = wrapper.findAll('td').filter((td) => td.text() === '0.00%')
     expect(zeros.length).toBeGreaterThan(0)
     expect(zeros.some((td) => td.find('.text-status-positive').exists())).toBe(false)
   })
@@ -453,7 +453,7 @@ describe('ДРР: ноль это «не крутили», а не «крути�
     const headers = wrapper.findAll('th').map((th) => th.text())
     expect(headers.some((text) => text.startsWith('ДРР'))).toBe(true)
     // 214 500 / 2 440 200 — at the seller's price.
-    expect(wrapper.findAll('td').some((td) => td.text() === '8,79%')).toBe(true)
-    expect(wrapper.text()).not.toContain('(8,79%)')
+    expect(wrapper.findAll('td').some((td) => td.text() === '8.79%')).toBe(true)
+    expect(wrapper.text()).not.toContain('(8.79%)')
   })
 })

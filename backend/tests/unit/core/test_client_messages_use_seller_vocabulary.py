@@ -1,13 +1,10 @@
-"""Every message a user can read is written in Russian.
+"""Every message a user can read speaks the seller's language, not ours.
 
-This exists because the rule kept being broken quietly. English messages were
-translated once, and new ones arrived behind them — `ConflictError("A user with
-this email already exists.")` reached the registration form of a Russian-only
-product and nobody noticed until a screenshot came back.
-
-The failure mode is what makes a test the right instrument: an English message
-is not an error, it renders perfectly, and the person who wrote it is usually
-reading the code in English at the time. Nothing else catches it.
+The API hands 4xx messages to the SPA, and `extractErrorMessage` puts them in
+front of a seller verbatim. So a message written while reading the code —
+"workspace_id is required", "the HttpOnly cookie is missing" — reaches a
+person who can do nothing with it. Several had reached real screens before
+this test existed.
 
 **What is checked and what is not.** Only the exceptions whose text actually
 reaches a client: `AppError` subclasses that map to a 4xx, and `HTTPException`
@@ -15,19 +12,18 @@ details. Deliberately excluded:
 
 * :class:`IntegrationError` and anything else mapping to 5xx — the handler
   replaces those with `client_message` and the real text goes to the log, where
-  English is correct because operators read it.
+  developer vocabulary is correct because operators read it.
 * `ValueError` raised outside a pydantic validator, which never leaves the
   process.
 
-Alphabet is the test, not a dictionary: a message with no Cyrillic in it was
-not written for this product's users.
+That the messages are English at all is the repository-wide rule in
+`test_the_repository_is_in_english.py`; this file is about which English.
 """
 
 from __future__ import annotations
 
 import ast
 import pathlib
-import re
 
 import pytest
 
@@ -47,9 +43,6 @@ CLIENT_FACING = frozenset(
         "HTTPException",
     }
 )
-
-_CYRILLIC = re.compile(r"[а-яёА-ЯЁ]")
-
 
 def _literal_text(node: ast.AST) -> str:
     """The fixed text of a string node, with any interpolation dropped.
@@ -104,43 +97,27 @@ def test_the_scan_actually_finds_messages() -> None:
     assert len(messages) > 20
 
 
-def test_no_user_facing_message_is_written_in_english() -> None:
-    """Anything a user can read carries Cyrillic."""
-    # Arrange / Act
-    english = [
-        f"{path}: {message}" for path, message in _messages() if not _CYRILLIC.search(message)
-    ]
-
-    # Assert
-    assert english == [], "User-facing messages must be in Russian:\n" + "\n".join(english)
-
-
 @pytest.mark.parametrize(
     "jargon",
     [
-        "воркспейс",
-        "Воркспейс",
         "HttpOnly",
         "cookie",
         "endpoint",
         "workspace_id",
         # One word for one thing. What a seller switches between is a
-        # «кабинет» — «Личный кабинет» in full — which is what the marketplace
-        # itself calls a seller's account. «Рабочее пространство» was the
-        # English calque, it was used in eleven places and «кабинет» in none,
-        # and a naming rule nobody can fail is a naming rule that drifts back.
-        # The SPA half of the same rule lives in
-        # `frontend/tests/integration/naming.spec.js`.
-        "пространств",
-        "Пространств",
+        # "workspace". "Cabinet" is the calque of the word the Russian-language
+        # marketplace uses for a seller's account, and a naming rule nobody can
+        # fail is a naming rule that drifts back. The SPA half of the same rule
+        # lives in `frontend/tests/integration/naming.spec.js`.
+        "cabinet",
+        "Cabinet",
     ],
 )
 def test_no_message_leaks_developer_vocabulary(jargon: str) -> None:
-    """Russian is necessary but not sufficient — it has to be Russian a seller reads.
+    """A message is written in the words a seller uses.
 
-    «Воркспейс» is a transliteration nobody says out loud, and a cookie's
-    HttpOnly flag is not something a person can act on. Both had reached real
-    screens.
+    A cookie's HttpOnly flag is not something a person can act on, and a field
+    name is not a sentence. Both had reached real screens.
     """
     # Arrange / Act
     offenders = [f"{path}: {message}" for path, message in _messages() if jargon in message]

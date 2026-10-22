@@ -13,8 +13,8 @@
  *
  * A page states its bounds and the calendar enforces them by greying days out,
  * rather than the page refusing a window after it was picked:
- * `historyFrom` — the first day it holds data for (also turns «180 дней» into
- * «Вся история»); `max` — the last pickable day; `maxDays` — the longest window
+ * `historyFrom` — the first day it holds data for (also turns "180 days" into
+ * "All time"); `max` — the last pickable day; `maxDays` — the longest window
  * it answers for, enforced once the first end is clicked.
  *
  * Dates compare as ISO strings, so no timezone math is needed.
@@ -39,13 +39,13 @@ const props = defineProps({
   to: { type: String, required: true },
   /** Day the quick presets end on (ISO); empty = today. See `presetRange`. */
   presetEnd: { type: String, default: '' },
-  /** The page's first day with data (ISO): the floor, and «Вся история». Empty = neither. */
+  /** The page's first day with data (ISO): the floor, and "All time". Empty = neither. */
   historyFrom: { type: String, default: '' },
   /** Last pickable day (ISO); empty = today. */
   max: { type: String, default: '' },
   /** Longest window the page answers for, both ends counted; 0 = no limit. */
   maxDays: { type: Number, default: 0 },
-  label: { type: String, default: 'Период' },
+  label: { type: String, default: 'Period' },
 })
 /**
  * `update:from` / `update:to` keep `v-model:from` / `v-model:to` working for
@@ -53,7 +53,7 @@ const props = defineProps({
  * one event, and a consumer that RELOADS on a change must use it: the two
  * v-model events fire in the same tick, so a listener reading the other half
  * from props sees the value before this pick — which is how a hand-picked
- * period could set only its end and report «Конец периода раньше начала».
+ * period could set only its end and report "The period ends before it starts".
  */
 const emit = defineEmits(['update:from', 'update:to', 'apply', 'range'])
 
@@ -140,7 +140,7 @@ function onHover(cell) {
   <CalendarShell
     v-model:open="open"
     :label="label"
-    aria-label="Выбор периода"
+    aria-label="Choose a period"
     :titles="monthsToShow.map((m) => m.label)"
     :can-go-prev="canGoPrev"
     :can-go-next="canGoNext"

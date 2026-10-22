@@ -9,7 +9,7 @@ describe('SkuThumb', () => {
     const wrapper = mount(SkuThumb, { props: { src: PHOTO, label: 'M-TRX01-BLK' } })
 
     expect(wrapper.find('img').attributes('src')).toBe(PHOTO)
-    expect(wrapper.find('img').attributes('alt')).toBe('Фото M-TRX01-BLK')
+    expect(wrapper.find('img').attributes('alt')).toBe('Photo of M-TRX01-BLK')
   })
 
   it('does not tell WB which of our pages is asking', () => {

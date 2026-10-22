@@ -136,7 +136,7 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=5, minute=5),
         "kwargs": {"days": 7},
     },
-    # «Процент выкупа» inputs: re-read the order-date cohorts that are still
+    # "Buyout rate" inputs: re-read the order-date cohorts that are still
     # maturing (deliveries keep being accepted/refused for ~3 weeks). After the
     # harvest has finished, because it only UPDATEs funnel rows the harvest
     # inserted, and so it never competes with it for the analytics surface. It
@@ -187,7 +187,7 @@ celery_app.conf.beat_schedule = {
     # It was 58 ungated ticks a day, two `list` requests per seller each, to
     # find two or three reports. A report WB serves off-calendar — back-dated,
     # days late — is the 04:00 reconciliation's, which walks every seller
-    # ungated; «Обновить» and a new workspace's first harvest are never gated.
+    # ungated; "Refresh" and a new workspace's first harvest are never gated.
     #
     # `harvest_all_workspaces` holds a Redis lock, so two entries firing in the
     # same minute run once. 03:00 belongs to the backup, 04:00 to the
@@ -342,7 +342,7 @@ def _warm_settlement_rollups(**_: object) -> None:
 
     A migration clears it whenever a money rule changes, and every deploy runs
     migrations and then starts this worker — so this is the first moment
-    anything can rebuild it. Otherwise the first seller to open «Вся история»
+    anything can rebuild it. Otherwise the first seller to open "All time"
     after such a deploy pays a rebuild the browser gives up on. Sent by name
     for the same reason as the sweep below; failure is swallowed because the
     rollup repairs itself on read anyway.

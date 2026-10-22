@@ -3,7 +3,7 @@
 The SPA aborts a superseded request — a period switched twice, a page left
 before it loaded — and the browser drops the connection. Nothing told the API:
 uvicorn reports a disconnect only to a handler that asks for one, and ours never
-ask, so an abandoned «Вся история» kept its seq scan running to the end. Several
+ask, so an abandoned "All time" kept its seq scan running to the end. Several
 at once on a two-core box with 384 MiB for Postgres is what slowed every other
 page four- to eightfold on 2026-10-05.
 

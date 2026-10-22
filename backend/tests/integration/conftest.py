@@ -277,7 +277,7 @@ async def organization(db_session: AsyncSession) -> Organization:
     never meant to ask for. A test that wants the lapsed case says so, by
     moving ``expires_at`` back the way ``test_token_persistence`` does.
     """
-    org = Organization(name="Тестовая организация", is_primary=False)
+    org = Organization(name="Test organization", is_primary=False)
     db_session.add(org)
     await db_session.flush()
     now = datetime.now(UTC)

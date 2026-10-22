@@ -19,10 +19,10 @@ let mock
 
 const PRIMARY = {
   id: 'aaaaaaaa-0000-7000-8000-000000000001',
-  name: 'ИП Демо',
+  name: 'Demo Shop',
   is_primary: true,
 }
-const SECOND = { id: 'bbbbbbbb-0000-7000-8000-000000000002', name: 'ООО Второй', is_primary: false }
+const SECOND = { id: 'bbbbbbbb-0000-7000-8000-000000000002', name: 'Second LLC', is_primary: false }
 
 beforeEach(() => {
   setActivePinia(createPinia())

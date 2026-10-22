@@ -61,11 +61,11 @@ def test_password_over_bcrypt_limit_is_refused() -> None:
 
 
 def test_multibyte_password_is_measured_in_bytes_not_characters() -> None:
-    """The ceiling is a byte limit: Cyrillic hits it at ~36 characters."""
-    thirty_seven_cyrillic_chars = "я" * 37  # 74 UTF-8 bytes
+    """The ceiling is a byte limit: a two-byte alphabet hits it at ~36 characters."""
+    thirty_seven_greek_chars = "ω" * 37  # 74 UTF-8 bytes
 
     with pytest.raises(ValueError, match="72"):
-        hash_password(thirty_seven_cyrillic_chars)
+        hash_password(thirty_seven_greek_chars)
 
 
 def test_corrupt_stored_digest_fails_closed() -> None:

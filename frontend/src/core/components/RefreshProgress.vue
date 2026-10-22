@@ -2,14 +2,14 @@
 /**
  * The progress of a WB refresh: a bar, a percentage, and what is happening.
  *
- * A first «Обновить» can run for ~8 minutes, because it now includes the
+ * A first "Refresh" can run for ~8 minutes, because it now includes the
  * account-wide sale feed and the 22-day buyout-cohort pass. Eight minutes of a
  * disabled button and a spinner is indistinguishable from a hung request, and
- * that reading is the one users reach for — «Обновить» has a history of being
+ * that reading is the one users reach for — "Refresh" has a history of being
  * believed broken when it was merely slow (2026-07-30).
  *
  * So this says which of the two stages is running, in the seller's own terms:
- * «реклама, воронка, остатки и цены», then «проценты выкупа». The wording comes
+ * "advertising, funnel, stock and prices", then "buyout rates". The wording comes
  * from the backend rather than being assembled here, so the stages can change
  * without the two drifting apart.
  *

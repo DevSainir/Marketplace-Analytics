@@ -13,14 +13,14 @@ source the P&L is built from.
 Two things this file exists to pin down, both verified by arithmetic against the
 live payload rather than taken from WB's documentation:
 
-* **The payout identity.** For every «Продажа»/«Возврат» row,
+* **The payout identity.** For every sale/return row,
   ``ppvz_for_pay = retail_amount - ppvz_vw - ppvz_vw_nds - acquiring_fee - ppvz_reward``.
-  That is what makes the P&L's «к перечислению» reconcilable line by line instead
+  That is what makes the P&L's payout reconcilable line by line instead
   of being a number we assert.
 * **``delivery_amount`` and ``return_amount`` are COUNTS, not money.** On a
-  «Логистика» row exactly one of them is 1 (5 103 forward vs 3 697 return rows in
-  the sample week), which is what splits ``delivery_rub`` into «логистика к
-  клиенту» (to the customer) and «обратная логистика» (return). Reading them as
+  logistics row exactly one of them is 1 (5 103 forward vs 3 697 return rows in
+  the sample week), which is what splits ``delivery_rub`` into logistics to the
+  customer and return logistics. Reading them as
   ₽ silently doubles logistics.
 """
 
@@ -129,7 +129,7 @@ class WBReportDetailRow(RawBase):
     ppvz_vw_nds: Decimal = Field(default=Decimal(0))
     #: Reward before the agent's services are deducted, when applicable.
     ppvz_sales_commission: Decimal = Field(default=Decimal(0))
-    #: The agent's fee (ВВ) — zero on this account, kept for parity.
+    #: The agent's fee (WB's reward) — zero on this account, kept for parity.
     ppvz_reward: Decimal = Field(default=Decimal(0))
     ppvz_spp_prc: Decimal = Field(default=Decimal(0))
     ppvz_kvw_prc_base: Decimal = Field(default=Decimal(0))

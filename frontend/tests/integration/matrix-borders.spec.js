@@ -1,7 +1,7 @@
 /**
  * The metrics matrix draws its day and campaign dividers with `nth-child`
  * strides, and two stylesheets state them: `assets/main.css` adds the 2px
- * borders, the `ui-next` skin recolours them. When the unified «Каталог»
+ * borders, the `ui-next` skin recolours them. When the unified "Catalog"
  * column went, main.css moved to the new strides and the skin kept the old
  * ones, so from the sixth day on a campaign seam was painted as a black day
  * boundary. Both files are checked against the column model here.

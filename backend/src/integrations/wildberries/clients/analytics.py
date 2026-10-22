@@ -115,7 +115,7 @@ class WBAnalyticsClient(BaseWBClient):
         that serves a period older than 7 days — the daily history feed rejects
         it (HTTP 400 "invalid start day: excess limit on days"). Since a
         cohort's deliveries keep maturing for ~3 weeks, re-reading an old day
-        here is what keeps «Процент выкупа» converging on WB's own figure
+        here is what keeps "Buyout rate" converging on WB's own figure
         instead of freezing at the value it had 7 days after the order.
 
         Verified live (2026-07-16): the ``nmIDs`` body filter is IGNORED — WB

@@ -8,7 +8,7 @@ multi-hour blocks that no official source describes; that is what a
 switched-off endpoint looks like rather than a policy.
 
 These three methods replace it, on ``finance-api.wildberries.ru`` with the
-«Финансы» token, at **one request per minute each**, each its own bucket:
+"Finance" token, at **one request per minute each**, each its own bucket:
 
 * :meth:`list_reports` — every report WB has formed, weekly or daily, with
   ``createDate`` served rather than derived, and WB's own totals per report.
@@ -88,7 +88,7 @@ class WBFinanceReportsClient(BaseWBClient):
 
     #: Named rather than derived from the class name, which would give
     #: «financereports». The metric label and the rate bucket's surface key
-    #: have to read as the same thing, and WB calls it «Финансы».
+    #: have to read as the same thing, and WB calls it "Finance".
     WB_SURFACE = "finance"
 
     #: Rows asked for per request. WB's documented maximum, and affordable only
@@ -113,7 +113,7 @@ class WBFinanceReportsClient(BaseWBClient):
 
         Args:
             settings: Transport configuration (base URL, timeouts, retries).
-            token: The workspace's «Финансы»-scope bearer token.
+            token: The workspace's "Finance"-scope bearer token.
             max_retries: Override for the retry ladder.
             rate_gate: Pacing gate override, for tests.
         """

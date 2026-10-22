@@ -20,10 +20,10 @@ const inputAttrs = computed(() =>
 
 defineProps({
   modelValue: { type: String, default: '' },
-  placeholder: { type: String, default: 'Артикул продавца или WB, предмет, бренд' },
+  placeholder: { type: String, default: 'Vendor code or WB ID, category, brand' },
   /** `sm` — 36px, beside the calendar or a 36px select. */
   size: { type: String, default: 'md' },
-  ariaLabel: { type: String, default: 'Поиск' },
+  ariaLabel: { type: String, default: 'Search' },
 })
 const emit = defineEmits(['update:modelValue'])
 </script>
@@ -56,7 +56,7 @@ const emit = defineEmits(['update:modelValue'])
     <button
       v-if="modelValue"
       type="button"
-      aria-label="Очистить поиск"
+      aria-label="Clear search"
       class="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-primary"
       @click="emit('update:modelValue', '')"
     >

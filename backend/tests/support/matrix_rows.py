@@ -288,7 +288,7 @@ def _cell(
 # ``_MIN_CAMPAIGN_DAY_SPEND`` (a campaign-day below it is residual trickle, not
 # delivery — see matrix.py) while the noise campaign stays under it. Spend,
 # ad revenue and the price snapshot are scaled TOGETHER, so every ratio the
-# tests assert (DRR, SPP, «Доля трафика») is unchanged by the scaling.
+# tests assert (ACoS, WB discount, "Traffic share") is unchanged by the scaling.
 # --------------------------------------------------------------------------- #
 def _two_campaign_rows() -> dict[str, list[float | None]]:
     campaigns = {

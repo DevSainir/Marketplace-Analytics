@@ -260,11 +260,11 @@ def test_identity_is_not_confidentiality() -> None:
     bound at all.
     """
     # Act
-    payload = _render("invitation sent", invitee="seller@example.com", workspace_name="Магазин")
+    payload = _render("invitation sent", invitee="seller@example.com", workspace_name="Shop")
 
     # Assert
     assert payload["invitee"] == "seller@example.com"
-    assert payload["workspace_name"] == "Магазин"
+    assert payload["workspace_name"] == "Shop"
 
 
 def test_ordinary_values_pass_through_untouched() -> None:

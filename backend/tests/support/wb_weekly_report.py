@@ -1,4 +1,4 @@
-"""Build WB's «Еженедельный детализированный отчет» workbook for tests.
+"""Build the weekly detailed report workbook WB's seller portal exports, for tests.
 
 The header row is the parser's own list of required columns, so a test file
 reads exactly as WB's would; the column order is shuffled from WB's on purpose,

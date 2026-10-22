@@ -2,24 +2,21 @@
  * One word for one thing, in every string a user can read.
  *
  * The thing a seller switches between — one WB seller account with its own
- * catalogue, its own P&L and its own tokens — is a **кабинет**. Full form
- * «Личный кабинет», short form «Кабинет», plural «Кабинеты». It was called
- * «рабочее пространство» in eleven places and «кабинет» in none, which is a
- * word nobody outside this repo uses for it and which does not match what the
- * marketplace itself calls a seller's account.
+ * catalogue, its own P&L and its own tokens — is a **workspace**, plural
+ * workspaces, and the code calls it the same. The word that keeps trying to
+ * come back is "cabinet": the calque of what the Russian-language marketplace
+ * calls a seller's account. It means nothing to an English reader, and WB's
+ * own site is "the WB seller portal" when the UI needs to name it.
  *
  * **Why a test rather than a note.** A naming rule written down is a rule that
- * holds until the next person writes the obvious English calque. This is the
- * only mechanism that makes the wrong word fail before it reaches a screen.
- * The same rule is enforced on the backend's exception messages by
- * `tests/unit/core/test_messages_are_russian.py`, which is where the strings
- * the API hands to a client live.
+ * holds until the next person writes the obvious calque. This is the only
+ * mechanism that makes the wrong word fail before it reaches a screen. The
+ * same rule is enforced on the backend's exception messages by
+ * `tests/unit/core/test_client_messages_use_seller_vocabulary.py`, which is
+ * where the strings the API hands to a client live.
  *
- * **What it does NOT touch.** The code says `workspace` everywhere — the model,
- * the table, the store, the header, the route — and that is deliberate: the
- * identifier is not the noun a user reads, renaming it would be a migration
- * across four modules, and English identifiers behind a Russian UI are how the
- * whole codebase already works. This test is about the words on the screen.
+ * **What it does NOT touch.** Identifiers: the word is matched whole, so a
+ * variable such as `cabinetSpend` is left to the code's own naming.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -30,11 +27,8 @@ const TREES = [join(ROOT, 'frontend', 'src'), join(ROOT, 'tests', 'end-to-end')]
 /** Files whose text can reach a screen. */
 const LOOKS_LIKE_UI = (path) => /\.(vue|js)$/.test(path)
 
-/**
- * The banned stem, matching every case ending — пространство, пространства,
- * пространств, пространствами. One stem catches them all.
- */
-const BANNED = /пространств/i
+/** The banned word, singular or plural, in any case. */
+const BANNED = /\bcabinets?\b/i
 
 /** Walk a directory tree, returning every file matching the predicate. */
 function walk(dir, keep, found = []) {
@@ -47,7 +41,7 @@ function walk(dir, keep, found = []) {
 }
 
 describe('naming', () => {
-  it('calls a кабинет a кабинет, everywhere a user can read it', () => {
+  it('calls a workspace a workspace, everywhere a user can read it', () => {
     const offenders = []
     for (const tree of TREES) {
       for (const path of walk(tree, LOOKS_LIKE_UI)) {
@@ -63,8 +57,8 @@ describe('naming', () => {
 
     expect(
       offenders,
-      'The word for a seller account is «кабинет» («Личный кабинет» in full), ' +
-        'never «рабочее пространство»:\n' +
+      'The word for a seller account is "workspace" (and WB\'s own site is the ' +
+        '"WB seller portal"), never "cabinet":\n' +
         offenders.join('\n'),
     ).toEqual([])
   })

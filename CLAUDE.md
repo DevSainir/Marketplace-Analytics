@@ -5,8 +5,10 @@ PostgreSQL + Redis, everything in Docker. A modular monolith:
 `backend/src/modules/{users,organizations,workspaces,monitoring,finreports,advertising,heatmap,summary,ab_tests,guide}`,
 `frontend/src/modules/{auth,profile,monitoring,finreports,advertising,heatmap,summary,abTests}`.
 
-The interface is in Russian; everything written for a developer — code, comments, docs, commit
-messages — is in English.
+Everything is in English — the interface, API messages, alerts, code, comments, docs and commit
+messages. The only Russian left is the labels WB itself sends, which the code matches character
+for character; `backend/tests/unit/core/test_the_repository_is_in_english.py` lists the files
+that hold them and fails on Cyrillic anywhere else.
 
 ## Repo-wide invariants
 
@@ -31,7 +33,7 @@ line: `.claude/hooks/no_branching.py` refuses branch-creating commands and pushe
 
 ## One workspace at a time
 
-Every seller account («кабинет» in the UI, `workspace` in the code) is a tenant, and reading one
+Every seller account (a `workspace`, in the UI and the code alike) is a tenant, and reading one
 that is not yours is a disclosure whether or not anything is written. Tenancy is enforced twice:
 by every query (`workspace_sku_select`, the `CurrentWorkspaceId` dependency) and by PostgreSQL
 row-level security (`backend/scripts/sql/row_level_security.sql`, applied together with the

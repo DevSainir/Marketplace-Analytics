@@ -53,6 +53,6 @@ describe('confirmClick', () => {
   })
 
   it("asks in the button's own words", () => {
-    expect(confirmLabel('Удалить тест')).toBe('Точно удалить тест?')
+    expect(confirmLabel('Delete test')).toBe('Really delete test?')
   })
 })

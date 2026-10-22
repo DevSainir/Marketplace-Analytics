@@ -1,14 +1,14 @@
 <script setup>
 /**
  * The app's one filter: a button that opens a glass, searchable checklist —
- * «Предметы», «Бренды», «Группы», «Артикулы».
+ * "Categories", "Brands", "Groups", "SKUs".
  *
  * Born on the heatmap; the P&L, the balance and advertising had a native
  * single-choice `<select>` for the same question, so a seller could narrow to
  * one subject but never to two.
  *
  * Nothing ticked means no filter at all, which is what a seller opening a page
- * expects: every article, not none. «Выбрать все» ticks (or clears) what the
+ * expects: every article, not none. "Select all" ticks (or clears) what the
  * search currently shows, so "find every suit and tick them" is two actions.
  *
  * A workspace can hold a thousand articles, so the list draws at most
@@ -17,7 +17,7 @@
  *
  * Dumb by contract: it renders what it is given, emits the selection, and
  * leaves room (the `action` and `footer` slots) for what only one filter
- * needs — the groups' «Добавить группу» and their edit buttons.
+ * needs — the groups' "Add group" and their edit buttons.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -31,10 +31,10 @@ const props = defineProps({
   /** @type {Array<{value: string|number, label: string, sub?: string, photo?: string}>} */
   items: { type: Array, default: () => [] },
   modelValue: { type: Array, default: () => [] },
-  placeholder: { type: String, default: 'Поиск…' },
+  placeholder: { type: String, default: 'Search…' },
   /** Show the marketplace badge before each option, as the reference does. */
   badge: { type: Boolean, default: false },
-  emptyText: { type: String, default: 'Ничего не найдено' },
+  emptyText: { type: String, default: 'Nothing found' },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -108,7 +108,7 @@ defineExpose({ close: () => (open.value = false) })
         v-model="query"
         size="sm"
         :placeholder="placeholder"
-        :aria-label="`Поиск: ${label}`"
+        :aria-label="`Search: ${label}`"
       />
 
       <button
@@ -119,7 +119,7 @@ defineExpose({ close: () => (open.value = false) })
         @click="toggleShown"
       >
         <span class="ui-check" :class="{ 'is-on': allShownOn }" aria-hidden="true">✓</span>
-        <span class="text-base text-primary">Выбрать все</span>
+        <span class="text-base text-primary">Select all</span>
       </button>
 
       <p v-if="!shown.length" class="py-md text-center text-tiny text-muted">{{ emptyText }}</p>
@@ -154,7 +154,7 @@ defineExpose({ close: () => (open.value = false) })
       >
         <slot name="footer" />
         <span class="ml-auto text-tiny text-muted">
-          Показано {{ shown.length }} из {{ items.length }}
+          Showing {{ shown.length }} of {{ items.length }}
         </span>
       </div>
     </div>

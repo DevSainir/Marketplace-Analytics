@@ -2,7 +2,7 @@
 
 The Content API is the authoritative source for the account's product catalogue
 (nmID -> card metadata). The Monitoring harvest uses it to discover *which* SKUs
-to pull funnel + stock for. Authenticated with the workspace's **«Контент»**
+to pull funnel + stock for. Authenticated with the workspace's **"Content"**
 token — see :class:`WBContentClient` for why that is not the analytics one.
 """
 

@@ -32,7 +32,7 @@ depends_on = None
 _SCHEMA = "monitoring"
 #: The single warehouse the old ``wb_fbs_warehouse_id``/``_label`` pair enabled.
 _SEEDED_WAREHOUSE_ID = 9945803
-_SEEDED_LABEL = "Москва (Внуково) (FBS)"
+_SEEDED_LABEL = "Moscow (Vnukovo) (FBS)"
 
 
 def upgrade() -> None:

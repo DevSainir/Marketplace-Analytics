@@ -4,7 +4,7 @@ The Statistics surface is the authoritative source for SALE-DATE attributed
 buyouts and returns: one record per item operation, dated by the day the
 customer accepted (or returned) the item — unlike the sales-funnel history,
 whose ``buyoutCount`` is an order-date cohort that matures for weeks.
-Authenticated with a dedicated "Статистика" token.
+Authenticated with a dedicated "Statistics" token.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class WBStatisticsClient(BaseWBClient):
 
         Args:
             settings: Transport configuration (base URL, timeouts, retries).
-            token: The workspace's "Статистика"-scope bearer token.
+            token: The workspace's "Statistics"-scope bearer token.
         """
         super().__init__(
             # `supplier/sales` is the harshest limiter WB exposes and ran UNPACED until

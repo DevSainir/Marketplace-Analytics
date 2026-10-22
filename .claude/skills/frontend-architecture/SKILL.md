@@ -53,9 +53,10 @@ mutates a prop, and props are not destructured — `toRefs` when it is unavoidab
 
 * Every component, composable and store carries a block comment saying *why* it exists — the part
   the code cannot state. **In English**, like every comment, JSDoc and test name in the repo.
-* **Russian is for what a user reads**: labels, headings, placeholders, empty states, error text.
-  English identifiers behind a Russian UI is how this codebase works — see `design-system` for the
-  vocabulary those strings use, and `git-workflow` for the same boundary on commit messages.
+* **What a user reads is English too**: labels, headings, placeholders, empty states, error text.
+  See `design-system` for the vocabulary those strings use — one word for one thing — and the
+  formatters in `core/utils/format.js`, `moscow.js` and `calendarWords.js` for how a figure, an
+  amount of money and a date are printed.
 
 ## Running it
 

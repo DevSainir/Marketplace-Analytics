@@ -50,7 +50,7 @@ function onSelectWorkspace(id) {
   workspace.select(id) // persists the id (localStorage + X-Workspace-Id header)
   // Reload the CURRENT page, not a redirect to /monitoring: a full reload is the
   // simplest guarantee that every cached per-workspace dataset is dropped, and
-  // reloading the same URL leaves the user where they were. The «Войти» flash
+  // reloading the same URL leaves the user where they were. The "Sign in" flash
   // this used to show is fixed in the header (it no longer renders the guest
   // state while auth is still bootstrapping — see :auth-resolved).
   window.location.reload()

@@ -15,7 +15,7 @@ import WorkspaceMenu from '@/core/components/WorkspaceMenu.vue'
 const props = defineProps({
   isAuthenticated: { type: Boolean, default: false },
   // False while the session is still bootstrapping. The guest UI renders only
-  // once auth RESOLVES as guest — otherwise a reload flashes «Войти» for the
+  // once auth RESOLVES as guest — otherwise a reload flashes "Sign in" for the
   // fraction of a second the silent cookie-refresh takes.
   authResolved: { type: Boolean, default: false },
   userEmail: { type: String, default: null },
@@ -29,13 +29,13 @@ const props = defineProps({
 const emit = defineEmits(['logout', 'select-workspace'])
 
 const NAV = [
-  { to: '/', label: 'Главная', exact: true },
-  { to: '/monitoring', label: 'Мониторинг', module: 'monitoring' },
-  { to: '/summary', label: 'Сводка', module: 'summary' },
+  { to: '/', label: 'Home', exact: true },
+  { to: '/monitoring', label: 'Monitoring', module: 'monitoring' },
+  { to: '/summary', label: 'Summary', module: 'summary' },
   { to: '/finreports', label: 'P&L', module: 'finreports' },
-  { to: '/ab-tests', label: 'A/Б-тесты', module: 'ab_tests' },
-  { to: '/heatmap', label: 'Тепловая карта', module: 'heatmap' },
-  { to: '/advertising', label: 'Реклама', module: 'advertising' },
+  { to: '/ab-tests', label: 'A/B tests', module: 'ab_tests' },
+  { to: '/heatmap', label: 'Heatmap', module: 'heatmap' },
+  { to: '/advertising', label: 'Advertising', module: 'advertising' },
 ]
 
 // Hiding the link is cosmetic — `ActivationGate` is what actually refuses the
@@ -47,7 +47,7 @@ const visibleNav = computed(() =>
 
 // On a phone the links outrun the pill and the nav scrolls sideways — which
 // left the section you are IN off-screen at the right: on «P&L» the header
-// showed «Главная · Мониторинг · Сво…». So the active link is scrolled into
+// showed "Home · Monitoring · Sum…". So the active link is scrolled into
 // view whenever the route or the set of links changes. `inline: 'nearest'`
 // moves nothing when it is already visible, which is always, on a desktop.
 const nav = ref(null)
@@ -78,7 +78,7 @@ watch(
           </span>
         </RouterLink>
 
-        <nav ref="nav" class="ui-header__nav" aria-label="Разделы">
+        <nav ref="nav" class="ui-header__nav" aria-label="Sections">
           <RouterLink
             v-for="link in visibleNav"
             :key="link.to"
@@ -104,8 +104,8 @@ watch(
             v-if="isAuthenticated"
             to="/profile"
             class="ui-header__avatar"
-            :title="userEmail || 'Профиль'"
-            aria-label="Профиль"
+            :title="userEmail || 'Profile'"
+            aria-label="Profile"
           >
             <svg
               viewBox="0 0 24 24"
@@ -120,15 +120,15 @@ watch(
           </RouterLink>
 
           <RouterLink v-else-if="authResolved" to="/login" class="ui-header__login">
-            Войти
+            Sign in
           </RouterLink>
 
           <button
             v-if="isAuthenticated"
             type="button"
             class="ui-header__avatar"
-            aria-label="Выйти"
-            title="Выйти"
+            aria-label="Sign out"
+            title="Sign out"
             @click="emit('logout')"
           >
             <svg

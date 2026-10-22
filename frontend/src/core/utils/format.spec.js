@@ -6,38 +6,41 @@ import {
   formatPercent,
   formatSku,
   plural,
+  withCurrency,
 } from '@/core/utils/format'
 
-/** Intl groups thousands with a no-break space; the assertions read plain ones. */
-const plain = (text) => text.replace(/\s/g, ' ')
-
 describe('formatMoney', () => {
-  it('puts the sign of its own currency on the figure', () => {
+  it('puts the sign of its own currency in front of the figure', () => {
     // A KGS workspace is paid in soms and priced in roubles: the sign has to be
     // on the figure, not on a heading shared by both.
-    expect(plain(formatMoney(12345.6, 'KGS'))).toBe('12 346с')
-    expect(plain(formatMoney(4120, 'RUB'))).toBe('4 120₽')
+    expect(formatMoney(12345.6, 'KGS')).toBe('KGS 12,346')
+    expect(formatMoney(4120, 'RUB')).toBe('₽4,120')
   })
 
   it('carries both signs on a sum of both currencies', () => {
     // Spend across WB's 2026-08-20 move of the ad account: nothing converts it.
-    expect(plain(formatMoney(900, ['KGS', 'RUB']))).toBe('900с+₽')
+    expect(formatMoney(900, ['KGS', 'RUB'])).toBe('KGS+₽900')
   })
 
   it('prints a bare number while the currency is unknown', () => {
     // A guessed unit misstates every figure by an exchange rate; none does not.
-    expect(plain(formatMoney(12345.6))).toBe('12 346')
-    expect(plain(formatMoney(12345.6, ''))).toBe('12 346')
-    expect(plain(formatMoney(12345.6, []))).toBe('12 346')
+    expect(formatMoney(12345.6)).toBe('12,346')
+    expect(formatMoney(12345.6, '')).toBe('12,346')
+    expect(formatMoney(12345.6, [])).toBe('12,346')
   })
 
   it('keeps the decimals it is asked for', () => {
     // CPC is single units of money per click; rounding it to whole ones hides it.
-    expect(formatMoney(10.26, 'KGS', 1)).toBe('10,3с')
+    expect(formatMoney(10.26, 'KGS', 1)).toBe('KGS 10.3')
+  })
+
+  it('puts the minus before the sign', () => {
+    expect(formatMoney(-350, 'RUB')).toBe('-₽350')
+    expect(formatMoney(-350, 'KGS')).toBe('-KGS 350')
   })
 
   it('keeps zero as a figure and a missing value as an em dash, with no sign', () => {
-    expect(formatMoney(0, 'KGS')).toBe('0с')
+    expect(formatMoney(0, 'KGS')).toBe('KGS 0')
     expect(formatMoney(null, 'KGS')).toBe('—')
     expect(formatMoney(undefined)).toBe('—')
   })
@@ -45,27 +48,38 @@ describe('formatMoney', () => {
 
 describe('currencySign', () => {
   it('names an unfamiliar currency by its code rather than dropping it', () => {
-    expect(currencySign('KZT')).toBe(' KZT')
+    expect(currencySign('KZT')).toBe('KZT')
+  })
+})
+
+describe('withCurrency', () => {
+  it('sets a code off by a space and a symbol not at all', () => {
+    expect(withCurrency('1,200', 'KZT')).toBe('KZT 1,200')
+    expect(withCurrency('1,200', 'RUB')).toBe('₽1,200')
+  })
+
+  it('leaves a missing figure without a sign', () => {
+    expect(withCurrency('—', 'RUB')).toBe('—')
   })
 })
 
 describe('formatMoneyFigure', () => {
   it('is the figure of formatMoney without the sign', () => {
-    expect(plain(formatMoneyFigure(12345.6))).toBe('12 346')
+    expect(formatMoneyFigure(12345.6)).toBe('12,346')
   })
 })
 
 describe('formatPercent', () => {
-  it('formats a 0–100 value with the ru-RU locale and two fraction digits', () => {
-    expect(formatPercent(12.3456)).toBe('12,35%')
+  it('formats a 0–100 value with a decimal point and two fraction digits', () => {
+    expect(formatPercent(12.3456)).toBe('12.35%')
   })
 
   it('pads whole numbers to two fraction digits', () => {
-    expect(formatPercent(7)).toBe('7,00%')
+    expect(formatPercent(7)).toBe('7.00%')
   })
 
   it('keeps zero as a real value, not a dash', () => {
-    expect(formatPercent(0)).toBe('0,00%')
+    expect(formatPercent(0)).toBe('0.00%')
   })
 
   it('renders an em dash for missing values', () => {
@@ -88,10 +102,13 @@ describe('formatSku', () => {
     expect(formatSku('M-TRX01-BLK')).toBe('M-TRX01-BLK')
   })
 
-  it('leaves Russian bucket labels as prose', () => {
-    // The P&L's sa_name column carries these next to the real articles.
-    expect(formatSku('Без привязки к артикулу')).toBe('Без привязки к артикулу')
-    expect(formatSku('Итого')).toBe('Итого')
+  it('leaves a label with spaces in it as prose', () => {
+    // A group or bucket name can sit in the same column as the real articles.
+    expect(formatSku('Not tied to a SKU')).toBe('Not tied to a SKU')
+  })
+
+  it('leaves an article in another alphabet as the seller wrote it', () => {
+    expect(formatSku('\u03b1\u03b2-01')).toBe('\u03b1\u03b2-01')
   })
 
   it('leaves the nm fallback of an article-less card alone', () => {
@@ -109,26 +126,27 @@ describe('formatNumber', () => {
     expect(formatNumber(0)).toBe('0')
   })
 
+  it('groups thousands with commas', () => {
+    expect(formatNumber(1091260)).toBe('1,091,260')
+  })
+
   it('prints a missing figure as a dash, never as a zero', () => {
-    // «WB has not told us» and «there were none» are different answers; the
-    // copies this replaced turned every null into «0».
+    // "WB has not told us" and "there were none" are different answers; the
+    // copies this replaced turned every null into "0".
     expect(formatNumber(null)).toBe('—')
     expect(formatNumber(undefined)).toBe('—')
   })
 })
 
 describe('plural', () => {
-  const forms = ['причина', 'причины', 'причин']
+  const forms = ['reason', 'reasons']
 
   it.each([
-    [1, 'причина'],
-    [2, 'причины'],
-    [5, 'причин'],
-    [11, 'причин'],
-    [12, 'причин'],
-    [21, 'причина'],
-    [24, 'причины'],
-    [111, 'причин'],
+    [1, 'reason'],
+    [-1, 'reason'],
+    [0, 'reasons'],
+    [2, 'reasons'],
+    [21, 'reasons'],
   ])('%i → %s', (n, word) => {
     expect(plural(n, forms)).toBe(word)
   })

@@ -10,7 +10,13 @@
  * onto a canvas and cannot resolve a Tailwind class; when a token moves, it
  * moves here too.
  */
-import { formatMoney, formatMoneyFigure, formatNumber, formatPercent } from '@/core/utils/format'
+import {
+  formatMoney,
+  formatMoneyFigure,
+  formatNumber,
+  formatPercent,
+  withCurrency,
+} from '@/core/utils/format'
 
 /** Tailwind `textColor.muted` / `textColor.primary` / `border.subtle`. */
 const INK_MUTED = '#858585'
@@ -84,7 +90,7 @@ export function colorForMetric(key) {
  */
 const FORMATTERS = {
   currency: (value, currency, sign) =>
-    sign ? formatMoneyFigure(value) + sign : formatMoney(value, currency),
+    sign ? withCurrency(formatMoneyFigure(value), sign) : formatMoney(value, currency),
   number: (value) => formatNumber(Math.round(value)),
   percent: formatPercent,
 }

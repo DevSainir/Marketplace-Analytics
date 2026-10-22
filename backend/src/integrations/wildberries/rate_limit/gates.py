@@ -13,7 +13,7 @@ truth in ``x-ratelimit-remaining``, so the gate below mirrors WB's bucket and
 folds that header back in on every response.
 
 The bucket must be shared across PROCESSES, not just coroutines: Celery runs a
-prefork pool, so the nightly cohort pass and an interactive «Обновить» for the
+prefork pool, so the nightly cohort pass and an interactive "Refresh" for the
 same workspace are different OS processes holding one WB token between them.
 That is why the state lives in Redis and not in an :class:`asyncio.Semaphore`.
 
@@ -337,12 +337,12 @@ class TokenBucketRateGate:
     async def retry_after(self, endpoint: str, *, reserve_seconds: float = 0.0) -> float:
         """How long this endpoint stays shut for THIS caller, without spending a token.
 
-        The question «Обновить» has to answer before it enqueues anything: while
+        The question "Refresh" has to answer before it enqueues anything: while
         a bucket is shut — on the settlement endpoint until 2026-09-22 that was
         most of every quarter of an hour, on finance-api it is a refill minute
         or a penalty block — a click would otherwise queue a harvest whose first
         act is to sit still. Knowing the number here turns that into an
-        immediate «попробуйте через N минут» ("try again in N minutes").
+        immediate "try again in N minutes".
 
         Read-only by construction. A peek that took a token would spend the
         harvest's budget every time somebody looked at the page, which is the

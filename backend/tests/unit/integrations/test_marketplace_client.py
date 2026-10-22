@@ -55,7 +55,7 @@ async def test_warehouses_are_parsed_from_a_bare_array() -> None:
             200,
             json=[
                 {
-                    "name": "Иван  - Москва (Внуково) НЕ УДАЛЯТЬ!!!",
+                    "name": "Ivan  - Moscow (Vnukovo) DO NOT DELETE!!!",
                     "officeId": 236,
                     "id": 9945803,
                     "cargoType": 1,

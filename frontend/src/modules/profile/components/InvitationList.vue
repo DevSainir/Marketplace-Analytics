@@ -112,10 +112,10 @@ function expiry(invitation) {
           >
             {{
               busy === invite.id
-                ? 'Отзываем…'
+                ? 'Revoking…'
                 : revocation.isArmed(invite.id)
-                  ? confirmLabel('Отозвать')
-                  : 'Отозвать'
+                  ? confirmLabel('Revoke')
+                  : 'Revoke'
             }}
           </button>
         </span>

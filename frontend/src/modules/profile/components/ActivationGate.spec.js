@@ -150,7 +150,7 @@ describe('ActivationGate', () => {
       }),
     })
 
-    expect(wrapper.text()).toContain('1 сентября 2026')
+    expect(wrapper.text()).toContain('1 September 2026')
   })
 
   it('does not flash a paywall before the API has answered', async () => {

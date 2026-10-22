@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Артикулы · Предметы · Бренды · Группы» — how a table or a chart is cut.
+ * "SKUs · Categories · Brands · Groups" — how a table or a chart is cut.
  *
  * One row of chips for every page that cuts by these: the summary's bars, the
  * P&L and balance tables, advertising and the heatmap. It sits at the top right
@@ -8,7 +8,7 @@
  * so a seller finds it where they found it on the last page.
  *
  * `groups` is off for a caller the server will not show groups to (see
- * `GroupsFilter`): a chip that can only ever produce «Без группы» is a broken
+ * `GroupsFilter`): a chip that can only ever produce "No group" is a broken
  * one.
  */
 defineProps({
@@ -18,15 +18,15 @@ defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const CUTS = [
-  { key: 'sku', label: 'Артикулы' },
-  { key: 'subject', label: 'Предметы' },
-  { key: 'brand', label: 'Бренды' },
-  { key: 'group', label: 'Группы' },
+  { key: 'sku', label: 'SKUs' },
+  { key: 'subject', label: 'Categories' },
+  { key: 'brand', label: 'Brands' },
+  { key: 'group', label: 'Groups' },
 ]
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-xs" role="group" aria-label="Группировка">
+  <div class="flex flex-wrap items-center gap-xs" role="group" aria-label="Grouping">
     <button
       v-for="cut in CUTS.filter((c) => groups || c.key !== 'group')"
       :key="cut.key"

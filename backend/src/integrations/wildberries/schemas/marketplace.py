@@ -2,8 +2,8 @@
 
 FBS is the fulfilment mode where stock sits in the **seller's own** warehouse
 rather than WB's. It is a different API surface with its own token category
-(«Маркетплейс»), and — verified live on 2026-08-13 — it is the ONLY one that
-reports that stock: the «Поставки» (Supplies) surface answers with WB's acceptance
+("Marketplace"), and — verified live on 2026-08-13 — it is the ONLY one that
+reports that stock: the "Supplies" (Supplies) surface answers with WB's acceptance
 directory, and the analytics remains report excludes FBS entirely — its
 grand-total row matched the sum of the FBO warehouses to the unit, so FBS
 contributes nothing there rather than being merely unlabelled.
@@ -22,7 +22,7 @@ class WBFbsWarehouse(RawBase):
     Attributes:
         id: WB's warehouse id — the path parameter of the stocks endpoint and
             the only stable handle. Names are seller-authored working notes
-            («Иван  - Москва (Внуково) НЕ УДАЛЯТЬ!!!») and get edited in the
+            («Ivan  - Moscow (Vnukovo) DO NOT DELETE!!!») and get edited in the
             portal, so nothing may key on them.
         name: The seller's own label for the warehouse.
         office_id: The linked WB pickup office.

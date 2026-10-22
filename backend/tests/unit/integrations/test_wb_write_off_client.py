@@ -16,6 +16,7 @@ import pytest
 
 from src.core.exceptions import IntegrationError
 from src.integrations.wildberries.clients.advertising import WBAdvertisingClient
+from tests.support import wb_labels as wb
 
 
 class _StubClient(WBAdvertisingClient):
@@ -92,8 +93,8 @@ async def test_the_rows_keep_their_own_currency_and_zero_updnum() -> None:
                     "advertId": 97455888,
                     "advertType": 9,
                     "advertStatus": 9,
-                    "campName": "M-TRX01-CHK /995716075 / РУЧНАЯ ПОИСК",
-                    "paymentType": "Кэшбэк",
+                    "campName": "M-TRX01-CHK /995716075 / MANUAL SEARCH",
+                    "paymentType": wb.CASHBACK,
                     "currency": "KGS",
                 },
                 {
@@ -101,7 +102,7 @@ async def test_the_rows_keep_their_own_currency_and_zero_updnum() -> None:
                     "updSum": 78,
                     "updNum": 922370716,
                     "advertId": 91570710,
-                    "paymentType": "Баланс",
+                    "paymentType": wb.BALANCE,
                     "currency": "RUB",
                 },
             ]
@@ -110,7 +111,7 @@ async def test_the_rows_keep_their_own_currency_and_zero_updnum() -> None:
 
     rows = await client.fetch_write_offs(date_from=date(2026, 9, 1), date_to=date(2026, 9, 15))
 
-    assert [r.payment_type for r in rows] == ["Кэшбэк", "Баланс"]
+    assert [r.payment_type for r in rows] == [wb.CASHBACK, wb.BALANCE]
     assert [r.currency for r in rows] == ["KGS", "RUB"]
     assert rows[0].upd_sum == Decimal("17500")
     assert rows[0].campaign_id == 97455888

@@ -20,7 +20,7 @@ from src.modules.monitoring.repos.stocks import StockRepository
 
 _DAY = date(2026, 8, 13)
 _NM_ID = 995716075
-_FBS = "Москва (Внуково) (FBS)"
+_FBS = "Moscow (Vnukovo) (FBS)"
 
 
 async def _snapshot(session: AsyncSession) -> None:

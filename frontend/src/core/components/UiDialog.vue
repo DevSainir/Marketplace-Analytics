@@ -2,7 +2,7 @@
 /**
  * The app's one modal: a centred panel over a dimmed page, a title, a ✕,
  * Escape and the backdrop to close, and the actions at the bottom right —
- * «Отмена» first, the main action last.
+ * "Cancel" first, the main action last.
  *
  * There were three, all different: a glass panel with a dark scrim and no ✕
  * (finishing an A/B test), a solid one over a light scrim whose buttons were
@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="ui-icon-btn -mr-xs -mt-xs"
-            aria-label="Закрыть"
+            aria-label="Close"
             :disabled="busy"
             @click="close"
           >

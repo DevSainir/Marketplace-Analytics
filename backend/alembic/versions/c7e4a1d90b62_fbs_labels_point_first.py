@@ -1,23 +1,23 @@
-"""monitoring: rename FBS warehouse labels to «<точка> - <город> (FBS)»
+"""monitoring: rename FBS warehouse labels to "<point> - <city> (FBS)"
 
 Revision ID: c7e4a1d90b62
 Revises: b4f1e7c92d05
 Create Date: 2026-08-20
 
-The labels were written city-first — «Москва (Внуково) (FBS)», «Москва (Белая
-дача) (FBS)». «Остатки по складам» truncates a header to its first letters, so
-the moment the account ran two Moscow warehouses both columns read «Москва (…»
+The labels were written city-first — "Moscow (Vnukovo) (FBS)", "Moscow (Belaya
+Dacha) (FBS)". "Stock by warehouse" truncates a header to its first letters, so
+the moment the account ran two Moscow warehouses both columns read "Moscow (…"
 and the only way to tell them apart was to hover. Leading with the warehouse's
 own name fixes that at the source, in the one place a header can be fixed.
 
 Editing ``Settings.wb_fbs_warehouse_labels`` does NOT do this. That map is only
 consulted the first time a warehouse is seen; the label actually in force is
 the frozen copy in ``monitoring.fbs_warehouse``, and it is also a primary-key
-value in ``monitoring.stock_snapshot`` and the join key of every «Отгрузить»
+value in ``monitoring.stock_snapshot`` and the join key of every "Ship"
 mark. So a rename is this: all three tables, one transaction, or the warehouse
 loses its stock history and its marks.
 
-Only the three labels whose text changes are listed. «Бишкек (FBS)» and the two
+Only the three labels whose text changes are listed. "Bishkek (FBS)" and the two
 test stubs already read name-first and are left exactly as they are — renaming
 a label costs history and buys nothing when the text is unchanged.
 """
@@ -41,9 +41,9 @@ _SCHEMA = "monitoring"
 #: ``(warehouse_id, old label, new label)``. The id addresses the directory row;
 #: the old text is the only key the other two tables have.
 _RENAMES: tuple[tuple[int, str, str], ...] = (
-    (9945803, "Москва (Внуково) (FBS)", "Внуково - Москва (FBS)"),
-    (9990254, "Москва (Белая дача) (FBS)", "Белая дача - Москва (FBS)"),
-    (9830567, "Бишкек EDBS (FBS)", "EDBS - Бишкек (FBS)"),
+    (9945803, "Moscow (Vnukovo) (FBS)", "Vnukovo - Moscow (FBS)"),
+    (9990254, "Moscow (Belaya Dacha) (FBS)", "Belaya Dacha - Moscow (FBS)"),
+    (9830567, "Bishkek EDBS (FBS)", "EDBS - Bishkek (FBS)"),
 )
 
 #: Every table that stores the label, as ``(table, column)``.

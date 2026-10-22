@@ -85,7 +85,7 @@ const clearing = useConfirmClick()
                 :disabled="saving"
                 @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
               >
-                {{ clearing.isArmed(row.nmId) ? confirmLabel('Очистить') : 'Очистить' }}
+                {{ clearing.isArmed(row.nmId) ? confirmLabel('Clear') : 'Clear' }}
               </button>
             </td>
           </tr>

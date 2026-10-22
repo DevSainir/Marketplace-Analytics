@@ -92,7 +92,7 @@ const visible = computed(() => props.rows.slice(0, shown.value))
               :disabled="saving"
               @click="clearing.press(row.nmId, () => emit('remove', row.nmId))"
             >
-              {{ clearing.isArmed(row.nmId) ? confirmLabel('Очистить') : 'Очистить' }}
+              {{ clearing.isArmed(row.nmId) ? confirmLabel('Clear') : 'Clear' }}
             </button>
           </div>
         </div>

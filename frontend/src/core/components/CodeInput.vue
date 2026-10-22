@@ -33,7 +33,7 @@ const props = defineProps({
   autofocus: { type: Boolean, default: false },
   // Labelled by the form's own <span>, so screen readers announce the group
   // rather than six anonymous boxes.
-  ariaLabel: { type: String, default: 'Код из письма' },
+  ariaLabel: { type: String, default: 'Code from the email' },
 })
 
 const emit = defineEmits(['update:modelValue', 'complete'])

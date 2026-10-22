@@ -24,11 +24,11 @@ const props = defineProps({
   /**
    * Earliest pickable day (ISO); empty = no floor. The stock balance has one:
    * days before the first snapshot hold no data at all, and letting them be
-   * picked would answer «нет остатков» to a question that was never asked.
+   * picked would answer "no stock" to a question that was never asked.
    */
   min: { type: String, default: '' },
-  label: { type: String, default: 'День' },
-  ariaLabel: { type: String, default: 'Выбор дня' },
+  label: { type: String, default: 'Day' },
+  ariaLabel: { type: String, default: 'Choose a day' },
 })
 const emit = defineEmits(['update:modelValue'])
 

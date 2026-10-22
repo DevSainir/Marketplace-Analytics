@@ -43,7 +43,7 @@ def _fernet_key(settings_override):
 @pytest.fixture
 async def primary(db_session: AsyncSession, organization: Organization) -> Workspace:
     """A persisted primary workspace (one token per WB category)."""
-    workspace = Workspace(organization_id=organization.id, name="ИП Демо", is_primary=True)
+    workspace = Workspace(organization_id=organization.id, name="Demo Shop", is_primary=True)
     db_session.add(workspace)
     await db_session.flush()
     return workspace

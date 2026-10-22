@@ -3,7 +3,7 @@
  * The app's one switch track: a pill that slides its knob to the right when on.
  *
  * Only the picture. The control around it is the caller's — a `<button
- * role="switch">` for a page-wide mode (advertising's «Промо-бонусы»), a
+ * role="switch">` for a page-wide mode (advertising's "Promo bonuses"), a
  * `<label>` over a real checkbox for a row of settings (a manager's access) —
  * because what has to be focusable and what it says to a screen reader differs,
  * while how a switch looks must not. There were two tracks before, 20×36 and

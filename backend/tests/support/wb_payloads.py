@@ -99,7 +99,7 @@ def sale_record(
         "saleID": f"{'R' if is_return else 'S'}9993000000",
         "forPay": -500.0 if is_return else 500.0,
         "priceWithDisc": 1490.0,
-        "warehouseName": "Коледино",
+        "warehouseName": "Koledino",
     }
 
 

@@ -137,9 +137,9 @@ Please writes, so a subject in another language is a changelog line in another l
 `docs/RELEASES.md` has the detail.
 
 The same rule covers every other piece of supporting text in the repo — comments, docstrings,
-test names, TODOs, docs and skill files. What stays Russian is what a *user* reads: UI copy,
-error messages sellers see, alert text. See `backend-architecture` and `design-system` for that
-boundary.
+test names, TODOs, docs and skill files — and, since 2026-10-23, everything a user reads too. The
+one exception is WB's own Russian labels that the code matches on; `backend-architecture` says
+where they live.
 
 Subject in the imperative, scope = the module (`monitoring`, `finreports`, `users`, `workspaces`,
 `core`, `frontend`). The body is for **why**, and it is worth writing: these messages become the

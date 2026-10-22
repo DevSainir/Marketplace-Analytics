@@ -183,7 +183,7 @@ async def test_every_main_page_renders_on_real_rows(
         "P&L balance": 1,
         "heatmap": 2,
         "heatmap catalogue": 2,
-        "A/Б list": 1,
+        "A/B list": 1,
         "A/Б test": 1,
     }
 
@@ -216,7 +216,7 @@ async def test_a_broken_page_fails_the_probe_and_the_pages_after_it_still_open(
     assert len(report.failures) == 1
     assert report.failures[0].startswith("heatmap: ProgrammingError")
     assert "heatmap" not in report.rendered
-    assert report.rendered["A/Б list"] == 1
+    assert report.rendered["A/B list"] == 1
     assert report.rendered["A/Б test"] == 1
 
 

@@ -16,7 +16,7 @@ import InfoHint from '@/core/components/InfoHint.vue'
 const props = defineProps({
   label: { type: String, required: true },
   value: { type: String, required: true },
-  /** A small line between the figure and the note (the P&L's «из них …»). */
+  /** A small line between the figure and the note (the P&L's "of which …"). */
   caption: { type: String, default: '' },
   /** The context line under the figure. */
   sub: { type: String, default: '' },
@@ -29,7 +29,7 @@ const props = defineProps({
   /** A route: the whole tile becomes a link to it. */
   to: { type: [String, Object], default: null },
   /**
-   * What following the link does, in the action colour — «Заполнить →». A
+   * What following the link does, in the action colour — "Fill in →". A
    * hover border alone did not read as clickable, and on a phone there is no
    * hover at all.
    */

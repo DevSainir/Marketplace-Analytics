@@ -27,8 +27,8 @@
    *   .ui-btn--primary   the page's main action
    *   .ui-btn--ghost     a quiet action in a row or a toolbar
    *   .ui-btn--danger    an irreversible one; `.is-armed` while it asks
-   *                      «Точно …?» (core/utils/confirmClick.js)
-   *   .ui-btn--good      «done» feedback (a copied link)
+   *                      "Really …?" (core/utils/confirmClick.js)
+   *   .ui-btn--good      "done" feedback (a copied link)
    *   .ui-btn--sm        36px, beside a 36px control (the calendar, a select)
    *   .ui-icon-btn       a square icon-only button
    *
@@ -142,7 +142,7 @@
   }
 
   /*
-   * Badges — a short status beside a name («действует», «Идёт», «основной»).
+   * Badges — a short status beside a name ("active", "Running", "primary").
    * One shape and one set of tones; the profile had its own `pf-pill`, the
    * A/B list coloured pills, its test page plain text and its summary
    * coloured text for the same status. Tones:
@@ -238,16 +238,16 @@
     @apply text-left;
   }
 
-  /* A figure column reads from the right, head, cells and «Итого» alike:
+  /* A figure column reads from the right, head, cells and "Total" alike:
      digits of one place stand under each other, so a column compares at a
      glance. `class="col-num"` on a PrimeVue <Column> reaches all three cells;
-     an identifier (Артикул WB) is not a figure and stays left. */
+     an identifier (WB ID) is not a figure and stays left. */
   .app-datatable .col-num {
     @apply text-right tabular-nums;
   }
 
   /* A sortable head is a control: PrimeVue without its styles leaves the
-     arrow cursor on it, and nothing said «нажми». */
+     arrow cursor on it, and nothing said "click me". */
   .app-datatable th[data-p-sortable-column='true'] {
     @apply cursor-pointer select-none;
   }
@@ -268,7 +268,7 @@
     @apply bg-canvas;
   }
 
-  /* The «Итого» row is pinned to the bottom of the scroll area. In a forty-row
+  /* The "Total" row is pinned to the bottom of the scroll area. In a forty-row
      report the column total is needed next to the rows, not after them, and
      `sticky` works here only because the background is opaque: otherwise the
      rows would slide through it. It sums the whole filter, not the page.
@@ -282,9 +282,9 @@
 
   /* The frozen column (`frozen` on a PrimeVue `<Column>`). In unstyled mode
      PrimeVue gives the cell only `left: 0` and an attribute, not `sticky`, so
-     until 10.10.2026 «Артикул» scrolled away with the table. The background is
+     until 2026-10-10 "SKU" scrolled away with the table. The background is
      opaque, or the figures scrolling under it show through; z is above the
-     ordinary cells, and in the header above the «Итого» row and everything
+     ordinary cells, and in the header above the "Total" row and everything
      else that is pinned. */
   .app-datatable td[data-p-frozen-column='true'] {
     @apply sticky z-0 bg-surface;
@@ -343,7 +343,7 @@
     box-shadow: 0 0 0 1px var(--ui-nest-ring);
   }
 
-  /* «N причин» before the penalty sum opens the reasons card
+  /* "N reasons" before the penalty sum opens the reasons card
      (`PnlPenaltyReasons`). It sits on one line with the figure, to its left: a
      row with penalties is as tall as one without, and the column's figures
      still line up exactly on the right edge. */
@@ -351,7 +351,7 @@
     @apply mr-xs rounded-btn bg-canvas px-xs py-0.5 align-middle text-micro leading-none text-muted transition hover:bg-action/10 hover:text-action;
   }
 
-  /* A size's share of its article — a bar under the «Продажи» and «Продажи, шт»
+  /* A size's share of its article — a bar under the "Sales" and "Sales, units"
      figures. */
   .app-datatable .pnl-size-bar {
     @apply mt-0.5 block h-0.5 w-full overflow-hidden rounded-full bg-action/10;
@@ -422,13 +422,13 @@
   }
 
   /* Traffic-type group labels can run wider than their cell in the fixed
-     layout («Руч. полки» used to, over one zone column; since the unified
-     «Каталог» column went it is two grid columns wide and fits) — wrap onto a second line
+     layout ("Manual shelves" used to, over one zone column; since the unified
+     "Catalog" column went it is two grid columns wide and fits) — wrap onto a second line
      (with clipping as the safety net) so they never overlap the neighbouring
-     group's border. «Общая»/«Органика» are single words with no wrap point,
-     and «Органика» does not fit one zone column at any size we would read, so
-     the group row hyphenates (the document is lang="ru"): «Орга-ника» over
-     two lines is legible where a mid-word clip is not. */
+     group's border. "Overall"/"Organic" are single words with no wrap point
+     over one zone column each, so the group row hyphenates (the document is
+     lang="en"): a word broken over two lines is legible where a mid-word clip
+     is not. */
   .app-datatable--matrix thead tr:nth-child(2) th:not(:first-child) {
     overflow: hidden;
     white-space: normal;
@@ -439,12 +439,12 @@
 
   /* Both lower header rows carry the narrowest labels over the narrowest
      cells, so they take the tighter horizontal padding — a zone column is
-     ~52px and «Каталог» does not survive 8px on each side of it (the value
+     ~52px and "Catalog" does not survive 8px on each side of it (the value
      rows below take the same relief, for the same reason).
 
      NOT the first cell. That one is the frozen label column at `w-48`, where
-     the squeeze buys nothing and costs alignment: «ТИП ПОЛУЧЕНИЯ ТРАФИКА» and
-     «ЗОНЫ ПОКАЗОВ» sat 4px to the left of «ДАТА» above them and every metric
+     the squeeze buys nothing and costs alignment: "TRAFFIC TYPE" and
+     "PLACEMENTS" sat 4px to the left of "DATE" above them and every metric
      name below, so the one column that reads as a vertical list had two of its
      rows out of line. */
   .app-datatable--matrix thead tr:nth-child(2) th:not(:first-child),
@@ -453,7 +453,7 @@
   }
 
   /* The zones row drops the base header's `tracking-wider` to the same 0.02em
-     the group row above it uses: at 0.05em «КАТАЛОГ» spends ~4px on letter
+     the group row above it uses: at 0.05em "CATALOG" spends ~4px on letter
      gaps it does not have in a zone column, and the two header rows now read
      as one block rather than two tracking treatments. */
   .app-datatable--matrix thead tr:nth-child(3) th {
@@ -524,8 +524,8 @@
 
   /* Day-section boundaries — BLACK, so adjacent days read as separate panels.
      Type row (2): 6 group cells per day; zones row (3): 7 zoned cells per day
-     («Общая»/«Органика» span from the type row); body rows: 9 leaf cells per
-     day (one per bucket — «Руч. полки» is one cell two grid columns wide). The very first section (nth-child(2)) is excluded — the frozen
+     ("Overall"/"Organic" span from the type row); body rows: 9 leaf cells per
+     day (one per bucket — "Manual shelves" is one cell two grid columns wide). The very first section (nth-child(2)) is excluded — the frozen
      column's edge shadow draws that line (borders no longer collapse).
      The three strides are TRAFFIC_GROUPS, the zoned leaves and
      COLUMNS_PER_DAY in metricsMatrix.js — a column added there moves all
@@ -539,11 +539,11 @@
   }
 
   /* Promotion-type boundaries WITHIN a day — light, subordinate to the black
-     day dividers: «Единая ставка» | «Руч. поиск» (+ «Каталог») | «Руч. полки» |
-     «CPC» | «Общая» + «Органика» read as five parts. Type row: before «Руч. поиск» (6n+3),
-     «Руч. полки» (6n+4), «CPC» (6n+5), «Общая» (6n). Zones row: before the
+     day dividers: "Unified bid" | "Manual search" (+ "Catalog") | "Manual shelves" |
+     "CPC" | "Overall" + "Organic" read as five parts. Type row: before "Manual search" (6n+3),
+     "Manual shelves" (6n+4), "CPC" (6n+5), "Overall" (6n). Zones row: before the
      manual search zone (7n+4), the manual shelves zone (7n+6) and the CPC
-     search zone (7n); «Общая»/«Органика» span from row 2, their border extends
+     search zone (7n); "Overall"/"Organic" span from row 2, their border extends
      down with the rowspan. Body rows: before manual_search (9n+4),
      manual_shelves (9n+6), cpc_search (9n+7) and total (9n). */
   .app-datatable--matrix thead tr:nth-child(2) th:nth-child(6n + 3),

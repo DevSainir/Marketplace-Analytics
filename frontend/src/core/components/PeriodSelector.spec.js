@@ -21,12 +21,12 @@ const preset = (wrapper, label) =>
 
 describe('PeriodSelector', () => {
   it('applies a preset at once instead of leaving it drafted', async () => {
-    // Clicking «30 дней» is a finished decision: there is no second half of the
+    // Clicking "30 days" is a finished decision: there is no second half of the
     // gesture to wait for, so the page must not sit on the old window until
-    // «Применить» is pressed as well.
+    // "Apply" is pressed as well.
     const wrapper = await openCalendar(mountPicker())
 
-    await preset(wrapper, '30 дней').trigger('click')
+    await preset(wrapper, '30 days').trigger('click')
 
     expect(wrapper.emitted('update:from')[0]).toEqual([isoDaysAgo(29)])
     expect(wrapper.emitted('update:to')[0]).toEqual([isoDaysAgo(0)])
@@ -38,24 +38,24 @@ describe('PeriodSelector', () => {
     // other order would have it push the window the preset just replaced.
     const wrapper = await openCalendar(mountPicker())
 
-    await preset(wrapper, '7 дней').trigger('click')
+    await preset(wrapper, '7 days').trigger('click')
 
     // `emitted()` keys are in first-emission order, so «last key» is «last event».
     expect(Object.keys(wrapper.emitted()).at(-1)).toBe('apply')
   })
 
   it('counts the preset end day as one of the N', async () => {
-    // «7 дней» ending on the 10th is the 4th to the 10th, not the 3rd to the
+    // "7 days" ending on the 10th is the 4th to the 10th, not the 3rd to the
     // 10th — the caller's last settled day is a day of the window.
     const wrapper = await openCalendar(mountPicker({ presetEnd: '2026-03-10' }))
 
-    await preset(wrapper, '7 дней').trigger('click')
+    await preset(wrapper, '7 days').trigger('click')
 
     expect(wrapper.emitted('update:from')[0]).toEqual(['2026-03-04'])
     expect(wrapper.emitted('update:to')[0]).toEqual(['2026-03-10'])
   })
 
-  it('offers «Вся история» in place of «180 дней» when the page knows its first day', async () => {
+  it('offers "All time" in place of "180 days" when the page knows its first day', async () => {
     // A page whose data has no window limit (advertising: WB keeps a campaign's
     // whole life) opts in by passing its first day; every other page keeps the
     // stock presets.
@@ -63,31 +63,31 @@ describe('PeriodSelector', () => {
       mountPicker({ presetEnd: '2026-10-04', historyFrom: '2023-10-24' }),
     )
 
-    await preset(wrapper, 'Вся история').trigger('click')
+    await preset(wrapper, 'All time').trigger('click')
 
-    expect(preset(wrapper, '180 дней')).toBeUndefined()
+    expect(preset(wrapper, '180 days')).toBeUndefined()
     expect(wrapper.emitted('range')[0]).toEqual([{ from: '2023-10-24', to: '2026-10-04' }])
   })
 
   it('keeps the stock presets for a page that names no first day', async () => {
     const wrapper = await openCalendar(mountPicker())
 
-    expect(preset(wrapper, '180 дней')).toBeDefined()
-    expect(preset(wrapper, 'Вся история')).toBeUndefined()
+    expect(preset(wrapper, '180 days')).toBeDefined()
+    expect(preset(wrapper, 'All time')).toBeUndefined()
   })
 
   it('marks the preset whose window is on screen, and only that one', async () => {
-    // A page that opened on, or was set to, «30 дней» must read as «30 дней»
+    // A page that opened on, or was set to, "30 days" must read as "30 days"
     // when the picker is opened again.
     const wrapper = await openCalendar(
       mountPicker({ from: '2026-02-09', to: '2026-03-10', presetEnd: '2026-03-10' }),
     )
 
     const active = wrapper.findAll('.preset-btn--active').map((button) => button.text())
-    expect(active).toEqual(['30 дней'])
+    expect(active).toEqual(['30 days'])
   })
 
-  it('marks «Вся история» when the window runs from the first day', async () => {
+  it('marks "All time" when the window runs from the first day', async () => {
     const wrapper = await openCalendar(
       mountPicker({
         from: '2023-10-24',
@@ -97,7 +97,7 @@ describe('PeriodSelector', () => {
       }),
     )
 
-    expect(preset(wrapper, 'Вся история').classes()).toContain('preset-btn--active')
+    expect(preset(wrapper, 'All time').classes()).toContain('preset-btn--active')
   })
 
   it('marks nothing for a hand-picked range', async () => {

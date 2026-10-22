@@ -122,8 +122,8 @@ describe('which edits reach the server', () => {
     // Both projections render — CSS hides one per viewport and jsdom applies
     // none — so each is counted on its own. A single total would still pass if
     // one projection lost the rule and the other grew a spare button.
-    const inTable = wrapper.findAll('tbody tr').filter((tr) => tr.text().includes('Очистить'))
-    const inRows = wrapper.findAll('.record-card').filter((li) => li.text().includes('Очистить'))
+    const inTable = wrapper.findAll('tbody tr').filter((tr) => tr.text().includes('Clear'))
+    const inRows = wrapper.findAll('.record-card').filter((li) => li.text().includes('Clear'))
 
     expect(inTable).toHaveLength(1)
     expect(inRows).toHaveLength(1)

@@ -2,7 +2,7 @@
  * What sort of advertising a campaign is, in the two words the fork has room for.
  *
  * The branches under «Итог по тесту» used to carry the campaign's own name from
- * the WB cabinet. Sellers name campaigns for themselves — «M-BLK-2 автоворонка
+ * the WB seller portal. Sellers name campaigns for themselves — «M-BLK-2 автоворонка
  * сент» — and under a figure that is four branches wide there is room for about
  * eight characters, so every branch read «M-B…» and the fork said nothing. What
  * the reader needs there is not WHICH campaign but WHAT KIND: «Единая» buys a

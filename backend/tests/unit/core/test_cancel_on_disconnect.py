@@ -1,7 +1,7 @@
 """An abandoned read stops computing; nothing else is touched.
 
 The SPA aborts superseded requests, and without this middleware the API computes
-every one of them to the end — several «Вся история» seq scans at once are
+every one of them to the end — several "All time" seq scans at once are
 enough to slow the whole site. What is pinned: a GET whose client leaves
 is cancelled and answered 499; a GET that finished is never cancelled, even by
 the disconnect that ordinarily follows; a write is never cancelled at all.

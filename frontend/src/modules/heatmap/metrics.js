@@ -15,7 +15,7 @@
  * and profit. A workspace settled in KGS is priced in RUB, so one workspace-wide
  * unit was wrong for some figure whichever unit it was.
  */
-import { currencySign, formatNumber } from '@/core/utils/format'
+import { formatNumber, withCurrency } from '@/core/utils/format'
 
 /** @typedef {'count'|'money'|'percent'} Unit */
 /** @typedef {'up'|'down'|'neutral'} Direction */
@@ -252,10 +252,10 @@ export function metricLabel(metric) {
 export function formatValue(value, unit, currency = '') {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—'
   if (unit === 'percent') {
-    return value.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    return value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   }
   const figure = formatNumber(Math.round(value))
-  return unit === 'money' ? figure + currencySign(currency) : figure
+  return unit === 'money' ? withCurrency(figure, currency) : figure
 }
 
 /**

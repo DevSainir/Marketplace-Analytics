@@ -19,7 +19,7 @@ describe('columnLabel', () => {
   })
 
   it('names a month in words', () => {
-    expect(columnLabel({ start: '2026-09-01', end: '2026-09-30' }, 'month')).toBe('Сентябрь 2026')
+    expect(columnLabel({ start: '2026-09-01', end: '2026-09-30' }, 'month')).toBe('September 2026')
   })
 })
 
