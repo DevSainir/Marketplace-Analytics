@@ -168,12 +168,19 @@ cp backend/.env.example backend/.env   # works as is for local use
 make demo
 ```
 
+The first run builds three images from source and takes about 3–5 minutes; `make demo` prints
+which of its three steps it is on. Later runs reuse the build cache and take 30 seconds to
+2 minutes.
+
 Open <http://localhost:8080> and log in as **demo@example.com** / **demo-password**. The demo runs
 the real topology as its own Compose project, without the scheduler (every scheduled task needs a
 Wildberries token) and without TLS. Running `make demo` again rebuilds and re-seeds;
 `make demo-down` removes it with its data.
 
-**Development** needs [uv](https://docs.astral.sh/uv/) and Node 22:
+### Running the tests
+
+Not needed to try the demo. These are the checks CI runs on every push; they need
+[uv](https://docs.astral.sh/uv/) and Node 22:
 
 ```bash
 make test-fast          # backend unit + component, frontend unit — the pre-commit gate

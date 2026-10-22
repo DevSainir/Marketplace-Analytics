@@ -222,14 +222,21 @@ demo: ## Run the app on fabricated data at http://localhost:8080 — no WB token
 	  echo "  cp backend/.env.example backend/.env" >&2; exit 1; }
 	@# nginx mounts this directory; created here so Docker does not create it as root.
 	@mkdir -p .frontend-releases
-	$(COMPOSE_DEMO) up -d --build
-	@echo "Waiting for http://localhost:$(DEMO_HTTP_PORT) to answer..."
+	@echo ""
+	@echo "[1/3] Building the images and starting the stack."
+	@echo "      The first run builds three images from source: about 3-5 minutes."
+	@echo "      Later runs reuse the build cache: 30 seconds to 2 minutes."
+	@echo ""
+	@$(COMPOSE_DEMO) up -d --build
+	@echo ""
+	@echo "[2/3] Waiting for http://localhost:$(DEMO_HTTP_PORT) to answer..."
 	@for _ in $$(seq 1 60); do \
 	  code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:$(DEMO_HTTP_PORT)/ || true); \
 	  [ "$$code" = "200" ] && exit 0; sleep 2; \
 	done; \
 	echo "The demo did not start serving in time. See: make demo-logs" >&2; exit 1
-	$(COMPOSE_DEMO) exec -T api python -m scripts.seed_demo
+	@echo "[3/3] Filling the demo shop with fabricated data..."
+	@$(COMPOSE_DEMO) exec -T api python -m scripts.seed_demo
 	@echo ""
 	@echo "  Demo is up:  http://localhost:$(DEMO_HTTP_PORT)"
 	@echo "  Log in as:   demo@example.com / demo-password"
