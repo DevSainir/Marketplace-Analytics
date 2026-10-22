@@ -31,10 +31,10 @@ export function installWorkspaceGuard(router) {
 /**
  * Keep customers out of the surfaces built for us.
  *
- * A/B tests and the labs run against our own data. The API has always refused
- * them to anyone else (`require_internal`), but the SPA did not: the routes
- * carried only `requiresAuth`, so any signed-in customer could open the page
- * and watch its requests come back 403. A feature a customer is told does not exist should
+ * A route marked `requiresInternal` is one the API refuses to anyone else
+ * (`require_internal`). Without this guard the SPA would not: such a route
+ * would carry only `requiresAuth`, so any signed-in customer could open the
+ * page and watch its requests come back 403. A feature a customer is told does not exist should
  * not render a screen for them.
  *
  * Answers with a rewrite to the not-found view rather than a redirect, for the

@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Сводка» — /labs/summary.
+ * «Сводка» — /summary.
  *
  * The whole workspace in one window: what it earned, what it kept, and which
  * articles produced both. Every figure comes from one request, so the cards and

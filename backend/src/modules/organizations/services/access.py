@@ -272,9 +272,9 @@ class OrganizationAccess:
     def sees_internal_features(self) -> bool:
         """Whether the internal-only surfaces are reachable for this caller.
 
-        A/B tests and the labs were built for one seller — ours — against our
-        own data. They are reachable by devs and by members of the primary
-        organisation, and by nobody else.
+        They are built for one seller — ours — against our own data, and are
+        reachable by devs and by members of the primary organisation, and by
+        nobody else.
         """
         return self.is_dev or self.is_primary_org
 

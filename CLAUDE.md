@@ -3,7 +3,7 @@
 Analytics for sellers on the Wildberries (WB) marketplace. FastAPI + Celery backend, Vue 3 SPA,
 PostgreSQL + Redis, everything in Docker. A modular monolith:
 `backend/src/modules/{users,organizations,workspaces,monitoring,finreports,advertising,heatmap,summary,ab_tests,guide}`,
-`frontend/src/modules/{auth,profile,monitoring,finreports,advertising,heatmap,summary,abTests,labs}`.
+`frontend/src/modules/{auth,profile,monitoring,finreports,advertising,heatmap,summary,abTests}`.
 
 The interface is in Russian; everything written for a developer — code, comments, docs, commit
 messages — is in English.

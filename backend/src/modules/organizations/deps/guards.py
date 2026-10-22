@@ -249,7 +249,7 @@ OwnerAccess = Annotated[OrganizationAccess, Depends(require_owner)]
 async def require_internal(access: CurrentAccess) -> OrganizationAccess:
     """Require a caller who is one of us.
 
-    For surfaces built for one seller against our own data, such as the labs.
+    For surfaces built for one seller against our own data.
     Reachable by devs and by members of the primary organisation, by nobody
     else.
 

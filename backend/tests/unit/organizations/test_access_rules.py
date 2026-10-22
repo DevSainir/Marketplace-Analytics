@@ -195,7 +195,7 @@ def test_a_dev_is_exempt_from_an_expired_subscription() -> None:
 # The internal-only surfaces
 # --------------------------------------------------------------------------- #
 def test_a_dev_sees_the_internal_features() -> None:
-    """A/B tests and the labs are ours."""
+    """The surfaces built only for us are reachable by a dev."""
     assert _access(role=EffectiveRole.DEV).sees_internal_features is True
 
 
@@ -210,8 +210,8 @@ def test_a_member_of_the_primary_organisation_sees_the_internal_features() -> No
 def test_an_ordinary_tenant_does_not_see_the_internal_features(role: EffectiveRole) -> None:
     """They were built for one seller, against one seller's data.
 
-    This is the assertion that keeps a new customer out of the A/B tests and
-    the labs — surfaces tried out on OUR workspaces before anyone else's.
+    This is the assertion that keeps a new customer out of the surfaces tried
+    out on OUR workspaces before anyone else's.
     """
     assert _access(role=role, is_primary_org=False).sees_internal_features is False
 

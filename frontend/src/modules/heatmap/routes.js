@@ -9,6 +9,4 @@ export const heatmapRoutes = [
     component: () => import('@/modules/heatmap/views/HeatmapView.vue'),
     meta: { title: 'Тепловая карта', requiresAuth: true, module: 'heatmap' },
   },
-  // Where it was tried out — kept so a saved link still lands.
-  { path: '/labs/heatmap', redirect: '/heatmap' },
 ]

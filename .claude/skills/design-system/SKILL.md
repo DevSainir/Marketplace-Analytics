@@ -190,7 +190,6 @@ Left different on purpose — do not "fix" these:
   empty cell is noise.
 * The heatmap prints percentages without «%» — the unit is in the metric's name.
 * The change-password form has its own «показать пароль»: one press shows all three fields.
-* `labs/` are sandboxes with their own look.
 
 ### Dates and periods
 

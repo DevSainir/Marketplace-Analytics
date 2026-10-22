@@ -782,11 +782,6 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
 Unit specs are colocated (`store.js` → `store.spec.js`) and cover the axios client, formatting and
 date helpers, the auth guard and store, the metrics matrix, the table components, and the charts.
 
-`labs/store.spec.js` owns the monitoring sandbox's data: it opens on the workspace's first pinned
-SKU (or its first listed one), loads the window, its stock and a year for the long chart from the
-live endpoints, and a failed catalogue load is a message that requests no SKU. The sandbox's
-copied components are not re-tested — their originals under `monitoring/` are.
-
 `metricChart.spec.js` owns the chart's arithmetic, which is all lookup and layout rather than
 maths: reading a metric at the day-major stride (the wrong stride returns another bucket's number
 and renders perfectly happily), the mini-block rows that carry one cell per day instead, and the

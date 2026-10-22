@@ -23,7 +23,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from scripts.seed_demo.catalogue import CAMPAIGNS, DemoCampaign, DemoSku
 
 #: Days of monitoring history (funnel, prices, ads) behind yesterday: a year, so
-#: every long view — the heatmap by month, the labs' year chart — has one.
+#: every long view — the heatmap by month, the monitoring chart over a year — has one.
 HISTORY_DAYS = 365
 
 #: Days of stock history. The stock screen reads at most 62 days back.

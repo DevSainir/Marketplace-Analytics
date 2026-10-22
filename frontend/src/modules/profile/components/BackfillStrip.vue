@@ -2,14 +2,14 @@
 /**
  * «Загружаем историю» — the four lanes of a new workspace's backfill.
  *
- * A labs copy of the profile module's panel: same endpoint, same polling rule
- * (stop when nothing is moving), same reason for showing LANES rather than one
- * bar — WB serves history at three very different speeds and a combined bar
- * would sit under 15% for most of a day and be wrong about all four.
+ * It polls one endpoint and stops when nothing is moving. It shows LANES
+ * rather than one bar because WB serves history at three very different
+ * speeds, and a combined bar would sit under 15% for most of a day and be
+ * wrong about all four.
  *
- * What changed is the shape. It is a strip of four columns inside «Обзор»
- * rather than a full-width block of its own, because on the new layout it is
- * one fact among several rather than the only thing on the screen.
+ * It is a strip of four columns inside «Обзор» rather than a full-width block
+ * of its own, because on this page it is one fact among several rather than
+ * the only thing on the screen.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 

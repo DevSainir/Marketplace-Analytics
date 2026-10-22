@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { COLUMNS_PER_DAY, TRAFFIC_GROUPS } from '@/modules/labs/metricsMatrix'
+import { COLUMNS_PER_DAY, TRAFFIC_GROUPS } from '@/modules/monitoring/metricsMatrix'
 
 const SRC = resolve(process.cwd(), 'src')
 const STYLESHEETS = ['assets/main.css', 'core/styles/ui-next/skin.css']

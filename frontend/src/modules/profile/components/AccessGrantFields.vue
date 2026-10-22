@@ -2,9 +2,8 @@
 /**
  * The grant control: one level, and a switch per module.
  *
- * A labs copy of the profile module's component — same props, same `update`
- * event, same payload — restyled for the drawer it now lives in. Dumb: props
- * in, one event out; the parent owns the saving.
+ * Styled for the drawer it lives in. Dumb: props in, one `update` event out;
+ * the parent owns the saving.
  */
 import { computed } from 'vue'
 

@@ -1,9 +1,9 @@
 /*
- * Shared skin for the profile sandbox.
+ * Shared skin for the profile page.
  *
- * GLOBAL on purpose, like `LabMonitoringView.css`: the `pf-` classes are used
- * by every component under `labs/components/profile/`, and duplicating a
- * button recipe into eight scoped blocks is how two of them end up different.
+ * GLOBAL on purpose: the `pf-` classes are used by every component under
+ * `profile/components/`, and duplicating a button recipe into eight scoped
+ * blocks is how two of them end up different.
  * The prefix is the containment — nothing outside this page asks for `pf-`.
  *
  * Everything here consumes `ui-next` tokens, so the page changes with the

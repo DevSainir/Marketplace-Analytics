@@ -15,7 +15,7 @@ platform's first company and workspace, so a freshly migrated database already
 holds one of each with nobody in it.
 
 The demo account owns a company marked primary — the platform operator's own —
-which is what shows it the internal sections (the labs) without making it a
+so it sees what only the operator sees (activation codes) without being a
 developer with every administrative screen.
 """
 

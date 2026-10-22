@@ -16,7 +16,7 @@ concurrency and expensive to discover afterwards:
 
 * **At most one primary organisation.** :attr:`Organization.is_primary` marks
   *ours*, and it is what unlocks the internal-only surfaces. A second row
-  carrying it would silently hand another company the A/B tests and the labs.
+  carrying it would silently hand another company the surfaces built only for us.
 * **At most one owner per organisation.** Two owners is not a richer model, it
   is an unresolvable argument about who may remove whom.
 """
@@ -146,7 +146,7 @@ class Organization(Base):
             currently owns the row would rename the company when its owner
             leaves it. The owner may edit it afterwards.
         is_primary: ``True`` for OUR organisation, which unlocks the surfaces
-            built only for us (A/B tests, labs). Exactly one row may carry it;
+            built only for us. Exactly one row may carry it;
             see the partial index below.
         created_at: Server-assigned creation timestamp (UTC).
         members: Everyone who belongs to this organisation.

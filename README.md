@@ -112,7 +112,7 @@ flowchart LR
 backend/src/modules/   users · organizations · workspaces · monitoring · finreports
                        advertising · summary · heatmap · ab_tests · guide
 frontend/src/modules/  auth · profile · monitoring · finreports · advertising
-                       summary · heatmap · abTests · labs
+                       summary · heatmap · abTests
 ```
 
 ## Engineering decisions
@@ -134,7 +134,7 @@ down:
   and Redis watermarks so «sign out everywhere» reaches live access tokens immediately.
 * **Five test tiers** — unit, component, integration, end-to-end, performance — each with a budget
   and a rule for what it may touch (`.claude/skills/testing/`). About 2,070 backend unit and
-  component tests, 570 integration tests against real PostgreSQL and Redis, 1,070 frontend specs,
+  component tests, 570 integration tests against real PostgreSQL and Redis, 1,020 frontend specs,
   Playwright journeys and k6 load profiles.
 * **Observability without leaking tenants.** No metric is labelled by tenant and no caller-chosen
   string reaches a label — both enforced by tests; the logs carry the workspace on every line

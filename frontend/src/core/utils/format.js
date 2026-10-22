@@ -106,18 +106,6 @@ export function formatMoneyFigure(value, fractionDigits = 0) {
 }
 
 /**
- * A money heading. Headings no longer carry the unit — every figure does
- * ({@link currencySign}) — so this returns the label as given. Kept for the
- * `labs` sandbox, which still imports it.
- *
- * @param {string} label The heading.
- * @returns {string}
- */
-export function moneyLabel(label) {
-  return label
-}
-
-/**
  * A seller article the way it is printed on the box — uppercase:
  * «m-trx01-blk» -> «M-TRX01-BLK». WB stores whatever casing the seller typed,
  * so the same article arrives lowercase in one report and uppercase in another

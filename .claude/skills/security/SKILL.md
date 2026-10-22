@@ -85,7 +85,7 @@ is a route that will disagree with the others.
 | `MemberAccess` | belongs to an organisation, and its subscription is not past grace | **every data router** — this is the paywall, so a route behind it needs no separate one |
 | `WritingAccess` | + a role that writes (not a read-only manager) | any write, any WB call, any Celery enqueue |
 | `OwnerAccess` | owner (or dev) | workspaces, WB tokens, members, billing |
-| `InternalAccess` | dev or primary org | features built only for us (labs) |
+| `InternalAccess` | dev or primary org | features built only for us (no route today) |
 | `DevAccess` | platform `dev` role | guest grants, dev-only administration |
 | `CodeIssuerAccess` | dev, or the OWNER of the primary org (not its managers) | activation codes |
 

@@ -30,10 +30,9 @@ import {
 
 export const useMembersStore = defineStore('members', () => {
   const role = ref(null)
-  // A/B tests and the labs are built for ONE seller, against our own data. The
-  // API has always answered with this flag and the SPA never read it, so the
-  // routes and the nav link were open to every signed-in customer — the pages
-  // rendered, and only the XHR behind them came back 403.
+  // Whether the viewer is one of us: a dev, or a member of the primary
+  // organisation. `installInternalGuard` and the nav read it, so a surface
+  // built only for us is neither linked nor rendered for a customer.
   const internalFeatures = ref(false)
   //: «Ключи активации»: a dev, or the owner of the primary organisation. The API refuses
   //: everyone else (`require_code_issuer`); this only decides what is drawn.
