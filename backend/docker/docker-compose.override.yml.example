@@ -9,7 +9,11 @@
 #
 # NEVER create this file on the VPS: without it the same plain
 # `docker compose up -d --build` runs the closed base topology where nothing
-# but the nginx frontend on port 80 is exposed.
+# but the edge on ports 80/443 is exposed.
+#
+# Move a host port (e.g. "127.0.0.1:15432:5432") when another stack on the
+# machine already publishes it. To look at the app rather than develop it,
+# `make demo` needs none of this — see backend/docker/docker-compose.demo.yml.
 # ---------------------------------------------------------------------------
 
 services:
@@ -41,4 +45,13 @@ services:
     # is why that tier runs a real frontend and this does not.
     #
     # Start it deliberately if you ever need to: `--profile vps-frontend`.
+    profiles: ["vps-frontend"]
+
+  # nginx's twin and the edge in front of the pair: parked with it, for the
+  # same reason. The twin needs the same certificate, and the edge would bind
+  # ports 80 and 443 on the developer's machine to forward to nothing.
+  frontend_standby:
+    profiles: ["vps-frontend"]
+
+  edge:
     profiles: ["vps-frontend"]
