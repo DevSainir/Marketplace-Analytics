@@ -98,6 +98,12 @@ COPY . .
 FROM base AS api
 
 RUN useradd --create-home --uid 10001 appuser
+# Where the A/B module keeps photos when no bucket is configured
+# (`AB_TESTS_MEDIA_DIR`, default `.data/ab-tests` under /app). /app itself is
+# root-owned, so without this directory the first upload on such a stack fails
+# on a permission error. Created empty and owned here — a mount point the demo
+# stack puts a volume on — rather than by a recursive chown (see the worker).
+RUN mkdir -p /app/.data && chown appuser:appuser /app/.data
 USER appuser
 
 EXPOSE 8000

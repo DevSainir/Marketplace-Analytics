@@ -16,3 +16,4 @@ frontend
 *.md
 .idea
 .DS_Store
+.data
