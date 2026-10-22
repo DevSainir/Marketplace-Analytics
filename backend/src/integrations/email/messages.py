@@ -38,15 +38,11 @@ from html import escape
 from src.integrations.email.transport import EmailMessage
 
 #: The brand mark, matching `AppHeaderNext.vue` and `favicon.svg`: the letter
-#: on the indigo tile, with the wordmark centred beneath it. Drawn in HTML because an <img> in a
+#: M on the indigo tile, with the wordmark centred beneath it. Drawn in HTML because an <img> in a
 #: mail is either a remote fetch (blocked by default, and a read receipt for
 #: whoever hosts it) or an attachment (which shows up as a paperclip on a
 #: message that has no files).
-#:
-#: Cyrillic Em, not Latin M — the same glyph the header renders, and the
-#: reason ruff's ambiguous-character rule is silenced on the next line rather
-#: than obeyed.
-_MARK = "\u041c"
+_MARK = "M"
 _INDIGO = "#4f46e5"
 _INK = "#0f172a"
 _MUTED = "#64748b"
@@ -91,7 +87,7 @@ def _shell(*, heading: str, code: str, ttl_minutes: int, footer: str) -> str:
           </tr></table>
         </td></tr>
         <tr><td align="center" style="padding-bottom:32px;font-size:19px;font-weight:600;
-                       color:{_INK};white-space:nowrap;">Аналитика<span
+                       color:{_INK};white-space:nowrap;">Marketplace Analytics<span
                        style="color:{_MUTED};font-weight:500;"> · WB</span></td></tr>
         <tr><td align="center"
                 style="font-size:21px;font-weight:700;color:{_INK};padding-bottom:28px;">

@@ -47,7 +47,7 @@ const router = createRouter({
 })
 
 // Keep the tab title in sync with the route (`meta.title` is per-module data).
-const BASE_TITLE = 'Аналитика маркетплейса'
+const BASE_TITLE = 'Marketplace Analytics'
 
 router.afterEach((to) => {
   document.title = to.meta.title

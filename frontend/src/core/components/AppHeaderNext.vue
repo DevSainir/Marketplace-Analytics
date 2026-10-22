@@ -79,9 +79,9 @@ watch(
     <div class="app-container">
       <div class="ui-header__inner ui-glass">
         <RouterLink to="/" class="ui-header__brand">
-          <span class="ui-header__mark" aria-hidden="true">М</span>
+          <span class="ui-header__mark" aria-hidden="true">M</span>
           <span class="ui-header__word">
-            Аналитика<span class="ui-header__qualifier"> · WB</span>
+            Marketplace Analytics<span class="ui-header__qualifier"> · WB</span>
           </span>
         </RouterLink>
 
