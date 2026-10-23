@@ -38,5 +38,14 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Half the cores, not all but one. jsdom specs are CPU-bound, and with a
+    // worker on every core the heaviest one (PnlSkuTable's 50-row page) took
+    // ~10 s on an 8-core laptop and timed out twice in a week; with four
+    // workers it takes ~5 s and the whole suite runs 4-6 s longer.
+    maxWorkers: '50%',
+    // Head-room for a contended machine, not a budget. A one-row table spec
+    // that takes 0.15-0.45 s alone once timed out at the 5 s default. A test
+    // that gets anywhere near this on an idle box is slow, not unlucky.
+    testTimeout: 15_000,
   },
 })
