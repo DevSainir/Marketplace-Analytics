@@ -1,7 +1,7 @@
 """The per-SKU, per-day settlement cut, against the per-SKU window it must add up to.
 
 The heatmap paints revenue, units and profit one day at a time from this cut,
-and «По артикулам» shows the same article over the whole window. If a SKU's days
+and "By SKU" shows the same article over the whole window. If a SKU's days
 did not sum to its row, the two screens would disagree about one seller's money
 with nothing on either to say which is right — so the reconciliation is exact,
 no tolerance. Real Postgres because the cut is SQL over the rollup.
@@ -103,7 +103,7 @@ async def test_cost_of_goods_is_the_cost_price_times_net_units(
 async def test_the_lean_sales_cut_matches_the_full_cut_cell_for_cell(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """«ДРР от продаж» divides by the lean cut; it must be the full cut's revenue exactly.
+    """ACoS (sales) divides by the lean cut; it must be the full cut's revenue exactly.
 
     The lean cut exists because building the full one over a long window was
     most of the advertising page's load time. Two reads of one figure are only

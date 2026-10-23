@@ -82,7 +82,7 @@ logger = get_logger(__name__)
 #: re-enqueues. So the argument reverses: a lane asleep for ninety minutes is
 #: indistinguishable from a dead one, both to the watchdog and to the seller
 #: reading the profile, while a lane that wakes every quarter of an hour and
-#: records «ждём окно» is visibly alive and no more expensive.
+#: records "waiting for a window" is visibly alive and no more expensive.
 #:
 #: The watchdog's patience is sized against this — see
 #: `workspaces.tasks.STALE_AFTER`, which must clear a tick's own runtime plus
@@ -282,7 +282,7 @@ def backfill_pnl(
             await record_progress(
                 workspace_id=ws_id,
                 lane=BackfillLane.PNL,
-                message="Ждём загрузку свежего отчёта…",
+                message="Waiting for the latest report to load…",
             )
             celery_app.send_task(
                 "finreports.backfill_pnl",
@@ -317,7 +317,7 @@ def backfill_pnl(
             await warm_settlement_rollup(workspace_id=ws_id, name=tokens.name)
         if not step.finished:
             # Unconditional: `advance_pnl` finishes the lane outright when there
-            # is no «Финансы» token, so a tick that has something to re-enqueue
+            # is no "Finance" token, so a tick that has something to re-enqueue
             # has one by construction.
             countdown = await _next_page_delay(tokens)
             celery_app.send_task(

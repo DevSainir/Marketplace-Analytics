@@ -1,14 +1,14 @@
 <script setup>
 /**
- * One cell of the «По артикулам» table — rendered from the description
+ * One cell of the "By SKU" table — rendered from the description
  * `pnlSkuCells.cellOf` builds.
  *
- * The figure, a share in brackets (logistics, profit), «N причин» before
+ * The figure, a share in brackets (logistics, profit), "N reasons" before
  * penalties and, on a size row, a bar of its share of the article. Under the
- * «Продажи, шт» and «Продажи» columns: you can see which size carries the
+ * "Sales, units" and "Sales" columns: you can see which size carries the
  * article without reading the numbers.
  *
- * «N причин» only reports the click (`reasons`); the table owns the card — why
+ * "N reasons" only reports the click (`reasons`); the table owns the card — why
  * is written in `PnlPenaltyReasons`.
  */
 import { computed } from 'vue'
@@ -33,7 +33,7 @@ const count = computed(() => props.cell.reasons?.length ?? 0)
     data-testid="penalty-reasons"
     @click.stop="$emit('reasons', $event.currentTarget)"
   >
-    {{ count }} {{ plural(count, ['причина', 'причины', 'причин']) }}
+    {{ count }} {{ plural(count, ['reason', 'reasons']) }}
   </button>
   <span :class="cell.cls">{{ cell.text }}</span>
   <span v-if="cell.sub" class="text-tiny" :class="cell.subCls"> ({{ cell.sub }})</span>

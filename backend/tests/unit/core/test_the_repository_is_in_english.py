@@ -67,11 +67,6 @@ _IN_TRANSLATION: dict[str, tuple[str, ...]] = {
     "api types": ("frontend/src/core/api/schema.d.ts",),
     # Asserts on messages of several modules at once.
     "cross-module": ("backend/tests/unit/core/test_tenant_resource_bounds.py",),
-    "finreports": (
-        "backend/src/modules/finreports/*",
-        "backend/tests/*/finreports/*",
-        "frontend/src/modules/finreports/*",
-    ),
     "ab_tests": (
         "backend/src/modules/ab_tests/*",
         "backend/tests/*/ab_tests/*",

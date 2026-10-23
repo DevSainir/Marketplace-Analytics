@@ -7,7 +7,7 @@
  * scroll container they would be clipped by it. Split out of BalanceTable.vue
  * to keep it under the size limit; it owns no state, the composable does.
  *
- * Both axes offer the same mark: «Не считать» sends a row or column to the back
+ * Both axes offer the same mark: "Don't count" sends a row or column to the back
  * and out of every total while leaving it on screen — the seller still wants to
  * see stock they have stopped counting.
  */
@@ -48,7 +48,7 @@ const emit = defineEmits(['toggle-uncounted'])
           :checked="false"
           @change="emit('toggle-uncounted')"
         />
-        {{ menu.uncounted ? 'Считать' : 'Не считать' }}
+        {{ menu.uncounted ? 'Count' : "Don't count" }}
       </label>
     </div>
   </Teleport>

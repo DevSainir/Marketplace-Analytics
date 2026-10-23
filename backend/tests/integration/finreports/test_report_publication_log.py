@@ -72,7 +72,7 @@ async def test_a_new_report_is_logged_between_the_answer_without_it_and_the_one_
     """08:00 lists only what we hold; 08:15 names the new week: it arrived in between."""
     await log_first_listings(
         workspace_id=WORKSPACE,
-        name="Демо",
+        name="Demo",
         period="weekly",
         listed=[OLD],
         held={OLD_REPORT},
@@ -81,7 +81,7 @@ async def test_a_new_report_is_logged_between_the_answer_without_it_and_the_one_
 
     await log_first_listings(
         workspace_id=WORKSPACE,
-        name="Демо",
+        name="Demo",
         period="weekly",
         listed=[OLD, NEW],
         held={OLD_REPORT},
@@ -104,7 +104,7 @@ async def test_a_later_answer_never_moves_the_first_sighting(
     for answered_at in (MONDAY_0800, MONDAY_0815, MONDAY_0830):
         await log_first_listings(
             workspace_id=WORKSPACE,
-            name="Демо",
+            name="Demo",
             period="weekly",
             listed=[NEW] if answered_at > MONDAY_0800 else [],
             held=set(),
@@ -121,7 +121,7 @@ async def test_a_report_already_held_is_never_stamped_with_todays_date(
     """A held report was listed before the log existed; writing it now would lie."""
     await log_first_listings(
         workspace_id=WORKSPACE,
-        name="Демо",
+        name="Demo",
         period="weekly",
         listed=[OLD],
         held={OLD_REPORT},
@@ -137,7 +137,7 @@ async def test_with_no_earlier_answer_the_lower_bound_is_unknown_not_invented(
     """The first answer after a deploy has nothing before it to bound by."""
     await log_first_listings(
         workspace_id=WORKSPACE,
-        name="Демо",
+        name="Demo",
         period="weekly",
         listed=[NEW],
         held=set(),

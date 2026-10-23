@@ -1,17 +1,17 @@
-"""Response DTOs for the per-SKU P&L report (the «По артикулам» view).
+"""Response DTOs for the per-SKU P&L report (the "By SKU" view).
 
 One row per SKU over an arbitrary settlement-date window, mirroring the
-industry-standard «По артикулам» sheet: units and orders, revenue and SPP,
+industry-standard per-SKU sheet: units and orders, revenue and SPP,
 logistics, penalties by category, advertising, the payout and the net profit.
 
 Three columns come from outside the settlement report, and each declares it:
 
-* **«Заказы»** (orders) — the settlement only records buyouts; orders come from the
+* **Orders** — the settlement only records buyouts; orders come from the
   sales-funnel history (``None`` when the window predates it).
-* **«Реклама»** (advertising) — the settlement bills advertising as account-level invoices with
+* **Advertising** — the settlement bills advertising as account-level invoices with
   no SKU; the per-SKU spend comes from the Promotion API statistics (``None``
   when the window predates them).
-* **«Себестоимость»** (cost price) — the seller's own figure (``None`` when not on file, and
+* **Cost price** — the seller's own figure (``None`` when not on file, and
   then the profit is ``None`` too rather than a number that pretends the goods
   were free).
 
@@ -37,7 +37,7 @@ class SkuPenalty(BaseModel):
 
 
 class SkuExclusionInput(BaseModel):
-    """Request body for marking a SKU «Не включать в общий счёт» (or clearing it)."""
+    """Request body for marking a SKU "Exclude from total" (or clearing it)."""
 
     excluded: bool
 
@@ -45,7 +45,7 @@ class SkuExclusionInput(BaseModel):
 class PnlSkuRow(BaseModel):
     """One SKU's slice of the window, every money figure in the row currency.
 
-    Percentages are shares of :attr:`revenue_paid` (net «Продажи - Возвраты»),
+    Percentages are shares of :attr:`revenue_paid` (net sales minus returns),
     matching the reference workbook's convention.
     """
 
@@ -56,12 +56,12 @@ class PnlSkuRow(BaseModel):
     #: account-level rows, which are not a product. A direct https link: the
     #: browser fetches it from WB, not from us.
     photo_url: str | None = None
-    #: WB's catalogue identity for the SKU («Тип предмета» / «Бренд»). "" on the
+    #: WB's catalogue identity for the SKU (category / brand). "" on the
     #: totals and account-level bucket rows, which span many subjects/brands.
     subject_name: str
     brand_name: str
 
-    #: Whether the seller marked this SKU «Не включать в общий счёт». Never true
+    #: Whether the seller marked this SKU "Exclude from total". Never true
     #: for the account-level bucket. The mark is persisted per workspace and is
     #: what the dashboard's exclusion-aware figures are computed against.
     is_excluded: bool
@@ -71,29 +71,29 @@ class PnlSkuRow(BaseModel):
     sold_units: int
     returned_units: int
     return_rate_pct: Decimal | None
-    #: WB's «Процент выкупа» inputs, from the funnel by ORDER date: buyouts and
+    #: The inputs of WB's buyout rate, from the funnel by ORDER date: buyouts and
     #: decided deliveries (buyouts + refusals) of the orders placed in the
     #: window. ``None`` without funnel coverage. Kept beside the percentage so a
     #: sum of rows can be re-divided rather than averaged.
     buyout_units: int | None
     decided_units: int | None
-    #: «Выкуп» = buyout_units / decided_units — the figure WB's cabinet shows.
+    #: Buyout rate = buyout_units / decided_units — the figure WB's seller portal shows.
     #: ``None`` when no order in the window has been decided yet. The size
     #: cut measures its own buyout differently (sold / delivered, by
     #: settlement date): the funnel carries no size. docs/finreports/PNL.md.
     buyout_pct: Decimal | None
 
-    #: «Продажи» / «Возвраты», som (what buyers paid on sale / refund rows).
+    #: Sales / returns, in the settlement currency (what buyers paid on sale / refund rows).
     sales_amount: Decimal
     returns_amount: Decimal
-    #: «Продажи» - «Возвраты» — the base every percentage in the row is against, and
-    #: the «Продажи» actually shown (net of returns, to match WB's finance page).
+    #: Sales minus returns — the base every percentage in the row is against, and
+    #: the sales figure actually shown (net of returns, to match WB's finance page).
     revenue_paid: Decimal
     #: The same net revenue at the seller's own pre-SPP price.
     revenue_seller_price: Decimal
     spp_amount: Decimal
     spp_pct: Decimal | None
-    #: «Средний чек» (average cheque) — net revenue per bought-out unit. ``None`` when net units 0.
+    #: Average receipt — net revenue per bought-out unit. ``None`` when net units 0.
     average_cheque: Decimal | None
 
     logistics_forward: Decimal
@@ -111,12 +111,12 @@ class PnlSkuRow(BaseModel):
 
     #: Promotion-API spend, GROSS of who funded it; ``None`` = the window has
     #: no advertising coverage. Left gross on purpose — it is what WB's own
-    #: cabinet shows, and the bonus below is what turns it into money spent.
+    #: seller portal shows, and the bonus below is what turns it into money spent.
     advertising: Decimal | None
     advertising_pct: Decimal | None
 
-    #: «Бонусы» — the share of :attr:`advertising` WB paid out of its own bonus
-    #: pool («Кэшбэк»), as a POSITIVE magnitude to be SUBTRACTED.
+    #: Bonuses — the share of :attr:`advertising` WB paid out of its own bonus
+    #: pool (cashback), as a POSITIVE magnitude to be SUBTRACTED.
     #:
     #: Positive, not negative, because every money field on this row is a
     #: positive magnitude whose sign is applied where it is composed — the same
@@ -132,9 +132,9 @@ class PnlSkuRow(BaseModel):
     #: This — never :attr:`advertising` — is what profit and ROI use.
     advertising_cash: Decimal | None
 
-    #: «К перечислению за товар» — Σ ``ppvz_for_pay``, WB's settled payout.
+    #: Payout for goods — Σ ``ppvz_for_pay``, WB's settled payout.
     payout_for_goods: Decimal
-    #: «К перечислению» — the payout net of this SKU's own withholdings
+    #: Payout — the payout net of this SKU's own withholdings
     #: (its logistics, penalties and the rare SKU-attributed storage).
     payout_net: Decimal
 
@@ -154,33 +154,33 @@ class PnlDashboard(BaseModel):
     Separate from :attr:`PnlSkuReportResponse.totals` on purpose. ``totals`` is
     the full reconciled window (Σ rows + unallocated, to the kopeck — a tested
     invariant). This is what the five cards show, and its four per-SKU figures
-    drop the SKUs the seller marked «Не включать в общий счёт». Account-level
-    money («Прочие удержания») has no SKU, so it is never affected by a mark.
+    drop the SKUs the seller marked "Exclude from total". Account-level
+    money (other deductions) has no SKU, so it is never affected by a mark.
     """
 
-    #: «Продажи» — at the SELLER's price («Цена розничная с учётом согласованной
-    #: скидки», i.e. before WB's SPP), net of returns, over non-excluded SKUs.
+    #: Sales — at the SELLER's price (WB's retail price net of the agreed
+    #: discount, i.e. before WB's SPP), net of returns, over non-excluded SKUs.
     #: This is what the seller is effectively paid on (WB funds the SPP gap).
     sales: Decimal
-    #: «Цена реализации» — the same net revenue at the after-SPP price the buyer
-    #: actually paid; WB's own «Продажа». The page switches between the two.
+    #: Customer price — the same net revenue at the after-SPP price the buyer
+    #: actually paid; WB's own sale figure. The page switches between the two.
     paid: Decimal
-    #: Units on «Продажа» rows (gross) and on «Возврат» rows; the card shows the
+    #: Units on sale rows (gross) and on refund rows; the card shows the
     #: difference, so its count is net like its money.
     sold_units: int
     returned_units: int
     return_rate_pct: Decimal | None
-    #: «Логистика» over non-excluded SKUs, and its share of :attr:`sales`.
+    #: Logistics over non-excluded SKUs, and its share of :attr:`sales`.
     logistics: Decimal
     logistics_pct: Decimal | None
-    #: «Себестоимость» of the non-excluded costed SKUs; SKUs with sales but no
+    #: Cost price of the non-excluded costed SKUs; SKUs with sales but no
     #: cost on file are counted in :attr:`uncosted_count`, not summed here.
     cogs: Decimal
     uncosted_count: int
-    #: «Перечисление» — Σ non-excluded SKUs' payout + the account-level bucket.
+    #: Payout — Σ non-excluded SKUs' payout + the account-level bucket.
     payout_net: Decimal
-    #: «Прочие удержания» — Σ ``deduction`` (WB's own line), account-level, so it
-    #: is exclusion-independent. ``advertising`` is its «ВБ.Продвижение» share.
+    #: Other deductions — Σ ``deduction`` (WB's own line), account-level, so it
+    #: is exclusion-independent. ``advertising`` is its "WB Promotion" share.
     other_deductions: Decimal
     advertising: Decimal
     #: How many SKUs are currently marked out of the count.

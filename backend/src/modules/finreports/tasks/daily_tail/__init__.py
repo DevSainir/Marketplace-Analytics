@@ -27,7 +27,7 @@ from what is and is not proven:
   same one-request-a-minute WB buckets, so two sweeps at once would only make
   each 429 the other. Losing the lock costs a tick, and on the six days a week
   the weekly tick finds nothing, the lock is free.
-* **A run scoped to one workspace does not.** That is what «Обновить» enqueues,
+* **A run scoped to one workspace does not.** That is what "Refresh" enqueues,
   and under the shared lock the button would answer «already running» and fetch
   nothing exactly when the hourly sweep is in flight — the one case it exists
   for. A scoped run spends one seller's budget, WB's buckets are per token, and

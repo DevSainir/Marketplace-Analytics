@@ -15,6 +15,6 @@ class SettlementCurrencyResponse(BaseModel):
     """
 
     currency: str = Field(
-        description="ISO 4217 code WB settles this кабинет in (e.g. `KGS`); empty "
+        description="ISO 4217 code WB settles this workspace in (e.g. `KGS`); empty "
         "before the first settlement report, when the unit is not yet known."
     )

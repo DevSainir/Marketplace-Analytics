@@ -38,15 +38,15 @@ async def reconcile_against_wb(
     be checked against something.
 
     **What WB totals is not a plain sum.** Worked out against a real report on
-    2026-09-22: ``forPaySum`` is «Продажа» minus «Возврат» minus «Коррекция
-    продаж» plus the standalone compensations — e.g. 1 000 000.00 - 120 000.00 -
+    2026-09-22: ``forPaySum`` is sales minus refunds minus the sales
+    correction plus the standalone compensations — e.g. 1 000 000.00 - 120 000.00 -
     50.00 + 8 000.00 = 887 950.00, to the kopeck. The sign is never in the
     value: WB serves refunds POSITIVE, which is the mistake that doubles
     revenue if a reader sums the column.
 
     That reconstruction found one live disagreement on its first use, and the
     rule that settled it is not the operation at all: WB negates every row whose
-    document type is «Возврат», see
+    document type is a refund, see
     :data:`~src.modules.finreports.constants.REFUND_DOC_TYPE`.
 
     Args:

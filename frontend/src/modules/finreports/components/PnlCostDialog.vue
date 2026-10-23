@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Себестоимость» for one article, asked from the P&L row that lacks it.
+ * "Cost price" for one article, asked from the P&L row that lacks it.
  *
  * A dialog rather than a field in the cell: the table re-renders a cell on a
  * row click (see `PnlPenaltyReasons`) and an input there would lose its text,
@@ -16,7 +16,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 
 import UiDialog from '@/core/components/UiDialog.vue'
 import { extractErrorMessage } from '@/core/api/axios'
-import { currencyInWords, formatNumber } from '@/core/utils/format'
+import { currencyInWords, formatNumber, normalizeTypedNumber } from '@/core/utils/format'
 
 /** `MAX_UNIT_COST` in `backend/.../schemas/cost_price.py`. */
 const MAX_COST = 10_000_000
@@ -47,9 +47,9 @@ watch(
   },
 )
 
-/** «795,50» and «1 200» are how a seller types a price; both are numbers. */
+/** "1,200", "1 200" and "795,50" are how a seller types a price; all are numbers. */
 const cost = computed(() => {
-  const text = raw.value.replace(/\s/g, '').replace(',', '.')
+  const text = normalizeTypedNumber(raw.value)
   return text === '' ? null : Number(text)
 })
 const invalid = computed(
@@ -76,7 +76,7 @@ async function submit() {
 <template>
   <UiDialog
     :open="!!row"
-    title="Себестоимость"
+    title="Cost price"
     :subtitle="row ? `${row.saName} · ${row.nmId}` : ''"
     :busy="busy"
     data-testid="cost-dialog"
@@ -84,7 +84,7 @@ async function submit() {
   >
     <form v-if="row" id="pnl-cost-form" @submit.prevent="submit">
       <label class="block text-tiny font-medium text-muted" for="pnl-cost-input">
-        За 1 шт с фулфилментом, {{ currencyInWords(currency) }}
+        Per unit, fulfillment included, {{ currencyInWords(currency) }}
       </label>
       <input
         id="pnl-cost-input"
@@ -97,24 +97,24 @@ async function submit() {
         :aria-invalid="invalid"
       />
       <p v-if="invalid" class="mt-xs text-tiny text-status-negative">
-        Нужно число от 0 до {{ formatNumber(MAX_COST) }}.
+        A number from 0 to {{ formatNumber(MAX_COST) }}.
       </p>
       <p v-else-if="error" class="mt-xs text-tiny text-status-negative">{{ error }}</p>
       <p class="mt-sm text-tiny text-muted">
-        Продано за период: {{ formatNumber(row.sold) }} шт. Себестоимость применится ко всей истории
-        продаж, прибыль пересчитается.
+        Sold in the period: {{ formatNumber(row.sold) }} units. The cost price applies to all sales
+        history, and profit is recalculated.
       </p>
     </form>
 
     <template #footer>
-      <button type="button" class="ui-btn" :disabled="busy" @click="emit('close')">Отмена</button>
+      <button type="button" class="ui-btn" :disabled="busy" @click="emit('close')">Cancel</button>
       <button
         type="submit"
         form="pnl-cost-form"
         class="ui-btn ui-btn--primary"
         :disabled="busy || cost === null || invalid"
       >
-        {{ busy ? 'Сохраняем…' : 'Сохранить' }}
+        {{ busy ? 'Saving…' : 'Save' }}
       </button>
     </template>
   </UiDialog>

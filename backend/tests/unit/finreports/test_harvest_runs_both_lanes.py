@@ -4,7 +4,7 @@ The weekly realization report and WB's per-day reports are the same rows cut at
 different boundaries, and both are fetched from the same Finance methods — one
 request per minute each. As two separate schedules they took the same harvest
 lock, so an overlap meant the loser returned ``skipped_locked`` and fetched
-nothing; on «Обновить» that landed at the one moment somebody had asked.
+nothing; on "Refresh" that landed at the one moment somebody had asked.
 
 So the tail runs inside the settled harvest's own tick. Two properties of that
 arrangement are worth pinning, because both are invisible in any counter:
@@ -105,7 +105,7 @@ def order(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     ran: list[str] = []
     redis = FakeRedis()
     bundle = WorkspaceTokenBundle(
-        workspace_id=WORKSPACE, name="Демо", statistics="stat", finance="a-finance-token"
+        workspace_id=WORKSPACE, name="Demo", statistics="stat", finance="a-finance-token"
     )
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
@@ -226,8 +226,8 @@ async def test_sellers_are_harvested_concurrently(monkeypatch: pytest.MonkeyPatc
     `sales-reports/list` is one token per minute, so the second call waits. WB
     meters per seller ACCOUNT, so one seller's wait says nothing about another's:
     run sequentially, a fleet tick is a minute per seller of mostly sitting
-    still, with the harvest lock held throughout and «Обновить» answering «уже
-    выполняется» for a third of every quarter-hourly window.
+    still, with the harvest lock held throughout and "Refresh" answering "already
+    running" for a third of every quarter-hourly window.
 
     Asserted by overlap rather than by wall clock: each seller reports when it
     started and finished, and a sequential loop cannot produce an overlap.
@@ -238,7 +238,7 @@ async def test_sellers_are_harvested_concurrently(monkeypatch: pytest.MonkeyPatc
         WorkspaceTokenBundle(
             workspace_id=uuid.uuid5(uuid.NAMESPACE_DNS, name), name=name, finance="a-token"
         )
-        for name in ("Демо", "NEVA", "Олег")
+        for name in ("Demo", "NEVA", "Oleg")
     ]
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
@@ -293,7 +293,7 @@ async def test_one_sellers_failure_does_not_take_the_fleet_down(
         WorkspaceTokenBundle(
             workspace_id=uuid.uuid5(uuid.NAMESPACE_DNS, name), name=name, finance="a-token"
         )
-        for name in ("Демо", "NEVA", "Олег")
+        for name in ("Demo", "NEVA", "Oleg")
     ]
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:

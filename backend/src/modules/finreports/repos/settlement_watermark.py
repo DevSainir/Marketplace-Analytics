@@ -38,7 +38,7 @@ class SettlementWatermarkRepository(BaseRepository):
 
         The monotonicity is enforced in SQL rather than by reading first and
         writing after, because two harvests can genuinely overlap: the hourly
-        tick holds a lock, but a «Обновить» for one workspace does not wait for
+        tick holds a lock, but a "Refresh" for one workspace does not wait for
         it, and the loser of that race would otherwise rewind the watermark to
         its own older span and re-open a window that had already been closed.
 

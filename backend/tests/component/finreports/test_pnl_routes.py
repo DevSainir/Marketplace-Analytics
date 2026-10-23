@@ -58,7 +58,7 @@ def _statement(date_from: date, date_to: date) -> PnlStatement:
     """
     return PnlStatement(
         key=None,
-        label="Итого за период",
+        label="Period total",
         date_from=date_from,
         date_to=date_to,
         currency="KGS",
@@ -78,14 +78,14 @@ def _statement(date_from: date, date_to: date) -> PnlStatement:
         payout_from_sales=Decimal("2112000.00"),
         compensations=Decimal(0),
         payout_for_goods=Decimal("2112000.00"),
-        logistics=_section("Логистика"),
+        logistics=_section("Logistics"),
         logistics_forward=Decimal("300000.00"),
         logistics_return=Decimal("60000.00"),
         logistics_unlegged=Decimal("1250.00"),
-        storage=_section("Хранение"),
+        storage=_section("Storage"),
         acceptance=Decimal(0),
-        penalties=_section("Штрафы"),
-        deductions=_section("Удержания"),
+        penalties=_section("Penalties"),
+        deductions=_section("Deductions"),
         advertising=Decimal("156000.00"),
         additional_payments=Decimal(0),
         rebill_logistic_cost=Decimal(0),
@@ -118,7 +118,7 @@ class _StubPnlService:
             grouping=str(kwargs["grouping"]),
             total=_statement(kwargs["date_from"], kwargs["date_to"]),
             buckets=[],
-            notes=["тестовая оговорка"],
+            notes=["a test caveat"],
         )
 
 
@@ -324,7 +324,7 @@ async def test_the_statement_carries_its_caveats(
     """
     response = await client.get("/api/v1/finreports/pnl", headers=headers)
 
-    assert response.json()["notes"] == ["тестовая оговорка"]
+    assert response.json()["notes"] == ["a test caveat"]
 
 
 async def test_the_statement_requires_the_workspace_header(

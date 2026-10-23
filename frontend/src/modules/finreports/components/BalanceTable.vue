@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Баланс по товарным остаткам» — the SKU x warehouse stock grid for one day.
+ * "Stock balance" — the SKU x warehouse stock grid for one day.
  *
  * Rows are SKUs, columns are warehouses, and every cell carries the two figures
  * that make this a balance rather than a stock report: the units still lying
@@ -8,13 +8,13 @@
  *
  * Goods in transit are the seller's too — paid for, riding to a buyer or back
  * from one — but they sit on no shelf, so they are reported once rather than
- * spread over the grid: «В пути» in «Итого по артикулу», and folded into the
- * money in that panel and in the corner. The grid and «Итого по складу» stay
+ * spread over the grid: "In transit" in "SKU total", and folded into the
+ * money in that panel and in the corner. The grid and "Warehouse total" stay
  * strictly about what is lying where.
  *
  * FOUR separate blocks floating over the canvas, not one table with frozen
- * edges: the grid, «Итого по артикулу» beside it, «Итого по складу» beneath it,
- * and «Итого» in the corner. They were sticky panes inside one table first, and
+ * edges: the grid, "SKU total" beside it, "Warehouse total" beneath it,
+ * and "Total" in the corner. They were sticky panes inside one table first, and
  * that shape kept producing the same two faults — the right pane clipped by the
  * scroll container, and a phantom horizontal scrollbar the panes' own borders
  * added past the container's width. As real blocks each one owns its box, and
@@ -22,9 +22,9 @@
  * {@link syncPanels}, which is what keeps every total against its row and its
  * column.
  *
- * «Тип предмета» and «Бренд» are NOT columns (the columns are warehouses) but stay
+ * Category and brand are NOT columns (the columns are warehouses) but stay
  * filterable through the shared P&L toolbar. Ordering and the totals are the
- * composable's: a «Не считать» applies the instant it is clicked, so both have
+ * composable's: a "Don't count" applies the instant it is clicked, so both have
  * to be derived on screen rather than fetched (see `useBalanceRows`).
  */
 import { computed, ref, toRefs } from 'vue'
@@ -42,10 +42,10 @@ import { formatNumber } from '@/core/utils/format'
 
 /** The first column's head and the right panel's title follow the cut. */
 const HEADS = {
-  sku: ['Артикул', 'Итого по артикулу'],
-  subject: ['Предмет', 'Итого по предмету'],
-  brand: ['Бренд', 'Итого по бренду'],
-  group: ['Группа', 'Итого по группе'],
+  sku: ['SKU', 'SKU total'],
+  subject: ['Category', 'Category total'],
+  brand: ['Brand', 'Brand total'],
+  group: ['Group', 'Group total'],
 }
 
 const props = defineProps({
@@ -98,7 +98,7 @@ function syncPanels() {
 }
 
 /** A wheel over a panel still scrolls the grid — the panels have no scrollbars
- *  of their own, and a dead zone over «Итого по артикулу» reads as a freeze. */
+ *  of their own, and a dead zone over "SKU total" reads as a freeze. */
 function forwardWheel(event) {
   const target = grid.value?.scroller
   if (!target) return
@@ -129,7 +129,7 @@ function forwardWheel(event) {
       v-if="!tableRows.length"
       class="balance-block px-md py-xl text-center text-base text-muted"
     >
-      {{ isFiltering ? 'Нет артикулов по фильтру' : 'Нет остатков на выбранный день' }}
+      {{ isFiltering ? 'No SKUs match the filter' : 'No stock on the chosen day' }}
     </div>
 
     <!-- Below `sm` the grid and its three total panels become one card per SKU
@@ -181,10 +181,10 @@ function forwardWheel(event) {
         />
 
         <div class="balance-block corner-block">
-          <div class="corner-label">Итого</div>
-          <div class="corner-value tabular-nums">{{ formatNumber(totals.quantity) }} шт</div>
+          <div class="corner-label">Total</div>
+          <div class="corner-value tabular-nums">{{ formatNumber(totals.quantity) }} units</div>
           <div v-if="totals.inWay" class="corner-way tabular-nums">
-            +{{ formatNumber(totals.inWay) }} шт в пути
+            +{{ formatNumber(totals.inWay) }} units in transit
           </div>
           <div class="corner-value corner-money tabular-nums">{{ money(totals.balance) }}</div>
         </div>

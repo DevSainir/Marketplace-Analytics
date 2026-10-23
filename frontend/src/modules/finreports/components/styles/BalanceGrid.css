@@ -6,7 +6,7 @@
  * variables are the only thing keeping their rows and columns aligned.
  */
 
-/* Both axes: the warehouses run off the right, the catalogue off the bottom.
+/* Both axes: the warehouses run off the right, the catalog off the bottom.
    The height matches the P&L table above it, so the page reads as one thing. */
 .grid-scroll {
   overflow: auto;
@@ -188,16 +188,16 @@ thead th.wh-group--uncounted {
 }
 /* Taken out of the count — a warehouse column or a SKU row — still shows its
    stock, because the seller wants to see what is lying there, but it reads as
-   parenthetical. On a row the whole line greys out, article name included. */
+   parenthetical. On a row the whole line grays out, article name included. */
 .is-uncounted,
 tbody tr.is-uncounted td,
-/* The money span carries its own colour, so greying the cell is not enough. */
+/* The money span carries its own color, so graying the cell is not enough. */
 tbody tr.is-uncounted .cell-money {
   color: var(--ink-dim);
 }
 
-/* --- the cell's two figures («72|57 600с») -------------------------------- */
-/* The divider is the column's centre axis: equal `1fr` tracks on either side
+/* --- the cell's two figures ("72|KGS 57,600") ---------------------------- */
+/* The divider is the column's center axis: equal `1fr` tracks on either side
    put it in the middle whatever the figures are, the stock closes on it from
    the left and the money opens from the right. Read down a column, both numbers
    line up on that axis instead of drifting with their own lengths.

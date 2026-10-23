@@ -1,31 +1,31 @@
 /**
  * At which price the P&L shows its revenue: the seller's own, or what the buyer paid.
  *
- * WB settles every sale twice over. «Цена селлера» is the seller's price after
- * the agreed discount and before SPP — what WB's commission and the payout are
- * pegged to. «Цена реализации» is what the buyer actually paid after SPP, and
- * it is the «Продажа» on WB's own report page. Neither is wrong; showing one
- * while the seller compares against the other is what made «Продажи» look like
- * a mistake.
+ * WB settles every sale twice over. The seller price is the seller's price
+ * after the agreed discount and before the WB discount — what WB's commission
+ * and the payout are pegged to. The customer price is what the buyer actually
+ * paid after the WB discount, and it is the sale on WB's own report page.
+ * Neither is wrong; showing one while the seller compares against the other is
+ * what made "Sales" look like a mistake.
  *
  * So the page carries a switch, like the summary, and every figure that
- * divides by revenue follows it: the revenue itself, the average cheque, the
- * logistics share, DRR and the margin, in the dashboard, the table, its
- * «Итого», the phone cards and the size drill-down. What does not divide by
+ * divides by revenue follows it: the revenue itself, the average price, the
+ * logistics share, ACoS and the margin, in the dashboard, the table, its
+ * "Total", the phone cards and the size drill-down. What does not divide by
  * revenue does not move — the payout, the profit in money, ROI (profit over
- * cost) and SPP itself, which is the gap between the two bases.
+ * cost) and the WB discount itself, which is the gap between the two bases.
  *
  * The seller's price is the default, for the reason the shares moved to it on
- * 26.09.2026: SPP is WB's discount and WB changes it weekly, so at the buyer's
- * price the logistics share rises whenever WB raises SPP, with the seller's
- * costs unchanged (docs/finreports/PNL.md).
+ * 26 Sep 2026: the WB discount is WB's own and WB changes it weekly, so at the
+ * buyer's price the logistics share rises whenever WB raises it, with the
+ * seller's costs unchanged (docs/finreports/PNL.md).
  */
 import { inject, provide, unref } from 'vue'
 
 /** The switch, the seller's price first. Same wording as the summary's. */
 export const PRICE_BASES = [
-  { key: 'seller', label: 'Цена селлера — до СПП', caption: 'По цене селлера' },
-  { key: 'paid', label: 'Цена реализации', caption: 'По цене реализации' },
+  { key: 'seller', label: 'Seller price — before WB discount', caption: 'At seller price' },
+  { key: 'paid', label: 'Customer price', caption: 'At customer price' },
 ]
 
 /** Pick the figure for the chosen base. */
@@ -40,10 +40,10 @@ export function shareOf(part, whole) {
 }
 
 /**
- * DRR — advertising as a percentage of sales, `null` unless sales are positive.
+ * ACoS — advertising as a percentage of sales, `null` unless sales are positive.
  *
  * Sales are net of returns, so an article can return more than it sold over a
- * window; advertising over that is a negative DRR, which means nothing.
+ * window; advertising over that is a negative ACoS, which means nothing.
  */
 export function drrShare(part, whole) {
   return Number(whole) > 0 ? shareOf(part, whole) : null

@@ -57,7 +57,7 @@ def _row(**overrides: Any) -> PnlSkuRow:
     values: dict[str, Any] = {
         "nm_id": NM_ID,
         "sa_name": "m-trx01-blk",
-        "subject_name": "Брюки",
+        "subject_name": "Trousers",
         "brand_name": "NORTH LINE",
         "is_excluded": False,
         "orders_units": 2600,
@@ -133,7 +133,7 @@ class _StubSkuReportService:
             currency="KGS",
             rows=[_row()],
             unallocated=None,
-            totals=_row(sa_name="Итого"),
+            totals=_row(sa_name="Total"),
             dashboard=_dashboard(),
             notes=[],
         )
@@ -339,7 +339,7 @@ async def test_marking_a_sku_is_scoped_to_the_active_workspace(
     sku_report: _StubSkuReportService,
     workspace: Workspace,
 ) -> None:
-    """The «Не включать» mark persists against the header's workspace."""
+    """The "Exclude from total" mark persists against the header's workspace."""
     response = await client.put(
         f"/api/v1/finreports/pnl/skus/{NM_ID}/exclusion",
         json={"excluded": True},

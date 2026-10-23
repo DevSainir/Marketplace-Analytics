@@ -1,11 +1,12 @@
 <script setup>
 /**
- * The card with an article's penalty reasons — opened from «N причин» next to
+ * The card with an article's penalty reasons — opened from "N reasons" next to
  * the amount.
  *
  * The reasons used to sit as lines inside the cell itself, and the article's
- * row grew by five or six lines of text: «Штраф МП. Невыполненный заказ
- * (отправка товара отличного от заявленного)» does not abbreviate. Now the row
+ * row grew by five or six lines of text: a WB reason along the lines of
+ * "Marketplace penalty. Unfulfilled order (item shipped differs from the
+ * listing)" does not abbreviate. Now the row
  * is always one line high and the reasons live here. On click, not on hover:
  * the text is long, people read it, and the hand should not have to hold the
  * cursor still.
@@ -29,7 +30,7 @@ const emit = defineEmits(['close'])
 
 const close = () => emit('close')
 
-/** A click outside the card. Not on «N причин» itself: its own click decides. */
+/** A click outside the card. Not on "N reasons" itself: its own click decides. */
 function onOutside(event) {
   if (!event.target.closest?.('.pnl-penalty-card, .pnl-penalty-more')) close()
 }
@@ -59,10 +60,10 @@ onBeforeUnmount(() => listen(false))
       v-fit-inside="open.area"
       class="pnl-penalty-card fixed z-50 w-96 rounded-card border border-border-subtle bg-surface p-sm text-left shadow-card"
       role="dialog"
-      aria-label="Причины штрафов"
+      aria-label="Penalty reasons"
       :style="{ top: `${open.top}px`, left: `${open.left}px` }"
     >
-      <p class="mb-xs text-tiny font-medium text-muted">Причины штрафов</p>
+      <p class="mb-xs text-tiny font-medium text-muted">Penalty reasons</p>
       <ul class="max-h-64 space-y-xs overflow-y-auto">
         <li
           v-for="p in open.reasons"

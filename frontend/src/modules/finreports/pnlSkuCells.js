@@ -1,5 +1,5 @@
 /**
- * The columns of the «По артикулам» table and what each shows in an article row
+ * The columns of the "By SKU" table and what each shows in an article row
  * and in a size row.
  *
  * A description rather than twenty templates in the markup: a size has its own
@@ -7,9 +7,9 @@
  * file. A cell is `{text, cls, sub, subCls, reasons, bar}`, drawn by
  * `PnlSkuCell`.
  *
- * Columns without `size` are blank on a size row, not «—»: a size has no
+ * Columns without `size` are blank on a size row, not "—": a size has no
  * advertising, cost price or profit at all (WB does not split advertising by
- * size, PNL.md §17.1), and a dash reads as «we don't know».
+ * size, PNL.md §17.1), and a dash reads as "we don't know".
  */
 import { formatNumber } from '@/core/utils/format'
 import { amountClass, toneClass } from '@/modules/finreports/pnlThresholds'
@@ -17,7 +17,7 @@ import { pct } from '@/modules/finreports/pnlFormat'
 
 const BLANK = { text: '' }
 
-/** Money with a share in brackets — «Логистика». */
+/** Money with a share in brackets — "Logistics". */
 function withShare(money, value, share, toneKey, base) {
   return {
     text: money(value),
@@ -27,82 +27,82 @@ function withShare(money, value, share, toneKey, base) {
 }
 
 /**
- * The columns after «Артикул», in table order. `art` and `size` take the row
+ * The columns after "SKU", in table order. `art` and `size` take the row
  * and the money formatter and return a cell.
  */
 export const COLUMNS = [
   {
     field: 'nmId',
-    header: 'Артикул WB',
+    header: 'WB ID',
     art: (r) => ({ text: r.isSku ? String(r.nmId) : '—', cls: 'tabular-nums text-muted' }),
   },
-  { field: 'subject', header: 'Предмет', art: (r) => ({ text: r.subject || '—' }) },
-  { field: 'brand', header: 'Бренд', art: (r) => ({ text: r.brand || '—' }) },
+  { field: 'subject', header: 'Category', art: (r) => ({ text: r.subject || '—' }) },
+  { field: 'brand', header: 'Brand', art: (r) => ({ text: r.brand || '—' }) },
   {
     field: 'orders',
-    header: 'Заказы, шт',
+    header: 'Orders, units',
     num: true,
     art: (r) => ({ text: r.orders === null ? '—' : formatNumber(r.orders) }),
   },
   {
     field: 'sold',
-    header: 'Продажи, шт',
+    header: 'Sales, units',
     num: true,
     art: (r) => ({ text: formatNumber(r.sold) }),
     size: (s) => ({ text: formatNumber(s.sold), bar: s.soldShare }),
   },
   {
     field: 'buyoutPct',
-    header: 'Выкуп, %',
+    header: 'Buyout rate, %',
     num: true,
-    hint: 'Как в кабинете WB: доля выкупленных заказов, последние 3 недели ещё меняются. У размеров — продано ÷ доставки, поэтому не совпадает.',
+    hint: 'As in the WB seller portal: the share of orders bought out; the last 3 weeks still change. For a size it is sold ÷ delivered, so it differs.',
     art: (r) => ({ text: pct(r.buyoutPct), cls: toneClass('buyoutPct', r.buyoutPct) }),
     size: (s) => ({ text: pct(s.buyoutPct), cls: toneClass('sizeBuyoutPct', s.buyoutPct) }),
   },
   {
     field: 'returnPct',
-    header: 'Возвраты, %',
+    header: 'Returns, %',
     num: true,
-    hint: 'Сколько проданных штук покупатели потом вернули.',
+    hint: 'Share of units sold that buyers later returned.',
     art: (r) => ({ text: pct(r.returnPct), cls: toneClass('returnPct', r.returnPct) }),
     size: (s) => ({ text: pct(s.returnPct), cls: toneClass('returnPct', s.returnPct) }),
   },
   {
     field: 'sales',
-    header: 'Продажи',
+    header: 'Sales',
     num: true,
     art: (r, money) => ({ text: money(r.sales) }),
     size: (s, money) => ({ text: money(s.sales), bar: s.salesShare }),
   },
   {
     field: 'averageCheque',
-    header: 'Средний чек',
+    header: 'Average price',
     num: true,
     art: (r, money) => ({ text: money(r.averageCheque) }),
     size: (s, money) => ({ text: money(s.averageCheque) }),
   },
-  { field: 'sppPct', header: 'СПП, %', num: true, art: (r) => ({ text: pct(r.sppPct) }) },
+  { field: 'sppPct', header: 'WB discount, %', num: true, art: (r) => ({ text: pct(r.sppPct) }) },
   {
     field: 'logistics',
-    header: 'Логистика',
+    header: 'Logistics',
     num: true,
     art: (r, money) => withShare(money, r.logistics, r.logisticsPct, 'logisticsPct', r.priceBase),
     size: (s, money) => withShare(money, s.logistics, s.logisticsPct, 'logisticsPct', s.priceBase),
   },
   {
     field: 'logisticsPerSale',
-    header: 'Логистика на 1 выкуп',
+    header: 'Logistics per buyout',
     num: true,
-    hint: 'Вся логистика (туда и обратно) ÷ проданные штуки.',
+    hint: 'All logistics, both ways, ÷ units sold.',
     art: (r, money) => ({ text: money(r.logisticsPerSale) }),
     size: (s, money) => ({ text: money(s.logisticsPerSale) }),
   },
   {
     field: 'penalties',
-    header: 'Штрафы',
+    header: 'Penalties',
     num: true,
     // Reasons are not lines in the cell (the row grew by five lines of text)
-    // but «N причин» with a card on click; largest on top, reversals at the bottom.
+    // but "N reasons" with a card on click; largest on top, reversals at the bottom.
     art: (r, money) => ({
       text: money(r.penalties),
       reasons: r.penalties
@@ -115,23 +115,23 @@ export const COLUMNS = [
   },
   {
     field: 'cogs',
-    header: 'Себестоимость',
+    header: 'Cost price',
     num: true,
-    // «нет», not «—»: the cost is not unknown to WB, it is missing from us.
+    // "missing", not "—": the cost is not unknown to WB, it is missing from us.
     art: (r, money) =>
-      r.uncosted ? { text: 'нет', cls: 'text-status-warning' } : { text: money(r.cogs) },
+      r.uncosted ? { text: 'missing', cls: 'text-status-warning' } : { text: money(r.cogs) },
   },
   {
     field: 'advertising',
-    header: 'Реклама',
+    header: 'Advertising',
     num: true,
     art: (r, money) => ({ text: money(r.advertising) }),
   },
   {
     field: 'advertisingPct',
-    header: 'ДРР от продаж',
+    header: 'ACoS (sales)',
     num: true,
-    hint: 'Какая доля продаж ушла на рекламу.',
+    hint: 'Share of sales spent on advertising.',
     art: (r) => ({
       text: pct(r.advertisingPct),
       cls: toneClass('advertisingPct', r.advertisingPct, r.priceBase),
@@ -139,7 +139,7 @@ export const COLUMNS = [
   },
   {
     field: 'adBonus',
-    header: 'Промо-бонусы',
+    header: 'Promo bonuses',
     num: true,
     art: (r, money) =>
       r.adBonus
@@ -154,14 +154,14 @@ export const COLUMNS = [
   },
   {
     field: 'payout',
-    header: 'К перечислению',
+    header: 'Payout',
     num: true,
     art: (r, money) => ({ text: money(r.payout) }),
     size: (s, money) => ({ text: money(s.payout) }),
   },
   {
     field: 'profit',
-    header: 'Чистая прибыль',
+    header: 'Net profit',
     num: true,
     art: (r, money) =>
       r.profit === null

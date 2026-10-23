@@ -10,7 +10,7 @@
   also repairs one workspace the gap survey can see a hole in, so a missing week
   is walked within the hour rather than waiting for the night. The same task
   runs once a day with ``reconcile=True`` across every seller, and
-  «Обновить» passes it too: both re-read the days behind the coverage and ignore
+  "Refresh" passes it too: both re-read the days behind the coverage and ignore
   the gate — the forward-only walk cannot reach a report WB starts serving for
   days it has already passed.
 
@@ -66,10 +66,10 @@ def harvest_finance(
         workspace_id: A workspace UUID **as a string**, restricting the walk to
             that one tenant; ``None`` sweeps the fleet. A string because Celery
             is configured for JSON-only serialization, which has no UUID.
-            «Обновить» passes the caller's own workspace so one tenant's click
+            "Refresh" passes the caller's own workspace so one tenant's click
             cannot enqueue a walk across every seller on the platform.
         reconcile: Re-read the days behind the coverage and walk whatever the
-            freshness gate says. Set by the daily pass and by «Обновить» — both
+            freshness gate says. Set by the daily pass and by "Refresh" — both
             are asking to catch a report WB served after our reachable window
             had already moved past the days it covers — see
             :func:`~src.modules.finreports.tasks.harvest.harvest_all_workspaces`.
@@ -87,7 +87,7 @@ def harvest_finance(
 def harvest_daily_tail(workspace_id: str) -> dict[str, int]:
     """Cover ONE workspace's days between the settled frontier and yesterday.
 
-    What «Обновить» enqueues. The fleet sweep is not here — it runs inside
+    What "Refresh" enqueues. The fleet sweep is not here — it runs inside
     ``finreports.harvest_finance``, after each seller's weekly walk, so the two
     lanes share one lock and one order of spend on the same WB buckets.
 

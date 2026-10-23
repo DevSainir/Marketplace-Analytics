@@ -1,4 +1,4 @@
-"""Component tests for «Загрузить отчёт» (``/v1/finreports/settlement-uploads``).
+"""Component tests for "Upload report" (``/v1/finreports/settlement-uploads``).
 
 The route's whole job is to answer at once: is this WB's weekly report, which
 one, and is another upload of the workspace still being read — and then hand the
@@ -163,7 +163,7 @@ async def test_the_poll_says_how_the_upload_ended(
         id=uuid.uuid4(),
         workspace_id=workspace.id,
         status=UploadStatus.ALREADY_HELD,
-        message="Этот отчёт у нас уже есть — совпадает с файлом до строки.",
+        message="We already have this report, and it matches the file row for row.",
         rows_total=3257,
         rows_written=0,
     )
@@ -172,7 +172,7 @@ async def test_the_poll_says_how_the_upload_ended(
     response = await client.get(f"{URL}/{done.id}", headers=headers)
 
     assert response.json()["status"] == "already_held"
-    assert response.json()["message"].startswith("Этот отчёт у нас уже есть")
+    assert response.json()["message"].startswith("We already have this report")
 
 
 async def test_the_upload_requires_authentication(client: httpx.AsyncClient) -> None:

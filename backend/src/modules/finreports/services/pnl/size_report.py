@@ -2,8 +2,8 @@
 
 Pure, like :mod:`.sku_report`: size aggregates in, size rows out. The
 withholding formula is deliberately the SAME one
-:func:`~.sku_report.build_sku_row` applies, so the column that matters — «К
-перечислению» — sums over the sizes back to the article's own figure rather
+:func:`~.sku_report.build_sku_row` applies, so the column that matters — the
+payout — sums over the sizes back to the article's own figure rather
 than merely looking similar.
 """
 
@@ -21,7 +21,7 @@ _CENTS = Decimal("0.01")
 #: What an empty ``ts_name`` is called on screen. WB bills a few rows per
 #: article without a size (a fine, a storage correction); they are a size row
 #: of their own so the sizes still add up to the article.
-NO_SIZE_LABEL = "без размера"
+NO_SIZE_LABEL = "no size"
 
 
 def _pct(part: Decimal, whole: Decimal) -> Decimal | None:
@@ -74,8 +74,8 @@ def build_size_rows(sizes: list[SizeSettlement]) -> list[PnlSizeRow]:
     """Compose the size rows.
 
     There is no totals row: the sizes sum to the article's own row exactly
-    (``test_sizes_match_the_article``), and a second «Итого» under it only
-    repeated that row — except for «Выкуп», which is measured differently
+    (``test_sizes_match_the_article``), and a second "Total" under it only
+    repeated that row — except for the buyout, which is measured differently
     here and so made the two look as if they disagreed.
 
     Args:

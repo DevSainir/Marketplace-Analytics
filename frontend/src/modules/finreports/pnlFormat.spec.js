@@ -25,7 +25,7 @@ const pageWith = (currencies) =>
 
 describe('usePnlMoney', () => {
   it('signs every figure, advertising included, in the payout currency', () => {
-    // Rouble advertising is converted to soms where it is stored (02.10.2026),
+    // Ruble advertising is converted to soms where it is stored (2 Oct 2026),
     // so the advertising cells are in the payout currency like the rest.
     const wrapper = mount(pageWith({ settlement: 'KGS' }))
 

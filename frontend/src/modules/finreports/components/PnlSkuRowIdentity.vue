@@ -8,7 +8,7 @@
  * drift away from the row it opens. The photo is here for the same reason — a
  * picture that has drifted away from its article stops identifying it.
  *
- * The «no cost» mark sits here for the same reason: the «Себестоимость»
+ * The "no cost price" mark sits here for the same reason: the "Cost price"
  * column is fourteen columns to the right, off screen on most laptops, and a
  * mark nobody scrolls to marks nothing.
  */
@@ -32,7 +32,7 @@ defineEmits(['toggle', 'cost'])
       type="button"
       class="pnl-expander"
       :aria-expanded="open"
-      :title="open ? 'Свернуть размеры' : 'Показать размеры'"
+      :title="open ? 'Hide sizes' : 'Show sizes'"
       @click="$emit('toggle')"
     >
       <span class="inline-block transition" :class="open && 'rotate-90'">▶</span>
@@ -52,9 +52,9 @@ defineEmits(['toggle', 'cost'])
         data-testid="enter-cost"
         @click.stop="$emit('cost')"
       >
-        + себестоимость
+        + cost price
       </button>
-      <span v-else class="ui-badge is-warn">нет себестоимости</span>
+      <span v-else class="ui-badge is-warn">no cost price</span>
     </template>
   </span>
 </template>

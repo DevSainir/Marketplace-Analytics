@@ -1,12 +1,12 @@
 /**
- * The two floating overlays of the balance grid — the «Не считать» menu and the
+ * The two floating overlays of the balance grid — the "Don't count" menu and the
  * full-name tooltip.
  *
  * Both a warehouse column header and a SKU row carry a ⋮ that opens the same
  * menu; the only difference is what the mark is attached to, so the menu carries
  * the target rather than the caller keeping two of them. The tooltip reveals a
- * name the grid had to shorten (WB warehouses run to «Санкт-Петербург Уткина
- * Заводь», which no numeric column can hold).
+ * name the grid had to shorten (WB warehouse names run to the length of
+ * "Saint Petersburg Utkina Zavod", which no numeric column can hold).
  *
  * Both overlays are positioned `fixed` and teleported, so they must close on ANY
  * scroll or they strand themselves over unrelated content.
@@ -36,7 +36,7 @@ export function useBalanceMarks({ onMark }) {
     menu.value = { ...target, x: rect.left, y: rect.bottom + 4 }
   }
 
-  /** «Не считать» / «Считать» — the same mark on either axis, so the kind is
+  /** "Don't count" / "Count" — the same mark on either axis, so the kind is
    *  derived from what the menu was opened on rather than hard-coded.
    *
    *  Flipped here, so the caller persists the NEW state rather than re-deriving

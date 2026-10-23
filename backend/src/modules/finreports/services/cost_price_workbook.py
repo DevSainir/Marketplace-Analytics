@@ -2,10 +2,10 @@
 
 The seller's cost of goods is the one P&L input WB cannot supply, and typing it
 SKU-by-SKU does not scale. Sellers keep these figures in spreadsheets already,
-so the export is the whole «По артикулам» statement — every column the on-screen
-table shows — with one column left for the seller to fill: **«Себестоимость за
-1 ед.»**. They edit it offline and upload the same file back, where only that
-column (matched to a SKU by **«Артикул WB»** = ``nm_id``) is read.
+so the export is the whole "By SKU" statement — every column the on-screen
+table shows — with one column left for the seller to fill: **"Cost price per
+unit"**. They edit it offline and upload the same file back, where only that
+column (matched to a SKU by **"WB ID"** = ``nm_id``) is read.
 
 Written with ``xlsxwriter``; the formatting the one sheet needs (a header fill
 and a money format) is set up locally. Reading the file back is a separate
@@ -14,11 +14,11 @@ purpose, so a bug shared by writer and reader cannot hide a broken column).
 
 The two identity columns are deliberate and named to match the UI:
 
-* **«Артикул WB»** carries ``nm_id`` — the *only* stable key. The importer joins
-  on it, never on the seller's article, because one «Артикул продавца» can span
+* **"WB ID"** carries ``nm_id`` — the *only* stable key. The importer joins
+  on it, never on the seller's article, because one vendor code can span
   several WB cards and a cost applied to the wrong one is a plausible, silent
   error (PNL.md §13).
-* **«Артикул»** carries the seller's own ``sa_name``, for the human reading the
+* **"Vendor code"** carries the seller's own ``sa_name``, for the human reading the
   sheet.
 """
 
@@ -32,16 +32,16 @@ import xlsxwriter
 
 from src.modules.finreports.schemas.sku_report import PnlSkuReportResponse, PnlSkuRow
 
-SHEET_TITLE = "P&L по артикулам"
+SHEET_TITLE = "P&L by SKU"
 
 #: Header fill — a deep blue.
 _HEADER_BG = "#1F3864"
 
-#: The editable column's exact header. The parser matches «себестоимость» + «ед»,
-#: so this survives a rename to e.g. «Себестоимость за 1 ед., KGS».
-COST_HEADER = "Себестоимость за 1 ед."
+#: The editable column's exact header. The parser matches "cost price" + "unit",
+#: so this survives a rename to e.g. "Cost price per unit, KGS".
+COST_HEADER = "Cost price per unit"
 #: The identity column the importer joins on (its values are ``nm_id``).
-NM_ID_HEADER = "Артикул WB"
+NM_ID_HEADER = "WB ID"
 
 
 def _money(value: Decimal | None) -> float | None:
@@ -50,32 +50,32 @@ def _money(value: Decimal | None) -> float | None:
 
 
 # Column spec: (header, width, kind, getter). ``kind`` drives the number format.
-# Order mirrors the on-screen «По артикулам» table; the editable cost sits with
+# Order mirrors the on-screen "By SKU" table; the editable cost sits with
 # the other margin inputs, its total (COGS) beside it.
 _COLUMNS: list[tuple[str, int, str, Callable[[PnlSkuRow], object]]] = [
-    ("Артикул", 22, "text", lambda r: r.sa_name),
+    ("Vendor code", 22, "text", lambda r: r.sa_name),
     (NM_ID_HEADER, 14, "int", lambda r: r.nm_id),
-    ("Тип предмета", 20, "text", lambda r: r.subject_name),
-    ("Бренд", 18, "text", lambda r: r.brand_name),
-    ("Заказы, шт", 12, "int", lambda r: r.orders_units),
-    ("Продажи, шт", 12, "int", lambda r: r.sold_units),
-    ("Возвраты, шт", 12, "int", lambda r: r.returned_units),
-    ("Возвраты, %", 12, "pct", lambda r: _money(r.return_rate_pct)),
-    ("Выкуп, %", 12, "pct", lambda r: _money(r.buyout_pct)),
-    ("Продажи", 16, "money", lambda r: _money(r.revenue_paid)),
-    ("Средний чек", 14, "money", lambda r: _money(r.average_cheque)),
-    ("СПП, %", 10, "pct", lambda r: _money(r.spp_pct)),
-    ("Логистика", 14, "money", lambda r: _money(r.logistics_total)),
-    ("Штрафы", 12, "money", lambda r: _money(r.penalties_total)),
+    ("Category", 20, "text", lambda r: r.subject_name),
+    ("Brand", 18, "text", lambda r: r.brand_name),
+    ("Orders, units", 12, "int", lambda r: r.orders_units),
+    ("Sales, units", 12, "int", lambda r: r.sold_units),
+    ("Returns, units", 12, "int", lambda r: r.returned_units),
+    ("Returns, %", 12, "pct", lambda r: _money(r.return_rate_pct)),
+    ("Buyout rate, %", 12, "pct", lambda r: _money(r.buyout_pct)),
+    ("Sales", 16, "money", lambda r: _money(r.revenue_paid)),
+    ("Average receipt", 14, "money", lambda r: _money(r.average_cheque)),
+    ("WB discount, %", 10, "pct", lambda r: _money(r.spp_pct)),
+    ("Logistics", 14, "money", lambda r: _money(r.logistics_total)),
+    ("Penalties", 12, "money", lambda r: _money(r.penalties_total)),
     (COST_HEADER, 20, "money", lambda r: _money(r.cost_price)),
-    ("Себестоимость, итого", 20, "money", lambda r: _money(r.cogs)),
-    ("Реклама", 14, "money", lambda r: _money(r.advertising)),
+    ("Cost price, total", 20, "money", lambda r: _money(r.cogs)),
+    ("Advertising", 14, "money", lambda r: _money(r.advertising)),
     # Negative on purpose: the sheet shows it the way the screen does, as a
     # deduction from the column on its left. The model stores the magnitude.
-    ("Бонусы", 14, "money", lambda r: _money(-r.ad_bonus) if r.ad_bonus else _money(r.ad_bonus)),
-    ("К перечислению", 16, "money", lambda r: _money(r.payout_net)),
-    ("Чистая прибыль", 16, "money", lambda r: _money(r.net_profit)),
-    ("Прибыль, %", 12, "pct", lambda r: _money(r.net_profit_pct)),
+    ("Bonuses", 14, "money", lambda r: _money(-r.ad_bonus) if r.ad_bonus else _money(r.ad_bonus)),
+    ("Payout", 16, "money", lambda r: _money(r.payout_net)),
+    ("Net profit", 16, "money", lambda r: _money(r.net_profit)),
+    ("Profit, %", 12, "pct", lambda r: _money(r.net_profit_pct)),
     ("ROI, %", 10, "pct", lambda r: _money(r.roi_pct)),
 ]
 
@@ -84,8 +84,8 @@ def build_pnl_workbook(report: PnlSkuReportResponse) -> bytes:
     """Render the per-SKU P&L into a single-sheet XLSX for offline cost entry.
 
     Lays out every SKU row largest-revenue-first (as the report already orders
-    them), then the account-level «Без привязки к артикулу» bucket and the
-    reconciled «Итого» — the same Σ rows + unallocated = totals frame the screen
+    them), then the account-level "Not tied to a SKU" bucket and the
+    reconciled "TOTAL" — the same Σ rows + unallocated = totals frame the screen
     shows, so a seller can check the sheet foots.
 
     Args:
@@ -125,10 +125,10 @@ def build_pnl_workbook(report: PnlSkuReportResponse) -> bytes:
         _write_row(ws, r, row, fmt, bold=False)
         r += 1
     if report.unallocated is not None:
-        bucket = report.unallocated.model_copy(update={"sa_name": "Без привязки к артикулу"})
+        bucket = report.unallocated.model_copy(update={"sa_name": "Not tied to a SKU"})
         _write_row(ws, r, bucket, fmt, bold=True)
         r += 1
-    totals = report.totals.model_copy(update={"sa_name": "ИТОГО"})
+    totals = report.totals.model_copy(update={"sa_name": "TOTAL"})
     _write_row(ws, r, totals, fmt, bold=True)
 
     wb.close()
@@ -138,7 +138,7 @@ def build_pnl_workbook(report: PnlSkuReportResponse) -> bytes:
 def _write_row(ws: object, r: int, row: PnlSkuRow, fmt: dict[str, object], *, bold: bool) -> None:
     """Write one data row, each cell formatted by its column kind.
 
-    The summary rows (bucket, «Итого») get a blank «Артикул WB»: they carry
+    The summary rows (bucket, "TOTAL") get a blank "WB ID": they carry
     ``nm_id`` 0, and a re-import must skip them, not report them as unknown SKUs.
     An empty key cell is exactly the signal the parser drops on.
     """

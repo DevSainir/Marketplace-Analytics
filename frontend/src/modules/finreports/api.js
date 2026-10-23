@@ -8,7 +8,7 @@
 import apiClient, { WINDOW_TIMEOUT_MS } from '@/core/api/axios'
 
 /**
- * GET /v1/finreports/pnl/skus — the per-SKU P&L cut («По артикулам») for an
+ * GET /v1/finreports/pnl/skus — the per-SKU P&L cut ("By SKU") for an
  * arbitrary settlement-date window.
  *
  * @param {{date_from?: string, date_to?: string}} [params]
@@ -44,8 +44,8 @@ export async function fetchSkuSizes(nmId, params = {}, signal) {
 }
 
 /**
- * PUT /v1/finreports/pnl/skus/{nmId}/exclusion — mark a SKU «Не включать в
- * общий счёт» (or clear it). The mark is stored per workspace and shared.
+ * PUT /v1/finreports/pnl/skus/{nmId}/exclusion — mark a SKU "Exclude from
+ * total" (or clear it). The mark is stored per workspace and shared.
  *
  * @param {number} nmId WB SKU identifier.
  * @param {boolean} excluded `true` to exclude the SKU, `false` to include it.
@@ -59,7 +59,7 @@ export async function setSkuExclusion(nmId, excluded) {
  * GET /v1/finreports/harvest — is a WB harvest running, and how far does this
  * workspace's harvested settlement history reach.
  *
- * Polled while «Обновить» is in flight: `running` falling to false ends the
+ * Polled while "Refresh" is in flight: `running` falling to false ends the
  * wait, and `latest_settled` moving is what says a new report actually arrived.
  * Also read on every load of the P&L, for the freshness line under its header:
  * `latest_report` is what we hold, `last_check` is what the hourly gate found
@@ -97,7 +97,7 @@ export async function triggerHarvest() {
 /**
  * GET /v1/finreports/currency — the currency the active workspace is settled in.
  *
- * Membership is enough, not the «P&L» grant: monitoring and the A/B tests print
+ * Membership is enough, not the "P&L" grant: monitoring and the A/B tests print
  * money in this unit for managers who cannot open the P&L.
  *
  * @returns {Promise<string>} ISO code (`KGS`), or `''` before the first report.
@@ -108,7 +108,7 @@ export async function fetchSettlementCurrency() {
 }
 
 /**
- * GET /v1/finreports/balance — «Баланс по товарным остаткам»: the SKU x
+ * GET /v1/finreports/balance — "Stock balance": the SKU x
  * warehouse stock grid for ONE snapshot day, priced at the seller's costs.
  *
  * @param {{stat_date?: string}} [params] Omit the day to get the newest snapshot.
@@ -121,7 +121,7 @@ export async function fetchBalance(params = {}, signal) {
 }
 
 /**
- * PUT /v1/finreports/balance/pins — pin («Закрепить») a SKU row or a warehouse
+ * PUT /v1/finreports/balance/pins — pin ("Pin") a SKU row or a warehouse
  * column of the balance grid, or clear the pin. Stored per workspace.
  *
  * @param {'sku'|'warehouse'} kind What the pin is attached to.
@@ -167,10 +167,11 @@ export async function deleteCostPrice(nmId) {
 
 /**
  * GET /v1/finreports/cost-prices/export — the per-SKU P&L as an XLSX, with an
- * editable «Себестоимость за 1 ед.» column for bulk offline cost entry.
+ * editable "Cost price per unit" column for bulk offline cost entry.
  *
  * Returns the workbook as a Blob plus the server-suggested file name; the
- * Cyrillic real name travels in `filename*` (RFC 5987), decoded here.
+ * non-ASCII real name, when there is one, travels in `filename*` (RFC 5987),
+ * decoded here.
  *
  * @param {{date_from?: string, date_to?: string}} [params] Settlement window.
  * @returns {Promise<{blob: Blob, filename: string}>}
@@ -193,7 +194,7 @@ export async function downloadCostPricesXlsx(params = {}) {
 /**
  * POST /v1/finreports/cost-prices/import — upload a filled-in workbook.
  *
- * Sends the file as multipart form data; the backend parses «Себестоимость»
+ * Sends the file as multipart form data; the backend parses "Cost price per unit"
  * into existing SKUs and returns a summary of what it applied and skipped.
  *
  * @param {File} file The XLSX file exported from this module, with costs filled in.
@@ -203,8 +204,8 @@ export async function importCostPricesXlsx(file) {
   const form = new FormData()
   form.append('file', file)
   // The shared client defaults to `Content-Type: application/json`. Left in
-  // place, axios serialises the FormData to JSON and the file never leaves the
-  // browser — the backend then rejects the multipart field as «Field required».
+  // place, axios serializes the FormData to JSON and the file never leaves the
+  // browser — the backend then rejects the multipart field as "Field required".
   // Overriding to multipart keeps the FormData intact; axios drops this header
   // just before sending so the browser sets it *with* the boundary.
   const { data } = await apiClient.post('/v1/finreports/cost-prices/import', form, {
@@ -216,8 +217,8 @@ export async function importCostPricesXlsx(file) {
 /**
  * POST /v1/finreports/settlement-uploads — hand WB's weekly report to the backend.
  *
- * The file the seller downloads from their WB seller account («Еженедельный
- * детализированный отчет №…»): the zip, or the .xlsx inside it. Answered at
+ * The file the seller downloads from the WB seller portal (the weekly detailed
+ * report): the zip, or the .xlsx inside it. Answered at
  * once with `status: 'queued'`; the worker reads it and
  * {@link fetchSettlementUpload} says how it ended.
  *

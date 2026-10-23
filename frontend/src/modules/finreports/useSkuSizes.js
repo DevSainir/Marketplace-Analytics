@@ -4,8 +4,8 @@
  * Split out of the store for two reasons. The store had reached 499 of its
  * 500 lines. And this is the part that went wrong: a request overtaken by a
  * change of period returned early and left its entry at `loading: true`, and
- * since a loading entry is never asked for again, that row spun «Считаем
- * размеры…» until the page was reloaded.
+ * since a loading entry is never asked for again, that row spun its
+ * "Loading…" until the page was reloaded.
  *
  * So staleness is decided by a generation counter rather than by comparing
  * dates after the fact. `reset()` bumps it and empties the cache in one step,

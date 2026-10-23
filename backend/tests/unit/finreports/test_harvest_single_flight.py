@@ -151,7 +151,7 @@ class _StubReportRepo:
 
 
 async def test_the_button_sees_a_harvest_that_is_already_running() -> None:
-    """What the route turns into «уже выполняется» instead of a second run."""
+    """What the route turns into "already running" instead of a second run."""
     service = HarvestControlService(
         report_repo=_StubReportRepo(date(2026, 8, 9)),  # type: ignore[arg-type]
         daily_repo=_StubDailyRepo(),  # type: ignore[arg-type]
@@ -211,7 +211,7 @@ async def test_an_unreachable_redis_does_not_block_the_button() -> None:
 async def test_the_button_reads_the_bucket_the_harvest_actually_spends(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """«Обновить» must answer «rate_limited» from the endpoint in use today.
+    """The "Refresh" button must answer "rate_limited" from the endpoint in use today.
 
     It read the statistics gate on `reportDetailByPeriod` until 2026-09-23 — the
     endpoint the harvest left on 22.09 — so it inspected a bucket nothing writes
@@ -241,7 +241,7 @@ async def test_the_button_reads_the_bucket_the_harvest_actually_spends(
     async def _tokens(_workspace_id: uuid.UUID) -> WorkspaceTokenBundle:
         return WorkspaceTokenBundle(
             workspace_id=WORKSPACE,
-            name="Демо",
+            name="Demo",
             statistics="a-statistics-token",
             finance="a-finance-token",
         )

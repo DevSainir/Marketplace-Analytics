@@ -31,6 +31,7 @@ from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 from src.modules.finreports.repos import FinancialReportRepository
 from src.modules.finreports.tasks.ingestion_factory import build_ingestion
 from src.modules.finreports.tasks.settlement.reconcile import reconcile_against_wb
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -149,10 +150,10 @@ def _sale(
     report_id: int,
     rrd_id: int,
     for_pay: Decimal,
-    oper: str = "Продажа",
-    doc_type: str = "Продажа",
+    oper: str = wb.SALE,
+    doc_type: str = wb.SALE,
 ) -> LogisticsTransaction:
-    """One settlement row (a «Продажа» unless told otherwise) and its payout."""
+    """One settlement row (a sale unless told otherwise) and its payout."""
     return LogisticsTransaction(
         rrd_id=rrd_id,
         workspace_id=WORKSPACE,
@@ -207,22 +208,22 @@ async def test_a_report_that_adds_up_is_left_alone(db_session: AsyncSession) -> 
 
 
 async def test_a_report_adds_up_the_way_wb_totals_it(db_session: AsyncSession) -> None:
-    """Rows under document type «Возврат» come off, every other row goes on.
+    """Rows under the refund document type come off, every other row goes on.
 
-    Whatever the operation: the same «Коррекция продаж» is added under «Продажа»
-    and subtracted under «Возврат», and a damage compensation counts like a
+    Whatever the operation: the same sales correction is added under the sale type
+    and subtracted under the refund type, and a damage compensation counts like a
     sale. The check used to count four named operations and nothing else, so a
-    report carrying «Компенсация ущерба» could never add up and was re-fetched
+    report carrying a damage compensation could never add up and was re-fetched
     every tick.
     """
     db_session.add(_held_report(HELD))
     db_session.add_all(
         [
             _sale(HELD, 1, Decimal("1000.00")),
-            _sale(HELD, 2, Decimal("200.00"), "Возврат", "Возврат"),
-            _sale(HELD, 3, Decimal("874.69"), "Коррекция продаж"),
-            _sale(HELD, 4, Decimal("64.13"), "Коррекция продаж", "Возврат"),
-            _sale(HELD, 5, Decimal("500.00"), "Компенсация ущерба"),
+            _sale(HELD, 2, Decimal("200.00"), wb.REFUND, wb.REFUND),
+            _sale(HELD, 3, Decimal("874.69"), wb.SALES_CORRECTION),
+            _sale(HELD, 4, Decimal("64.13"), wb.SALES_CORRECTION, wb.REFUND),
+            _sale(HELD, 5, Decimal("500.00"), wb.DAMAGE_COMPENSATION),
         ]
     )
     await db_session.flush()
@@ -291,7 +292,7 @@ def _header(report_id: int, for_pay_sum: str) -> WBFinanceReportHeader:
 async def test_a_booked_report_that_adds_up_reconciles_to_zero(db_session: AsyncSession) -> None:
     """The check a harvest runs on every report it books, agreeing with WB.
 
-    Same arithmetic as the completeness check — a «Возврат» document comes off,
+    Same arithmetic as the completeness check — a refund document comes off,
     everything else goes on — so a report that the lane counts as held is one
     the alert stays quiet about.
     """
@@ -299,14 +300,14 @@ async def test_a_booked_report_that_adds_up_reconciles_to_zero(db_session: Async
     db_session.add_all(
         [
             _sale(HELD, 1, Decimal("1000.00")),
-            _sale(HELD, 2, Decimal("200.00"), "Возврат", "Возврат"),
-            _sale(HELD, 3, Decimal("64.13"), "Коррекция продаж", "Возврат"),
+            _sale(HELD, 2, Decimal("200.00"), wb.REFUND, wb.REFUND),
+            _sale(HELD, 3, Decimal("64.13"), wb.SALES_CORRECTION, wb.REFUND),
         ]
     )
     await db_session.flush()
 
     gap = await reconcile_against_wb(
-        db_session, header=_header(HELD, "735.87"), workspace_id=WORKSPACE, name="Демо"
+        db_session, header=_header(HELD, "735.87"), workspace_id=WORKSPACE, name="Demo"
     )
 
     assert gap == Decimal("0")
@@ -321,7 +322,7 @@ async def test_a_booked_report_short_of_wb_s_total_reports_the_gap(
     await db_session.flush()
 
     gap = await reconcile_against_wb(
-        db_session, header=_header(HELD, "1250.00"), workspace_id=WORKSPACE, name="Демо"
+        db_session, header=_header(HELD, "1250.00"), workspace_id=WORKSPACE, name="Demo"
     )
 
     assert gap == Decimal("250.00")

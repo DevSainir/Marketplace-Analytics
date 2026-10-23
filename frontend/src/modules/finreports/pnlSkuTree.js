@@ -1,11 +1,11 @@
 /**
- * The rows of the «По артикулам» table together with their sizes — a tree
+ * The rows of the "By SKU" table together with their sizes — a tree
  * flattened into a list.
  *
  * Sizes sit as rows right under their article, in the same columns: a size's
  * figure reads under the article's figure, and sizes can be compared by looking
  * down the column. An article used to expand into a separate table with its
- * own columns and its own «Итого», which repeated the article row.
+ * own columns and its own "Total", which repeated the article row.
  *
  * That is why this file does the sorting and paging, not PrimeVue: its sorting
  * would pull sizes away from their article, and its page cuts exactly N rows
@@ -19,7 +19,7 @@ const num = (value) => (value === null || value === undefined ? null : Number(va
 
 /**
  * Articles by a column. An empty value always goes last, whichever way you
- * sort: «no data» is neither the smallest nor the largest.
+ * sort: "no data" is neither the smallest nor the largest.
  *
  * @param {Array<object>} rows Rows from `toRow`.
  * @param {string|null} field The row field.
@@ -35,7 +35,7 @@ export function sortRows(rows, field, order) {
     if (empty(x) || empty(y)) return empty(x) - empty(y)
     const diff =
       typeof x === 'string' || typeof y === 'string'
-        ? String(x).localeCompare(String(y), 'ru', { numeric: true })
+        ? String(x).localeCompare(String(y), 'en', { numeric: true })
         : x - y
     return diff * order
   })
@@ -75,9 +75,9 @@ function toSizeRow(size, whole, base) {
 
 /** What sits under an open article while there are no sizes: one note row. */
 function noteFor(state) {
-  if (!state || state.loading) return 'Загружаем…'
+  if (!state || state.loading) return 'Loading…'
   if (state.error) return state.error
-  return 'За этот период у артикула нет строк с размером.'
+  return 'No sizes for this SKU in the period.'
 }
 
 /**

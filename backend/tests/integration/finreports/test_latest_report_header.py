@@ -1,6 +1,6 @@
 """Which report the P&L's freshness line calls "the newest one on file".
 
-The line's first half is «Последний отчёт WB: 10–16 авг · загружен 18 авг, 06:14»
+The line's first half is "Latest WB report: 10–16 Aug · loaded 18 Aug, 06:14"
 — the string a seller matches against WB's own reports page. Naming the wrong
 week there is worse than saying nothing: it is a confident, specific claim that
 the statement is current when it is not.
@@ -98,8 +98,8 @@ async def test_a_backfill_pulled_later_does_not_become_the_newest_report(
     """Ordering is by settlement period, never by when we happened to fetch it.
 
     A backfill of two-year-old weeks runs long after the current one is on file.
-    Ordered by ``harvested_at`` the page would announce «Последний отчёт WB:
-    5–11 фев 2024» over a statement that actually runs to last week — a claim of
+    Ordered by ``harvested_at`` the page would announce "Latest WB report:
+    5–11 Feb 2024" over a statement that actually runs to last week — a claim of
     staleness the seller would have no way to reconcile with WB's own site.
     """
     db_session.add_all(
@@ -164,7 +164,7 @@ async def test_an_undated_header_is_still_served_when_it_is_all_there_is(
 ) -> None:
     """Sorted last is not dropped: the workspace HAS been harvested, and says so.
 
-    Returning ``None`` here would render as «отчётов ещё нет» over a statement
+    Returning ``None`` here would render as "no reports yet" over a statement
     built from that report's rows — the page contradicting its own figures.
     """
     db_session.add(
@@ -214,5 +214,5 @@ async def test_another_tenants_fresher_report_is_invisible(db_session: AsyncSess
 async def test_a_never_harvested_workspace_has_no_newest_report(
     db_session: AsyncSession,
 ) -> None:
-    """Distinguishable from a harvested one, so the page can say «отчётов ещё нет»."""
+    """Distinguishable from a harvested one, so the page can say "no reports yet"."""
     assert await _latest(db_session, uuid.uuid4()) is None

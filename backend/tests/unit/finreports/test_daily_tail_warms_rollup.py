@@ -19,7 +19,7 @@ pytestmark = pytest.mark.unit
 
 BUNDLE = WorkspaceTokenBundle(
     workspace_id=uuid.UUID("019f657a-0000-7000-8000-00000000da11"),
-    name="Демо",
+    name="Demo",
     statistics="s",
     finance="f",
 )

@@ -1,15 +1,15 @@
 """Every WB-served label we match on must be script-pure Cyrillic.
 
 These constants are compared for **exact equality** against strings WildBerries
-puts on settlement rows. A single Latin lookalike inside one of them — `Продажa`
-with a Latin `a`, `Хранение` with a Latin `e` — matches nothing, raises nothing,
-and silently removes a whole operation from the statement: the sale rows stop
-being counted as units and revenue, and the P&L still balances because the
-charge lines sum whole columns regardless.
+puts on settlement rows. A single Latin lookalike inside one of them — the
+sale label with a Latin `a`, the storage label with a Latin `e` — matches
+nothing, raises nothing, and silently removes a whole operation from the
+statement: the sale rows stop being counted as units and revenue, and the P&L
+still balances because the charge lines sum whole columns regardless.
 
 Ruff's RUF001-003 used to be the net for this, but the root config has to
-whitelist the Latin-lookalike Cyrillic letters that ordinary Russian prose in
-docstrings is made of. This test replaces that protection with a stronger one: it
+whitelist the Latin-lookalike Cyrillic letters that ordinary Russian words are
+made of. This test replaces that protection with a stronger one: it
 does not ask whether a character is *flagged*, it asks whether the string is
 entirely Cyrillic-or-punctuation, which is the property that actually matters.
 """
@@ -91,7 +91,7 @@ def test_the_taxonomy_covers_every_operation_the_statement_names() -> None:
 def test_an_advertising_funding_label_contains_no_latin_lookalikes(label: str) -> None:
     """The ``paymentType`` allowlist is matched for exact equality too.
 
-    A Latin lookalike in «Кэшбэк» is the quietest failure of the set: the label
+    A Latin lookalike in the cashback label is the quietest failure of the set: the label
     matches nothing, the bonus is silently treated as the seller's own money,
     and the report goes back to the inflated DRR it had before — with every
     total still reconciling, because the ledger never enters the settlement.

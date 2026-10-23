@@ -1,11 +1,11 @@
 <script setup>
 /**
- * The «По артикулам» cut of the report: the toolbar, and whichever projection
+ * The "By SKU" cut of the report: the toolbar, and whichever projection
  * of the rows the viewport can carry.
  *
  * Two projections, one set of rows — `PnlSkuDataTable` on a desktop and
  * `PnlSkuCards` below `sm`, both fed the same `tableRows`, so the search and
- * the «Тип предмета» / «Бренд» filters above them apply to both without being
+ * the category / brand filters above them apply to both without being
  * wired twice.
  *
  * Every figure is the backend's — this only formats, filters and sorts. Search
@@ -13,7 +13,7 @@
  * monitoring's SkuSearchSelect); they never re-fetch and never change the
  * dashboard, which reflects the persisted exclusion marks.
  *
- * It also owns the one «Себестоимость» dialog both projections open from an
+ * It also owns the one "Cost price" dialog both projections open from an
  * uncosted article — one dialog, so the table and the cards cannot disagree
  * on how a cost is entered. Without `saveCost` (a read-only member) the rows
  * are still marked, but nothing offers to write.
@@ -34,8 +34,8 @@ const props = defineProps({
   rows: { type: Array, default: () => [] },
   /** @type {object|null} The account-level bucket (rendered as the last row). */
   unallocated: { type: Object, default: null },
-  /** @type {object|null} The backend dashboard, for the account-level «Прочие
-   *  удержания» the «по фильтру» subtotal carries through unchanged. */
+  /** @type {object|null} The backend dashboard, for the account-level "Other
+   *  deductions" the filtered subtotal carries through unchanged. */
   baseDashboard: { type: Object, default: null },
   /** @type {object} `nm_id -> {loading, error, data}` — the opened size tables. */
   sizes: { type: Object, default: () => ({}) },
@@ -45,7 +45,7 @@ const props = defineProps({
   saveCost: { type: Function, default: null },
 })
 
-/** «Без себестоимости» — a model, because the dashboard's counter turns it on too. */
+/** "No cost price" — a model, because the dashboard's counter turns it on too. */
 const uncostedOnly = defineModel('uncostedOnly', { type: Boolean, default: false })
 
 const emit = defineEmits(['toggle-exclusion', 'dashboard-change', 'load-sizes'])
@@ -71,7 +71,7 @@ const {
 } = usePnlSkuRows(rows, unallocated, usePriceBase(), uncostedOnly)
 
 // The last cost filled in empties the filtered list; going back to every
-// article says «done» better than an empty table that reads «нет продаж».
+// article says "done" better than an empty table that reads "no sales".
 watch(uncostedCount, (count) => {
   if (!count) uncostedOnly.value = false
 })
@@ -79,8 +79,8 @@ watch(uncostedCount, (count) => {
 /** The article whose cost the dialog asks for. */
 const costFor = ref(null)
 
-// Tell the parent to swap the dashboard to a «по фильтру» subtotal while a
-// filter/search is active — «Без себестоимости» is not one, see `scoped` — and
+// Tell the parent to swap the dashboard to a filtered subtotal while a
+// filter/search is active — "No cost price" is not one, see `scoped` — and
 // back to the backend one when it clears. Summing
 // the visible rows is instant, so the search needs no debounce.
 watchEffect(() => {
@@ -91,13 +91,13 @@ watchEffect(() => {
 })
 
 /**
- * The «Итого» row — the sum of what is in the table right now.
+ * The "Total" row — the sum of what is in the table right now.
  *
  * Computed here, not in a projection: the cards and the table must show the
  * same selection, and this component is the one that knows it. Articles are
  * summed, not on-screen rows: in the by-group cut an article appears in each of
  * its groups, and summing rows would count it twice. WB's advertising invoices
- * are passed separately — they make up a correction without which «Итого»
+ * are passed separately — they make up a correction without which "Total"
  * would deduct advertising twice (details in `sumRows`).
  */
 const totals = computed(() =>
@@ -105,7 +105,7 @@ const totals = computed(() =>
 )
 
 /** The first column's head follows the cut. */
-const FIRST_HEADERS = { sku: 'Артикул', subject: 'Предмет', brand: 'Бренд', group: 'Группа' }
+const FIRST_HEADERS = { sku: 'SKU', subject: 'Category', brand: 'Brand', group: 'Group' }
 
 const table = ref(null)
 const rowsPerPage = ref(PAGE_SIZES[0])

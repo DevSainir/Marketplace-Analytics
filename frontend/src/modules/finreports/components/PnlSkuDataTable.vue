@@ -3,24 +3,24 @@
  * The per-SKU P&L as a table — the desktop projection of `PnlSkuTable`.
  *
  * One row per SKU with the money columns of the reference workbook plus WB's
- * catalogue identity (the card photo / «Артикул WB» / «Тип предмета» / «Бренд») and the
- * efficiency ratios («Выкуп», «Средний чек», ROI). «Продажи» is shown NET of returns at the
+ * catalog identity (the card photo / "WB ID" / "Category" / "Brand") and the
+ * efficiency ratios ("Buyout rate", "Average price", ROI). "Sales" is shown NET of returns at the
  * page's price base (`priceBase.js`); the percentages are shares of it.
  *
- * «Штрафы» carry their categories inline — what tells a seller whether a fine
- * is disputable. The last column is the «Не включать» mark, emitted upward.
- * Rows cut by subject, brand or group (`isGroup`) are sums: no WB id, no mark.
+ * "Penalties" carry their categories inline — what tells a seller whether a fine
+ * is disputable. The last column is the "Exclude from total" mark, emitted upward.
+ * Rows cut by subject, brand or group (`isGroup`) are sums: no WB ID, no mark.
  *
  * Three things beyond plain columns:
  *
- * * **Colour only out of bounds.** Shares and ratios are tinted when they leave
+ * * **Color only out of bounds.** Shares and ratios are tinted when they leave
  *   the bounds in `pnlThresholds` — the bounds come from the observed
  *   distribution, so that a typical report lights up a few rows, not half the
  *   table.
  * * **Sizes as rows under the article.** The triangle on an article inserts its
  *   sizes beneath it in the same columns; they load on click (`@load-sizes`).
- *   Sizes have no «Итого» of their own: their sum is the article row above them.
- * * **The «Итого» row.** Pinned to the bottom of the scroll area, computed over
+ *   Sizes have no "Total" of their own: their sum is the article row above them.
+ * * **The "Total" row.** Pinned to the bottom of the scroll area, computed over
  *   the whole current filter, not over the pagination page.
  *
  * PrimeVue for the sticky header, the frozen first column and the sort arrows,
@@ -52,13 +52,13 @@ import {
 const props = defineProps({
   /** @type {Array<object>} Flattened rows from `usePnlSkuRows`, already filtered. */
   rows: { type: Array, default: () => [] },
-  /** @type {object|null} The «Итого» row from `sumRows` — the whole filter, not the page. */
+  /** @type {object|null} The "Total" row from `sumRows` — the whole filter, not the page. */
   totals: { type: Object, default: null },
   /** @type {object} `nm_id -> {loading, error, data}` for the opened articles. */
   sizes: { type: Object, default: () => ({}) },
   rowsPerPage: { type: Number, default: 50 },
-  /** «Артикул», or «Предмет» / «Бренд» / «Группа» when the rows are sums. */
-  firstHeader: { type: String, default: 'Артикул' },
+  /** "SKU", or "Category" / "Brand" / "Group" when the rows are sums. */
+  firstHeader: { type: String, default: 'SKU' },
   /** Whether an uncosted article's mark offers to enter its cost. */
   canEnterCost: { type: Boolean, default: false },
 })
@@ -91,7 +91,7 @@ const rowClass = (data) => [
 const foot = useFooterCells(toRefs(props).totals)
 const { money } = usePnlMoney()
 
-/** The one «Причины штрафов» card: under the clicked «N причин», ending at its right edge. */
+/** The one "Penalty reasons" card: under the clicked "N reasons", ending at its right edge. */
 const reasons = ref(null)
 const CARD_WIDTH_PX = 384
 function toggleReasons(anchor, row, cell) {
@@ -124,7 +124,7 @@ function toggleReasons(anchor, row, cell) {
       scroll-height="min(40rem, 70vh)"
     >
       <template #empty>
-        <div class="px-md py-xl text-center text-base text-muted">Нет продаж за период</div>
+        <div class="px-md py-xl text-center text-base text-muted">No sales in the period</div>
       </template>
 
       <!-- The photo and the sizes triangle live in this same frozen cell —
@@ -167,7 +167,7 @@ function toggleReasons(anchor, row, cell) {
           />
         </template>
       </Column>
-      <Column field="profit" class="col-num" header="Чистая прибыль" sortable>
+      <Column field="profit" class="col-num" header="Net profit" sortable>
         <template #body="{ data }">
           <PnlSkuCell :cell="cellOf(COLUMNS.at(-1), data, money)" />
         </template>

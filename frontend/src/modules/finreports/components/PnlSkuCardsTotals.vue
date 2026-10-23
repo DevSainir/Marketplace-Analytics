@@ -1,10 +1,10 @@
 <script setup>
 /**
- * «Итого» over the list of cards — first, as on every phone list in the app
- * (the phone-layout skill: «the totals first»).
+ * "Total" over the list of cards — first, as on every phone list in the app
+ * (the phone-layout skill: "the totals first").
  *
  * Counted over the whole selection, not the cards shown: the list grows by
- * «Показать ещё», and a sum that changes when that is pressed is a counter,
+ * "Show more", and a sum that changes when that is pressed is a counter,
  * not a total. It used to stick to the bottom of the screen so nobody had to
  * scroll forty cards for one figure; first in the list answers the same need
  * without taking a strip of a phone's screen for good, and reads the same as
@@ -12,6 +12,7 @@
  */
 import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { amountClass } from '@/modules/finreports/pnlThresholds'
+import { totalLabel } from '@/modules/finreports/usePnlSkuTable'
 
 defineProps({
   /** @type {object} A row from `sumRows`. */
@@ -24,7 +25,7 @@ const { money } = usePnlMoney()
 <template>
   <div class="pnl-cards-totals">
     <span class="text-tiny font-medium uppercase tracking-wider text-muted">
-      Итого{{ totals.excludedCount ? ` (без ${totals.excludedCount})` : '' }}
+      {{ totalLabel(totals.excludedCount) }}
     </span>
     <span class="text-right">
       <span class="block text-base font-semibold" :class="amountClass(totals.profit)">

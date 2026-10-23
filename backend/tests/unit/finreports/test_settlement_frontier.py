@@ -15,8 +15,8 @@ directions, so fixing either one alone moves the failure rather than ending it.
 On 2026-09-14 the second one cost the week: watermark 13.09, newest report
 ending 06.09, and the 07.09-13.09 report (formed 14.09) was published into a
 window nothing would ever ask about again. Several workspaces were short
-the entire week while the hourly gate answered «settled through 13.09 — nothing
-newer can exist yet» to every tick, «Обновить» included. No counter moved and no
+the entire week while the hourly gate answered "settled through 13.09 — nothing
+newer can exist yet" to every tick, "Refresh" included. No counter moved and no
 alert fired, because a run that skips looks exactly like a week WB was quiet.
 
 So the frontier is the EARLIER of the two, and each date is a ceiling on the
@@ -213,7 +213,7 @@ async def test_the_harvest_asks_the_gate_about_the_frontier_not_the_watermark(
         return [
             WorkspaceTokenBundle(
                 workspace_id=WORKSPACE,
-                name="Демо",
+                name="Demo",
                 statistics="stat-token",
                 finance="a-finance-token",
             )

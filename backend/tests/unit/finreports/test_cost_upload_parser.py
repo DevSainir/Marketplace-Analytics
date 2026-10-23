@@ -1,8 +1,8 @@
 """The upload parser reads three formats and trusts only two columns.
 
 The export is one shape, but a seller may hand it back as .xlsx, legacy .xls, or
-a .csv from Excel/1C. Each is read by a different library; all must find «Артикул
-WB» and «Себестоимость за 1 ед.» by name — reorder-, encoding- and
+a .csv from Excel/1C. Each is read by a different library; all must find "WB
+ID" and "Cost price per unit" by name — reorder-, encoding- and
 delimiter-tolerant — and reject a file that is not a cost sheet at all rather
 than guess a wrong column (PNL.md §13).
 """
@@ -54,7 +54,7 @@ def test_xlsx_matches_the_key_and_cost_by_header_name() -> None:
     # Arrange: columns deliberately reordered, with the total-cost column present.
     data = _xlsx(
         [
-            ["Продажи", "Себестоимость, итого", "Артикул WB", "Себестоимость за 1 ед."],
+            ["Sales", "Cost price, total", "WB ID", "Cost price per unit"],
             [900, 5600, 222, 700],
             [900, None, 333, None],
         ]
@@ -63,7 +63,7 @@ def test_xlsx_matches_the_key_and_cost_by_header_name() -> None:
     # Act.
     parsed = parse_cost_upload("pnl.xlsx", data)
 
-    # Assert: keyed on «Артикул WB», cost read from the per-unit column (not the total).
+    # Assert: keyed on "WB ID", cost read from the per-unit column (not the total).
     by_nm = {int(p.nm_id_raw): p for p in parsed}
     assert Decimal(str(by_nm[222].cost_raw)) == Decimal("700")
     assert by_nm[333].cost_raw is None
@@ -71,7 +71,7 @@ def test_xlsx_matches_the_key_and_cost_by_header_name() -> None:
 
 def test_a_legacy_xls_is_read() -> None:
     # Arrange.
-    data = _xls([["Артикул WB", "Себестоимость за 1 ед."], [222, 812.5]])
+    data = _xls([["WB ID", "Cost price per unit"], [222, 812.5]])
 
     # Act.
     parsed = parse_cost_upload("prices.xls", data)
@@ -83,7 +83,9 @@ def test_a_legacy_xls_is_read() -> None:
 
 def test_a_semicolon_cp1251_csv_is_read() -> None:
     # Arrange: a Russian-Excel CSV — semicolon delimiter, Windows-1251 encoding.
-    text = "Артикул WB;Себестоимость за 1 ед.\r\n222;700\r\n333;\r\n"
+    # The guillemets are bytes 0xAB/0xBB in cp1251 and invalid as UTF-8, so only
+    # the cp1251 fallback can read this file.
+    text = "Vendor code;WB ID;Cost price per unit\r\n«m-trx01»;222;700\r\n;333;\r\n"
     data = text.encode("cp1251")
 
     # Act.
@@ -96,8 +98,8 @@ def test_a_semicolon_cp1251_csv_is_read() -> None:
 
 
 def test_a_bare_nm_id_header_still_matches() -> None:
-    # Arrange: a minimal hand-made sheet using «nm_id» and a plain «Себестоимость».
-    data = _xlsx([["nm_id", "Себестоимость"], [222, 700]])
+    # Arrange: a minimal hand-made sheet using "nm_id" and a plain "Cost price".
+    data = _xlsx([["nm_id", "Cost price"], [222, 700]])
 
     # Act.
     parsed = parse_cost_upload("hand.xlsx", data)
@@ -109,7 +111,7 @@ def test_a_bare_nm_id_header_still_matches() -> None:
 
 def test_the_format_is_detected_from_content_when_the_name_lies() -> None:
     # Arrange: real .xlsx bytes under a .csv name.
-    data = _xlsx([["Артикул WB", "Себестоимость за 1 ед."], [222, 700]])
+    data = _xlsx([["WB ID", "Cost price per unit"], [222, 700]])
 
     # Act: the ZIP signature wins over the misleading extension.
     parsed = parse_cost_upload("mislabelled.csv", data)
@@ -120,7 +122,7 @@ def test_the_format_is_detected_from_content_when_the_name_lies() -> None:
 
 def test_a_sheet_without_the_required_columns_is_rejected() -> None:
     # Arrange: a valid workbook that is not ours.
-    data = _xlsx([["товар", "цена"], ["куртка", 500]])
+    data = _xlsx([["item", "price"], ["jacket", 500]])
 
     # Act / Assert.
     with pytest.raises(ValidationError):
@@ -146,16 +148,16 @@ def test_a_sheet_with_absurdly_many_rows_is_refused() -> None:
     Enforced while iterating, so the cost is the rows read rather than the rows
     claimed — the property that makes the bound worth having.
     """
-    header = [["Артикул WB", "Себестоимость за 1 ед."]]
+    header = [["WB ID", "Cost price per unit"]]
     rows = header + [[100 + i, 5] for i in range(_MAX_ROWS + 1)]
 
-    with pytest.raises(ValidationError, match="строк"):
+    with pytest.raises(ValidationError, match="more than"):
         parse_cost_upload("costs.csv", _csv(rows))
 
 
 def test_a_catalogue_sized_sheet_still_parses() -> None:
     """The cap must sit far above any real seller, not near one."""
-    header = [["Артикул WB", "Себестоимость за 1 ед."]]
+    header = [["WB ID", "Cost price per unit"]]
     rows = header + [[100 + i, 5] for i in range(2000)]
 
     parsed = parse_cost_upload("costs.csv", _csv(rows))
@@ -174,13 +176,13 @@ def test_an_xlsx_that_unpacks_to_absurd_size_is_refused() -> None:
     with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("xl/worksheets/sheet1.xml", b"\0" * (200 * 1024 * 1024))
 
-    with pytest.raises(ValidationError, match="неправдоподобно"):
+    with pytest.raises(ValidationError, match="implausibly"):
         parse_cost_upload("costs.xlsx", bomb.getvalue())
 
 
 def test_an_ordinary_workbook_is_not_mistaken_for_a_bomb() -> None:
     """A real export compresses well too; the guard must not catch it."""
-    data = _xlsx([["Артикул WB", "Себестоимость за 1 ед."], [12345, 10]])
+    data = _xlsx([["WB ID", "Cost price per unit"], [12345, 10]])
 
     parsed = parse_cost_upload("costs.xlsx", data)
 

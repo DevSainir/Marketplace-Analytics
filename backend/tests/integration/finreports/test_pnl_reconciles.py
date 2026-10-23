@@ -37,6 +37,7 @@ from tests.integration.finreports.conftest import (
     _row,
     _statement,
 )
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -95,7 +96,7 @@ async def test_the_residual_commission_matches_the_one_wb_published(
     assert reported == total.wb_commission
 
 
-async def test_итого_к_оплате_matches_a_hand_summed_ledger(
+async def test_the_total_payout_matches_a_hand_summed_ledger(
     db_session: AsyncSession, seeded: None
 ) -> None:
     """The bottom line equals the fixture's charges added up by hand.
@@ -123,7 +124,7 @@ async def test_итого_к_оплате_matches_a_hand_summed_ledger(
 async def test_the_filler_operations_quantity_never_becomes_a_unit(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """«Возмещение издержек» carries ``quantity = 2`` that is not a unit count.
+    """The cost-reimbursement operation carries ``quantity = 2`` that is not a unit count.
 
     Every one of its rows has it, with no ``nm_id`` and no barcode. A bare
     ``SUM(quantity)`` adds two phantom units per row to the history and deflates
@@ -139,10 +140,10 @@ async def test_the_filler_operations_quantity_never_becomes_a_unit(
 async def test_a_compensation_raises_the_payout_without_becoming_revenue(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """WB's compensations reach «к перечислению» but are not sales.
+    """WB's compensations reach the payout but are not sales.
 
     They populate ``ppvz_for_pay`` and no other money column, so filtering the
-    payout to «Продажа» drops them — and counting their ``quantity`` as a unit
+    payout to sale rows drops them — and counting their ``quantity`` as a unit
     would charge COGS against stock that never shipped.
     """
     total = (await _statement(db_session)).total
@@ -155,11 +156,11 @@ async def test_a_compensation_raises_the_payout_without_becoming_revenue(
 async def test_a_correction_takes_its_sign_from_the_document_type(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """A row under document type «Возврат» comes off the payout; any other goes on.
+    """A row under the refund document type comes off the payout; any other goes on.
 
-    WB serves every value positive and the same operation — «Коррекция продаж»,
-    «Компенсация ущерба» — under both document types. Its own ``forPaySum``
-    negates the «Возврат» ones and nothing else, which matches every report on
+    WB serves every value positive and the same operation — the sales correction,
+    the damage compensation — under both document types. Its own ``forPaySum``
+    negates the refund ones and nothing else, which matches every report on
     file to the kopeck; a rule by operation name missed some.
     Neither row is revenue or a unit.
     """
@@ -168,26 +169,26 @@ async def test_a_correction_takes_its_sign_from_the_document_type(
         [
             _row(
                 98,
-                "Коррекция продаж",
+                wb.SALES_CORRECTION,
                 nm_id=SKU_A,
                 quantity=1,
-                doc_type_name="Продажа",
+                doc_type_name=wb.SALE,
                 ppvz_for_pay=Decimal("874.69"),
             ),
             _row(
                 99,
-                "Коррекция продаж",
+                wb.SALES_CORRECTION,
                 nm_id=SKU_A,
                 quantity=1,
-                doc_type_name="Возврат",
+                doc_type_name=wb.REFUND,
                 ppvz_for_pay=Decimal("64.13"),
             ),
             _row(
                 100,
-                "Компенсация ущерба",
+                wb.DAMAGE_COMPENSATION,
                 nm_id=SKU_A,
                 quantity=1,
-                doc_type_name="Возврат",
+                doc_type_name=wb.REFUND,
                 ppvz_for_pay=Decimal("500"),
             ),
         ]

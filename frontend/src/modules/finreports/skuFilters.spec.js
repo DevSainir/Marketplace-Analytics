@@ -5,17 +5,17 @@ import { useSkuFilters } from '@/modules/finreports/skuFilters'
 import { useGroupsStore } from '@/modules/heatmap'
 
 const ROWS = [
-  { nm_id: 1, subject_name: 'Брюки', brand_name: 'X' },
-  { nm_id: 2, subject_name: 'Шорты', brand_name: 'X' },
-  { nm_id: 3, subject_name: 'Брюки', brand_name: 'Y' },
+  { nm_id: 1, subject_name: 'Trousers', brand_name: 'X' },
+  { nm_id: 2, subject_name: 'Shorts', brand_name: 'X' },
+  { nm_id: 3, subject_name: 'Trousers', brand_name: 'Y' },
 ]
 
 describe('useSkuFilters', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     useGroupsStore().groups = [
-      { id: 'summer', name: 'Лето', nm_ids: [2, 3] },
-      { id: 'hits', name: 'Хиты', nm_ids: [1] },
+      { id: 'summer', name: 'Summer', nm_ids: [2, 3] },
+      { id: 'hits', name: 'Best sellers', nm_ids: [1] },
     ]
   })
 
@@ -29,7 +29,7 @@ describe('useSkuFilters', () => {
 
   it('widens within a filter and narrows across filters', () => {
     const filters = useSkuFilters()
-    filters.subjectFilter.value = ['Брюки', 'Шорты']
+    filters.subjectFilter.value = ['Trousers', 'Shorts']
     filters.brandFilter.value = ['X']
     expect(ids(filters.apply(ROWS))).toEqual([1, 2])
 

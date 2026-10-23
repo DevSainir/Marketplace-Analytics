@@ -1,11 +1,11 @@
 /**
- * «Обновить» — ask WB now for a settlement report we do not already hold.
+ * "Refresh" — ask WB now for a settlement report we do not already hold.
  *
  * The schedule asks WB hourly, which covers most of the gap between a report
  * being published and the P&L showing it — but not all of it. A report
  * published at 02:00 waits for the 08:00 tick, and an hour the worker was down
  * for is an hour nobody asked. In both cases the seller can already see the
- * report on WB's own site, and «подождите до утра» is not an answer.
+ * report on WB's own site, and "wait until morning" is not an answer.
  *
  * **The click answers in one round trip and then gets out of the way.** It used
  * to hold the button and a spinner for as long as the harvest ran, which on
@@ -48,6 +48,7 @@
 import { ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
+import { formatDay } from '@/core/utils/calendarWords'
 import { fetchHarvestState, triggerHarvest } from '@/modules/finreports/api'
 import {
   clearPendingRefresh,
@@ -69,16 +70,17 @@ const POLL_LIMIT = 240
 /**
  * What the page says while a harvest is in flight.
  *
- * It names WHO, because «уже идёт» on its own reads as "you already clicked
+ * It names WHO, because "already running" on its own reads as "you already clicked
  * this" and left a seller wondering how long ago that was. The harvest lock is
  * platform-wide and the schedule takes it hourly, so the run being reported is
  * very often not the reader's at all.
  */
 const RUNNING_NOTICE =
-  'Обновление уже идёт — его запустили вы или расписание. Отчёты появятся сами.'
+  'A refresh is already running — started by you or the schedule. Reports will appear on their own.'
 
 /** Confirmation that a harvest was enqueued and is now somebody else's problem. */
-const STARTED_NOTICE = 'Запустили обновление — оно идёт в фоне, отчёты появятся сами.'
+const STARTED_NOTICE =
+  'Refresh started — it runs in the background; reports will appear on their own.'
 
 /** Resolves after `ms`, so the poll below reads as a loop rather than a chain. */
 function delay(ms) {
@@ -89,7 +91,7 @@ function delay(ms) {
  * WB's block, in the units a person waits in.
  *
  * Always rounded UP and never below one minute: telling somebody to come back
- * in «0 минут» invites the click that restarts WB's window, which is the exact
+ * in "0 min" invites the click that restarts WB's window, which is the exact
  * mistake this message exists to prevent.
  *
  * @param {number} seconds Seconds until WB accepts a settlement request.
@@ -97,7 +99,7 @@ function delay(ms) {
  */
 export function formatRetryAfter(seconds) {
   const minutes = Math.max(1, Math.ceil((Number(seconds) || 0) / 60))
-  return `${minutes} мин`
+  return `${minutes} min`
 }
 
 /**
@@ -139,7 +141,7 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    * Watch a harvest to its end, in the background. Never awaited by a click.
    *
    * `quiet` is a run this browser did not ask for: it still reloads the
-   * statement if a week lands, but «новых отчётов нет» would answer a question
+   * statement if a week lands, but "no new reports" would answer a question
    * nobody asked.
    */
   async function watchHarvest(settledBefore, { quiet = false } = {}) {
@@ -192,9 +194,9 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
     // comparison would report an ordinary quiet run as a new report.
     if (settledBefore && state?.latest_settled && state.latest_settled !== settledBefore) {
       await onNewReports()
-      harvestNotice.value = `Загружен отчёт по ${state.latest_settled}.`
+      harvestNotice.value = `Report loaded through ${formatDay(state.latest_settled)}.`
     } else if (!quiet) {
-      harvestNotice.value = 'Новых отчётов у Wildberries пока нет.'
+      harvestNotice.value = 'No new reports from Wildberries yet.'
     }
   }
 
@@ -206,10 +208,10 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    *
    * * A harvest is running — watch it in the background. Say so only if this
    *   browser asked for it: the lock is platform-wide and the schedule takes it
-   *   many times a day, so on an ordinary page load «Обновление уже идёт» was
+   *   many times a day, so on an ordinary page load "A refresh is already running" was
    *   usually about somebody else's workspace and read as noise. A run that
    *   actually found a report for THIS workspace is the freshness line's to
-   *   announce («WB выложил новый отчёт — загружаем»).
+   *   announce ("WB published a new report — loading").
    * * Nothing is running but this browser asked for one — it finished while the
    *   tab was away, so report how it ended rather than silently dropping it.
    * * Neither — an ordinary page load, and nothing to say.
@@ -217,7 +219,7 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
    * The baseline is never `currentSettled()`: this runs before the weeks are
    * loaded, so the store's span is still empty, and every real day differs from
    * an empty string — a run that brought nothing would be announced as
-   * «Загружен отчёт по …».
+   * "Report loaded through …".
    *
    * @param {{running: boolean, latest_settled: string|null}|null} state
    */
@@ -227,8 +229,8 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
     if (!state?.running && !pending) return
     // The click's own baseline wins over the state we just read: by the time a
     // reload happens the history may already have moved, and comparing the new
-    // day against itself would report a week that DID arrive as «новых отчётов
-    // нет». Falling back to the state's day covers a run this browser never
+    // day against itself would report a week that DID arrive as "no new
+    // reports". Falling back to the state's day covers a run this browser never
     // asked for, where there is no click to have a baseline.
     const settledBefore = pending?.settled_before ?? state?.latest_settled ?? ''
     if (!state?.running) {
@@ -274,7 +276,7 @@ export function useHarvestRefresh({ currentSettled, onNewReports, onState }) {
       // Nothing was enqueued and nothing is coming, so there is nothing to
       // watch and no note to leave. WB will not take a settlement request until
       // its window rolls over, and a click inside that window restarts it.
-      harvestNotice.value = `Ограничение по запросам от Wildberries — попробуйте через ${formatRetryAfter(retryAfter)}.`
+      harvestNotice.value = `Wildberries rate limit — try again in ${formatRetryAfter(retryAfter)}.`
       return
     }
     // Written before the watching starts, so a reload during the run — or after

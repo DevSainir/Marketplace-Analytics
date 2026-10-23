@@ -12,10 +12,10 @@ What earns a test here:
 * **Σ sizes = the article.** The whole claim of the cut is that it regroups the
   article's own rows rather than allocating anything. If that ever stops being
   true the drill-down becomes a second, disagreeing report.
-* **«Выкуп» is measured against logistics legs, not orders.** The funnel has no
+* **The buyout is measured against logistics legs, not orders.** The funnel has no
   size; the forward leg is the only size-carrying record of a unit reaching a
   buyer.
-* **«Цена» is at the seller's price**, the same base as «Выручка» beside it, so
+* **"Price" is at the seller's price**, the same base as "Revenue" beside it, so
   price x units reads back as the revenue.
 """
 
@@ -89,7 +89,7 @@ BIG = _size(
 
 
 def test_payout_is_net_of_the_size_own_withholdings() -> None:
-    """«К перечислению» uses the article's formula, applied to this size's rows."""
+    """The payout uses the article's formula, applied to this size's rows."""
     rows = build_size_rows([BIG])
 
     # 230 400.00 - 19 200.00 - (57 600.00 + 4 800.00)
@@ -105,10 +105,10 @@ def test_buyout_is_measured_against_forward_legs() -> None:
 
 
 def test_price_is_the_seller_s_price_per_bought_out_unit() -> None:
-    """Net revenue before SPP over net units — the base «Выручка» uses.
+    """Net revenue before SPP over net units — the base "Revenue" uses.
 
     It was what buyers paid, beside a revenue at the seller's price, so on the
-    same row 5 units x «Цена» did not come to «Выручка».
+    same row 5 units x "Price" did not come to "Revenue".
     """
     rows = build_size_rows([BIG])
 

@@ -1,4 +1,4 @@
-"""When the P&L lane may say «История P&L собрана», and when it may not.
+"""When the P&L lane may say "P&L history collected", and when it may not.
 
 This file replaces ``test_pnl_backfill_roll``, and it exists for the same
 reason that one did. One workspace's lane walked the three years that predate its account,

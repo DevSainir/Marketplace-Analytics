@@ -4,8 +4,8 @@
  *
  * Six columns per SKU with the cost as an editable cell. Uncosted rows carry a
  * warning tint: the grid's job is to make the *gaps* as visible as the entries,
- * because the seller's next-best action is always «cost the SKU that sells
- * most». Split out of `CostPriceGrid` when the phone row list joined it there.
+ * because the seller's next-best action is always "cost the SKU that sells
+ * most". Split out of `CostPriceGrid` when the phone row list joined it there.
  *
  * Dumb by contract: the parent owns the draft buffer and the save.
  */
@@ -33,11 +33,11 @@ const clearing = useConfirmClick()
       <table class="min-w-[720px]">
         <thead>
           <tr>
-            <th>Артикул</th>
-            <th>Артикул WB</th>
-            <th class="text-right">Продано, шт</th>
-            <th class="text-right">Себестоимость</th>
-            <th>Источник</th>
+            <th>SKU</th>
+            <th>WB ID</th>
+            <th class="text-right">Sold, units</th>
+            <th class="text-right">Cost price</th>
+            <th>Source</th>
             <th></th>
           </tr>
         </thead>
@@ -63,17 +63,13 @@ const clearing = useConfirmClick()
                 inputmode="decimal"
                 class="ui-input ui-input--sm w-28 text-right tabular-nums"
                 :value="value(row)"
-                :placeholder="row.stored === null ? 'не задана' : ''"
+                :placeholder="row.stored === null ? 'not set' : ''"
                 @input="emit('input', row, $event.target.value)"
               />
             </td>
             <td class="text-tiny text-muted">
               {{
-                row.source === 'seed'
-                  ? 'со слов продавца'
-                  : row.source === 'manual'
-                    ? 'вручную'
-                    : '—'
+                row.source === 'seed' ? 'from the seller' : row.source === 'manual' ? 'manual' : '—'
               }}
             </td>
             <td class="text-right">
@@ -91,7 +87,7 @@ const clearing = useConfirmClick()
           </tr>
           <tr v-if="!rows.length">
             <td colspan="6">
-              <DataState kind="empty" layout="bare" text="Нет проданных SKU за последний год." />
+              <DataState kind="empty" layout="bare" text="No SKUs sold in the last year." />
             </td>
           </tr>
         </tbody>

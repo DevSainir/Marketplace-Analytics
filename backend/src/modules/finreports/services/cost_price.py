@@ -157,8 +157,8 @@ class CostPriceService:
         if stored + (len(incoming) - already) <= cap:
             return
         raise ValidationError(
-            f"Достигнут лимит себестоимостей ({cap} артикулов на кабинет). "
-            "Удалите ненужные строки или обратитесь в поддержку."
+            f"Cost price limit reached ({cap:,} SKUs per workspace). "
+            "Delete rows you don't need or contact support."
         )
 
     async def delete_cost_price(self, *, workspace_id: uuid.UUID, nm_id: int) -> int:
@@ -176,11 +176,11 @@ class CostPriceService:
     async def import_workbook(
         self, *, workspace_id: uuid.UUID, filename: str, data: bytes
     ) -> CostPriceImportResponse:
-        """Apply the «Себестоимость» column of an uploaded cost sheet.
+        """Apply the "Cost price per unit" column of an uploaded cost sheet.
 
         The round trip's write half: parse the file (``.xlsx``, ``.xls`` or
         ``.csv``), and for every row carrying a cost, write it against the SKU
-        named by its «Артикул WB» (``nm_id``). The guarantees that keep a
+        named by its "WB ID" (``nm_id``). The guarantees that keep a
         hand-edited spreadsheet from poisoning the P&L:
 
         * **Only SKUs the workspace already knows are touched.** An ``nm_id`` the
@@ -191,7 +191,7 @@ class CostPriceService:
           stored in the settlement currency the P&L reconciles against, so a
           value cannot be silently admitted in the wrong one (PNL.md §13).
         * **Blank costs change nothing.** A downloaded file is mostly empty
-          «Себестоимость» cells; leaving one empty means "no cost yet", not
+          cost price cells; leaving one empty means "no cost yet", not
           "clear the cost", so blanks are skipped, never deletions.
 
         Args:
@@ -238,7 +238,7 @@ class CostPriceService:
             if nm_id in by_nm:
                 issues.append(
                     CostPriceImportIssue(
-                        row=entry.row, nm_id=nm_id, reason="Артикул встречается в файле дважды."
+                        row=entry.row, nm_id=nm_id, reason="SKU appears twice in the file."
                     )
                 )
             by_nm[nm_id] = values
@@ -263,24 +263,22 @@ class CostPriceService:
         """
         nm_id = self._coerce_nm_id(entry.nm_id_raw)
         if nm_id is None:
-            return CostPriceImportIssue(row=entry.row, reason="Неверный nm_id.")
+            return CostPriceImportIssue(row=entry.row, reason="Invalid WB ID.")
         cost = self._coerce_cost(entry.cost_raw)
         if cost is None:
-            return None  # Empty «Себестоимость» — nothing to do for this SKU.
+            return None  # An empty cost price — nothing to do for this SKU.
         if isinstance(cost, str):  # A non-numeric cell; `cost` carries the reason.
             return CostPriceImportIssue(row=entry.row, nm_id=nm_id, reason=cost)
         if nm_id not in known:
             return CostPriceImportIssue(
-                row=entry.row, nm_id=nm_id, reason="SKU не продавался в этом кабинете."
+                row=entry.row, nm_id=nm_id, reason="SKU never sold in this workspace."
             )
         try:
             validated = CostPriceInput(
                 nm_id=nm_id, cost=cost, currency=currency, vendor_code=vendor_by_nm.get(nm_id, "")
             )
         except PydanticValidationError:
-            return CostPriceImportIssue(
-                row=entry.row, nm_id=nm_id, reason="Недопустимая себестоимость."
-            )
+            return CostPriceImportIssue(row=entry.row, nm_id=nm_id, reason="Invalid cost price.")
         return nm_id, {
             "nm_id": validated.nm_id,
             "cost": validated.cost,
@@ -303,7 +301,7 @@ class CostPriceService:
 
     @staticmethod
     def _coerce_cost(raw: object) -> Decimal | str | None:
-        """Read a «Себестоимость» cell.
+        """Read a cost price cell.
 
         Returns ``None`` for an empty cell, a :class:`Decimal` for a number, or a
         human-readable reason string when the cell is present but not a number.
@@ -311,12 +309,12 @@ class CostPriceService:
         if raw is None or (isinstance(raw, str) and raw.strip() == ""):
             return None
         if isinstance(raw, bool):
-            return "Себестоимость не является числом."
+            return "Cost price is not a number."
         text = str(raw).strip().replace(",", ".").replace(" ", "")
         try:
             return Decimal(text)
         except InvalidOperation:
-            return "Себестоимость не является числом."
+            return "Cost price is not a number."
 
     @staticmethod
     def _net_units(units: SkuUnits | None) -> int:

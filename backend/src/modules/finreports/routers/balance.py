@@ -1,4 +1,4 @@
-"""HTTP routes for «Баланс по товарным остаткам» — the stock-balance grid.
+"""HTTP routes for "Stock balance" — the stock-balance grid.
 
 Pure pass-through (no business logic), guarded by the access-token dependency
 declared on the aggregating router. Everything is workspace-scoped through
@@ -38,7 +38,7 @@ router = APIRouter()
     responses={
         200: {"description": "The SKU x warehouse stock balance for one day."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
     },
 )
 async def get_balance(
@@ -73,7 +73,7 @@ async def get_balance(
     responses={
         204: {"description": "Row or column marked, or unmarked."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
     },
 )
 async def set_balance_pin(
@@ -82,7 +82,7 @@ async def set_balance_pin(
     service: BalanceServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> Response:
-    """Mark («Не считать») a SKU row or a warehouse column, or clear the mark.
+    """Mark ("Don't count") a SKU row or a warehouse column, or clear the mark.
 
     Stored per workspace, so the marks are shared across its users. A mark
     changes only what the grid's totals are drawn from and where the row or

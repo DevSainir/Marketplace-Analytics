@@ -5,8 +5,8 @@
  * Everything is computed from WB's weekly settlement detail plus the seller's
  * own cost prices, over an arbitrary date range — any start/end pair, not just
  * a report week, because the settlement rows are stored day-by-day. Two columns
- * come from other WB surfaces and say so in the caveats: «Заказы» from the
- * sales funnel and «Реклама» from the promotion statistics (the settlement
+ * come from other WB surfaces and say so in the caveats: "Orders" from the
+ * sales funnel and "Advertising" from the promotion statistics (the settlement
  * carries ad spend only as account-level invoices).
  */
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
@@ -47,7 +47,7 @@ const BalanceSection = defineAsyncComponent(
 const store = useFinReportsStore()
 const members = useMembersStore()
 
-// «Загрузить отчёт»: WB's weekly report, picked from the seller's disk.
+// "Upload report": WB's weekly report, picked from the seller's disk.
 const {
   busy: uploadBusy,
   notice: uploadNotice,
@@ -68,7 +68,7 @@ const priceBase = ref('seller')
 providePriceBase(priceBase)
 
 // The backend dashboard (exclusion-aware, whole window). While the table has a
-// filter/search active it emits a «по фильтру» subtotal, which takes over —
+// filter/search active it emits a filtered subtotal, which takes over —
 // so the cards reflect only the SKUs on screen. `null` = no filter → backend.
 const filteredDashboard = ref(null)
 const dashboard = computed(() => filteredDashboard.value ?? store.report?.dashboard ?? null)
@@ -82,7 +82,7 @@ providePnlCurrencies(computed(() => ({ settlement: currency.value })))
 // An uncosted article's cost, typed in the table — only for whoever may write.
 const { save: saveCost } = useCostEntry(store)
 
-// «Без себестоимости» over the table; the dashboard's counter turns it on and
+// "No cost price" over the table; the dashboard's counter turns it on and
 // brings the table into view, so the counter leads to the very SKUs it counts.
 const uncostedOnly = ref(false)
 const skuSection = ref(null)
@@ -91,7 +91,7 @@ function showUncosted() {
   skuSection.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
 }
 
-/** The harvested weeks have been asked for — until then «no reports» would be a guess. */
+/** The harvested weeks have been asked for — until then "no reports" would be a guess. */
 const weeksAsked = ref(Boolean(store.weeks.length))
 
 onMounted(async () => {
@@ -110,7 +110,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
 <template>
   <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
   <div class="app-container py-lg">
-    <PageHeader title="P&L" subtitle="По финансовым отчётам WB, построчно.">
+    <PageHeader title="P&L" subtitle="From WB's financial reports, line by line.">
       <template #actions>
         <!--
           The schedule asks WB hourly; this covers the hours it cannot — a report
@@ -119,14 +119,14 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           Disabled for one round trip and no longer: the click's job is to come
           back with an answer, not to sit on the page for the length of a
           harvest. It used to stay disabled until the run finished, which on a
-          WB rate-limit block meant seven minutes of «Обновляем…» over a walk
+          WB rate-limit block meant seven minutes of "Refreshing…" over a walk
           that was doing nothing but waiting.
 
-          A secondary button beside a filled «Загрузить отчёт» on purpose — the
-          same «Обновить» monitoring has: the hourly schedule makes a manual
+          A secondary button beside a filled "Upload report" on purpose — the
+          same "Refresh" monitoring has: the hourly schedule makes a manual
           refresh rarely needed, and inside a WB block an extra press lengthens
-          it. Two buttons, not three: «Себестоимость» lives on its own card,
-          which says «Заполнить →» / «Изменить →» in so many words.
+          it. Two buttons, not three: "Cost price" lives on its own card,
+          which says "Fill in →" / "Edit →" in so many words.
         -->
         <button
           type="button"
@@ -134,10 +134,10 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
           class="ui-btn phone:flex-1"
           @click="store.refreshFromWb()"
         >
-          {{ store.harvestBusy ? 'Обновляем…' : 'Обновить' }}
+          {{ store.harvestBusy ? 'Refreshing…' : 'Refresh' }}
         </button>
         <!--
-          The weekly report WB shows in the seller's account hours before its API serves
+          The weekly report WB shows in the WB seller portal hours before its API serves
           it: the seller downloads it there and hands it over here. Hidden for a
           read-only member, whom the route would refuse.
         -->
@@ -148,7 +148,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
             class="ui-btn ui-btn--primary phone:flex-1"
             @click="reportFile?.click()"
           >
-            {{ uploadBusy ? 'Загружаем…' : 'Загрузить отчёт' }}
+            {{ uploadBusy ? 'Uploading…' : 'Upload report' }}
           </button>
           <input
             ref="reportFile"
@@ -164,7 +164,7 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
 
     <!--
       Why the statement stops where it does, on every load rather than only
-      after «Обновить». WB publishes on no fixed day, so a P&L ending nine days
+      after "Refresh". WB publishes on no fixed day, so a P&L ending nine days
       ago is usually a quiet week and occasionally a dead harvester — and
       without this line the page shows the two identically.
     -->
@@ -192,8 +192,8 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
     <DataState
       v-else-if="!dashboard && !store.fullSpan"
       kind="empty"
-      text="Отчётов WB пока нет"
-      hint="Они появятся здесь сами, как только WB опубликует первый еженедельный отчёт."
+      text="No WB reports yet"
+      hint="They appear here on their own once WB publishes the first weekly report."
     />
 
     <template v-else-if="dashboard">
@@ -216,9 +216,9 @@ watch(() => [store.dateFrom, store.dateTo], store.loadReport)
         </ul>
 
         <div ref="skuSection" class="mt-lg scroll-mt-md">
-          <h2 class="mb-xs text-h3 font-semibold text-primary">По артикулам</h2>
+          <h2 class="mb-xs text-h3 font-semibold text-primary">By SKU</h2>
           <p class="mb-sm max-w-4xl text-tiny text-muted">
-            Продажи, возвраты и удержания — по датам расчёта WB.
+            Sales, returns and deductions by WB settlement date.
           </p>
           <PnlSkuTable
             :rows="rows"

@@ -77,7 +77,7 @@ def _bundle() -> WorkspaceTokenBundle:
     """
     return WorkspaceTokenBundle(
         workspace_id=uuid.uuid4(),
-        name="Демо",
+        name="Demo",
     )
 
 

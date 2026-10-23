@@ -5,7 +5,7 @@ import { beforeEach, vi } from 'vitest'
 
 import PnlSkuTable from '@/modules/finreports/components/PnlSkuTable.vue'
 
-// «Группы» ask the server for their list on mount; these tables need none.
+// Groups ask the server for their list on mount; these tables need none.
 vi.mock('@/modules/heatmap/api', () => ({ fetchGroups: vi.fn(async () => ({ items: [] })) }))
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -15,7 +15,7 @@ function row(overrides = {}) {
   return {
     nm_id: 953770957,
     sa_name: 'm-trx01-blk',
-    subject_name: 'Брюки',
+    subject_name: 'Trousers',
     brand_name: 'NORTH LINE',
     is_excluded: false,
     sold_units: 10,
@@ -58,8 +58,8 @@ describe('articles with no cost price in the P&L', () => {
   it('marks only the uncosted article, in the frozen column', () => {
     const wrapper = mountTable()
 
-    expect(tableRow(wrapper, 'no-cost').text()).toContain('нет себестоимости')
-    expect(tableRow(wrapper, 'm-trx01-blk').text()).not.toContain('нет себестоимости')
+    expect(tableRow(wrapper, 'no-cost').text()).toContain('no cost price')
+    expect(tableRow(wrapper, 'm-trx01-blk').text()).not.toContain('no cost price')
     wrapper.unmount()
   })
 
@@ -67,21 +67,21 @@ describe('articles with no cost price in the P&L', () => {
     const idle = row({ nm_id: 222, sa_name: 'idle', sold_units: 0, cost_price: null, cogs: null })
     const wrapper = mountTable({ rows: [idle] })
 
-    expect(wrapper.text()).not.toContain('нет себестоимости')
+    expect(wrapper.text()).not.toContain('no cost price')
     wrapper.unmount()
   })
 
-  it('says «нет» in the «Себестоимость» column rather than a dash', () => {
+  it('says "missing" in the "Cost price" column rather than a dash', () => {
     const wrapper = mountTable({ rows: [UNCOSTED] })
 
     const cells = tableRow(wrapper, 'no-cost')
       .findAll('td')
       .map((td) => td.text())
-    expect(cells).toContain('нет')
+    expect(cells).toContain('missing')
     wrapper.unmount()
   })
 
-  it('«Без себестоимости» leaves only those articles', async () => {
+  it('"No cost price" leaves only those articles', async () => {
     const wrapper = mountTable()
 
     await wrapper.find('[data-testid="uncosted-filter"]').trigger('click')
@@ -92,12 +92,12 @@ describe('articles with no cost price in the P&L', () => {
     wrapper.unmount()
   })
 
-  it('leaves the dashboard cards on the whole window under «Без себестоимости»', async () => {
+  it('leaves the dashboard cards on the whole window under "No cost price"', async () => {
     const wrapper = mountTable()
 
     await wrapper.find('[data-testid="uncosted-filter"]').trigger('click')
 
-    // `null` is «show the backend dashboard»: the filter is a to-do list over
+    // `null` is "show the backend dashboard": the filter is a to-do list over
     // the table, and the cards must not turn into one article's figures.
     expect(wrapper.emitted('dashboard-change').at(-1)).toEqual([null])
     wrapper.unmount()
@@ -106,7 +106,7 @@ describe('articles with no cost price in the P&L', () => {
   it('still sums the cards over a search, without the uncosted filter narrowing them', async () => {
     const wrapper = mountTable({ uncostedOnly: true })
 
-    await wrapper.find('input[type="search"]').setValue('брюки')
+    await wrapper.find('input[type="search"]').setValue('trousers')
 
     const [subset] = wrapper.emitted('dashboard-change').at(-1)
     expect(subset.sold_units).toBe(20)
@@ -147,7 +147,7 @@ describe('articles with no cost price in the P&L', () => {
 
   it('keeps the dialog open and says why when the save is refused', async () => {
     const saveCost = vi.fn(async () => {
-      throw new Error('Сервер недоступен')
+      throw new Error('Server unavailable')
     })
     const wrapper = mountTable({ saveCost })
 
@@ -159,7 +159,7 @@ describe('articles with no cost price in the P&L', () => {
     await flushPromises()
 
     expect(document.querySelector('[data-testid="cost-dialog"]').textContent).toContain(
-      'Сервер недоступен',
+      'Server unavailable',
     )
     wrapper.unmount()
   })
@@ -177,7 +177,7 @@ describe('articles with no cost price in the P&L', () => {
 
     expect(saveCost).not.toHaveBeenCalled()
     expect(document.querySelector('[data-testid="cost-dialog"]').textContent).toContain(
-      'Нужно число от 0',
+      'A number from 0',
     )
     wrapper.unmount()
   })
@@ -185,7 +185,7 @@ describe('articles with no cost price in the P&L', () => {
   it('shows a read-only member the mark but offers no entry', () => {
     const wrapper = mountTable({ saveCost: null })
 
-    expect(tableRow(wrapper, 'no-cost').text()).toContain('нет себестоимости')
+    expect(tableRow(wrapper, 'no-cost').text()).toContain('no cost price')
     expect(wrapper.find('[data-testid="enter-cost"]').exists()).toBe(false)
     wrapper.unmount()
   })

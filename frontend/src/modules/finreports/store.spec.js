@@ -84,7 +84,7 @@ describe('period selection', () => {
   })
 
   it('reaches the days the daily reports cover past the last weekly one', async () => {
-    // 12.10.2026: data to 11.10, the newest weekly report to 04.10 — and a
+    // 12 Oct 2026: data to 11 Oct, the newest weekly report to 4 Oct — and a
     // picker bounded by the weeks alone locked exactly the days a seller wanted.
     fetchWeeks.mockResolvedValue({ weeks: WEEKS, provisional_through: '2026-07-26' })
 
@@ -126,7 +126,7 @@ describe('period selection', () => {
   })
 
   it('anchors day presets to the newest harvested day, not today', async () => {
-    // «Последние 7 дней» against the calendar would often be an empty window:
+    // "Last 7 days" against the calendar would often be an empty window:
     // WB settles with a lag, so the newest data can be days old.
     await store.loadWeeks()
 
@@ -136,7 +136,7 @@ describe('period selection', () => {
     expect(store.dateFrom).toBe('2026-07-13')
   })
 
-  it('the «вся история» preset selects the full harvested span', async () => {
+  it('the "All time" preset selects the full harvested span', async () => {
     await store.loadWeeks()
 
     store.setPresetAll()
@@ -167,7 +167,7 @@ describe('what the P&L page shows on load', () => {
 
   it('follows the harvest instead of reopening on the week it was left on', async () => {
     const first = await reload()
-    first.setPresetDays(7) // «последняя неделя» — ends on the newest settled day
+    first.setPresetDays(7) // "the latest week" — ends on the newest settled day
 
     const reopened = await reload(NEWER_WEEKS)
 
@@ -254,10 +254,10 @@ describe('cost prices invalidating the report', () => {
   })
 
   it('surfaces a rejected save and rethrows so the view can react', async () => {
-    saveCostPrices.mockRejectedValue({ response: { data: { detail: 'Себестоимость неверна' } } })
+    saveCostPrices.mockRejectedValue({ response: { data: { detail: 'Cost price is invalid' } } })
 
     await expect(store.persistCostPrices([{ nm_id: 1, cost: -1 }])).rejects.toBeDefined()
-    expect(store.costsError).toBe('Себестоимость неверна')
+    expect(store.costsError).toBe('Cost price is invalid')
     expect(store.costsSaving).toBe(false)
   })
 
@@ -275,11 +275,11 @@ describe('cost prices invalidating the report', () => {
 describe('cost-price Excel round trip', () => {
   it('returns the exported blob and filename for the view to download', async () => {
     const blob = new Blob(['xlsx'])
-    downloadCostPricesXlsx.mockResolvedValue({ blob, filename: 'себестоимость.xlsx' })
+    downloadCostPricesXlsx.mockResolvedValue({ blob, filename: 'cost-prices.xlsx' })
 
     const result = await store.exportCostPrices()
 
-    expect(result).toEqual({ blob, filename: 'себестоимость.xlsx' })
+    expect(result).toEqual({ blob, filename: 'cost-prices.xlsx' })
   })
 
   it('drops the cached report and reloads costs after an import', async () => {
@@ -298,16 +298,16 @@ describe('cost-price Excel round trip', () => {
   it('surfaces a rejected import and rethrows without touching the report', async () => {
     await store.loadWeeks()
     await store.loadReport()
-    importCostPricesXlsx.mockRejectedValue({ response: { data: { detail: 'Файл пуст.' } } })
+    importCostPricesXlsx.mockRejectedValue({ response: { data: { detail: 'The file is empty.' } } })
 
     await expect(store.importCostPrices(new File([''], 'x.xlsx'))).rejects.toBeDefined()
-    expect(store.costsError).toBe('Файл пуст.')
+    expect(store.costsError).toBe('The file is empty.')
     expect(store.report).toEqual(REPORT)
     expect(store.costsSaving).toBe(false)
   })
 })
 
-describe('excluding a SKU from the общий счёт', () => {
+describe('excluding a SKU from the total', () => {
   it('persists the mark then reloads so the backend recomputes the dashboard', async () => {
     await store.loadWeeks()
     await store.loadReport()
@@ -337,12 +337,12 @@ describe('excluding a SKU from the общий счёт', () => {
   it('surfaces a failed mark and still reloads to resync', async () => {
     await store.loadWeeks()
     await store.loadReport()
-    setSkuExclusion.mockRejectedValue({ response: { data: { detail: 'Нельзя' } } })
+    setSkuExclusion.mockRejectedValue({ response: { data: { detail: 'Not allowed' } } })
     fetchSkuPnl.mockClear()
 
     await store.toggleExclusion(1, true)
 
-    expect(store.reportError).toBe('Нельзя')
+    expect(store.reportError).toBe('Not allowed')
     expect(fetchSkuPnl).toHaveBeenCalled()
   })
 })
@@ -351,20 +351,20 @@ describe('failures', () => {
   it('says why an Excel export failed instead of doing nothing', async () => {
     // The view only triggers the download; without this the button was a
     // click that silently came to nothing.
-    downloadCostPricesXlsx.mockRejectedValue({ response: { data: { detail: 'Нет данных' } } })
+    downloadCostPricesXlsx.mockRejectedValue({ response: { data: { detail: 'No data' } } })
 
     await expect(store.exportCostPrices()).rejects.toBeTruthy()
 
-    expect(store.costsError).toBe('Нет данных')
+    expect(store.costsError).toBe('No data')
   })
 
   it('records a report error instead of throwing at the view', async () => {
     await store.loadWeeks()
-    fetchSkuPnl.mockRejectedValue({ response: { data: { detail: 'Отчёт недоступен' } } })
+    fetchSkuPnl.mockRejectedValue({ response: { data: { detail: 'Report unavailable' } } })
 
     await store.loadReport()
 
-    expect(store.reportError).toBe('Отчёт недоступен')
+    expect(store.reportError).toBe('Report unavailable')
     expect(store.reportLoading).toBe(false)
   })
 
@@ -411,22 +411,22 @@ describe('balance marks', () => {
   })
 
   it('applies a warehouse mark as its name', async () => {
-    await store.toggleBalancePin('warehouse_uncounted', 'Тула', true)
+    await store.toggleBalancePin('warehouse_uncounted', 'Tula', true)
 
-    expect(store.balance.uncounted_warehouses).toEqual(['Тула'])
+    expect(store.balance.uncounted_warehouses).toEqual(['Tula'])
   })
 
   it('rolls a failed mark back and says so', async () => {
-    setBalancePin.mockRejectedValueOnce({ response: { data: { detail: 'Не сохранено' } } })
+    setBalancePin.mockRejectedValueOnce({ response: { data: { detail: 'Not saved' } } })
 
     await store.toggleBalancePin('sku_uncounted', '953770957', true)
 
     expect(store.balance.uncounted_skus).toEqual([])
-    expect(store.balanceError).toBe('Не сохранено')
+    expect(store.balanceError).toBe('Not saved')
   })
 })
 
-describe('«Обновить» — the manual WB harvest', () => {
+describe('"Refresh" — the manual WB harvest', () => {
   /**
    * The poll waits real milliseconds between attempts, so the clock is faked.
    * `runAllTimersAsync` drives it: each awaited timer resolves and the loop
@@ -451,7 +451,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     // The case the whole refactor is for. WB meters the settlement report at
     // one request per ~15 minutes, so a click inside that window used to
     // enqueue a harvest whose first act was to sit still for most of it —
-    // seven minutes of «Обновляем…» over a walk doing nothing (seen
+    // seven minutes of "Refreshing…" over a walk doing nothing (seen
     // 2026-09-09). There is no version of waiting that helps, so the page says
     // when to come back and stops.
     triggerHarvest.mockResolvedValue({
@@ -463,15 +463,13 @@ describe('«Обновить» — the manual WB harvest', () => {
     await store.refreshFromWb()
 
     expect(store.harvestBusy).toBe(false)
-    expect(store.harvestNotice).toBe(
-      'Ограничение по запросам от Wildberries — попробуйте через 7 мин.',
-    )
+    expect(store.harvestNotice).toBe('Wildberries rate limit — try again in 7 min.')
     expect(fetchHarvestState).not.toHaveBeenCalled()
     expect(localStorage.getItem('finreports:pending-refresh')).toBeNull()
   })
 
   it('never tells a seller to come back in zero minutes', async () => {
-    // A click inside WB's window restarts it, so «через 0 минут» would invite
+    // A click inside WB's window restarts it, so "in 0 min" would invite
     // exactly the mistake the message exists to prevent.
     triggerHarvest.mockResolvedValue({
       status: 'rate_limited',
@@ -481,7 +479,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await store.refreshFromWb()
 
-    expect(store.harvestNotice).toContain('1 мин')
+    expect(store.harvestNotice).toContain('1 min')
   })
 
   it('gives the button back as soon as the trigger answers', async () => {
@@ -494,7 +492,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     await store.refreshFromWb()
 
     expect(store.harvestBusy).toBe(false)
-    expect(store.harvestNotice).toContain('идёт в фоне')
+    expect(store.harvestNotice).toContain('runs in the background')
   })
 
   it('keeps watching in the background after the click has answered', async () => {
@@ -512,7 +510,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     await store.refreshFromWb()
     await vi.runAllTimersAsync()
 
-    expect(store.harvestNotice).toContain('2026-07-26')
+    expect(store.harvestNotice).toContain('26 Jul 2026')
     expect(store.dateTo).toBe('2026-07-26')
   })
 
@@ -529,7 +527,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     await settle(() => store.refreshFromWb())
 
     expect(store.harvestBusy).toBe(false)
-    expect(store.harvestNotice).toContain('2026-07-26')
+    expect(store.harvestNotice).toContain('26 Jul 2026')
     expect(store.dateTo).toBe('2026-07-26')
   })
 
@@ -540,7 +538,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await settle(() => store.refreshFromWb())
 
-    expect(store.harvestNotice).toBe('Новых отчётов у Wildberries пока нет.')
+    expect(store.harvestNotice).toBe('No new reports from Wildberries yet.')
     expect(store.dateTo).toBe('2026-07-19')
   })
 
@@ -556,7 +554,7 @@ describe('«Обновить» — the manual WB harvest', () => {
   })
 
   it('measures a resumed run against the day of the click, not of the reload', async () => {
-    // The comparison that decides «Загружен отчёт по …» vs «новых отчётов нет»
+    // The comparison that decides "Report loaded through …" vs "no new reports"
     // is against the moment of the CLICK. A reload has forgotten that moment,
     // and by then the history may already have moved — comparing the new day
     // against itself reports a week that did arrive as nothing new. The note
@@ -571,7 +569,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await settle(() => store.loadHarvestState())
 
-    expect(store.harvestNotice).toContain('2026-07-26')
+    expect(store.harvestNotice).toContain('26 Jul 2026')
   })
 
   it('reports how a refresh ended when it finished while the tab was away', async () => {
@@ -588,7 +586,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     await store.loadHarvestState()
 
     expect(store.harvestBusy).toBe(false)
-    expect(store.harvestNotice).toContain('2026-07-26')
+    expect(store.harvestNotice).toContain('26 Jul 2026')
   })
 
   it('does not resurrect a refresh once it has been resolved', async () => {
@@ -608,7 +606,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
   it('gives the button back when the note is older than the poll ever waits', async () => {
     // A worker killed mid-task holds no lock and finishes nothing. A note with
-    // no expiry would disable «Обновить» for good — a worse failure than the
+    // no expiry would disable "Refresh" for good — a worse failure than the
     // one it exists to fix.
     localStorage.setItem(
       'finreports:pending-refresh',
@@ -621,7 +619,7 @@ describe('«Обновить» — the manual WB harvest', () => {
     expect(store.harvestNotice).toBe('')
   })
 
-  /** This browser clicked «Обновить» a moment ago — the note a reload finds. */
+  /** This browser clicked "Refresh" a moment ago — the note a reload finds. */
   function clickedJustNow() {
     localStorage.setItem(
       'finreports:pending-refresh',
@@ -635,7 +633,7 @@ describe('«Обновить» — the manual WB harvest', () => {
 
   it('comes back to its own running harvest after a page reload', async () => {
     // The state that matters here is the SERVER's, not the click's. It lived
-    // only in the store, so reloading mid-run put «Обновить» back on an
+    // only in the store, so reloading mid-run put "Refresh" back on an
     // enabled button over a harvest that was still going — clicking it again
     // did nothing, and the seller had no way to tell whether their refresh was
     // still happening.
@@ -649,12 +647,12 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await store.loadHarvestState()
 
-    expect(store.harvestNotice).toContain('Обновление уже идёт')
+    expect(store.harvestNotice).toContain('A refresh is already running')
   })
 
   it('says nothing about a run this browser did not ask for', async () => {
     // The lock is platform-wide and the schedule takes it many times a day:
-    // «Обновление уже идёт» on an ordinary page load was usually about another
+    // "A refresh is already running" on an ordinary page load was usually about another
     // workspace. A report found for this one is the freshness line's to announce.
     fetchHarvestState
       .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
@@ -673,21 +671,21 @@ describe('«Обновить» — the manual WB harvest', () => {
 
     await settle(() => store.loadHarvestState())
 
-    expect(store.harvestNotice).toBe('Новых отчётов у Wildberries пока нет.')
+    expect(store.harvestNotice).toBe('No new reports from Wildberries yet.')
   })
 
   it('does not announce a new week for a run it only joined halfway', async () => {
     // The baseline is the settlement day the resumed state itself carries. It
     // used to be the store's own span, which is still empty this early in a
     // page load — and every non-empty day differs from an empty string, so a
-    // run that brought nothing would be announced as «Загружен отчёт по …».
+    // run that brought nothing would be announced as "Report loaded through …".
     fetchHarvestState
       .mockResolvedValueOnce({ running: true, latest_settled: '2026-07-19' })
       .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
 
     await settle(() => store.loadHarvestState())
 
-    expect(store.harvestNotice).not.toContain('Загружен')
+    expect(store.harvestNotice).not.toContain('Report loaded')
     expect(fetchWeeks).not.toHaveBeenCalled()
   })
 
@@ -735,7 +733,7 @@ describe('«Обновить» — the manual WB harvest', () => {
   })
 
   it('surfaces a failed trigger instead of pretending a harvest started', async () => {
-    triggerHarvest.mockRejectedValue(new Error('нет связи'))
+    triggerHarvest.mockRejectedValue(new Error('no connection'))
 
     await settle(() => store.refreshFromWb())
 
@@ -748,17 +746,17 @@ describe('«Обновить» — the manual WB harvest', () => {
     await store.loadWeeks()
     triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
     fetchHarvestState
-      .mockRejectedValueOnce(new Error('таймаут'))
+      .mockRejectedValueOnce(new Error('timeout'))
       .mockResolvedValue({ running: false, latest_settled: '2026-07-19' })
 
     await settle(() => store.refreshFromWb())
 
     expect(store.harvestError).toBe('')
-    expect(store.harvestNotice).toBe('Новых отчётов у Wildberries пока нет.')
+    expect(store.harvestNotice).toBe('No new reports from Wildberries yet.')
   })
 })
 
-describe('«Обновить» — how the period follows new data', () => {
+describe('"Refresh" — how the period follows new data', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     triggerHarvest.mockResolvedValue({ status: 'started', task_id: 'task-1' })
@@ -778,7 +776,7 @@ describe('«Обновить» — how the period follows new data', () => {
     await running
   }
 
-  it('extends «вся история» instead of sliding it forward', async () => {
+  it('extends "All time" instead of sliding it forward', async () => {
     fetchWeeks.mockResolvedValueOnce({ weeks: WEEKS })
     await store.loadWeeks()
     store.setPresetAll()

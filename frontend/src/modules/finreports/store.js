@@ -10,7 +10,7 @@
  * The period is an arbitrary ``{dateFrom, dateTo}`` pair, not a week id: the
  * report aggregates whatever settlement rows fall inside it, so any range the
  * seller can type is a valid period. The harvested weeks are still loaded —
- * they bound the «вся история» preset.
+ * they bound the "All time" preset.
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -58,7 +58,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
   const reportLoading = ref(false)
   const reportError = ref('')
 
-  // --- per-size drill-down («подтаблица размеров») -------------------------
+  // --- per-size drill-down (the sizes under an article) --------------------
   // Cleared whenever the report reloads: a size row is only true for the
   // period it was fetched for. See `useSkuSizes` for how a stale answer is kept
   // from landing — and from leaving a row spinning.
@@ -71,7 +71,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
     fetch: (nmId, params) => fetchSkuSizes(nmId, params),
   })
 
-  // --- stock balance («Баланс по товарным остаткам») -----------------------
+  // --- stock balance (the warehouse grid) ---------------------------------
   // Its own period, deliberately: stock is a point-in-time snapshot, so the
   // balance is a picked DAY while the P&L above it is a range.
   const balance = ref(null)
@@ -108,8 +108,8 @@ export const useFinReportsStore = defineStore('finreports', () => {
 
   /**
    * The span as the period picker takes it: presets end on the newest settled
-   * day and «Вся история» starts on the oldest — the same bounds the page's
-   * calendar greys out beyond, so a preset here and one there agree.
+   * day and "All time" starts on the oldest — the same bounds the page's
+   * calendar grays out beyond, so a preset here and one there agree.
    */
   const periodBounds = () => ({
     end: fullSpan.value?.date_to ?? '',
@@ -144,8 +144,8 @@ export const useFinReportsStore = defineStore('finreports', () => {
       dailyThrough.value = answer.provisional_through ?? null
       // On a fresh load (page reload resets the store): restore the period the
       // seller last chose, so a reload keeps their view instead of snapping back
-      // to a default — for an hour, and moved forward if it meant «the latest
-      // window» and weeks have landed since (see `periodMemory`). With nothing
+      // to a default — for an hour, and moved forward if it meant "the latest
+      // window" and weeks have landed since (see `periodMemory`). With nothing
       // saved we default to the last week: the window a seller checks daily,
       // and far faster to render than 2.5 years of rows.
       if (!dateFrom.value && fullSpan.value) {
@@ -195,9 +195,9 @@ export const useFinReportsStore = defineStore('finreports', () => {
   }
 
   /**
-   * Mark a SKU «Не включать в общий счёт» (or clear it), then reload.
+   * Mark a SKU "Exclude from total" (or clear it), then reload.
    *
-   * The dashboard's «общий счёт» is recomputed on the backend, so after
+   * The dashboard's overall total is recomputed on the backend, so after
    * persisting the mark we re-fetch the report rather than adjust totals on the
    * client. The row's own flag is flipped optimistically so the checkbox reacts
    * immediately; the reload then brings the recomputed dashboard.
@@ -225,7 +225,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
    * Load the stock balance for {@link balanceDate} (newest snapshot when empty).
    *
    * The day is then taken FROM the response rather than assumed: an empty
-   * `balanceDate` means «whatever WB last captured», and only the backend knows
+   * `balanceDate` means "whatever WB last captured", and only the backend knows
    * which day that is.
    */
   async function loadBalance() {
@@ -267,7 +267,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
   }
 
   /**
-   * Mark a SKU row or warehouse column of the balance grid «Не считать», or
+   * Mark a SKU row or warehouse column of the balance grid "Don't count", or
    * clear the mark.
    *
    * Applied to the loaded payload FIRST and persisted after, with no reload —
@@ -295,7 +295,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
 
   /** Set an explicit period. Swapped ends are corrected, not rejected. The
    *  choice is remembered for an hour — with the harvested span it was made
-   *  against, which is what lets a later reload tell «последняя неделя» from a
+   *  against, which is what lets a later reload tell "the latest week" from a
    *  fixed window. */
   function setPeriod(from, to) {
     if (from && to && from > to) {
@@ -373,7 +373,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
    * Exports the whole harvested history so every SKU that ever sold appears with
    * a row to cost — a cost sheet scoped to last week would omit most of them. The
    * weeks are loaded first when the cost page was opened directly, since it is
-   * `fullSpan` (derived from them) that bounds «вся история».
+   * `fullSpan` (derived from them) that bounds "All time".
    */
   async function exportCostPrices() {
     costsError.value = ''
@@ -419,14 +419,14 @@ export const useFinReportsStore = defineStore('finreports', () => {
    * Reload the harvested weeks and the statement after a harvest brought one.
    *
    * The period follows the new data only for a seller who was looking at the
-   * latest week — for them the window they picked *means* «последняя неделя»,
+   * latest week — for them the window they picked *means* "the latest week",
    * and leaving it behind would show a stale week under a fresh report. A
    * deliberately chosen older period is left exactly where it was.
    */
   async function adoptNewReports() {
     const previous = fullSpan.value
     const wasOnLatest = Boolean(dateFrom.value) && dateTo.value === previous?.date_to
-    // «Вся история» is followed by extending it, not by sliding it: the window
+    // "All time" is followed by extending it, not by sliding it: the window
     // is anchored at both ends, so preserving its LENGTH over a new week would
     // walk its start forward and quietly drop the oldest days from the total.
     const wasWholeHistory = wasOnLatest && dateFrom.value === previous?.date_from
@@ -439,7 +439,7 @@ export const useFinReportsStore = defineStore('finreports', () => {
     await loadReport()
   }
 
-  // The manual «Обновить» trigger. It owns the request and the waiting; the
+  // The manual "Refresh" trigger. It owns the request and the waiting; the
   // store keeps the one decision that is about the period rather than about
   // harvesting — what a newly arrived week does to the window on screen.
   const { harvestBusy, harvestNotice, harvestError, refreshFromWb, resumeWatch } =

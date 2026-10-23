@@ -5,7 +5,7 @@
  * see an uncosted article only as a number on a card — then had to leave the
  * statement, find the article again in a second grid, and come back. This is
  * the short path: save one cost, then re-read the statement, so the row, its
- * profit and «Итого» are the backend's figures again rather than a guess.
+ * profit and "Total" are the backend's figures again rather than a guess.
  *
  * Kept out of the store, which sits at the file ceiling — the same split as
  * `useReportUpload`. The editor's cached list is dropped rather than patched:

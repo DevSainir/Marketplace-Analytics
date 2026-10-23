@@ -40,7 +40,7 @@ async function type(wrapper, vendorCode, value) {
 }
 
 function saveButton(wrapper) {
-  return wrapper.findAll('button').find((b) => b.text().startsWith('Сохранить'))
+  return wrapper.findAll('button').find((b) => b.text().startsWith('Save'))
 }
 
 describe('which edits reach the server', () => {
@@ -113,7 +113,7 @@ describe('which edits reach the server', () => {
     await type(wrapper, 'm-lnx02-blk', '-5')
 
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('неотрицательным числом')
+    expect(wrapper.text()).toContain('non-negative number')
   })
 
   it('offers the explicit clear only on rows that have a cost', () => {

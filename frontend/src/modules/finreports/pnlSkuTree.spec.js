@@ -53,7 +53,7 @@ describe('treeRows', () => {
   it('shows a loading line, not nothing, while the sizes are on their way', () => {
     const rows = treeRows([article(1, 300)], { 1: true }, {}, 'seller')
 
-    expect(rows[1]).toMatchObject({ kind: 'note', text: 'Загружаем…' })
+    expect(rows[1]).toMatchObject({ kind: 'note', text: 'Loading…' })
   })
 })
 
@@ -72,7 +72,7 @@ describe('childRows', () => {
     expect(s.logisticsPerSale).toBe(25)
   })
 
-  it('takes «Продажи» and the price at the page’s price base', () => {
+  it('takes "Sales" and the price at the page’s price base', () => {
     const [s] = childRows(1, loaded([size('S', 3, 1, 1000, 800)]), 'paid')
 
     expect(s.sales).toBe(800)
@@ -80,8 +80,8 @@ describe('childRows', () => {
   })
 })
 
-describe('«Логистика на 1 выкуп» у артикула и в «Итого»', () => {
-  it('делит всю логистику на проданные штуки, а «Итого» — суммы, не средние', () => {
+describe('"Logistics per buyout" on an article and in "Total"', () => {
+  it('divides all logistics by units sold, and "Total" divides sums, not averages', () => {
     const a = { logistics: 600, sold: 2, returned: 0, isExcluded: false }
     const b = { logistics: 400, sold: 8, returned: 0, isExcluded: false }
 

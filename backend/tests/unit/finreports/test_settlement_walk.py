@@ -292,7 +292,7 @@ async def test_a_workspace_without_the_settlement_scope_asks_for_nothing(
 ) -> None:
     """No token, no request — and no rate budget spent proving it."""
     rows, failed, _through = await walk_settlement_reports(
-        tokens=WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Асель"),
+        tokens=WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Asel"),
         reports=_REPORTS,
         build_ingestion=_ingestion_factory(journal),
     )

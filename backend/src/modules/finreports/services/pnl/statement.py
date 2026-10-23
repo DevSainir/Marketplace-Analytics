@@ -8,7 +8,7 @@ the whole statement be unit-tested against a full WB week without a database.
 reward twice: ``ppvz_vw`` unrounded and ``ppvz_sales_commission`` rounded to
 kopecks. Adding either to ``ppvz_vw_nds`` gives a commission that misses the
 authoritative payout by ~0.12 KGS a week, so a reader adding up the printed
-lines would not arrive at «к перечислению». Deriving it instead as
+lines would not arrive at the payout. Deriving it instead as
 
     revenue_paid - payout_for_goods - acquiring_withheld - wb_reward
 
@@ -17,10 +17,10 @@ figure WB actually settles on and which is never recomputed here. The reported
 ``ppvz_vw`` sums are carried through the aggregate purely to cross-check it.
 
 That only works because the acquiring term is the *withheld* part. WB labels some
-``acquiring_fee`` rows «Комиссия за организацию платежа с НДС» and bills them
+``acquiring_fee`` rows as the payment-arrangement fee incl. VAT and bills them
 separately rather than deducting them — thousands of rows over a seller's
 history. Feeding the undifferentiated ``acquiring_fee`` into the
-residual would move exactly that much out of «комиссия WB» and into «эквайринг» —
+residual would move exactly that much out of "WB commission" and into "Acquiring" —
 a plausible-looking statement with two wrong lines that still totals correctly.
 """
 
@@ -129,14 +129,14 @@ def build_statement(
         compensations=aggregate.payout_other,
         payout_from_sales=payout_from_sales,
         payout_for_goods=payout_goods,
-        logistics=_section("Логистика", logistics, revenue_seller, logistics_reasons),
+        logistics=_section("Logistics", logistics, revenue_seller, logistics_reasons),
         logistics_forward=aggregate.logistics_forward,
         logistics_return=aggregate.logistics_return,
         logistics_unlegged=aggregate.logistics_unlegged,
-        storage=_section("Хранение", aggregate.storage, revenue_seller, storage_reasons),
+        storage=_section("Storage", aggregate.storage, revenue_seller, storage_reasons),
         acceptance=aggregate.acceptance,
-        penalties=_section("Штрафы", aggregate.penalties, revenue_seller, penalty_reasons),
-        deductions=_section("Удержания", aggregate.deductions, revenue_seller, deduction_reasons),
+        penalties=_section("Penalties", aggregate.penalties, revenue_seller, penalty_reasons),
+        deductions=_section("Deductions", aggregate.deductions, revenue_seller, deduction_reasons),
         advertising=aggregate.advertising,
         additional_payments=aggregate.additional_payments,
         rebill_logistic_cost=aggregate.rebill_logistic_cost,

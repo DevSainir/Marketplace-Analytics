@@ -12,7 +12,7 @@ This one table backs the module's output:
 
 * **The P&L.** Revenue (``retail_amount``), WB's cut (``ppvz_vw`` +
   ``ppvz_vw_nds``), acquiring, and the payout (``ppvz_for_pay``) come off the
-  «Продажа»/«Возврат» rows; logistics, storage, acceptance, penalties and
+  sale and refund rows; logistics, storage, acceptance, penalties and
   deductions off their own operations. Nothing in the statement is sourced from
   anywhere but these columns and the seller's own cost prices.
 
@@ -60,21 +60,21 @@ class LogisticsTransaction(Base):
         office_name: The warehouse/office the row was priced at.
         subject_name / brand_name: Catalogue identity WB puts on the row itself.
         rr_dt / order_dt / sale_dt: Settlement, order and sale dates.
-        supplier_oper_name: Operation kind («Логистика»/«Продажа»/«Штраф»/…).
-        doc_type_name: «Продажа» vs «Возврат» on the money rows.
+        supplier_oper_name: Operation kind (logistics, sale, penalty, …).
+        doc_type_name: Sale vs refund on the money rows.
         bonus_type_name: WB's reason string (e.g. why a penalty was charged).
         gi_box_type_name / delivery_method / site_country / srv_dbs: Supply,
             delivery and settlement-scheme descriptors.
         currency_name: Row settlement currency (e.g. ``KGS``).
         quantity: Units on the row.
         delivery_amount / return_amount: **Counts, not money.** Exactly one of
-            them is 1 on a «Логистика» row, which is what splits ``delivery_rub``
+            them is 1 on a logistics row, which is what splits ``delivery_rub``
             into forward (to the buyer) and return logistics.
         retail_price / retail_price_withdisc_rub / retail_amount: Card price,
             price after the seller's discount, and what the buyer actually paid.
         sale_percent / commission_percent / ppvz_spp_prc / ppvz_kvw_prc_base /
             ppvz_kvw_prc / acquiring_percent: The percentages WB applied.
-        ppvz_for_pay: «К перечислению» (payout) for the row — the settled bottom line, and
+        ppvz_for_pay: The payout for the row — the settled bottom line, and
             the anchor of the payout identity ``ppvz_for_pay = retail_amount -
             ppvz_vw - ppvz_vw_nds - acquiring_fee - ppvz_reward``.
         ppvz_vw / ppvz_vw_nds / ppvz_sales_commission / ppvz_reward: WB's reward
@@ -84,7 +84,7 @@ class LogisticsTransaction(Base):
         product_discount_for_report / supplier_promo / seller_promo_discount /
             loyalty_discount / installment_cofinancing_amount / cashback_*:
             Who funded the gap between card price and what was paid.
-        agency_vat: «НДС агента» (agent's VAT) — reported alongside, not part of the payout.
+        agency_vat: The agent's VAT — reported alongside, not part of the payout.
         dlv_prc: Delivery coefficient applied to the row.
         delivery_rub: Logistics ₽ charged.
         penalty / additional_payment / rebill_logistic_cost / storage_fee /
@@ -154,7 +154,7 @@ class LogisticsTransaction(Base):
     site_country: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     srv_dbs: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # Counts, never money — exactly one of the two is 1 on a «Логистика» row,
+    # Counts, never money — exactly one of the two is 1 on a logistics row,
     # which is what splits ``delivery_rub`` into forward and return logistics.
     quantity: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     delivery_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

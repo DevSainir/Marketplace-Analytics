@@ -63,7 +63,7 @@ async def harvest_daily_tail(*, workspace_id: uuid.UUID) -> dict[str, int]:
     sellers and one order of spend on the same WB buckets. A second way to sweep
     the fleet would be a second place for those decisions to drift.
 
-    What is left is the path «Обновить» takes. It cannot go through the harvest's
+    What is left is the path "Refresh" takes. It cannot go through the harvest's
     lock — a click landing while the sweep runs would answer «already running»
     and fetch nothing, which is the case the button exists for — so it takes a
     key of its own. It spends one seller's budget, WB's buckets are per token,
@@ -99,7 +99,7 @@ async def tail_one_workspace(*, tokens: WorkspaceTokenBundle, today: date) -> di
     """Harvest one workspace's daily tail — the unit both callers share.
 
     Called per seller by the settled harvest's fleet tick, and by
-    :func:`harvest_daily_tail` for «Обновить». Takes no lock of its own: each
+    :func:`harvest_daily_tail` for "Refresh". Takes no lock of its own: each
     caller holds the one appropriate to its scope.
 
     Args:

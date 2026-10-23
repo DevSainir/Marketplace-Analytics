@@ -165,7 +165,7 @@ async def test_a_gated_tick_asks_only_about_the_seller_still_owed(
 
 
 async def test_an_ungated_run_asks_about_everybody(asked: list[uuid.UUID]) -> None:
-    """«Обновить» and the nightly pass do not consult the calendar."""
+    """The "Refresh" button and the nightly pass do not consult the calendar."""
     await harvest_all_workspaces()
 
     assert sorted(asked) == sorted([HOLDS_ALL, WAITING])

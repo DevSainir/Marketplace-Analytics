@@ -56,12 +56,12 @@ class _StubBalanceService:
                 BalanceSkuRow(
                     nm_id=NM_ID,
                     sa_name="m-trx01-blk",
-                    subject_name="Брюки",
+                    subject_name="Trousers",
                     brand_name="NORTH LINE",
                     cost_price=Decimal("800"),
                     cells=[
                         BalanceCell(
-                            warehouse_name="Тула",
+                            warehouse_name="Tula",
                             quantity=72,
                             in_way=5,
                             balance=Decimal("57600"),
@@ -70,7 +70,7 @@ class _StubBalanceService:
                     ],
                 )
             ],
-            uncounted_warehouses=["СЦ Брак"],
+            uncounted_warehouses=["SC Defects"],
             uncounted_skus=[],
             uncosted_count=0,
             notes=[],
@@ -104,7 +104,7 @@ def _wire(
         return (FIRST_DAY, LATEST_DAY)
 
     async def _stock(session: Any, **kwargs: Any) -> dict[tuple[int, str], WarehouseStock]:
-        cells = {(NM_ID, "Тула"): WarehouseStock(72, 5)}
+        cells = {(NM_ID, "Tula"): WarehouseStock(72, 5)}
         return cells if kwargs["stat_date"] == LATEST_DAY else {}
 
     async def _vendor_codes(session: Any, **_kw: Any) -> dict[int, str]:
@@ -174,7 +174,7 @@ async def test_the_stock_reaches_the_service_through_the_route(
     await client.get("/api/v1/finreports/balance", headers=headers)
 
     call = balance.calls[0]
-    assert call["stock"] == {(NM_ID, "Тула"): WarehouseStock(72, 5)}
+    assert call["stock"] == {(NM_ID, "Tula"): WarehouseStock(72, 5)}
     assert call["vendor_codes"] == {NM_ID: "m-trx01-blk"}
     assert call["span"] == (FIRST_DAY, LATEST_DAY)
 
@@ -188,7 +188,7 @@ async def test_the_response_serialises_the_grid_shape_the_table_reads(
     body = response.json()
     row = body["rows"][0]
     assert row["cells"][0] == {
-        "warehouse_name": "Тула",
+        "warehouse_name": "Tula",
         "quantity": 72,
         "in_way": 5,
         "balance": "57600",
@@ -198,7 +198,7 @@ async def test_the_response_serialises_the_grid_shape_the_table_reads(
         assert field in row
     # The marks travel with the grid: the client draws the panels, so it needs
     # to know which columns are out of the count.
-    assert body["uncounted_warehouses"] == ["СЦ Брак"]
+    assert body["uncounted_warehouses"] == ["SC Defects"]
     assert body["available_from"] == FIRST_DAY.isoformat()
     assert body["uncosted_count"] == 0
 
@@ -212,7 +212,7 @@ async def test_a_mark_is_persisted_for_the_active_workspace(
     """Marking a warehouse column reaches the service with the workspace."""
     response = await client.put(
         "/api/v1/finreports/balance/pins",
-        json={"kind": "warehouse_uncounted", "value": "Тула", "pinned": True},
+        json={"kind": "warehouse_uncounted", "value": "Tula", "pinned": True},
         headers=headers,
     )
 
@@ -220,7 +220,7 @@ async def test_a_mark_is_persisted_for_the_active_workspace(
     assert balance.calls[0]["set_pin"] == {
         "workspace_id": workspace.id,
         "kind": "warehouse_uncounted",
-        "value": "Тула",
+        "value": "Tula",
         "pinned": True,
     }
 
@@ -228,15 +228,15 @@ async def test_a_mark_is_persisted_for_the_active_workspace(
 async def test_a_retired_pin_kind_is_refused(
     client: httpx.AsyncClient, headers: dict[str, str], balance: _StubBalanceService
 ) -> None:
-    """«Закрепить» is gone, so its two kinds must no longer be writable.
+    """The "Pin" mark is gone, so its two kinds must no longer be writable.
 
     An old browser tab left open across the deploy would keep sending them;
     validating the kind is what stops it writing rows nothing will ever read
-    back into the table «Не считать» still shares.
+    back into the table "Don't count" still shares.
     """
     response = await client.put(
         "/api/v1/finreports/balance/pins",
-        json={"kind": "warehouse", "value": "Тула", "pinned": True},
+        json={"kind": "warehouse", "value": "Tula", "pinned": True},
         headers=headers,
     )
 
@@ -247,20 +247,20 @@ async def test_a_retired_pin_kind_is_refused(
 async def test_marking_a_warehouse_uncounted_reaches_the_service(
     client: httpx.AsyncClient, headers: dict[str, str], balance: _StubBalanceService
 ) -> None:
-    """«Не считать» is a mark of its own, not a pin with a flag.
+    """The "Don't count" mark is one of its own, not a pin with a flag.
 
     It does the opposite of a pin — the column sorts last and leaves every
     total — so it needs its own kind rather than overloading the pin's value.
     """
     response = await client.put(
         "/api/v1/finreports/balance/pins",
-        json={"kind": "warehouse_uncounted", "value": "СЦ Брак", "pinned": True},
+        json={"kind": "warehouse_uncounted", "value": "SC Defects", "pinned": True},
         headers=headers,
     )
 
     assert response.status_code == 204
     assert balance.calls[0]["set_pin"]["kind"] == "warehouse_uncounted"
-    assert balance.calls[0]["set_pin"]["value"] == "СЦ Брак"
+    assert balance.calls[0]["set_pin"]["value"] == "SC Defects"
 
 
 async def test_a_mark_of_an_unknown_kind_is_rejected(
@@ -273,7 +273,7 @@ async def test_a_mark_of_an_unknown_kind_is_rejected(
     """
     response = await client.put(
         "/api/v1/finreports/balance/pins",
-        json={"kind": "region", "value": "Центр", "pinned": True},
+        json={"kind": "region", "value": "Center", "pinned": True},
         headers=headers,
     )
 
@@ -297,7 +297,7 @@ async def test_a_pin_stops_saving_once_the_term_is_past_grace(
 
     response = await client.put(
         "/api/v1/finreports/balance/pins",
-        json={"kind": "warehouse", "value": "Тула", "pinned": True},
+        json={"kind": "warehouse", "value": "Tula", "pinned": True},
         headers=headers,
     )
 

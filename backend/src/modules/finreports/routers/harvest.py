@@ -1,4 +1,4 @@
-"""The manual «Обновить» surface: fetch WB's finance reports now.
+"""The manual "Refresh" surface: fetch WB's finance reports now.
 
 Two routes on one path — ``POST /harvest`` asks for a harvest, ``GET /harvest``
 reports whether one is running and how far the history reaches, so the frontend
@@ -54,7 +54,7 @@ async def get_harvest_state(
 ) -> HarvestStateResponse:
     """Report harvest liveness, settlement coverage and freshness.
 
-    Polled by «Обновить» while a run is in flight: ``running`` falling to false
+    Polled by "Refresh" while a run is in flight: ``running`` falling to false
     is the signal to re-fetch the statement, and ``latest_settled`` moving is
     what tells the seller a new week actually arrived. It is also read on every
     load of the P&L, which renders ``latest_report`` and ``last_check`` as the
@@ -129,7 +129,7 @@ async def trigger_harvest(
 
     **The gate does not apply to a person.** This used to enqueue the ordinary
     gated tick, so a click answered whatever the hourly schedule had already
-    answered — and the one moment somebody presses «Обновить» is the moment the
+    answered — and the one moment somebody presses "Refresh" is the moment the
     schedule has just told them the statement is complete when it is not. On
     2026-09-14 the click was logged as «settled through 13.09 — nothing newer can
     exist yet, skipping» over a week WB had published that morning.
@@ -152,7 +152,7 @@ async def trigger_harvest(
     **Every outcome is an answer, and none of them is a wait.** WB metered the
     old settlement report at one request per ~15 minutes, so a click shortly
     after the hourly tick used to enqueue a harvest whose first act was to sit still
-    for most of that window — seven minutes of «Обновляем…» during which nothing
+    for most of that window — seven minutes of "Refreshing…" during which nothing
     could possibly happen (observed 2026-09-09). The bucket already knows, in shared
     Redis, so that case is now refused here with the wait attached instead of
     being discovered minutes later on a worker.
@@ -168,7 +168,7 @@ async def trigger_harvest(
     limit alone would say only that it cannot start.
 
     Scoped to the caller's own workspace. It used to enqueue the **fleet** walk:
-    one seller pressing «Обновить» spent every other seller's WB rate budget and
+    one seller pressing "Refresh" spent every other seller's WB rate budget and
     held the shared harvest lock for the length of a platform-wide walk, so the
     cost of one click grew with the number of tenants and landed on all of them.
     """

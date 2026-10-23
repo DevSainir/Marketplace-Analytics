@@ -3,7 +3,7 @@
 The heatmap paints one figure per article per day, and three of its figures —
 revenue, units sold and profit — only exist in the settlement. This is the
 smallest set that lets it derive them without re-implementing any of the money
-rules: revenue and units as the «По артикулам» row computes them, the payout
+rules: revenue and units as the "By SKU" row computes them, the payout
 already netted of what WB withheld on the SKU's own rows, and the cost of the
 goods. Advertising is deliberately absent: it is the Promotion API's figure,
 which the consumer already holds per day, and the settlement's own ad invoice

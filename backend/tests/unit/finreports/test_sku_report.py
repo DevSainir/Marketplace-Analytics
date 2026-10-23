@@ -1,4 +1,4 @@
-"""Unit tests for the per-SKU P&L composition (the «По артикулам» cut).
+"""Unit tests for the per-SKU P&L composition (the "By SKU" cut).
 
 Same discipline as ``test_pnl_statement.py``: a synthetic 28-day window
 (2026-08-03..2026-08-30) for an invented SKU, nm 900000101, built from round
@@ -31,7 +31,7 @@ def _aggregate(**overrides: object) -> SettlementAggregate:
         "date_from": date(2026, 8, 3),
         "date_to": date(2026, 8, 30),
         "currency": "KGS",
-        "subject_name": "Брюки",
+        "subject_name": "Trousers",
         "brand_name": "NORTH LINE",
         "sold_units": 800,
         "returned_units": 80,
@@ -84,7 +84,7 @@ def _row(**kwargs: object):
 class TestSkuRow:
     """The single-row arithmetic."""
 
-    def test_к_перечислению_is_the_payout_net_of_the_skus_own_withholdings(self) -> None:
+    def test_the_payout_is_net_of_the_skus_own_withholdings(self) -> None:
         """payout − logistics − fines, exactly the reference workbook's column."""
         row = _row()
 
@@ -104,10 +104,10 @@ class TestSkuRow:
         assert row.net_profit == row.payout_net - cogs - Decimal("180000.00")
 
     def test_percentages_are_shares_of_net_sales_at_the_seller_s_price(self) -> None:
-        """Logistics, DRR and margin are % of «Продажи»: seller's price before SPP, net of returns.
+        """Logistics, DRR and margin are % of "Sales": seller's price before SPP, net of returns.
 
-        Net of returns, as the seller's workbook does it. The base was «Оплачено»
-        (after SPP) until 2026-09-26, while the dashboard card used «Продажи», so
+        Net of returns, as the seller's workbook does it. The base was "Paid"
+        (after SPP) until 2026-09-26, while the dashboard card used "Sales", so
         one page gave two logistics shares. SPP is WB's discount and moves every
         week: on the paid base a seller's logistics share rose whenever WB raised
         it, with nothing about the seller's costs changed.
@@ -147,7 +147,7 @@ class TestSkuRow:
         assert uncosted.roi_pct is None
 
     def test_buyout_is_wbs_own_percentage_from_the_funnel(self) -> None:
-        """«Выкуп» = buyouts ÷ (buyouts + refusals) by order date, as in WB's cabinet."""
+        """Buyout rate = buyouts ÷ (buyouts + refusals) by order date, as in WB's portal."""
         row = _row(buyouts=(720, 960))
 
         assert (row.buyout_units, row.decided_units) == (720, 960)
@@ -248,7 +248,7 @@ _TOTAL = _aggregate(
     logistics_return=Decimal("54000.00"),
     penalties=Decimal("2400.00"),
     storage=Decimal("14000.00"),
-    # The whole of that deduction IS the «WB Продвижение» invoice — the account
+    # The whole of that deduction IS the "WB Promotion" invoice — the account
     # bucket's only charge besides storage.
     deductions=Decimal("165000.00"),
     advertising=Decimal("165000.00"),
@@ -318,8 +318,8 @@ def _window(
             ({900000101: Decimal("0")} if ad_bonus is None else ad_bonus) if ad_covered else None
         ),
         penalties=[
-            (900000101, "Выявленные расхождения в карточке товара", Decimal("1800.00")),
-            (900000101, "Платное хранение возвратов на ПВЗ", Decimal("600.00")),
+            (900000101, "Discrepancies found in the product card", Decimal("1800.00")),
+            (900000101, "Paid storage of returns at a pickup point", Decimal("600.00")),
         ],
         excluded=excluded,
         photos=photos,
@@ -375,8 +375,8 @@ class TestSkuReport:
         blk = next(r for r in rows if r.nm_id == 900000101)
 
         assert [p.reason for p in blk.penalties] == [
-            "Выявленные расхождения в карточке товара",
-            "Платное хранение возвратов на ПВЗ",
+            "Discrepancies found in the product card",
+            "Paid storage of returns at a pickup point",
         ]
         assert isinstance(totals.penalties[0], SkuPenalty)
 
@@ -387,9 +387,9 @@ class TestSkuReport:
         assert totals.cogs == sum((r.cogs for r in rows if r.cogs is not None), Decimal(0))
 
     def test_the_totals_charge_wbs_invoice_once(self) -> None:
-        """WB bills the same advertising two ways; «Итого» charges the invoice.
+        """WB bills the same advertising two ways; "Total" charges the invoice.
 
-        The weekly «WB Продвижение» invoice is withheld inside «к перечислению»,
+        The weekly "WB Promotion" invoice is withheld inside the payout,
         and the Promotion API reports the same spend dated to the days the ads
         ran. Subtracting the burn from a payout already net of the invoice
         charges it twice, and the profit comes out short by the whole
@@ -426,20 +426,20 @@ class TestDashboard:
     """The exclusion-aware dashboard KPIs."""
 
     def test_with_nothing_marked_the_dashboard_equals_the_full_totals(self) -> None:
-        """So «Продажи» matches WB and «Перечисление» matches «Итого к оплате»."""
+        """So "Sales" matches WB and "Payout" matches "Total payout"."""
         rows, _unallocated, totals = _window()
 
         dash = build_dashboard(rows=rows, totals=totals, total_aggregate=_TOTAL)
 
         assert dash.excluded_count == 0
-        assert dash.sales == totals.revenue_seller_price  # «Продажи» = seller price
+        assert dash.sales == totals.revenue_seller_price  # "Sales" = seller price
         assert dash.paid == totals.revenue_paid  # qualifier: what buyers paid
         assert dash.logistics == totals.logistics_total
         assert dash.payout_net == totals.payout_net
         assert dash.cogs == totals.cogs
 
     def test_a_marked_sku_leaves_all_four_per_sku_cards(self) -> None:
-        """Each card drops exactly that SKU's share; «общий счёт» shrinks."""
+        """Each card drops exactly that SKU's share; the overall total shrinks."""
         rows, _unallocated, totals = _window(excluded={900000102})
         marked = next(r for r in rows if r.nm_id == 900000102)
 
@@ -454,7 +454,7 @@ class TestDashboard:
         assert dash.cogs == totals.cogs - marked.cogs
 
     def test_account_level_other_deductions_never_move_with_a_mark(self) -> None:
-        """«Прочие удержания» has no nm_id, so no SKU mark can touch it."""
+        """The "Other deductions" line has no nm_id, so no SKU mark can touch it."""
         rows, _unallocated, totals = _window(excluded={900000102})
 
         dash = build_dashboard(rows=rows, totals=totals, total_aggregate=_TOTAL)
@@ -464,7 +464,7 @@ class TestDashboard:
 
 
 class TestThumbnails:
-    """The card image the «По артикулам» table shows beside each article."""
+    """The card image the "By SKU" table shows beside each article."""
 
     PHOTO = "https://basket-01.wbbasket.ru/vol9000/part900000/900000101/images/big/1.webp"
 
@@ -487,7 +487,7 @@ class TestThumbnails:
         assert uncatalogued.photo_url is None
 
     def test_the_account_level_rows_are_not_a_product_and_show_no_photo(self) -> None:
-        """«Без привязки к артикулу» and «Итого» span many SKUs, so neither has one.
+        """The "Not tied to a SKU" bucket and "Total" span many SKUs, so neither has one.
 
         Both are built with ``nm_id = 0``; a catalogue that ever held a card
         under that id would otherwise put a random product's photo on the

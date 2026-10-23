@@ -32,7 +32,7 @@ router = APIRouter()
     response_model=SettlementCurrencyResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "The active кабинет's settlement currency, or empty."},
+        200: {"description": "The active workspace's settlement currency, or empty."},
         401: {"description": "Unauthorized access token."},
         403: {"description": "Not a member of an organisation with a live subscription."},
     },

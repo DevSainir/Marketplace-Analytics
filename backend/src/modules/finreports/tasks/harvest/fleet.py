@@ -109,7 +109,7 @@ async def harvest_all_workspaces(
 
     Args:
         workspace_id: Restrict the walk to one workspace. The hourly schedule
-            omits it and sweeps the fleet; the «Обновить» button passes the
+            omits it and sweeps the fleet; the "Refresh" button passes the
             caller's own workspace, because a request from one tenant must not
             spend the WB budget — or the wall-clock — of every other tenant on
             the platform.
@@ -122,7 +122,7 @@ async def harvest_all_workspaces(
             back-dated report is the thing being looked for. Once a day; see
             :func:`_harvest_all_workspaces`.
         gated: Ask WB only about sellers still owed a report today, judged from
-            our own tables (:mod:`.due`). Scheduled ticks set it; «Обновить»,
+            our own tables (:mod:`.due`). Scheduled ticks set it; "Refresh",
             a first harvest and the nightly pass do not.
 
     Returns:
@@ -360,7 +360,7 @@ async def _harvest_one(
             listed=listed,
             held=held[bundle.workspace_id],
         )
-    # The one remaining way to learn nothing: no «Финансы» token, so no
+    # The one remaining way to learn nothing: no "Finance" token, so no
     # request was made and none can be. Recording a verdict here would
     # claim a check that cannot happen. (The caller skips such workspaces
     # already; this is the gate saying the same thing for any other caller.)
@@ -417,8 +417,8 @@ async def _harvest_one(
             # It is not hypothetical. On 2026-09-09 the probe hit the settlement
             # endpoint's 15-minute block and 429'd, the gate failed open, and
             # seven minutes later the walk asked the same window and got 204 —
-            # proof there was nothing new. The page kept showing «не удалось
-            # спросить» over a statement that had just been confirmed complete.
+            # proof there was nothing new. The page kept showing "couldn't
+            # ask" over a statement that had just been confirmed complete.
             if not counts.get("finance_windows_failed"):
                 await records.put(
                     bundle.workspace_id,
@@ -464,7 +464,7 @@ async def _bundles_to_walk(
 
     A scoped run loads exactly one bundle rather than loading every tenant's and
     filtering: the fleet loader decrypts each workspace's WB tokens, and one
-    tenant pressing «Обновить» is no reason to touch the others' secrets.
+    tenant pressing "Refresh" is no reason to touch the others' secrets.
 
     Args:
         session: An open session (the caller owns the transaction).

@@ -2,9 +2,9 @@
 
 Written with ``xlsxwriter``, read back here with ``openpyxl`` (a different
 library on purpose — a bug shared by writer and reader could not hide a broken
-column). Two properties carry the weight: the sheet shows the «По артикулам»
+column). Two properties carry the weight: the sheet shows the "By SKU"
 columns the screen shows, and a freshly-exported file re-imports — the editable
-«Себестоимость за 1 ед.» column round-trips, while the «Итого»/bucket summary
+"Cost price per unit" column round-trips, while the "TOTAL"/bucket summary
 rows are keyed blank so a re-upload skips them instead of treating 0 as a SKU.
 """
 
@@ -35,7 +35,7 @@ def _row(nm_id: int, sa_name: str, *, cost: str | None) -> PnlSkuRow:
     return PnlSkuRow(
         nm_id=nm_id,
         sa_name=sa_name,
-        subject_name="Футболка",
+        subject_name="T-shirt",
         brand_name="ACME",
         is_excluded=False,
         orders_units=10,
@@ -95,7 +95,7 @@ def _report(rows: list[PnlSkuRow], *, unallocated: PnlSkuRow | None = None) -> P
         currency="KGS",
         rows=rows,
         unallocated=unallocated,
-        totals=_row(0, "Итого", cost="700"),
+        totals=_row(0, "Total", cost="700"),
         dashboard=dash,
         notes=[],
     )
@@ -112,23 +112,23 @@ def test_the_export_carries_the_pnl_columns() -> None:
     # Arrange & Act.
     data = build_pnl_workbook(_report([_row(111, "w-lsx01-dbl", cost="700")]))
 
-    # Assert: the «По артикулам» identity + margin columns are present and named.
+    # Assert: the "By SKU" identity + margin columns are present and named.
     header = _header(data)
     for expected in (
-        "Артикул",
+        "Vendor code",
         NM_ID_HEADER,
-        "Тип предмета",
-        "Бренд",
-        "Продажи",
-        "Логистика",
+        "Category",
+        "Brand",
+        "Sales",
+        "Logistics",
         COST_HEADER,
-        "К перечислению",
-        "Чистая прибыль",
+        "Payout",
+        "Net profit",
     ):
         assert expected in header
     # And the two columns the redesign dropped.
-    assert "Валюта" not in header
-    assert "Источник" not in header
+    assert "Currency" not in header
+    assert "Source" not in header
 
 
 def test_a_costed_and_an_uncosted_sku_round_trip() -> None:
@@ -138,7 +138,7 @@ def test_a_costed_and_an_uncosted_sku_round_trip() -> None:
     # Act: export, then read the bytes back through the real parser.
     parsed = parse_cost_upload("pnl.xlsx", build_pnl_workbook(report))
 
-    # Assert: both SKUs come back; cost preserved, gap blank. The «Итого» row is
+    # Assert: both SKUs come back; cost preserved, gap blank. The "TOTAL" row is
     # keyed blank, so it is not among the parsed rows.
     by_nm = {int(p.nm_id_raw): p for p in parsed}
     assert set(by_nm) == {111, 222}
@@ -156,5 +156,5 @@ def test_the_bucket_and_totals_rows_are_not_parsed_as_skus() -> None:
     # Act.
     parsed = parse_cost_upload("pnl.xlsx", build_pnl_workbook(report))
 
-    # Assert: only the real SKU — the bucket (nm_id 0) and «Итого» are blank-keyed.
+    # Assert: only the real SKU — the bucket (nm_id 0) and "TOTAL" are blank-keyed.
     assert [int(p.nm_id_raw) for p in parsed] == [111]

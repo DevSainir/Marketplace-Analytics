@@ -1,8 +1,8 @@
 <script setup>
 /**
- * The per-SKU table's toolbar: the search, the «Предметы» / «Бренды» /
- * «Группы» filters (the app's `FilterMenu`, several choices each, as on the
- * heatmap), a «Сбросить фильтр» while any is set, and on the right how the
+ * The per-SKU table's toolbar: the search, the "Categories" / "Brands" /
+ * "Groups" filters (the app's `FilterMenu`, several choices each, as on the
+ * heatmap), a "Clear filters" while any is set, and on the right how the
  * table is cut (`GroupingChips`) and then the page-size picker.
  *
  * Presentational — the query and filter values are `v-model`s the table owns, because the table is what
@@ -21,22 +21,22 @@ import SearchField from '@/core/components/SearchField.vue'
 import { GroupsFilter } from '@/modules/heatmap'
 
 const props = defineProps({
-  /** Distinct «Предмет» values to choose from. */
+  /** Distinct category values to choose from. */
   subjects: { type: Array, default: () => [] },
-  /** Distinct «Бренд» values to choose from. */
+  /** Distinct brand values to choose from. */
   brands: { type: Array, default: () => [] },
   query: { type: String, default: '' },
-  /** The chosen ones — empty is «все». */
+  /** The chosen ones — empty is "all". */
   subject: { type: Array, default: () => [] },
   brand: { type: Array, default: () => [] },
   groupIds: { type: Array, default: () => [] },
   /** How the table is cut — `GroupingChips`, at the right end, before the page size. */
   cut: { type: String, required: true },
-  /** Whether the «Группы» cut is offered — see `useGroupCut`. */
+  /** Whether the "Groups" cut is offered — see `useGroupCut`. */
   groupsReadable: { type: Boolean, default: true },
   pageSize: { type: Number, default: 50 },
   pageSizes: { type: Array, default: () => [] },
-  /** Articles that sold with no cost; 0 hides «Без себестоимости» (the balance never shows it). */
+  /** Articles that sold with no cost; 0 hides "No cost price" (the balance never shows it). */
   uncosted: { type: Number, default: 0 },
   uncostedOnly: { type: Boolean, default: false },
 })
@@ -53,8 +53,8 @@ const emit = defineEmits([
 
 const options = (values) => values.map((value) => ({ value, label: value }))
 
-// «Без себестоимости» is left out: the chip switches itself off, and a «Сбросить
-// фильтр» appearing beside it pushed the row onto a second line and the table
+// "No cost price" is left out: the chip switches itself off, and a "Clear
+// filters" appearing beside it pushed the row onto a second line and the table
 // down under the reader's cursor. The reset still clears it with the rest.
 const filtering = computed(() =>
   Boolean(props.query || props.subject.length || props.brand.length || props.groupIds.length),
@@ -71,7 +71,7 @@ function clear() {
 
 <template>
   <!-- The app's one table toolbar, the same row advertising has: above the
-       table's card, search → filters → «Сбросить фильтр» → the cut and the
+       table's card, search → filters → "Clear filters" → the cut and the
        page size right. -->
   <div class="mb-sm flex flex-wrap items-center gap-sm">
     <SearchField
@@ -81,17 +81,17 @@ function clear() {
       @update:model-value="emit('update:query', $event)"
     />
     <FilterMenu
-      label="Предметы"
+      label="Categories"
       :items="options(subjects)"
       :model-value="subject"
-      placeholder="Поиск предмета"
+      placeholder="Search categories…"
       @update:model-value="emit('update:subject', $event)"
     />
     <FilterMenu
-      label="Бренды"
+      label="Brands"
       :items="options(brands)"
       :model-value="brand"
-      placeholder="Поиск бренда"
+      placeholder="Search brands…"
       @update:model-value="emit('update:brand', $event)"
     />
     <GroupsFilter :model-value="groupIds" @update:model-value="emit('update:groupIds', $event)" />
@@ -104,17 +104,17 @@ function clear() {
       data-testid="uncosted-filter"
       @click="emit('update:uncostedOnly', !uncostedOnly)"
     >
-      Без себестоимости · {{ uncosted }}
+      No cost price · {{ uncosted }}
     </button>
     <button v-if="filtering" type="button" class="ui-btn ui-btn--ghost ui-btn--sm" @click="clear">
-      Сбросить фильтр
+      Clear filters
     </button>
     <!-- Page size belongs to the DataTable's paginator; the phone card list
-         grows with its own «Показать ещё», so this control would do nothing
+         grows with its own "Show more", so this control would do nothing
          there and reads as broken. -->
-    <!-- One block, so when the row runs out of room (a filter adds «Сбросить
-         фильтр») the cut and the page size wrap together and stay at the right,
-         instead of «Строк на странице» dropping alone under the search. -->
+    <!-- One block, so when the row runs out of room (a filter adds "Clear
+         filters") the cut and the page size wrap together and stay at the right,
+         instead of "Rows per page" dropping alone under the search. -->
     <div class="ml-auto flex flex-wrap items-center gap-sm phone:ml-0">
       <GroupingChips
         :model-value="cut"
@@ -122,7 +122,7 @@ function clear() {
         @update:model-value="emit('update:cut', $event)"
       />
       <div v-if="pageSizes.length" class="hidden items-center gap-sm sm:flex">
-        <label class="text-tiny text-muted" for="sku-page-size">Строк на странице:</label>
+        <label class="text-tiny text-muted" for="sku-page-size">Rows per page:</label>
         <select
           id="sku-page-size"
           :value="pageSize"

@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.models import LogisticsTransaction
 from src.modules.finreports.repos import PnlRepository
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -35,17 +36,17 @@ def _settlement(
     *,
     rr_dt: date,
     sa_name: str,
-    subject: str = "Брюки",
+    subject: str = "Trousers",
     brand: str = "NoName",
     workspace: uuid.UUID = WORKSPACE,
 ) -> LogisticsTransaction:
-    """One «Продажа» row carrying nothing but the SKU's identity of that day."""
+    """One sale row carrying nothing but the SKU's identity of that day."""
     return LogisticsTransaction(
         rrd_id=rrd_id,
         report_id=969371534,
         workspace_id=workspace,
         nm_id=nm_id,
-        supplier_oper_name="Продажа",
+        supplier_oper_name=wb.SALE,
         rr_dt=rr_dt,
         currency_name="KGS",
         sa_name=sa_name,
@@ -67,10 +68,10 @@ async def test_a_renamed_sku_carries_its_newest_name(db_session: AsyncSession) -
     db_session.add_all(
         [
             _settlement(
-                1, RENAMED, rr_dt=date(2026, 7, 6), sa_name="a-old", brand="Старый", subject="Шорты"
+                1, RENAMED, rr_dt=date(2026, 7, 6), sa_name="a-old", brand="Old", subject="Shorts"
             ),
             _settlement(
-                2, RENAMED, rr_dt=date(2026, 8, 3), sa_name="M-NEW", brand="Новый", subject="Брюки"
+                2, RENAMED, rr_dt=date(2026, 8, 3), sa_name="M-NEW", brand="New", subject="Trousers"
             ),
         ]
     )
@@ -80,7 +81,7 @@ async def test_a_renamed_sku_carries_its_newest_name(db_session: AsyncSession) -
         workspace_id=WORKSPACE, nm_ids=[RENAMED]
     )
 
-    assert identity == {RENAMED: ("M-NEW", "Брюки", "Новый")}
+    assert identity == {RENAMED: ("M-NEW", "Trousers", "New")}
 
 
 async def test_another_tenants_rows_never_name_a_sku(db_session: AsyncSession) -> None:
@@ -92,12 +93,12 @@ async def test_another_tenants_rows_never_name_a_sku(db_session: AsyncSession) -
     """
     db_session.add_all(
         [
-            _settlement(3, RENAMED, rr_dt=date(2026, 7, 6), sa_name="наш"),
+            _settlement(3, RENAMED, rr_dt=date(2026, 7, 6), sa_name="ours"),
             _settlement(
                 4,
                 RENAMED,
                 rr_dt=date(2026, 9, 1),
-                sa_name="чужой",
+                sa_name="theirs",
                 workspace=OTHER_WORKSPACE,
             ),
         ]
@@ -108,7 +109,7 @@ async def test_another_tenants_rows_never_name_a_sku(db_session: AsyncSession) -
         workspace_id=WORKSPACE, nm_ids=[RENAMED]
     )
 
-    assert identity[RENAMED][0] == "наш"
+    assert identity[RENAMED][0] == "ours"
 
 
 async def test_a_sku_that_never_settled_is_absent(db_session: AsyncSession) -> None:
@@ -116,9 +117,9 @@ async def test_a_sku_that_never_settled_is_absent(db_session: AsyncSession) -> N
 
     Absence is the signal the caller acts on: it falls back to the catalogue
     vendor code, and an empty-string triple would defeat that and render a bare
-    nm_id in the «Артикул» column.
+    nm_id in the "Vendor code" column.
     """
-    db_session.add(_settlement(5, RENAMED, rr_dt=date(2026, 7, 6), sa_name="есть"))
+    db_session.add(_settlement(5, RENAMED, rr_dt=date(2026, 7, 6), sa_name="present"))
     await db_session.flush()
 
     identity = await PnlRepository(db_session).sku_identity(

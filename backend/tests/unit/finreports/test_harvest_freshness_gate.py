@@ -35,8 +35,8 @@ SETTLED = date(2026, 9, 6)
 
 
 def _tokens(*, finance: str = "a-finance-token") -> WorkspaceTokenBundle:
-    """A workspace bundle with the «Финансы» token the report needs."""
-    return WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Демо", finance=finance)
+    """A workspace bundle with the "Finance" token the report needs."""
+    return WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Demo", finance=finance)
 
 
 def _header(report_id: int, date_to: date, *, created: date | None = None) -> dict[str, Any]:
@@ -209,7 +209,7 @@ async def test_a_workspace_without_a_finance_token_is_not_silently_up_to_date(
 ) -> None:
     """A seller we cannot ask for is short a P&L, not finished.
 
-    Reporting `UP_TO_DATE` here would put «загружены по вчерашний день» over a
+    Reporting `UP_TO_DATE` here would put "loaded through yesterday" over a
     statement nobody is fetching. `None` leaves the standing verdict alone and
     the log says why.
     """
@@ -225,7 +225,7 @@ async def test_a_workspace_without_a_finance_token_is_not_silently_up_to_date(
 
 
 async def test_the_verdict_names_the_span_it_found(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The recorded window is what makes «спросили» checkable rather than a claim."""
+    """The recorded window is what makes "asked" checkable rather than a claim."""
     _install(
         monkeypatch,
         _FakeClient([_header(901, date(2026, 9, 13)), _header(902, date(2026, 9, 20))]),
@@ -301,7 +301,7 @@ async def test_a_refilling_bucket_is_not_a_block(
     """Up to a minute is the next token coming; hundreds of seconds is WB refusing.
 
     Read as a block, the minute after the backfill or the daily tail took a
-    token skipped the seller with «WB закрыл» — and took its daily tail with it —
+    token skipped the seller with "WB closed" — and took its daily tail with it —
     over a pause the gate queues through by itself.
     """
     monkeypatch.setattr(freshness, "finance_reports_rate_gate", lambda *_a, **_k: _BucketGate(wait))

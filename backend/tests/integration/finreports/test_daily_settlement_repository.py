@@ -25,6 +25,7 @@ from src.modules.finreports.repos.daily_settlement import (
     ListedTotals,
 )
 from tests.integration.finreports.conftest import OTHER_WORKSPACE, WORKSPACE
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -40,8 +41,8 @@ def _row(rrd_id: int, payout: str) -> LogisticsTransaction:
         report_id=DAILY,
         workspace_id=WORKSPACE,
         nm_id=123,
-        supplier_oper_name="Продажа",
-        doc_type_name="Продажа",
+        supplier_oper_name=wb.SALE,
+        doc_type_name=wb.SALE,
         rr_dt=DAY,
         currency_name="KGS",
         ppvz_for_pay=Decimal(payout),
@@ -142,7 +143,7 @@ async def test_the_queue_waits_the_full_day_and_skips_what_is_verified(
     assert (len(early), len(due), len(after)) == (0, 1, 0)
 
 
-async def test_a_verdict_is_written_only_to_its_own_кабинет(db_session: AsyncSession) -> None:
+async def test_a_verdict_is_written_only_to_its_own_workspace(db_session: AsyncSession) -> None:
     """Named with another workspace, the write touches nothing.
 
     The worker is the table owner, so row-level security does not stand behind
@@ -202,7 +203,9 @@ async def test_a_closed_day_keeps_only_what_the_weekly_report_rewrote(
     assert await db_session.get(LogisticsTransaction, 3) is not None
 
 
-async def test_dropping_a_report_s_rows_is_scoped_to_its_кабинет(db_session: AsyncSession) -> None:
+async def test_dropping_a_report_s_rows_is_scoped_to_its_workspace(
+    db_session: AsyncSession,
+) -> None:
     """Named with another workspace, the delete removes nothing."""
     db_session.add(_row(1, "100.00"))
     await db_session.flush()

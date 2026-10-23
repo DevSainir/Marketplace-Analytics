@@ -184,7 +184,7 @@ class SettlementRollup:
         groups — costs the same constant memory as a single day. Reading the
         groups out and sending them back as one INSERT is what this used to do,
         and on production it bound 1.2 M parameters into one statement and was
-        killed by the worker's 768 MiB cap: the first read of «Вся история» took
+        killed by the worker's 768 MiB cap: the first read of "All time" took
         the process down instead of returning a page.
 
         Nor is the window split into batches of days, which was the other

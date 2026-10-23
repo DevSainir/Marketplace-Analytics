@@ -1,6 +1,6 @@
 <script setup>
 /**
- * The «Баланс по товарным остаткам» block of the finreports page: title, its own
+ * The "Stock balance" block of the finreports page: title, its own
  * day picker, and the grid.
  *
  * Its own period, deliberately: the P&L above it aggregates a RANGE of
@@ -35,9 +35,9 @@ onMounted(() => {
   <section class="mt-xl">
     <header class="mb-sm flex flex-wrap items-end justify-between gap-md">
       <div>
-        <h2 class="text-h3 font-semibold text-primary">Баланс по товарным остаткам</h2>
+        <h2 class="text-h3 font-semibold text-primary">Stock balance</h2>
         <p class="mt-xs max-w-4xl text-tiny text-muted">
-          Остатки на складах WB на выбранный день и их стоимость по себестоимости.
+          Stock in WB warehouses on the chosen day, valued at cost price.
         </p>
       </div>
 
@@ -46,7 +46,7 @@ onMounted(() => {
         :model-value="store.balanceDate"
         :min="store.balance?.available_from ?? ''"
         :max="store.balance?.available_to ?? store.balanceDate"
-        aria-label="День остатков"
+        aria-label="Stock day"
         @update:model-value="store.setBalanceDate($event)"
       />
     </header>

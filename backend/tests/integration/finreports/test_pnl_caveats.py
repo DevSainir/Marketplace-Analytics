@@ -10,7 +10,7 @@ so rather than quietly reporting a number:
 * a window still mid-backfill is flagged, because its withholdings are complete
   while its payout is not — a large, entirely plausible loss;
 * a bucket covering part of a WB report is not labelled with the whole period;
-* the «в т.ч. НДС» sub-line is summed over the rows the line above it is.
+* the "of which VAT" sub-line is summed over the rows the line above it is.
 
 The closure arithmetic is in ``test_pnl_reconciles.py``; the fixture both share is
 in ``conftest.py``.
@@ -39,6 +39,7 @@ from tests.integration.finreports.conftest import (
     _service,
     _statement,
 )
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -82,10 +83,10 @@ async def test_a_cost_in_the_wrong_currency_is_dropped_not_converted(
 async def test_the_advertising_share_of_the_deductions_is_broken_out(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """«ВБ.Продвижение» gets its own figure inside «удержания».
+    """The "WB Promotion" share gets its own figure inside the deductions.
 
     It is the bulk of everything WB withholds from a seller and the only
-    withheld cost they control; buried in «прочие удержания» it is invisible.
+    withheld cost they control; buried in "Other deductions" it is invisible.
     """
     total = (await _statement(db_session)).total
 
@@ -96,9 +97,9 @@ async def test_the_advertising_share_of_the_deductions_is_broken_out(
 async def test_the_vat_sub_line_belongs_to_the_commission_it_sits_under(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """«в т.ч. НДС комиссии» is summed over the rows the commission is.
+    """The "of which VAT on commission" line is summed over the rows the commission is.
 
-    «Возмещение издержек по перевозке» reuses ``ppvz_vw`` and ``ppvz_vw_nds`` to
+    The transport cost reimbursement reuses ``ppvz_vw`` and ``ppvz_vw_nds`` to
     express the VAT split of its OWN charge — the two columns add up to its
     ``rebill_logistic_cost``. It is not commission.
 
@@ -174,7 +175,7 @@ async def test_a_partly_backfilled_window_says_so(db_session: AsyncSession, seed
     db_session.add(
         _row(
             98,
-            "Продажа",
+            wb.SALE,
             nm_id=SKU_A,
             quantity=1,
             retail_amount=Decimal(0),
@@ -185,7 +186,7 @@ async def test_a_partly_backfilled_window_says_so(db_session: AsyncSession, seed
 
     response = await _statement(db_session)
 
-    assert any("не выгружены из WB" in note for note in response.notes)
+    assert any("have not come from WB" in note for note in response.notes)
 
 
 async def test_advertising_is_reported_on_the_period_rows_too(
@@ -194,7 +195,7 @@ async def test_advertising_is_reported_on_the_period_rows_too(
     """Every bucket carries its own advertising, not just the window total.
 
     Regression: advertising was first read off the reason drill-down, which is
-    built once for the whole window. The dashboard's «Реклама» column therefore
+    built once for the whole window. The dashboard's "Advertising" column therefore
     displayed 0 on every week while the total above it reported millions — a
     column that looks like data and is not.
     """
@@ -215,9 +216,9 @@ async def test_an_unrecognised_operation_is_reported_as_a_caveat(
     units and payout split do not — so the statement says so instead of quietly
     being a little bit wrong.
     """
-    db_session.add(_row(99, "Совершенно новая операция WB", deduction=Decimal("1")))
+    db_session.add(_row(99, "A brand-new WB operation", deduction=Decimal("1")))
     await db_session.flush()
 
     response = await _statement(db_session)
 
-    assert any("Совершенно новая операция WB" in note for note in response.notes)
+    assert any("A brand-new WB operation" in note for note in response.notes)

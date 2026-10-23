@@ -8,11 +8,11 @@ Mirrors the monitoring split — one write service, the rest read-only:
   statement, built from the weekly report plus the seller's cost prices.
 * :class:`CostPriceService` — the module's only other write path: the seller's
   own cost of goods, the single P&L input WB cannot supply.
-* :class:`HarvestControlService` — the manual «Обновить» trigger's read half:
+* :class:`HarvestControlService` — the manual "Refresh" trigger's read half:
   is a harvest running, and how far does the harvested history reach.
 * :class:`PeriodService` — read side: the weeks the period picker may offer.
 * :class:`BalanceService` — read side: what the UNSOLD stock is worth, per
-  warehouse, on one snapshot day («Баланс по товарным остаткам»).
+  warehouse, on one snapshot day ("Stock balance").
 
 The pure statement composition lives in :mod:`.pnl.statement` and the pure grid
 assembly in :func:`.balance.build_balance`; both are I/O-free, so both are

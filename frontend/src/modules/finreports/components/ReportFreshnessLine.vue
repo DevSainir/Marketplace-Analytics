@@ -1,7 +1,7 @@
 <script setup>
 /**
  * One quiet line under the P&L header saying why the statement stops where it
- * does — «Последний еженедельный отчёт WB: 10–16 авг · ежедневные — по 18 авг».
+ * does — "Latest WB weekly report: 10–16 Aug · daily through 18 Aug".
  *
  * Dumb by design: every decision about wording, staleness and tone lives in
  * `reportFreshness.js`, which is pure and tested. This renders the result and

@@ -4,7 +4,7 @@
  *
  * Eighteen money columns per SKU cannot be narrowed into a 402pt screen, and a
  * sideways-scrolling table hides the two columns anyone opens this page for
- * («Чистая прибыль» and «Продажи») behind four swipes. So each SKU becomes a
+ * ("Net profit" and "Sales") behind four swipes. So each SKU becomes a
  * two-line ROW — the card photo, identity and profit on the first, the margin
  * and the revenue behind it on the second — with the other fifteen columns
  * behind the row.
@@ -13,7 +13,7 @@
  * ran to one screen every two records, which is not a report anyone scrolls.
  *
  * Fed the SAME `tableRows` the table renders — one report, two projections, so
- * the search and the «Тип предмета» / «Бренд» filters in the shared toolbar apply to
+ * the search and the category / brand filters in the shared toolbar apply to
  * both without being wired twice. Sorting is this component's own: the table
  * sorts by clicking a header, and there are no headers here.
  *
@@ -27,13 +27,13 @@ import SkuThumb from '@/core/components/SkuThumb.vue'
 import PnlSkuCardsTotals from '@/modules/finreports/components/PnlSkuCardsTotals.vue'
 import PnlSkuSizeList from '@/modules/finreports/components/PnlSkuSizeList.vue'
 import { DETAILS, SORT_KEYS } from '@/modules/finreports/pnlCardColumns'
-import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
+import { pct, skuCount, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { toneClass } from '@/modules/finreports/pnlThresholds'
 
 const props = defineProps({
   /** @type {Array<object>} Flattened rows from `usePnlSkuRows`, already filtered. */
   rows: { type: Array, default: () => [] },
-  /** @type {object|null} The «Итого» row from `sumRows`, pinned under the list. */
+  /** @type {object|null} The "Total" row from `sumRows`, pinned under the list. */
   totals: { type: Object, default: null },
   /** @type {object} nm_id -> size drill-down state, from the store. */
   sizes: { type: Object, default: () => ({}) },
@@ -46,7 +46,7 @@ const emit = defineEmits(['toggle-exclusion', 'load-sizes', 'enter-cost'])
 const sortKey = ref('profit')
 const descending = ref(true)
 
-/** How many cards are rendered; «Показать ещё» grows it. A paginator would
+/** How many cards are rendered; "Show more" grows it. A paginator would
  *  make the seller jump pages to find the next loss-maker. */
 const PAGE = 10
 const shown = ref(PAGE)
@@ -66,7 +66,7 @@ const sorted = computed(() => {
     const x = a[key]
     const y = b[key]
     if (typeof x === 'string' || typeof y === 'string') {
-      return direction * String(x ?? '').localeCompare(String(y ?? ''), 'ru')
+      return direction * String(x ?? '').localeCompare(String(y ?? ''), 'en')
     }
     // A missing figure is not a zero — it sorts last in either direction.
     if (x === null || x === undefined) return 1
@@ -100,7 +100,7 @@ const { money } = formatters
 <template>
   <div class="p-md">
     <div class="flex items-center gap-sm">
-      <select v-model="sortKey" aria-label="Сортировка" class="ui-select min-w-0 flex-1">
+      <select v-model="sortKey" aria-label="Sort by" class="ui-select min-w-0 flex-1">
         <option v-for="option in SORT_KEYS" :key="option.key" :value="option.key">
           {{ option.label }}
         </option>
@@ -108,16 +108,16 @@ const { money } = formatters
       <button
         type="button"
         class="flex min-h-11 flex-none items-center gap-xs rounded-btn border border-border-subtle bg-surface px-md text-tiny font-medium text-primary transition hover:border-action hover:text-action"
-        :aria-label="descending ? 'Сначала большие' : 'Сначала малые'"
+        :aria-label="descending ? 'Largest first' : 'Smallest first'"
         @click="descending = !descending"
       >
-        {{ descending ? '↓ больше' : '↑ меньше' }}
+        {{ descending ? '↓ largest' : '↑ smallest' }}
       </button>
     </div>
 
     <PnlSkuCardsTotals v-if="totals && rows.length" :totals="totals" />
 
-    <p v-if="!rows.length" class="py-xl text-center text-base text-muted">Нет продаж за период</p>
+    <p v-if="!rows.length" class="py-xl text-center text-base text-muted">No sales in the period</p>
 
     <ul v-else class="record-list mt-md">
       <li
@@ -139,10 +139,10 @@ const { money } = formatters
               {{ row.saName }}
             </span>
             <span class="record-sub">
-              {{ row.isBucket ? 'на весь счёт' : row.isGroup ? `артикулов: ${row.n}` : row.nmId }}
+              {{ row.isBucket ? 'whole invoice' : row.isGroup ? skuCount(row.n) : row.nmId }}
               <!-- The mark takes the subject's place: the line truncates, and
                    after the subject the mark was the part that got cut. -->
-              <span v-if="row.uncosted" class="ui-badge is-warn ml-xs">нет себестоимости</span>
+              <span v-if="row.uncosted" class="ui-badge is-warn ml-xs">no cost price</span>
               <template v-else-if="row.subject"> · {{ row.subject }}</template>
             </span>
           </span>
@@ -178,7 +178,7 @@ const { money } = formatters
 
         <div v-if="expanded.has(row.nmId)" class="record-details">
           <div class="record-row">
-            <span class="record-label">К перечислению</span>
+            <span class="record-label">Payout</span>
             <span class="record-value">{{ money(row.payout) }}</span>
           </div>
           <button
@@ -187,10 +187,10 @@ const { money } = formatters
             class="ui-btn ui-btn--sm w-full"
             @click="emit('enter-cost', row)"
           >
-            Указать себестоимость
+            Set cost price
           </button>
           <div v-if="row.penalties" class="record-row">
-            <span class="record-label">Штрафы</span>
+            <span class="record-label">Penalties</span>
             <span class="record-value record-value--negative">{{ money(row.penalties) }}</span>
           </div>
           <!-- The category is what tells a seller whether a fine is disputable,
@@ -199,7 +199,7 @@ const { money } = formatters
             {{ p.reason }}: {{ money(p.amount) }}
           </p>
           <div v-if="row.brand" class="record-row">
-            <span class="record-label">Бренд</span>
+            <span class="record-label">Brand</span>
             <span class="record-value">{{ row.brand }}</span>
           </div>
           <div v-for="detail in DETAILS" :key="detail.label" class="record-row">
@@ -216,7 +216,7 @@ const { money } = formatters
           </div>
           <PnlSkuSizeList v-if="row.isSku" :state="sizes[row.nmId] ?? null" />
           <label v-if="row.isSku" class="record-row cursor-pointer">
-            <span class="record-label">Не включать в общий счёт</span>
+            <span class="record-label">Exclude from total</span>
             <input
               type="checkbox"
               :checked="row.isExcluded"

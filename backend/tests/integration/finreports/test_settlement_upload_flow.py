@@ -26,8 +26,12 @@ from src.modules.finreports.repos import (
 )
 from src.modules.finreports.services.settlement_upload import SettlementUploadService
 from src.modules.finreports.services.settlement_upload.reconcile import settle_upload_on_booking
-from src.modules.finreports.services.settlement_upload.workbook import iter_report_rows
+from src.modules.finreports.services.settlement_upload.workbook import (
+    HEADER_FOR,
+    iter_report_rows,
+)
 from src.modules.finreports.tasks import settlement_upload as task
+from tests.support import wb_labels as wb
 from tests.support.wb_weekly_report import (
     FILENAME,
     REPORT_ID,
@@ -38,6 +42,9 @@ from tests.support.wb_weekly_report import (
 
 pytestmark = pytest.mark.integration
 
+#: WB's headers for the columns these rows set.
+SALE_DT, DELIVERY = HEADER_FOR["sale_dt"], HEADER_FOR["delivery_rub"]
+
 WORKSPACE = uuid.UUID("019f657a-0000-7000-8000-00000000c801")
 USER = uuid.UUID("019f657a-0000-7000-8000-00000000c802")
 DAILY_REPORT = 938364620261006
@@ -45,16 +52,16 @@ DAILY_REPORT = 938364620261006
 #: Three rows of the 05.10-11.10 week; the first is a logistics charge for a
 #: sale dated before the week, which WB books on the week's first day.
 ROWS = [
-    weekly_row({"Дата продажи": "2026-10-03", "Услуги по доставке товара покупателю": 46.75}),
-    weekly_row({"Дата продажи": "2026-10-06"}),
+    weekly_row({SALE_DT: "2026-10-03", DELIVERY: 46.75}),
+    weekly_row({SALE_DT: "2026-10-06"}),
     weekly_row(
         {
-            "Обоснование для оплаты": "Продажа",
-            "Тип документа": "Продажа",
-            "Дата продажи": "2026-10-11",
-            "Услуги по доставке товара покупателю": 0,
-            "К перечислению Продавцу за реализованный Товар": 1043.26,
-            "Кол-во": 1,
+            HEADER_FOR["supplier_oper_name"]: wb.SALE,
+            HEADER_FOR["doc_type_name"]: wb.SALE,
+            SALE_DT: "2026-10-11",
+            DELIVERY: 0,
+            HEADER_FOR["ppvz_for_pay"]: 1043.26,
+            HEADER_FOR["quantity"]: 1,
         }
     ),
 ]
@@ -158,7 +165,7 @@ async def test_the_same_file_twice_is_held_already_and_written_once(
 
     assert upload.status == UploadStatus.ALREADY_HELD
     assert len(await _week(db_session)) == 3
-    assert upload.message.startswith("Этот отчёт у нас уже есть")
+    assert upload.message.startswith("We already have this report")
 
 
 async def test_a_week_the_daily_reports_already_gave_us_is_confirmed_not_doubled(
@@ -189,7 +196,7 @@ async def test_a_daily_report_that_never_came_is_filled_from_the_file(
 
 async def test_a_row_we_hold_that_the_file_lacks_writes_nothing(db_session: AsyncSession) -> None:
     """Both are WB's documents; a disagreement is for a person, never for a guess."""
-    other = weekly_row({"Дата продажи": "2026-10-07", "Услуги по доставке товара покупателю": 99})
+    other = weekly_row({SALE_DT: "2026-10-07", DELIVERY: 99})
     await _hold(db_session, [other], report_id=DAILY_REPORT)
 
     upload = await _upload(db_session)
@@ -200,10 +207,10 @@ async def test_a_row_we_hold_that_the_file_lacks_writes_nothing(db_session: Asyn
 
 async def test_a_week_still_running_is_refused_with_the_reason(db_session: AsyncSession) -> None:
     """WB has no report for a week that has not ended."""
-    upload = await _upload(db_session, [weekly_row({"Дата продажи": "2026-10-12"})])
+    upload = await _upload(db_session, [weekly_row({SALE_DT: "2026-10-12"})])
 
     assert upload.status == UploadStatus.FAILED
-    assert "ещё не закончилась" in upload.message
+    assert "isn't over yet" in upload.message
     assert upload.payload is None
 
 

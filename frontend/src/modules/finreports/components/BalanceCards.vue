@@ -10,18 +10,19 @@
  * A phone reads one SKU at a time, so each becomes a card carrying the figures
  * that make this a balance rather than a stock list — the units lying there,
  * the units in transit, and what they cost to put there — with the per-warehouse
- * split folded away. «Итого» leads the list, because on a phone it would
+ * split folded away. "Total" leads the list, because on a phone it would
  * otherwise be a scroll away past every SKU.
  *
  * Fed the same rows and totals as the grid (`useBalanceRows`), so the shared
- * toolbar's search and filters apply to both. Marking a warehouse «не считать»
+ * toolbar's search and filters apply to both. Marking a warehouse "Don't count"
  * is a desktop affordance (it lives in a right-click menu over a column header)
- * and stays there; the cards show the marks' effect, honouring the same totals.
+ * and stays there; the cards show the marks' effect, honoring the same totals.
  */
 import { computed, ref, watch } from 'vue'
 
 import ShowMoreButton from '@/core/components/ShowMoreButton.vue'
-import { formatNumber } from '@/core/utils/format'
+import { formatNumber, plural } from '@/core/utils/format'
+import { skuCount } from '@/modules/finreports/pnlFormat'
 
 const props = defineProps({
   /** @type {Array<object>} Rows from `useBalanceRows`, already filtered/ordered. */
@@ -63,17 +64,17 @@ function stocked(row) {
 
 <template>
   <div class="p-md">
-    <!-- «Итого» first: the corner block of the desktop grid, which a phone would
+    <!-- "Total" first: the corner block of the desktop grid, which a phone would
          otherwise only reach after scrolling every SKU. -->
     <div
       class="flex items-center justify-between gap-sm rounded-input border border-action/30 bg-action/10 px-md py-sm"
     >
-      <span class="text-tiny font-medium uppercase tracking-wider text-muted">Итого</span>
+      <span class="text-tiny font-medium uppercase tracking-wider text-muted">Total</span>
       <span class="text-right">
         <span class="block text-base font-bold tabular-nums text-primary">
-          {{ formatNumber(totals.quantity) }} шт
+          {{ formatNumber(totals.quantity) }} pcs
           <span v-if="totals.inWay" class="text-tiny font-medium text-muted">
-            +{{ formatNumber(totals.inWay) }} в пути
+            +{{ formatNumber(totals.inWay) }} in transit
           </span>
         </span>
         <span class="block text-tiny tabular-nums text-muted">{{ money(totals.balance) }}</span>
@@ -93,23 +94,24 @@ function stocked(row) {
               {{ row.saName }}
             </span>
             <span class="record-sub">
-              {{ row.isGroup ? `артикулов: ${row.n}` : row.nmId }}
+              {{ row.isGroup ? skuCount(row.n) : row.nmId }}
               <template v-if="row.subject"> · {{ row.subject }}</template>
             </span>
           </span>
 
           <span class="record-figures">
             <span class="record-value">
-              {{ formatNumber(row.totalQuantity) }} шт
+              {{ formatNumber(row.totalQuantity) }} pcs
               <span v-if="row.totalInWay" class="text-tiny font-normal text-muted">
-                +{{ formatNumber(row.totalInWay) }} в пути
+                +{{ formatNumber(row.totalInWay) }} in transit
               </span>
             </span>
-            <!-- `null` is «нет себестоимости», which is not the same statement as
+            <!-- `null` is "no cost price", which is not the same statement as
                  a zero balance — the grid draws the same distinction. -->
             <span class="record-support">
               {{ row.totalBalance === null ? '—' : money(row.totalBalance) }} ·
-              {{ stocked(row).length }} скл.
+              {{ stocked(row).length }}
+              {{ plural(stocked(row).length, ['warehouse', 'warehouses']) }}
             </span>
           </span>
 
@@ -136,7 +138,7 @@ function stocked(row) {
                  says the same thing. The goods in transit are on the card's own
                  summary line above, where they are counted once. -->
             <span class="record-value">
-              {{ formatNumber(column.cell.quantity) }} шт
+              {{ formatNumber(column.cell.quantity) }} pcs
               <span v-if="column.cell.balance !== null" class="text-muted">
                 · {{ money(column.cell.balance) }}
               </span>

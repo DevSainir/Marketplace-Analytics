@@ -1,10 +1,10 @@
 /**
- * The «Предметы» / «Бренды» / «Группы» filters of the P&L and the balance —
+ * The "Categories" / "Brands" / "Groups" filters of the P&L and the balance —
  * one set of refs and one test, so the two tables can never disagree on what
  * a filter means.
  *
  * Several choices within a filter widen it, the filters together narrow:
- * «Футболки или Шорты» AND «бренд X» AND «в группе Лето». An empty filter is
+ * "T-shirts or Shorts" AND "brand X" AND "in group Summer". An empty filter is
  * no filter. Rows carry WB's `subject_name`, `brand_name` and `nm_id`.
  */
 import { computed, ref } from 'vue'

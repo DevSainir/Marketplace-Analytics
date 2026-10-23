@@ -24,7 +24,7 @@
 }
 
 /*
- * The whole row is the disclosure control — a separate «Подробнее» button cost
+ * The whole row is the disclosure control — a separate "Details" button cost
  * a third line per record. `min-h-11` keeps the tap target honest even when both
  * lines are short.
  */
@@ -73,7 +73,7 @@
 
 /* Tone MODIFIERS, not bare `text-*` utilities beside `.record-value`: the
    scoped class already sets `text-primary` and outranks a utility, so the
-   colour would silently not apply. */
+   color would silently not apply. */
 .record-value--negative {
   @apply text-status-negative;
 }

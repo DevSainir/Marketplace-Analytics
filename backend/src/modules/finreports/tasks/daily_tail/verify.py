@@ -77,8 +77,8 @@ async def verify_daily_tail() -> dict[str, int]:
 
     The comparison is WB's figure against WB's earlier figure. Deliberately not
     against anything we compute: our reconstruction of ``forPaySum`` is knowingly
-    128.26 KGS out on report 989286628 because of how we bucket «Коррекция
-    продаж», so a screen built on our own arithmetic would fire on a difference
+    128.26 KGS out on report 989286628 because of how we bucket the sales
+    correction, so a screen built on our own arithmetic would fire on a difference
     that is ours and hide the one that is WB's.
 
     Three outcomes need no request at all. A report the weekly lane has since

@@ -13,7 +13,7 @@ function deferredFetch() {
 
 describe('useSkuSizes', () => {
   it('drops an answer for a window that was replaced, and leaves nothing spinning', async () => {
-    // The endless «Считаем размеры…»: the old code returned early on a stale
+    // The endless sizes spinner: the old code returned early on a stale
     // answer and left the entry at `loading: true`, which is never asked again.
     const window = { from: '2026-09-01', to: '2026-09-07' }
     const { fetch, pending } = deferredFetch()

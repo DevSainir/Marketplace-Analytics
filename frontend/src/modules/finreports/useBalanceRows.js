@@ -2,7 +2,7 @@
  * The balance grid's view logic: order, filtering, and the two totals panels.
  *
  * Everything the backend does NOT decide lives here, and that is deliberate: a
- * «Не считать» and a search both change the order and every total the moment
+ * "Don't count" and a search both change the order and every total the moment
  * they are clicked, with no round trip. So the column order, the row order and
  * all three panels are computed from the priced cells the response carries plus
  * the mark sets, which the store keeps optimistically ahead of the server.
@@ -22,7 +22,7 @@ const num = (value) => (value === null || value === undefined ? null : Number(va
 export const NAME_LIMIT = 8
 
 /**
- * A money formatter bound to the response's currency, e.g. 57600 -> «57 600с».
+ * A money formatter bound to the response's currency, e.g. 57600 -> "KGS 57,600".
  * Missing money (an uncosted SKU) stays an em dash — a blank balance and a zero
  * balance mean different things on a table whose whole subject is money.
  */
@@ -31,7 +31,7 @@ export function moneyFormatter(currency) {
 }
 
 /**
- * Compact warehouse header: WB names like «Электросталь» blow a numeric column
+ * Compact warehouse header: WB names like "Elektrostal" blow a numeric column
  * up, so only the first {@link NAME_LIMIT} letters are shown and the full name
  * comes back on hover.
  */
@@ -42,14 +42,14 @@ export function shortWarehouseName(name) {
 /**
  * Flatten one backend balance row, totalling it over the COUNTED warehouses.
  *
- * The row's «По остаткам» and «По себестоимости» are deliberately not the same
+ * The row's "In stock" and "At cost price" are deliberately not the same
  * population: the units are what is lying in the warehouses (what can ship
  * today), the money is that plus the goods in transit (what the seller has
- * already paid for). «В пути» beside them is what reconciles the two.
+ * already paid for). "In transit" beside them is what reconciles the two.
  *
  * @param {object} r The backend row.
- * @param {Set<string>} uncounted Warehouses marked «Не считать».
- * @param {Set<number>} uncountedSkus SKUs marked «Не считать».
+ * @param {Set<string>} uncounted Warehouses marked "Don't count".
+ * @param {Set<number>} uncountedSkus SKUs marked "Don't count".
  */
 export function toRow(r, uncounted, uncountedSkus) {
   const byWarehouse = {}
@@ -58,7 +58,7 @@ export function toRow(r, uncounted, uncountedSkus) {
   let totalBalance = 0
   for (const cell of r.cells ?? []) {
     // A cell is what is LYING in that warehouse, units and money alike — the
-    // grid and «Итого по складу» beneath it answer «what is on this shelf».
+    // grid and "Warehouse total" beneath it answer "what is on this shelf".
     // Goods in transit belong to no shelf, so they are collected here for the
     // row's own summary and never written into a cell.
     const balance = num(cell.balance)
@@ -70,6 +70,8 @@ export function toRow(r, uncounted, uncountedSkus) {
   }
   return {
     nmId: r.nm_id,
+    // Only ever an article's own code here: the totals are labeled in the
+    // markup and the group rows below take their label as it is.
     saName: formatSku(r.sa_name),
     subject: r.subject_name || '',
     brand: r.brand_name || '',
@@ -78,17 +80,17 @@ export function toRow(r, uncounted, uncountedSkus) {
     byWarehouse,
     totalQuantity,
     totalInWay,
-    // An uncosted SKU has no balance at all — 0 would read as «free goods».
+    // An uncosted SKU has no balance at all — 0 would read as "free goods".
     totalBalance: r.cost_price === null || r.cost_price === undefined ? null : totalBalance,
   }
 }
 
 /**
- * Sum the visible rows into the panels — «Итого по складу» and the corner.
+ * Sum the visible rows into the panels — "Warehouse total" and the corner.
  *
- * A column marked «Не считать» keeps its OWN total (the seller wants to see
+ * A column marked "Don't count" keeps its OWN total (the seller wants to see
  * what is lying there) but contributes nothing to the corner. A ROW marked the
- * same way keeps its «Итого по артикулу» and contributes to neither: it is out
+ * same way keeps its "SKU total" and contributes to neither: it is out
  * of the count on both axes, which is the whole point of the mark.
  *
  * The two outputs answer different questions and their money does not tie out,
@@ -129,13 +131,13 @@ export function subtotals(rows, columns) {
 /**
  * The grid's rows by subject, brand or group: each one the sum of its
  * articles, warehouse by warehouse. Like the panels, a sum leaves out the
- * articles marked «Не считать» — they are out of every count — and a bucket of
+ * articles marked "Don't count" — they are out of every count — and a bucket of
  * nothing but marked ones has no row. By group an article counts in every
  * group it is in.
  *
  * @param {Array<object>} rows Flattened rows from {@link toRow}.
  * @param {'subject'|'brand'|'group'} cut
- * @param {Array<object>} groups The workspace's «Группы».
+ * @param {Array<object>} groups The workspace's groups.
  */
 export function groupBalanceRows(rows, cut, groups) {
   const how = { nmId: (r) => r.nmId, subject: (r) => r.subject, brand: (r) => r.brand, groups }
@@ -172,7 +174,7 @@ export function groupBalanceRows(rows, cut, groups) {
 }
 
 /**
- * Search + «Тип предмета» / «Бренд» filtering over one loaded balance response.
+ * Search + category / brand filtering over one loaded balance response.
  *
  * @param {import('vue').Ref<object|null>} balance The `/finreports/balance` payload.
  */
@@ -187,7 +189,7 @@ export function useBalanceRows(balance) {
   const uncountedSkus = computed(() => new Set(balance.value?.uncounted_skus ?? []))
 
   /**
-   * The columns: every warehouse holding stock today, «Не считать» ones last,
+   * The columns: every warehouse holding stock today, "Don't count" ones last,
    * the rest by how much stock they hold.
    */
   const columns = computed(() => {
@@ -210,17 +212,17 @@ export function useBalanceRows(balance) {
       }))
       .sort(
         (a, b) =>
-          a.isUncounted - b.isUncounted || b.stock - a.stock || a.name.localeCompare(b.name, 'ru'),
+          a.isUncounted - b.isUncounted || b.stock - a.stock || a.name.localeCompare(b.name, 'en'),
       )
   })
 
   const distinct = (key) =>
     [...new Set(rawRows.value.map((r) => r[key]).filter(Boolean))].sort((a, b) =>
-      a.localeCompare(b, 'ru'),
+      a.localeCompare(b, 'en'),
     )
-  // «Тип предмета» and «Бренд» have no column of their own here (the grid's columns
+  // Category and brand have no column of their own here (the grid's columns
   // are warehouses), but they stay filterable — they are how a seller narrows a
-  // catalogue down to the part they are actually restocking.
+  // catalog down to the part they are actually restocking.
   const subjects = computed(() => distinct('subject_name'))
   const brands = computed(() => distinct('brand_name'))
 
@@ -238,8 +240,8 @@ export function useBalanceRows(balance) {
         ),
       )
     }
-    // «Не считается» rows trail, and the rest keep the backend's «largest
-    // balance first» — the same two groups the columns fall into, one axis over.
+    // "Not counted" rows trail, and the rest keep the backend's "largest
+    // balance first" — the same two groups the columns fall into, one axis over.
     return list
       .map((r) => toRow(r, uncounted.value, uncountedSkus.value))
       .sort((a, b) => a.isUncounted - b.isUncounted)
@@ -253,12 +255,12 @@ export function useBalanceRows(balance) {
   )
 
   /**
-   * The bottom «Итого по складу» panel and the bottom-right corner — over the
+   * The bottom "Warehouse total" panel and the bottom-right corner — over the
    * articles, not the rows: by group one article can sit in two rows.
    */
   const totals = computed(() => subtotals(articleRows.value, columns.value))
 
-  // The columns fall into two contiguous groups — ordinary and «не считается» —
+  // The columns fall into two contiguous groups — ordinary and "not counted" —
   // so the header can title each one and a rule can sit on the seam. The rows
   // have one seam of the same kind.
   const uncountedCount = computed(() => columns.value.filter((c) => c.isUncounted).length)

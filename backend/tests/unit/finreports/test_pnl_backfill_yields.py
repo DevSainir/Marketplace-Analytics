@@ -32,7 +32,7 @@ from src.modules.workspaces.schemas import WorkspaceTokenBundle
 
 
 def _tokens() -> WorkspaceTokenBundle:
-    """A workspace whose «Финансы» and «Статистика» tokens are DIFFERENT.
+    """A workspace whose "Finance" and "Statistics" tokens are DIFFERENT.
 
     Which is the shape one workspace actually has — every other workspace resolves
     both to one `unified` token, and that is why the lane read the wrong bucket
@@ -40,7 +40,7 @@ def _tokens() -> WorkspaceTokenBundle:
     """
     return WorkspaceTokenBundle(
         workspace_id=uuid.UUID("01a07a8d-6e3e-7012-ab9f-34443d93776d"),
-        name="Демо",
+        name="Demo",
         statistics="a-statistics-token",
         finance="a-finance-token",
     )

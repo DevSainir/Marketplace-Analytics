@@ -240,7 +240,7 @@ class PnlRepository:
         Both off the SKU's own rows in one indexed pass. The currency used to
         come from the whole window's rollup, which verified — and after a
         migration rebuilt — every day of the window on each size click: seconds
-        on «Вся история» for a three-letter answer that this SKU's rows give.
+        on "All time" for a three-letter answer that this SKU's rows give.
 
         Returns:
             ``(sa_name, currency)``; ``("", "")`` when the SKU has no row in the
@@ -286,7 +286,7 @@ class PnlRepository:
     ) -> list[tuple[int, str, Decimal]]:
         """Return each SKU's penalties split by WB's own reason.
 
-        Feeds the per-SKU report's «Штрафы» column, which shows the categories
+        Feeds the per-SKU report's "Penalties" column, which shows the categories
         (dimensions, paid storage of returns, …) rather than one opaque sum —
         the categories are what tell a seller which penalty is disputable.
 
@@ -314,8 +314,8 @@ class PnlRepository:
         complete, because those columns always existed. None are left on
         the workspace checked (0 of 87 261, 2026-09-24) and the one-off script that filled
         them is gone; the check stays, because a report that arrives short
-        produces the same shape. «Итого к
-        оплате» then reports a full period of withholdings against a partial
+        produces the same shape. "Total
+        payout" then reports a full period of withholdings against a partial
         payout: a large, plausible loss. The caller turns this into a caveat.
         """
         # The operation goes in the WHERE, not in a FILTER on the counts: the
@@ -424,15 +424,15 @@ class PnlRepository:
 
 
 def _deduction_bucket() -> ColumnElement[Any]:
-    """Bucket «Удержание» reasons, which embed an invoice number.
+    """Bucket deduction reasons, which embed an invoice number.
 
     Advertising is 95 % of everything WB has ever withheld from this seller, so
-    it gets its own line; the rest degrade into «Прочие удержания» rather than
+    it gets its own line; the rest degrade into "Other deductions" rather than
     fragmenting the statement into one row per invoice.
     """
     return case(
-        (_T.bonus_type_name.contains(ADVERTISING_DEDUCTION_MARKER), "Реклама (ВБ.Продвижение)"),
-        (_T.bonus_type_name.contains(SUBSCRIPTION_DEDUCTION_MARKER), "Подписка «Джем»"),
-        (_T.bonus_type_name.contains(TRANSIT_DEDUCTION_MARKER), "Доставка транзитных поставок"),
-        else_="Прочие удержания",
+        (_T.bonus_type_name.contains(ADVERTISING_DEDUCTION_MARKER), "Advertising (WB Promotion)"),
+        (_T.bonus_type_name.contains(SUBSCRIPTION_DEDUCTION_MARKER), '"Jam" subscription'),
+        (_T.bonus_type_name.contains(TRANSIT_DEDUCTION_MARKER), "Transit supply delivery"),
+        else_="Other deductions",
     )

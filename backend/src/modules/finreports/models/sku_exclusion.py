@@ -1,14 +1,14 @@
-"""Per-SKU «Не включать в общий счёт» mark — a seller editorial choice.
+"""Per-SKU "Exclude from total" mark — a seller editorial choice.
 
 The presence of a row *is* the mark: a ``(workspace_id, nm_id)`` here means the
-seller has chosen to keep that SKU out of the dashboard's «общий счёт». Clearing
+seller has chosen to keep that SKU out of the dashboard's overall total. Clearing
 the mark deletes the row. Kept in its own table for the same reason cost prices
 are — it is seller-authored, not harvested from WB, and must never be confused
 with a settlement fact.
 
 The mark only ever changes what the *dashboard* sums; it never touches the
 per-SKU rows or the reconciled ``totals`` (Σ rows + unallocated), so the report
-stays auditable against WB while the seller's private «общий счёт» is theirs to
+stays auditable against WB while the seller's private overall total is theirs to
 shape.
 """
 
@@ -26,7 +26,7 @@ _SCHEMA: str = "finreports"
 
 
 class PnlSkuExclusion(Base):
-    """One SKU the seller marked «Не включать в общий счёт», per workspace.
+    """One SKU the seller marked "Exclude from total", per workspace.
 
     Attributes:
         workspace_id: Owning workspace (tenancy; part of the natural key, so the

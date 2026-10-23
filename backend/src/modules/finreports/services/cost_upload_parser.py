@@ -8,10 +8,10 @@ the two columns that matter and return every data row.
 Only two columns are trusted, located **by header name** so the seller may
 reorder, delete, or annotate the rest and the upload still lands:
 
-* **«Артикул WB»** (or a bare ``nm_id``) — the join key. Nothing else identifies
+* **"WB ID"** (or a bare ``nm_id``) — the join key. Nothing else identifies
   a SKU safely (PNL.md §13).
-* **«Себестоимость за 1 ед.»** — the one figure read back. Matched loosely
-  (contains «себестоимость» and «ед»), with a plain «Себестоимость» as a
+* **"Cost price per unit"** — the one figure read back. Matched loosely
+  (contains "cost price" and "unit"), with a plain "Cost price" as a
   fallback for a minimal hand-made sheet.
 
 What the parser will not do is guess: a file with no recognisable key or cost
@@ -35,9 +35,11 @@ from src.core.logging import get_logger
 logger = get_logger(__name__)
 
 #: Header text (normalised) that identifies the join-key column.
-_NM_ID_HEADERS = {"артикул wb", "nm_id", "nmid"}
+_NM_ID_HEADERS = {"wb id", "nm_id", "nmid"}
 #: Substring a cost header must contain to be the editable per-unit column.
-_COST_MARKER = "себестоимость"
+_COST_MARKER = "cost price"
+#: Substring that tells the per-unit cost column from the total beside it.
+_PER_UNIT_MARKER = "unit"
 
 #: Most data rows any upload may contain. This is the bound that actually holds:
 #: the readers below stop **while iterating**, so a sheet that merely declares a
@@ -97,8 +99,8 @@ def parse_cost_upload(filename: str, data: bytes) -> list[ParsedCostRow]:
     cost_col = _find_cost_column(header)
     if nm_col is None or cost_col is None:
         raise ValidationError(
-            "Не найдены столбцы «Артикул WB» и «Себестоимость». "
-            "Загрузите файл, скачанный из этого модуля."
+            'No "WB ID" and "Cost price per unit" columns. '
+            "Upload the file downloaded from this page."
         )
     parsed: list[ParsedCostRow] = []
     for offset, row in enumerate(rows, start=2):
@@ -120,7 +122,7 @@ def _read_grid(filename: str, data: bytes) -> tuple[list[object], list[list[obje
     else:
         grid = _read_csv(data)
     if not grid:
-        raise ValidationError("Файл пуст — в нём нет строки заголовков.")
+        raise ValidationError("The file is empty: it has no header row.")
     return grid[0], grid[1:]
 
 
@@ -159,7 +161,7 @@ def _read_xlsx(data: bytes) -> list[list[object]]:
     try:
         ws = wb.active
         if ws is None:
-            raise ValidationError("В файле нет ни одного листа.")
+            raise ValidationError("The file has no sheets.")
         rows: list[list[object]] = []
         for row in ws.iter_rows(values_only=True):
             if len(rows) >= _MAX_ROWS:
@@ -236,7 +238,7 @@ def _decode(data: bytes) -> str:
 
 
 def _find_key_column(header: list[object]) -> int | None:
-    """Index of the «Артикул WB» / ``nm_id`` column, or ``None``."""
+    """Index of the "WB ID" / ``nm_id`` column, or ``None``."""
     for idx, cell in enumerate(header):
         if _norm(cell) in _NM_ID_HEADERS:
             return idx
@@ -246,15 +248,15 @@ def _find_key_column(header: list[object]) -> int | None:
 def _find_cost_column(header: list[object]) -> int | None:
     """Index of the editable per-unit cost column, or ``None``.
 
-    Prefers a «себестоимость … ед …» header (the export's «за 1 ед.»), so the
-    total-cost column «Себестоимость, итого» beside it is never read by mistake.
-    Falls back to any «себестоимость» header for a minimal hand-made sheet.
+    Prefers a "cost price … unit" header (the export's "per unit"), so the
+    total-cost column "Cost price, total" beside it is never read by mistake.
+    Falls back to any "cost price" header for a minimal hand-made sheet.
     """
     fallback: int | None = None
     for idx, cell in enumerate(header):
         text = _norm(cell)
         if _COST_MARKER in text:
-            if "ед" in text:
+            if _PER_UNIT_MARKER in text:
                 return idx
             if fallback is None:
                 fallback = idx
@@ -269,17 +271,15 @@ def _norm(cell: object) -> str:
 
 
 _TOO_MANY_ROWS = (
-    f"В файле больше {_MAX_ROWS} строк — это не похоже на файл себестоимости. "
-    "Загрузите файл, скачанный из этого модуля."
+    f"The file has more than {_MAX_ROWS:,} rows, so it isn't a cost price file. "
+    "Upload the file downloaded from this page."
 )
 
-_TOO_LARGE_UNPACKED = (
-    "Файл распаковывается в неправдоподобно большой объём данных и не будет прочитан."
-)
+_TOO_LARGE_UNPACKED = "The file unpacks to an implausibly large amount of data and won't be read."
 
 _UNREADABLE = (
-    "Не удалось прочитать файл. Поддерживаются .xlsx, .xls и .csv — "
-    "загрузите файл, скачанный из этого модуля."
+    "Couldn't read the file. Supported formats are .xlsx, .xls and .csv: "
+    "upload the file downloaded from this page."
 )
 
 __all__ = ["ParsedCostRow", "parse_cost_upload"]

@@ -73,7 +73,7 @@ def test_wb_omitted_fields_do_not_break_the_mapping() -> None:
 def test_counts_are_kept_apart_from_money() -> None:
     """``delivery_amount``/``return_amount`` are carried as the counts they are.
 
-    Exactly one of them is 1 on a «Логистика» row, and that is what splits
+    Exactly one of them is 1 on a logistics row, and that is what splits
     ``delivery_rub`` into forward and return legs. Reading either as ₽ doubles
     the logistics line.
     """

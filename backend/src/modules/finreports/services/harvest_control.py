@@ -1,4 +1,4 @@
-"""Read side of the manual «Обновить» trigger, and of the P&L's freshness line.
+"""Read side of the manual "Refresh" trigger, and of the P&L's freshness line.
 
 The hourly schedule closes most of the gap between WB publishing a report and
 the P&L showing it, but not all of it: a report published at 02:00 waits for the
@@ -17,7 +17,7 @@ that is six hours stale is a dead harvester wearing the same words.
 Two things this service does NOT do. It does not decide whether the harvest may
 run — the task owns that, under the same lock the scheduled run takes
 (:func:`src.modules.finreports.tasks.harvest.harvest_all_workspaces`); this only
-*reports* the lock, so the button can say «уже выполняется» instead of silently
+*reports* the lock, so the button can say "already running" instead of silently
 queueing a run that will no-op. And **it never probes WB itself.** The freshness
 answer is relayed from what the task recorded, nothing more: a page load may not
 spend the WB request budget the hourly schedule is metered against, and a page
@@ -58,7 +58,7 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 @dataclass(frozen=True)
 class HarvestState:
-    """What the «Обновить» button and the freshness line need to know."""
+    """What the "Refresh" button and the freshness line need to know."""
 
     #: Whether a harvest (scheduled or manual) currently holds the lock.
     running: bool
@@ -82,7 +82,7 @@ class HarvestState:
     #:
     #: Deliberately a second field rather than a larger :attr:`latest_settled`.
     #: The statement now shows figures for days no weekly report covers yet, and
-    #: a page that showed them under «Последний отчёт WB: 14-20 сен» would be
+    #: a page that showed them under "Latest WB report: 14-20 Sep" would be
     #: contradicting itself; one that folded them INTO that date would be
     #: claiming a settlement document WB has not issued. The two claims are
     #: different and are reported as two.
@@ -93,7 +93,7 @@ class HarvestState:
     #: WB shows a report on its own site hours before the API lists it (12.10.2026:
     #: on the site by 08:00, absent from ``sales-reports/list`` at 08:05). A seller
     #: looking at both sees «WB has it, we don't» and reads a broken harvest; this
-    #: is what lets the page say «сформирован, ждём API» instead. Derived from the
+    #: is what lets the page say "formed, waiting for the API" instead. Derived from the
     #: calendar, never from a WB request — see :mod:`.settlement_calendar`.
     awaited_period: tuple[date, date] | None = None
     #: The newest hand-uploaded report standing in the statement, if any —
@@ -123,7 +123,7 @@ class HarvestControlService:
             redis: The client holding the harvest lock.
             freshness_records: Where the harvest task records what it found.
             load_tokens: Resolves a workspace's WB credentials. Only the
-                «Финансы» token is used, and only to name the rate bucket —
+                "Finance" token is used, and only to name the rate bucket —
                 see :meth:`settlement_retry_after`.
             upload_repo: Source of the hand-uploaded report standing in, if any.
         """
@@ -139,7 +139,7 @@ class HarvestControlService:
 
         A click shortly after a tick used to enqueue a harvest whose first act
         was to sit still waiting for WB's next token — seven minutes of
-        «Обновляем…» with nothing happening (observed 2026-09-09). The bucket
+        "Refreshing…" with nothing happening (observed 2026-09-09). The bucket
         already knows the number, and it is in shared Redis, so the answer costs
         a Redis round trip and **no WB request**: asking WB whether WB will
         accept a request is the one thing that cannot be done here.
@@ -166,7 +166,7 @@ class HarvestControlService:
 
         Returns:
             Seconds to wait when WB has shut the method, or ``0.0`` otherwise —
-            including an ordinary refill, no «Финансы» token, or a bucket that
+            including an ordinary refill, no "Finance" token, or a bucket that
             cannot be read. Fails open: an unknown block is not a block.
         """
         tokens = await self._load_tokens(workspace_id)

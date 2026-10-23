@@ -68,7 +68,7 @@ def row_key(row: Mapping[str, Any]) -> bytes:
 
 
 def signed_for_pay(row: Mapping[str, Any]) -> Decimal:
-    """The row's «К перечислению», negated on a refund — WB's own ``forPaySum`` rule."""
+    """The row's payout, negated on a refund — WB's own ``forPaySum`` rule."""
     amount = Decimal(row.get("ppvz_for_pay") or 0)
     return -amount if row.get("doc_type_name") == REFUND_DOC_TYPE else amount
 

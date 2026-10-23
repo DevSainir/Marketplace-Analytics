@@ -2,7 +2,7 @@
 
 One row per WB ``realizationreport_id``. Groups the settlement rows
 (:class:`~src.modules.finreports.models.logistics_transaction.LogisticsTransaction`)
-and can point at the official «Еженедельный отчёт реализации» document from the
+and can point at the official weekly settlement report document from the
 Documents API (``archived_document_id``, unused for now).
 """
 

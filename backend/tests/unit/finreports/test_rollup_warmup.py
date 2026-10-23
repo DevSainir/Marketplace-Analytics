@@ -2,7 +2,7 @@
 
 The rollup repairs itself on read, so warming it can never change a figure —
 only who pays for the repair. What can go wrong is the WINDOW: warm the last
-four weeks and «Вся история» is still a cold 17 s rebuild in front of a user,
+four weeks and "All time" is still a cold 17 s rebuild in front of a user,
 which is the timeout this whole mechanism exists to remove. That is what these
 pin.
 
@@ -84,26 +84,26 @@ async def test_the_warm_up_covers_everything_wb_has_ever_settled(
 ) -> None:
     """The window is the full span of the report headers, not the newest week.
 
-    Warming a short window would leave the one read this exists for — «Вся
-    история» — exactly as cold as before, and nothing would look broken.
+    Warming a short window would leave the one read this exists for — "All
+    time" — exactly as cold as before, and nothing would look broken.
     """
     monkeypatch.setattr(
         warmup_module, "FinancialReportRepository", lambda _s: _FakeReports(PERIODS)
     )
 
-    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="Демо")
+    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="Demo")
 
     assert warmed["date_from"] == date(2024, 1, 29)
     assert warmed["date_to"] == date(2026, 7, 19)
 
 
-async def test_a_кабинет_with_no_reports_is_left_alone(
+async def test_a_workspace_with_no_reports_is_left_alone(
     monkeypatch: pytest.MonkeyPatch, warmed: dict[str, object]
 ) -> None:
     """Nothing settled means nothing to summarise — and no empty rebuild."""
     monkeypatch.setattr(warmup_module, "FinancialReportRepository", lambda _s: _FakeReports([]))
 
-    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="Новый")
+    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="New")
 
     assert "date_from" not in warmed
 
@@ -123,7 +123,7 @@ async def test_a_failed_warm_up_does_not_reach_the_harvest(
 
     monkeypatch.setattr(warmup_module, "FinancialReportRepository", _explode)
 
-    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="Демо")
+    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="Demo")
 
 
 async def test_the_warm_up_commits_what_it_built(
@@ -139,7 +139,7 @@ async def test_the_warm_up_commits_what_it_built(
         warmup_module, "FinancialReportRepository", lambda _s: _FakeReports(PERIODS)
     )
 
-    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="Демо")
+    await warmup_module.warm_settlement_rollup(workspace_id=WORKSPACE, name="Demo")
 
     session = warmed["session"]
     assert isinstance(session, _FakeSession)

@@ -2,7 +2,7 @@
 /**
  * The cost-price editor — the only place a human types a number into this module.
  *
- * Everything else in finreports is harvested from WildBerries and read-only;
+ * Everything else in finreports is harvested from Wildberries and read-only;
  * cost of goods is the one P&L input WB does not know. The page states the
  * coverage plainly at the top, because the margin on the dashboard is only as
  * meaningful as the share of sold units these figures cover.
@@ -119,10 +119,7 @@ onMounted(() => {
 <template>
   <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
   <div class="app-container py-lg">
-    <PageHeader
-      title="Себестоимость"
-      :back="{ to: { name: 'finreports' }, label: 'К отчёту о прибылях и убытках' }"
-    />
+    <PageHeader title="Cost price" :back="{ to: { name: 'finreports' }, label: 'Back to P&L' }" />
 
     <section
       v-if="coverage.totalUnits"
@@ -131,7 +128,7 @@ onMounted(() => {
       <div class="flex flex-wrap items-baseline gap-lg phone:gap-sm">
         <div>
           <div class="text-tiny font-medium uppercase tracking-wide text-muted">
-            Покрытие проданных единиц
+            Units sold with a cost price
           </div>
           <div
             class="mt-xs text-h2 font-bold tabular-nums"
@@ -141,9 +138,9 @@ onMounted(() => {
           </div>
         </div>
         <p class="max-w-2xl text-base text-muted">
-          {{ formatNumber(coverage.costedUnits) }} из {{ formatNumber(coverage.totalUnits) }} шт за
-          последний год. Себестоимость задана для {{ coverage.costedSkus }} из
-          {{ coverage.costedSkus + coverage.missingSkus }} продававшихся SKU.
+          {{ formatNumber(coverage.costedUnits) }} of {{ formatNumber(coverage.totalUnits) }} units
+          in the last year. Cost price set for {{ coverage.costedSkus }} of
+          {{ coverage.costedSkus + coverage.missingSkus }} SKUs sold.
         </p>
       </div>
     </section>

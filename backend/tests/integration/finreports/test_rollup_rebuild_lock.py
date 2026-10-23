@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from src.modules.finreports.repos import LogisticsTransactionRepository
 from src.modules.finreports.repos.pnl.rollup import SettlementRollup
 from src.modules.finreports.services.ingestion.columns import TXN_UPDATE
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -38,7 +39,7 @@ def _row(rrd_id: int) -> dict[str, object]:
         "report_id": 900_000_001,
         "workspace_id": WORKSPACE,
         "nm_id": 1,
-        "supplier_oper_name": "Продажа",
+        "supplier_oper_name": wb.SALE,
         "rr_dt": DAY,
         "currency_name": "KGS",
         "ppvz_for_pay": Decimal("100"),

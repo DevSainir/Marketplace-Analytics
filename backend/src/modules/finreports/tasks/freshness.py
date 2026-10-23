@@ -86,10 +86,10 @@ async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
     here, and a peek that spent a slot would cost a request every time a tick
     looked.
 
-    **A refill is not a block.** ``retry_after`` answers «how long until the
-    next token», which is up to a minute whenever anything — the backfill, the
-    daily tail, «Обновить» — spent one just before. Read as a block, that
-    skipped the seller with «WB закрыл» and took the daily tail with it, over a
+    **A refill is not a block.** ``retry_after`` answers "how long until the
+    next token", which is up to a minute whenever anything — the backfill, the
+    daily tail, "Refresh" — spent one just before. Read as a block, that
+    skipped the seller with "WB closed" and took the daily tail with it, over a
     pause the gate would have queued through by itself.
 
     Args:
@@ -99,7 +99,7 @@ async def settlement_blocked_for(tokens: WorkspaceTokenBundle) -> float:
     Returns:
         Seconds to wait when WB has shut the method, or ``0.0`` otherwise —
         including an ordinary refill, an unreachable Redis, or a workspace with
-        no «Финансы» token. Fails open, because a bucket we cannot read is not a
+        no "Finance" token. Fails open, because a bucket we cannot read is not a
         block.
     """
     if not tokens.finance:
@@ -205,12 +205,12 @@ async def check_freshness(
         the caller records the totals from — those exist on the list entry and
         on no settlement row, so this is the only place they are ever seen.
         The verdict is ``None`` for one case only — a workspace with no
-        «Финансы» token, where nothing was asked and nothing can be. It used to
-        also mean «the cadence paced this tick out», which no longer exists.
+        "Finance" token, where nothing was asked and nothing can be. It used to
+        also mean "the cadence paced this tick out", which no longer exists.
     """
     if not tokens.finance:
         logger.warning(
-            "finreports: %s has no «Финансы» token — the P&L cannot be harvested.", tokens.name
+            'finreports: %s has no "Finance" token — the P&L cannot be harvested.', tokens.name
         )
         return None, (), ()
     if latest_settled is None:

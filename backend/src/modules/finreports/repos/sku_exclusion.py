@@ -1,4 +1,4 @@
-"""Data access for the per-SKU «Не включать в общий счёт» marks."""
+"""Data access for the per-SKU "Exclude from total" marks."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from src.modules.finreports.repos.base import BaseRepository
 
 
 class SkuExclusionRepository(BaseRepository):
-    """The seller's «Не включать в общий счёт» marks, keyed ``(workspace_id, nm_id)``."""
+    """The seller's "Exclude from total" marks, keyed ``(workspace_id, nm_id)``."""
 
     model = PnlSkuExclusion
 
@@ -37,7 +37,7 @@ class SkuExclusionRepository(BaseRepository):
         Args:
             workspace_id: Owning workspace.
             nm_id: SKU the mark applies to.
-            excluded: ``True`` to mark «Не включать», ``False`` to clear it.
+            excluded: ``True`` to set the mark, ``False`` to clear it.
         """
         if excluded:
             stmt = (

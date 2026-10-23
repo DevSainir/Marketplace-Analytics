@@ -45,8 +45,8 @@ def settlement_frontier(*, watermark: date | None, covered_through: date | None)
       that is precisely what had happened to several workspaces: watermark
       13.09, newest report ending 06.09, report 985672101 (07.09-13.09, formed
       14.09) published into a window nothing would ever ask about again. The
-      hourly gate answered «settled through 13.09 — nothing newer can exist yet»
-      to every tick, «Обновить» included.
+      hourly gate answered "settled through 13.09 — nothing newer can exist yet"
+      to every tick, "Refresh" included.
 
     So: **the earlier of the two**. A day is closed only when it was both asked
     about completely and answered with a report that covers it. Each date is a

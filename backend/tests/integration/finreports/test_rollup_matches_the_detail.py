@@ -2,7 +2,7 @@
 
 The rollup exists because the detail is 870 MB against a 128 MB
 ``shared_buffers``: any window covering most of it is a parallel seq scan, ~7 s a
-pass, and «Вся история» was a timeout rather than a page. The same rows collapse
+pass, and "All time" was a timeout rather than a page. The same rows collapse
 to tens of thousands of groups on (workspace, report, day, article).
 
 A derived copy of a seller's money is only defensible if it cannot be wrong, so
@@ -44,6 +44,7 @@ from tests.integration.finreports.conftest import (
     WINDOW_TO,
     WORKSPACE,
 )
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -131,7 +132,7 @@ async def test_a_day_that_grew_after_it_was_summarised_is_rebuilt(
             report_id=THIS_WEEK,
             workspace_id=WORKSPACE,
             nm_id=SKU_A,
-            supplier_oper_name="Продажа",
+            supplier_oper_name=wb.SALE,
             rr_dt=WINDOW_FROM,
             currency_name="KGS",
             quantity=1,
@@ -233,7 +234,7 @@ async def test_a_rollup_corrupted_by_hand_is_not_believed(
     assert (await fresh.aggregate(**window, grouping=PnlGrouping.TOTAL))[0] == honest
 
 
-async def test_the_rollup_is_scoped_to_its_own_кабинет(
+async def test_the_rollup_is_scoped_to_its_own_workspace(
     db_session: AsyncSession, seeded: None
 ) -> None:
     """One tenant's summary never answers for another's window.
@@ -300,7 +301,7 @@ async def test_rows_with_no_settlement_date_are_outside_every_window(
             report_id=THIS_WEEK,
             workspace_id=WORKSPACE,
             nm_id=SKU_A,
-            supplier_oper_name="Продажа",
+            supplier_oper_name=wb.SALE,
             rr_dt=None,
             currency_name="KGS",
             quantity=1,
@@ -357,7 +358,7 @@ async def test_a_history_of_months_is_built_in_one_pass(
                 report_id=LONG_REPORT,
                 workspace_id=WORKSPACE,
                 nm_id=SKU_A,
-                supplier_oper_name="Продажа",
+                supplier_oper_name=wb.SALE,
                 rr_dt=start + timedelta(days=offset),
                 currency_name="KGS",
                 quantity=1,

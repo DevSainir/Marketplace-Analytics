@@ -46,6 +46,7 @@ from src.modules.finreports.tasks.settlement import MissingReport
 from src.modules.finreports.tasks.settlement import page as settlement_page
 from src.modules.finreports.tasks.settlement import reports as settlement_module
 from src.modules.workspaces.contract import WorkspaceTokenBundle
+from tests.support import wb_labels
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -58,10 +59,10 @@ _FROM, _TO = date(2026, 7, 13), date(2026, 7, 15)
 
 
 def _tokens() -> WorkspaceTokenBundle:
-    """A workspace with a «Финансы» token, so the settlement walk runs."""
+    """A workspace with a "Finance" token, so the settlement walk runs."""
     return WorkspaceTokenBundle(
         workspace_id=_WORKSPACE,
-        name="Демо",
+        name="Demo",
         statistics="stat-token",
         finance="a-finance-token",
     )
@@ -77,7 +78,7 @@ def _settlement(index: int) -> WBReportDetailRow:
             "date_to": _TO.isoformat(),
             "rr_dt": "2026-07-14",
             "currency_name": "KGS",
-            "supplier_oper_name": "Продажа",
+            "supplier_oper_name": wb_labels.SALE,
             "ppvz_for_pay": "1854.32",
         }
     )

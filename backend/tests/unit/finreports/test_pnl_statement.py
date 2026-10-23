@@ -79,7 +79,7 @@ def _build(aggregate: SettlementAggregate, *, cogs: Decimal = Decimal(0), cogs_u
     return build_statement(
         aggregate,
         key=str(aggregate.key),
-        label="неделя",
+        label="week",
         cogs=cogs,
         cogs_units=cogs_units,
         logistics_reasons=[],
@@ -90,7 +90,7 @@ def _build(aggregate: SettlementAggregate, *, cogs: Decimal = Decimal(0), cogs_u
 
 
 def test_the_week_reproduces_wbs_own_bottom_line() -> None:
-    """«Итого к оплате» equals the footer figure of report 900000201.
+    """The total payout equals the footer figure of report 900000201.
 
     1 580 250.00 KGS is the week's ``ppvz_for_pay`` sum less each withholding
     column, worked out by hand from the aggregate above. This is the single
@@ -122,8 +122,8 @@ def test_the_revenue_block_reconstructs_the_settled_payout_exactly() -> None:
     assert residual == Decimal(0)
 
 
-def test_the_withholding_block_reconstructs_итого_к_оплате_exactly() -> None:
-    """Payout for goods − total withheld == «Итого к оплате»."""
+def test_the_withholding_block_reconstructs_the_total_payout_exactly() -> None:
+    """Payout for goods − total withheld == the total payout."""
     statement = _build(_week())
 
     assert statement.payout_for_goods - statement.total_withheld == statement.payout_total
@@ -146,7 +146,7 @@ def test_refunds_are_subtracted_not_summed() -> None:
 def test_the_logistics_sub_lines_add_up_to_the_logistics_line() -> None:
     """Forward, return and un-legged legs partition ``delivery_rub`` exactly.
 
-    «Коррекция логистики» sets neither leg counter, on any of its rows. Folding
+    The logistics correction sets neither leg counter, on any of its rows. Folding
     it into "forward" to make two sub-lines add up reports correction money as
     delivery-to-customer; three honest buckets beat two that balance.
     """
@@ -160,7 +160,7 @@ def test_the_logistics_sub_lines_add_up_to_the_logistics_line() -> None:
 
 
 def test_the_discount_line_nets_refunds_on_the_pre_spp_basis() -> None:
-    """«Скидка WB» is the gap between the seller's price and what buyers paid.
+    """The WB discount is the gap between the seller's price and what buyers paid.
 
     Both sides net refunds at the *same* basis. Netting the pre-SPP revenue by
     the refunds' post-SPP amount instead mixes two bases and inflates the
@@ -192,7 +192,7 @@ def test_compensations_are_not_reported_as_negative_commission() -> None:
 
 
 def test_separately_billed_acquiring_never_reduces_the_payout() -> None:
-    """«Комиссия за организацию платежа» is a memo, not a withholding.
+    """The payment-arrangement fee is a memo, not a withholding.
 
     WB does not deduct it from ``ppvz_for_pay`` — on the rows that carry it, the
     payout identity's residual equals ``acquiring_fee`` to the kopeck. Treat it
@@ -312,7 +312,7 @@ def test_an_empty_period_does_not_divide_by_zero() -> None:
     ],
 )
 def test_every_withholding_reduces_the_bottom_line(field: str, delta: Decimal) -> None:
-    """Each withheld charge lowers «итого к оплате» by its own amount.
+    """Each withheld charge lowers the total payout by its own amount.
 
     Guards against a charge landing in the statement's structure but not in its
     total — the failure mode where a new WB fee is displayed and ignored.
@@ -327,7 +327,7 @@ def test_every_withholding_reduces_the_bottom_line(field: str, delta: Decimal) -
 
 
 def test_additional_payments_raise_the_bottom_line() -> None:
-    """«Доплаты» are money in, so they add to «итого к оплате».
+    """Additional payments are money in, so they add to the total payout.
 
     Practically never non-zero in settlement data, which is exactly why the sign
     needs pinning: nothing in the data would reveal it flipped.
@@ -342,7 +342,7 @@ def test_additional_payments_raise_the_bottom_line() -> None:
 
 
 def test_agency_vat_is_reported_but_never_deducted() -> None:
-    """Agent's VAT («НДС агента») is a memo figure — «итого к оплате» is invariant to it.
+    """Agent's VAT is a memo figure — the total payout is invariant to it.
 
     540 000.00 KGS this week, 18 % of gross sales. It sits outside the
     settlement identity, which closes without it; subtracting it anywhere would

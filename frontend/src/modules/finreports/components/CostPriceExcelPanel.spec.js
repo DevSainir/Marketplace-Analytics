@@ -34,15 +34,15 @@ describe('CostPriceExcelPanel', () => {
       result: {
         applied: 3,
         skipped: 2,
-        issues: [{ row: 5, nm_id: 999, reason: 'SKU не продавался.' }],
+        issues: [{ row: 5, nm_id: 999, reason: 'The SKU has never sold.' }],
       },
     })
 
     const text = wrapper.text()
     expect(text).toContain('3')
-    expect(text).toContain('строка 5')
-    expect(text).toContain('артикул WB 999')
-    expect(text).toContain('SKU не продавался.')
+    expect(text).toContain('row 5')
+    expect(text).toContain('WB ID 999')
+    expect(text).toContain('The SKU has never sold.')
   })
 
   it('disables the controls while a transfer is in flight', () => {

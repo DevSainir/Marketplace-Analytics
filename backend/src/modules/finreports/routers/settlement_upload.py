@@ -1,6 +1,6 @@
 """HTTP routes for uploading WB's weekly report by hand, and following it.
 
-The seller downloads «Еженедельный детализированный отчет» from WB's seller portal —
+The seller downloads the weekly detailed report from WB's seller portal —
 hours before WB's API serves it — and uploads it here. The POST answers at
 once: it checks the file is WB's and queues it; the worker reads it, and the
 GET says how it ended. See :mod:`src.modules.finreports.services.settlement_upload`.
@@ -40,7 +40,7 @@ def _out(upload: SettlementUpload) -> SettlementUploadOut:
     responses={
         202: {"description": "The file is WB's weekly report; it is queued for reading."},
         401: {"description": "Unauthorized access token."},
-        409: {"description": "Another upload of this кабинет is still being read."},
+        409: {"description": "Another upload of this workspace is still being read."},
         422: {"description": "Not WB's weekly report file, or too large."},
     },
 )
@@ -66,10 +66,10 @@ async def upload_settlement_report(
     data = await read_capped(
         file,
         max_bytes=_MAX_UPLOAD_BYTES,
-        too_large="Файл слишком большой для одного недельного отчёта.",
+        too_large="File too large for one weekly report.",
     )
     if not data:
-        raise ValidationError("Файл пуст.")
+        raise ValidationError("The file is empty.")
     upload = await service.accept(
         workspace_id=workspace_id, user_id=user_id, filename=file.filename or "", data=data
     )
@@ -84,7 +84,7 @@ async def upload_settlement_report(
     responses={
         200: {"description": "Where the upload stands."},
         401: {"description": "Unauthorized access token."},
-        404: {"description": "No such upload in this кабинет."},
+        404: {"description": "No such upload in this workspace."},
     },
 )
 async def get_settlement_upload(

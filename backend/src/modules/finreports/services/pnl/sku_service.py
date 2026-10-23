@@ -13,6 +13,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+from src.core.calendar_words import day_text
 from src.modules.finreports.repos import (
     CostPriceRepository,
     PnlGrouping,
@@ -31,7 +32,7 @@ _ZERO = Decimal(0)
 
 
 class SkuReportService:
-    """Builds the «По артикулам» P&L cut for a workspace and window."""
+    """Builds the "By SKU" P&L cut for a workspace and window."""
 
     def __init__(
         self,
@@ -46,12 +47,12 @@ class SkuReportService:
         self._exclusions = exclusion_repo
 
     async def set_exclusion(self, *, workspace_id: uuid.UUID, nm_id: int, excluded: bool) -> None:
-        """Mark or clear one SKU's «Не включать в общий счёт» flag.
+        """Mark or clear one SKU's "Exclude from total" flag.
 
         Args:
             workspace_id: Owning workspace (the mark is shared across its users).
             nm_id: SKU the mark applies to.
-            excluded: ``True`` to mark «Не включать», ``False`` to clear it.
+            excluded: ``True`` to set the mark, ``False`` to clear it.
         """
         await self._exclusions.set_excluded(
             workspace_id=workspace_id, nm_id=nm_id, excluded=excluded
@@ -91,7 +92,7 @@ class SkuReportService:
     ) -> list[PnlSkuDaySales]:
         """Return every settled SKU-day's sales — the lean cut of :meth:`get_sku_days`.
 
-        For a reader that only divides by sales («ДРР от продаж»): no payout, no
+        For a reader that only divides by sales ("ACoS (sales)"): no payout, no
         cost, so it costs a fifth of the full cut over a long window.
 
         Args:
@@ -111,7 +112,7 @@ class SkuReportService:
     ) -> PnlSizesResponse:
         """Return one article's per-size cut of the window.
 
-        The drill-down under a row of «По артикулам», fetched on the click that
+        The drill-down under a row of "By SKU", fetched on the click that
         opens it rather than with the table: a report of 40 articles carries
         ~400 size rows, and a seller opens one or two of them.
 
@@ -172,7 +173,7 @@ class SkuReportService:
             date_to: Inclusive settlement-date end.
             orders: Funnel orders per ``nm_id`` (router-resolved).
             buyouts: ``(buyouts, decided deliveries)`` per ``nm_id`` from the
-                funnel by order date (router-resolved) — WB's «Процент выкупа».
+                funnel by order date (router-resolved) — WB's buyout rate.
             ad_spend: Promotion-API spend per ``nm_id`` (router-resolved).
             ad_bonus: WB-funded share of that spend per ``nm_id``
                 (router-resolved). In the advertising account's own unit,
@@ -192,7 +193,7 @@ class SkuReportService:
                 its figures — the per-article penalty categories and the caveat
                 lines. Both are separate passes over the settlement detail, and
                 on a multi-year window each is ~7 s for something a consumer
-                that only draws figures throws away. «Сводка» is that consumer.
+                that only draws figures throws away. "Summary" is that consumer.
 
         Returns:
             Rows + unallocated bucket + totals + caveats.
@@ -273,9 +274,9 @@ class SkuReportService:
     ) -> bytes:
         """Render the per-SKU P&L for the window as an editable XLSX.
 
-        The download half of the cost round trip: the same report the «По
-        артикулам» view shows, serialised so the seller can fill the
-        «Себестоимость за 1 ед.» column offline and upload it back. Takes the
+        The download half of the cost round trip: the same report the "By
+        SKU" view shows, serialised so the seller can fill the
+        "Cost price per unit" column offline and upload it back. Takes the
         cross-module figures the router already resolves for :meth:`get_report`.
 
         Returns:
@@ -314,29 +315,29 @@ class SkuReportService:
         uncosted = [r for r in rows if r.cost_price is None and r.sold_units]
         if uncosted:
             notes.append(
-                f"Без себестоимости {len(uncosted)} SKU с продажами. "
-                "Укажите её прямо в таблице ниже или в разделе «Себестоимость»."
+                f"No cost price for {len(uncosted)} {'SKU' if len(uncosted) == 1 else 'SKUs'} "
+                'with sales. Enter it in the table below or under "Cost price".'
             )
 
-        notes.extend(_span_note("Заказы", "истории воронки", funnel_span, date_from, date_to))
-        notes.extend(_span_note("Реклама", "статистики продвижения", ad_span, date_from, date_to))
-        notes.extend(_span_note("Бонусы", "истории списаний WB", bonus_span, date_from, date_to))
+        notes.extend(_span_note("Orders", "funnel history", funnel_span, date_from, date_to))
+        notes.extend(_span_note("Advertising", "promotion statistics", ad_span, date_from, date_to))
+        notes.extend(_span_note("Bonuses", "WB write-off history", bonus_span, date_from, date_to))
         # A WB rename of the funding label silently stops the deduction (the
         # match is an allowlist, on purpose). This is what keeps that silent
         # fallback from being invisible.
         if unknown_funding:
-            labels = ", ".join(f"«{label}»" for label in unknown_funding[:5])
+            labels = ", ".join(f'"{label}"' for label in unknown_funding[:5])
             notes.append(
-                f"WB списывал рекламу способом, который мы не знаем ({labels}) — "
-                "эти суммы посчитаны как деньги продавца, а не как бонусы."
+                f"WB charged advertising under a payment type we don't know ({labels}). "
+                "Those amounts are counted as the seller's money, not as bonuses."
             )
         sale_rows, with_revenue = await self._pnl.revenue_coverage(
             workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
         if sale_rows and with_revenue < sale_rows:
             notes.append(
-                f"Выручка заполнена только для {with_revenue} из {sale_rows} строк продаж — "
-                "остальные строки ещё не догружены из WB."
+                f"Revenue is filled in for only {with_revenue} of {sale_rows} sale rows: "
+                "the rest have not come from WB yet."
             )
 
         return notes
@@ -352,8 +353,8 @@ def _span_note(
     """Caveat for a column whose source history does not cover the window."""
     first, last = span
     if first is None:
-        return [f"«{column}» недоступны: за период нет {source}."]
+        return [f'"{column}" unavailable: no {source} for the period.']
     if first > date_from or (last is not None and last < date_to):
-        until = f" по {last.isoformat()}" if last is not None and last < date_to else ""
-        return [f"«{column}» известны только с {first.isoformat()}{until} — не за весь период."]
+        until = f" to {day_text(last)}" if last is not None and last < date_to else ""
+        return [f'"{column}" known only from {day_text(first)}{until}, not for the whole period.']
     return []

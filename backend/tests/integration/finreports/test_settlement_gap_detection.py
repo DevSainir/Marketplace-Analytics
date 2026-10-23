@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finreports.models import FinancialReport, LogisticsTransaction
 from src.modules.finreports.repos import FinancialReportRepository
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -134,7 +135,7 @@ async def test_a_quiet_seller_with_no_rows_is_not_a_gap(db_session: AsyncSession
             report_id=1,
             workspace_id=WORKSPACE,
             nm_id=0,
-            supplier_oper_name="Продажа",
+            supplier_oper_name=wb.SALE,
             rr_dt=date(2026, 8, 24),
             currency_name="KGS",
         )

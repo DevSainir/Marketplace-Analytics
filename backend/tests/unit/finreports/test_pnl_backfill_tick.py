@@ -417,7 +417,7 @@ async def test_a_workspace_with_no_finance_token_ends_rather_than_waits(
     """Nothing was asked and nothing can be, so the lane must not sit RUNNING
     for ever waiting for a request it will never make."""
     step = await walk.advance_pnl(
-        WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="Без токена"),
+        WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="No token"),
         cursor=None,
         build_ingestion=object(),
     )

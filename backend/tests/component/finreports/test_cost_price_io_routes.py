@@ -60,7 +60,9 @@ class _StubCostPriceService:
         return CostPriceImportResponse(
             applied=1,
             skipped=2,
-            issues=[CostPriceImportIssue(row=5, nm_id=999, reason="SKU не продавался.")],
+            issues=[
+                CostPriceImportIssue(row=5, nm_id=999, reason="SKU never sold in this workspace.")
+            ],
         )
 
 

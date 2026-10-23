@@ -27,6 +27,7 @@ from tests.integration.finreports.conftest import (
     WINDOW_TO,
     WORKSPACE,
 )
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -34,7 +35,7 @@ pytestmark = pytest.mark.integration
 SHARED = (
     "sold_units",
     "returned_units",
-    # The size cut's «Выкуп» denominator (sold / delivered); the article row
+    # The size cut's buyout denominator (sold / delivered); the article row
     # takes WB's own funnel percentage instead, but its aggregate still carries it.
     "delivered_units",
     "sales_gross",
@@ -84,9 +85,9 @@ async def test_the_sizes_sum_to_the_article_in_every_shared_column(
         [
             _row(
                 8001,
-                "Продажа",
+                wb.SALE,
                 "48",
-                doc_type_name="Продажа",
+                doc_type_name=wb.SALE,
                 quantity=1,
                 retail_amount=Decimal("900"),
                 retail_price_withdisc_rub=Decimal("1000"),
@@ -94,9 +95,9 @@ async def test_the_sizes_sum_to_the_article_in_every_shared_column(
             ),
             _row(
                 8002,
-                "Возврат",
+                wb.REFUND,
                 "50",
-                doc_type_name="Возврат",
+                doc_type_name=wb.REFUND,
                 quantity=1,
                 retail_amount=Decimal("450"),
                 retail_price_withdisc_rub=Decimal("500"),
@@ -104,23 +105,23 @@ async def test_the_sizes_sum_to_the_article_in_every_shared_column(
             ),
             _row(
                 8003,
-                "Коррекция продаж",
+                wb.SALES_CORRECTION,
                 "48",
-                doc_type_name="Продажа",
+                doc_type_name=wb.SALE,
                 quantity=1,
                 ppvz_for_pay=Decimal("874.69"),
             ),
             _row(
                 8004,
-                "Коррекция продаж",
+                wb.SALES_CORRECTION,
                 "50",
-                doc_type_name="Возврат",
+                doc_type_name=wb.REFUND,
                 quantity=1,
                 ppvz_for_pay=Decimal("64.13"),
             ),
-            _row(8005, "Логистика", "48", delivery_amount=1, delivery_rub=Decimal("120")),
-            _row(8006, "Логистика", "50", return_amount=1, delivery_rub=Decimal("55")),
-            _row(8007, "Штраф", "", penalty=Decimal("25")),
+            _row(8005, wb.LOGISTICS, "48", delivery_amount=1, delivery_rub=Decimal("120")),
+            _row(8006, wb.LOGISTICS, "50", return_amount=1, delivery_rub=Decimal("55")),
+            _row(8007, wb.PENALTY, "", penalty=Decimal("25")),
         ]
     )
     await db_session.flush()

@@ -9,7 +9,7 @@
  * buyout. The rest stay on the desktop table.
  *
  * Fed the same `/sizes` response as the table: one answer, two projections.
- * No «Итого»: the sizes sum to the article card they open under.
+ * No "Total": the sizes sum to the article card they open under.
  */
 import BusyBar from '@/core/components/BusyBar.vue'
 import { pct, units, usePnlMoney } from '@/modules/finreports/pnlFormat'
@@ -28,20 +28,20 @@ const revenue = (size) => sizeAtBase(size, base()).revenue
 
 <template>
   <div class="size-list">
-    <p class="size-list__title">Размеры</p>
-    <BusyBar v-if="!state || state.loading" label="Загружаем…" class="py-sm" />
+    <p class="size-list__title">Sizes</p>
+    <BusyBar v-if="!state || state.loading" label="Loading…" class="py-sm" />
     <p v-else-if="state.error" class="record-note text-status-negative">{{ state.error }}</p>
     <p v-else-if="!state.data?.rows?.length" class="record-note">
-      За этот период у артикула нет строк с размером.
+      No sizes for this SKU in the period.
     </p>
     <template v-else>
       <div v-for="size in state.data.rows" :key="size.ts_name" class="size-list__item">
         <div class="size-list__line">
-          <span class="font-medium text-primary">{{ size.ts_name || 'Без размера' }}</span>
+          <span class="font-medium text-primary">{{ size.ts_name || 'No size' }}</span>
           <span class="tabular-nums text-primary">{{ money(revenue(size)) }}</span>
         </div>
         <p class="record-note">
-          продано {{ units(size.sold_units) }} · возвр. {{ units(size.returned_units) }} · выкуп
+          sold {{ units(size.sold_units) }} · returned {{ units(size.returned_units) }} · buyout
           <span :class="toneClass('sizeBuyoutPct', size.buyout_pct)">{{
             pct(size.buyout_pct)
           }}</span>

@@ -1,11 +1,11 @@
 /**
- * State and formatting of the «По артикулам» table — everything that is not
+ * State and formatting of the "By SKU" table — everything that is not
  * markup.
  *
  * Pulled out of `PnlSkuDataTable.vue` for the same reason the cards were: a
  * couple of dozen column definitions already fill the file, and any logic next
  * to them stops being readable. Here: which articles are expanded, the order
- * and the page with sizes under their articles, and what the «Итого» row looks
+ * and the page with sizes under their articles, and what the "Total" row looks
  * like; there: only the columns.
  */
 import { computed, ref, watch } from 'vue'
@@ -13,14 +13,15 @@ import { computed, ref, watch } from 'vue'
 import { formatNumber } from '@/core/utils/format'
 import { pct, usePnlMoney } from '@/modules/finreports/pnlFormat'
 import { sortRows, treeRows } from '@/modules/finreports/pnlSkuTree'
+import { TOTAL_LABEL } from '@/modules/finreports/usePnlSkuRows'
 
 /**
  * Which articles are expanded, in the shape PrimeVue expects (a map by
  * `dataKey`), and asking for each open article's sizes whenever it has none.
  *
- * Asking only on the click was the other half of the endless «Считаем
- * размеры…»: the store drops every article's sizes when the report reloads —
- * a new period, or a «Не включать в общий счёт» toggle — while the rows stay
+ * Asking only on the click was the other half of the endless sizes
+ * spinner: the store drops every article's sizes when the report reloads —
+ * a new period, or an "Exclude from total" toggle — while the rows stay
  * open, so an open row was left with nothing and nothing asking for it. The
  * watch re-asks for exactly those; the store ignores an article already
  * loaded or loading, so it costs nothing otherwise.
@@ -52,7 +53,17 @@ export function useExpandedSkus(onOpen, sizesOf = () => ({})) {
 }
 
 /**
- * Ready-made cells of the «Итого» row. Built in advance so that each column
+ * The "Total" row's label, naming how many marked rows it leaves out. Prose,
+ * so it never goes through `formatSku`.
+ *
+ * @param {number} [excluded] Rows marked "Exclude from total".
+ */
+export function totalLabel(excluded = 0) {
+  return excluded ? `${TOTAL_LABEL} (${excluded} excluded)` : TOTAL_LABEL
+}
+
+/**
+ * Ready-made cells of the "Total" row. Built in advance so that each column
  * carries one `:footer`, not a block of formatting inside the template.
  *
  * @param {import('vue').Ref<object|null>} totals A row from `sumRows`.
@@ -63,7 +74,7 @@ export function useFooterCells(totals) {
     const t = totals.value
     if (!t) return {}
     return {
-      saName: t.excludedCount ? `Итого (без ${t.excludedCount})` : 'Итого',
+      saName: totalLabel(t.excludedCount),
       orders: t.orders === null ? '' : formatNumber(t.orders),
       sold: formatNumber(t.sold),
       returnPct: pct(t.returnPct),

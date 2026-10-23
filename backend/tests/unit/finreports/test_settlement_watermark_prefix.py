@@ -9,7 +9,7 @@ That is not hypothetical. On 2026-09-07 the mark was read from
 `max(financial_report.date_to)`, the period WB *states* on the header, which is
 written from the first page that lands. Most workspaces held one day of
 the 01.09-06.09 week while the header claimed all six; the gate then probed
-07.09, found nothing, and skipped. «К перечислению» showed a small fraction of
+07.09, found nothing, and skipped. The payout showed a small fraction of
 WB's own figure and nothing raised.
 
 So these pin the rule that makes it unrepresentable: a walk certifies the
@@ -44,7 +44,7 @@ def _bundle() -> WorkspaceTokenBundle:
     """A workspace with the settlement token the walk requires."""
     return WorkspaceTokenBundle(
         workspace_id=uuid.uuid4(),
-        name="Демо",
+        name="Demo",
         statistics="a-statistics-token",
         finance="a-finance-token",
     )
@@ -123,7 +123,7 @@ async def test_a_later_window_cannot_certify_the_gap_before_it(windows_that) -> 
 async def test_a_workspace_without_a_settlement_token_certifies_nothing(
     windows_that,
 ) -> None:
-    """No «Финансы» token is not the same as a covered span, and must not read
+    """No "Finance" token is not the same as a covered span, and must not read
     as one — a seller we cannot ask for is short a P&L, not up to date."""
     windows_that()
     tokenless = WorkspaceTokenBundle(workspace_id=uuid.uuid4(), name="NEVA")

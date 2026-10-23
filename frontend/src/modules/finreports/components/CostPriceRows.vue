@@ -33,9 +33,9 @@ const emit = defineEmits(['input', 'remove'])
 /** Clearing a cost restates every margin on file: asked first (`confirmClick`). */
 const clearing = useConfirmClick()
 
-const SOURCE_LABELS = { seed: 'со слов продавца', manual: 'вручную' }
+const SOURCE_LABELS = { seed: 'from the seller', manual: 'manual' }
 
-/** How many rows to show; «Показать ещё» grows it. Edits on rows scrolled past
+/** How many rows to show; "Show more" grows it. Edits on rows scrolled past
  *  stay in the parent's draft and still save — the pending count says so. */
 const PAGE = 10
 const shown = ref(PAGE)
@@ -52,7 +52,7 @@ const visible = computed(() => props.rows.slice(0, shown.value))
 <template>
   <!-- The card the desktop table wears is on the <table>'s own wrapper, which is
        hidden here — so the row list carries its own, or it sits bare on the
-       canvas (design-system «The plane»). -->
+       canvas (design-system "The plane"). -->
   <div class="rounded-card border border-border-subtle bg-surface p-md shadow-card">
     <ul class="record-list">
       <li
@@ -65,7 +65,7 @@ const visible = computed(() => props.rows.slice(0, shown.value))
           <div class="record-main">
             <span class="record-title">{{ formatSku(row.vendorCode) || '—' }}</span>
             <span class="record-sub">
-              {{ row.nmId }} · {{ formatNumber(row.soldUnits) }} шт
+              {{ row.nmId }} · {{ formatNumber(row.soldUnits) }} units
               <template v-if="SOURCE_LABELS[row.source]">
                 · {{ SOURCE_LABELS[row.source] }}
               </template>
@@ -78,10 +78,10 @@ const visible = computed(() => props.rows.slice(0, shown.value))
               min="0"
               step="1"
               inputmode="decimal"
-              :aria-label="`Себестоимость ${formatSku(row.vendorCode) || row.nmId}`"
+              :aria-label="`Cost price ${formatSku(row.vendorCode) || row.nmId}`"
               class="ui-input w-24 text-right tabular-nums"
               :value="value(row)"
-              :placeholder="row.stored === null ? 'не задана' : ''"
+              :placeholder="row.stored === null ? 'not set' : ''"
               @input="emit('input', row, $event.target.value)"
             />
             <button
@@ -99,7 +99,7 @@ const visible = computed(() => props.rows.slice(0, shown.value))
       </li>
 
       <li v-if="!rows.length" class="record-card">
-        <p class="py-xl text-center text-base text-muted">Нет проданных SKU за последний год.</p>
+        <p class="py-xl text-center text-base text-muted">No SKUs sold in the last year.</p>
       </li>
     </ul>
 

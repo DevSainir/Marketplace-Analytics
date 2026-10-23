@@ -1,7 +1,7 @@
 """The recorded freshness verdict, and the two ways it must degrade.
 
-This record is the second half of the P&L's freshness line — «и мы спросили
-12 минут назад». Its whole job is to let a reader tell a quiet week from a dead
+This record is the second half of the P&L's freshness line — "and we asked
+12 minutes ago". Its whole job is to let a reader tell a quiet week from a dead
 harvester, so the failure modes that matter are not "the value is wrong" but
 "the value reassures when it should not":
 
@@ -160,7 +160,7 @@ async def test_an_unreachable_redis_reads_as_never_checked() -> None:
         "not json at all",
         '["wb_empty", "2026-09-09T06:14:03+00:00"]',
         json.dumps({"outcome": "wb_empty"}),
-        json.dumps({"outcome": "wb_empty", "checked_at": "не дата"}),
+        json.dumps({"outcome": "wb_empty", "checked_at": "not a date"}),
         json.dumps({"outcome": "everything_is_fine", "checked_at": "2026-09-09T06:14:03+00:00"}),
         json.dumps(
             {
@@ -174,7 +174,7 @@ async def test_an_unreachable_redis_reads_as_never_checked() -> None:
 async def test_an_unreadable_record_degrades_to_never_checked(raw: str) -> None:
     """Never to a half-parsed verdict — an outcome without its instant reassures.
 
-    «Новых отчётов нет» is only meaningful next to «спросили 12 минут назад».
+    "No new reports" is only meaningful next to "asked 12 minutes ago".
     A record that kept the first half and lost the second would say the most
     reassuring thing this feature can say, on no evidence at all — including
     for a value written by a future release whose outcome this code cannot

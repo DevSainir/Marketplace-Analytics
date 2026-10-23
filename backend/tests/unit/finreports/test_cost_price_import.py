@@ -6,7 +6,7 @@ spreadsheet could poison the P&L. Each rule from ``import_workbook`` is pinned:
 
 * a cost lands only on a SKU the workspace already knows;
 * it is stored in the workspace's settlement currency, never the file's;
-* a blank «Себестоимость» changes nothing (a downloaded file is mostly blanks);
+* a blank cost price changes nothing (a downloaded file is mostly blanks);
 * a non-numeric or out-of-range value is reported, not silently dropped;
 * a SKU listed twice cannot blow up the upsert batch.
 
@@ -64,10 +64,10 @@ def _service(sold_nm_ids: list[int]) -> tuple[CostPriceService, _FakeCostRepo]:
 
 
 def _upload(rows: list[tuple[object, object]]) -> bytes:
-    """A minimal cost sheet: («Артикул WB», «Себестоимость») data rows."""
+    """A minimal cost sheet: ("WB ID", "Cost price per unit") data rows."""
     wb = Workbook()
     ws = wb.active
-    ws.append(["Артикул WB", "Себестоимость за 1 ед."])
+    ws.append(["WB ID", "Cost price per unit"])
     for nm_id, cost in rows:
         ws.append([nm_id, cost])
     buffer = io.BytesIO()
@@ -109,7 +109,7 @@ async def test_an_unknown_sku_is_reported_not_inserted() -> None:
 
 
 async def test_a_blank_cost_changes_nothing_without_an_issue() -> None:
-    # Arrange: a known SKU with an empty «Себестоимость» (the common case).
+    # Arrange: a known SKU with an empty cost price (the common case).
     service, cost_repo = _service([111])
     data = _upload([(111, None)])
 
@@ -126,7 +126,7 @@ async def test_a_blank_cost_changes_nothing_without_an_issue() -> None:
 async def test_a_non_numeric_cost_is_reported() -> None:
     # Arrange: a known SKU whose cost cell is text.
     service, _ = _service([111])
-    data = _upload([(111, "дорого")])
+    data = _upload([(111, "expensive")])
 
     # Act.
     result = await service.import_workbook(workspace_id=WORKSPACE, filename="pnl.xlsx", data=data)
@@ -161,4 +161,4 @@ async def test_a_sku_listed_twice_keeps_the_last_and_reports_the_duplicate() -> 
     # Assert: a single upsert (the last value), and the duplicate is flagged.
     assert result.applied == 1
     assert cost_repo.upserted[0]["cost"] == Decimal("800")
-    assert any("дважды" in issue.reason for issue in result.issues)
+    assert any("twice" in issue.reason for issue in result.issues)

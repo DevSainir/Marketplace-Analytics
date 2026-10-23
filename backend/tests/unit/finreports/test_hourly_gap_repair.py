@@ -156,7 +156,7 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     redis = _FakeRedis()
 
     bundle = WorkspaceTokenBundle(
-        workspace_id=WORKSPACE, name="Демо", statistics="stat-token", finance="a-finance-token"
+        workspace_id=WORKSPACE, name="Demo", statistics="stat-token", finance="a-finance-token"
     )
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:

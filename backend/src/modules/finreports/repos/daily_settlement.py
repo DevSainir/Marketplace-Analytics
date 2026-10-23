@@ -176,8 +176,8 @@ class DailySettlementRepository(BaseRepository):
     async def covered_through(self, *, workspace_id: uuid.UUID) -> date | None:
         """Return the newest day the provisional tail covers, if any.
 
-        The P&L's freshness line reads this to say «плюс предварительно по 22
-        сен» ("plus provisional to 22 Sep") beside the settled weekly period. It
+        The P&L's freshness line reads this to say "plus provisional to 22
+        Sep" beside the settled weekly period. It
         is deliberately NOT mixed into `latest_settled`: one of the two claims is
         a WB settlement document and the other is a day we have not yet proved
         stable.

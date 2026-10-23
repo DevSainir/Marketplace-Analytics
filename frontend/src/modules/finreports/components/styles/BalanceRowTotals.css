@@ -1,5 +1,5 @@
 /*
- * Styles for BalanceRowTotals.vue — block 2, «Итого по артикулу».
+ * Styles for BalanceRowTotals.vue — block 2, "SKU total".
  *
  * Every height here MUST match BalanceGrid.css, because the grid drives this
  * block's vertical offset: two header rows of `--row-head-h` and body rows of

@@ -4,7 +4,7 @@
  * This line exists because a P&L that stops nine days ago is usually a quiet
  * week and occasionally a dead harvester, and the page used to show the two
  * identically. So the assertions here are mostly about what it must NOT say: a
- * check that failed is never «нового ничего нет», and a stale check never reads
+ * check that failed is never "nothing new", and a stale check never reads
  * as reassurance.
  */
 import { describe, expect, it } from 'vitest'
@@ -40,13 +40,13 @@ function check(fields = {}) {
 }
 
 describe('formatPeriod', () => {
-  it('keeps WB’s own day-month shape for a week inside one month', () => {
-    expect(formatPeriod(report())).toBe('10–16 авг')
+  it('writes a week inside one month as one range, day first', () => {
+    expect(formatPeriod(report())).toBe('10–16 Aug')
   })
 
   it('names both months when the week straddles two', () => {
     expect(formatPeriod(report({ date_from: '2026-07-28', date_to: '2026-08-03' }))).toBe(
-      '28 июл – 3 авг',
+      '28 Jul – 3 Aug',
     )
   })
 
@@ -55,12 +55,12 @@ describe('formatPeriod', () => {
     // `new Date('2026-08-16')` it is midnight UTC and prints as the 15th for
     // every reader west of Greenwich.
     expect(formatPeriod(report({ date_from: '2026-08-16', date_to: '2026-08-16' }))).toBe(
-      '16–16 авг',
+      '16–16 Aug',
     )
   })
 
   it('says which endpoint it has when WB stated only one', () => {
-    expect(formatPeriod(report({ date_from: null }))).toBe('по 16 авг')
+    expect(formatPeriod(report({ date_from: null }))).toBe('through 16 Aug')
   })
 
   it('is empty for a header WB stated no period for', () => {
@@ -70,18 +70,18 @@ describe('formatPeriod', () => {
 
 describe('formatCheckDay', () => {
   it('names the local day of the last check', () => {
-    expect(formatCheckDay('2026-08-15T09:00:00Z')).toMatch(/^1[45] авг$/)
+    expect(formatCheckDay('2026-08-15T09:00:00Z')).toMatch(/^1[45] Aug$/)
   })
 
   it('is empty for something that is not an instant', () => {
-    expect(formatCheckDay('когда-то')).toBe('')
+    expect(formatCheckDay('some time')).toBe('')
   })
 })
 
 describe('describeFreshness', () => {
   it('names the last weekly report and how far the daily ones reach', () => {
     // The statement runs past the weekly report on WB's per-day reports. The
-    // weekly period alone over figures that run further reads as «а как?».
+    // weekly period alone over figures that run further reads as "how, then?".
     const line = describeFreshness(
       {
         latest_report: report(),
@@ -91,7 +91,7 @@ describe('describeFreshness', () => {
       NOW,
     )
 
-    expect(line.text).toBe('Последний еженедельный отчёт WB: 10–16 авг · ежедневные — по 17 авг')
+    expect(line.text).toBe('Latest WB weekly report: 10–16 Aug · daily through 17 Aug')
     expect(line.tone).toBe('muted')
   })
 
@@ -101,16 +101,16 @@ describe('describeFreshness', () => {
       NOW,
     )
 
-    expect(line.text).toBe('Последний еженедельный отчёт WB: 10–16 авг')
+    expect(line.text).toBe('Latest WB weekly report: 10–16 Aug')
   })
 
   it('does not say how long ago a fresh check ran', () => {
-    // «проверено 12 мин назад» on every load was noise; only a stale check
+    // "checked 12 min ago" on every load was noise; only a stale check
     // earns its date (below).
     const line = describeFreshness({ latest_report: report(), last_check: check() }, NOW)
 
-    expect(line.text).not.toMatch(/провер/)
-    expect(line.text).not.toContain('загружен')
+    expect(line.text).not.toMatch(/check/i)
+    expect(line.text).not.toContain('uploaded')
   })
 
   it('names the first daily report WB has not published, once that day is over', () => {
@@ -123,7 +123,7 @@ describe('describeFreshness', () => {
       new Date('2026-08-18T09:00:00'),
     )
 
-    expect(line.text).toContain('WB ещё не выложил ежедневный отчёт за 17 авг')
+    expect(line.text).toContain("WB hasn't published the daily report for 17 Aug yet")
     expect(line.tone).toBe('muted')
   })
 
@@ -133,24 +133,24 @@ describe('describeFreshness', () => {
       new Date('2026-08-18T09:00:00'),
     )
 
-    expect(line.text).toContain('WB ещё не выложил новых отчётов')
-    expect(line.text).not.toContain('за 18 авг')
+    expect(line.text).toContain("WB hasn't published new reports yet")
+    expect(line.text).not.toContain('18 Aug')
   })
 
   it('says a new report is loading only while it is', () => {
-    // The walk records «wb_has_new» again once it succeeds, so the verdict
-    // outlives the run; after it, the report is on the page, not «загружаем».
+    // The walk records "wb_has_new" again once it succeeds, so the verdict
+    // outlives the run; after it, the report is on the page, not "loading".
     const state = { latest_report: report(), last_check: check({ outcome: 'wb_has_new' }) }
 
     expect(describeFreshness({ ...state, running: true }, NOW).text).toContain(
-      'WB выложил новый отчёт — загружаем',
+      'WB published a new report — loading',
     )
     expect(describeFreshness({ ...state, running: false }, NOW).text).toBe(
-      'Последний еженедельный отчёт WB: 10–16 авг',
+      'Latest WB weekly report: 10–16 Aug',
     )
   })
 
-  it('never phrases a failed check as «нового ничего нет»', () => {
+  it('never phrases a failed check as "nothing new"', () => {
     // The rule the whole feature turns on: WB not answering is an unanswered
     // question. Reporting silence as reassurance is the failure this line was
     // added to prevent, not one it may reintroduce.
@@ -159,13 +159,13 @@ describe('describeFreshness', () => {
       NOW,
     )
 
-    expect(line.text).not.toMatch(/не выложил/)
-    expect(line.text).toContain('WB не ответил — возможно, есть отчёты новее')
+    expect(line.text).not.toMatch(/hasn't published/)
+    expect(line.text).toContain("WB didn't answer — newer reports may exist")
     expect(line.tone).toBe('warning')
   })
 
   it('warns once nobody has asked in over a day, and says when it last did', () => {
-    // A confident «нового ничего нет» from yesterday is what a dead harvester
+    // A confident "nothing new" from yesterday is what a dead harvester
     // looks like — the same words as a healthy quiet week, and only the age
     // separates them.
     const line = describeFreshness(
@@ -176,18 +176,16 @@ describe('describeFreshness', () => {
       NOW,
     )
 
-    expect(line.text).toMatch(/последняя проверка WB — 1[56] авг$/)
+    expect(line.text).toMatch(/last WB check: 1[56] Aug$/)
     expect(line.tone).toBe('warning')
   })
 
   it('admits it does not know when no check is recorded', () => {
     // Redis did not answer, the record expired, or it came back in an unknown
-    // shape: all three arrive as null, and none may read as «нового ничего нет».
+    // shape: all three arrive as null, and none may read as "nothing new".
     const line = describeFreshness({ latest_report: report(), last_check: null }, NOW)
 
-    expect(line.text).toContain(
-      'Не знаем, когда последний раз проверяли WB — данные могут быть неполными',
-    )
+    expect(line.text).toContain('Last WB check unknown — data may be incomplete')
     expect(line.tone).toBe('warning')
   })
 
@@ -197,7 +195,7 @@ describe('describeFreshness', () => {
       NOW,
     )
 
-    expect(line.text).toBe('Последний еженедельный отчёт WB: 10–16 авг')
+    expect(line.text).toBe('Latest WB weekly report: 10–16 Aug')
   })
 
   it('says only that it is loading on a workspace with no reports yet', () => {
@@ -206,7 +204,7 @@ describe('describeFreshness', () => {
       NOW,
     )
 
-    expect(line.text).toBe('Загружаем отчёты из WB…')
+    expect(line.text).toBe('Loading reports from WB…')
   })
 
   it('says the workspace has no reports rather than inventing a period', () => {
@@ -215,7 +213,7 @@ describe('describeFreshness', () => {
       NOW,
     )
 
-    expect(line.text).toContain('Отчётов WB пока нет')
+    expect(line.text).toContain('No WB reports yet')
   })
 
   it('renders nothing when the state could not be fetched', () => {
@@ -227,7 +225,7 @@ describe('describeFreshness', () => {
 })
 
 describe('a WB rate block', () => {
-  it('is never worded as «нового ничего нет»', () => {
+  it('is never worded as "nothing new"', () => {
     const line = describeFreshness(
       {
         latest_report: {
@@ -242,8 +240,8 @@ describe('a WB rate block', () => {
       new Date('2026-09-17T10:05:00Z'),
     )
 
-    expect(line.text).toContain('WB временно ограничил запросы — загрузим сами, когда откроет')
-    expect(line.text).not.toContain('не выложил')
+    expect(line.text).toContain("WB is rate-limiting requests — we'll load once it lifts")
+    expect(line.text).not.toContain("hasn't published")
   })
 
   it('is a warning, because the statement may be short a week', () => {
@@ -261,9 +259,9 @@ describe('a WB rate block', () => {
 })
 
 describe('describeFreshness — a report WB has formed and not yet served', () => {
-  // 12.10.2026: the weekly report for 05.10–11.10 was on WB's site by 08:00 and
+  // 12 Oct 2026: the weekly report for 5–11 Oct was on WB's site by 08:00 and
   // absent from the API at 08:05. The seller sees it there; the line says why
-  // it is not here yet instead of «WB ещё не выложил».
+  // it is not here yet instead of "WB hasn't published".
   const MONDAY = new Date('2026-10-12T05:10:00Z')
   const state = (fields = {}) => ({
     latest_report: report({ date_from: '2026-10-01', date_to: '2026-10-04' }),
@@ -276,33 +274,33 @@ describe('describeFreshness — a report WB has formed and not yet served', () =
   it('names the period on a second line, with the reason behind ⓘ', () => {
     const line = describeFreshness(state(), MONDAY)
 
-    expect(line.text).toBe('Последний еженедельный отчёт WB: 1–4 окт · ежедневные — по 11 окт')
+    expect(line.text).toBe('Latest WB weekly report: 1–4 Oct · daily through 11 Oct')
     expect(line.notes).toEqual([
       {
-        text: 'Отчёт за 5–11 окт сформирован, ждём API',
-        hint: expect.stringContaining('обычно через несколько часов'),
+        text: 'Report for 5–11 Oct is ready, waiting for the API',
+        hint: expect.stringContaining('usually a few hours on'),
       },
     ])
     expect(line.tone).toBe('muted')
   })
 
-  it('replaces «WB ещё не выложил», which the seller can see is untrue', () => {
+  it('replaces "WB hasn\'t published", which the seller can see is untrue', () => {
     const line = describeFreshness(
       state({ last_check: check({ outcome: 'wb_empty', checked_at: '2026-10-12T04:55:00Z' }) }),
       MONDAY,
     )
 
-    expect(line.text).not.toContain('не выложил')
-    expect(line.notes[0].text).toBe('Отчёт за 5–11 окт сформирован, ждём API')
+    expect(line.text).not.toContain("hasn't published")
+    expect(line.notes[0].text).toBe('Report for 5–11 Oct is ready, waiting for the API')
   })
 
-  it('gives way to «загружаем» once the API has served it', () => {
+  it('gives way to "loading" once the API has served it', () => {
     const line = describeFreshness(
       state({ running: true, last_check: check({ outcome: 'wb_has_new' }) }),
       MONDAY,
     )
 
-    expect(line.text).toContain('WB выложил новый отчёт — загружаем')
+    expect(line.text).toContain('WB published a new report — loading')
     expect(line.notes).toEqual([])
   })
 
@@ -312,8 +310,8 @@ describe('describeFreshness — a report WB has formed and not yet served', () =
       MONDAY,
     )
 
-    expect(line.text).toContain('WB не ответил — возможно, есть отчёты новее')
-    expect(line.notes[0].text).toContain('ждём API')
+    expect(line.text).toContain("WB didn't answer — newer reports may exist")
+    expect(line.notes[0].text).toContain('waiting for the API')
     expect(line.tone).toBe('warning')
   })
 
@@ -330,11 +328,13 @@ describe('describeFreshness — a report WB has formed and not yet served', () =
     )
 
     expect(line.notes).toEqual([
-      { text: 'Отчёт за 5–11 окт загружен из файла — сверим с WB, когда он придёт по API' },
+      {
+        text: 'Report for 5–11 Oct uploaded from a file — checked against WB once the API serves it',
+      },
     ])
   })
 
-  it('points to «Загрузить отчёт» in the ⓘ — the seller need not wait for the API', () => {
-    expect(describeFreshness(state(), MONDAY).notes[0].hint).toContain('«Загрузить отчёт»')
+  it('points to "Upload report" in the ⓘ — the seller need not wait for the API', () => {
+    expect(describeFreshness(state(), MONDAY).notes[0].hint).toContain('"Upload report"')
   })
 })

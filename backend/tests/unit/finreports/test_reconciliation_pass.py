@@ -6,7 +6,7 @@ and the rotation that decides whose turn it is. What is left, and what lives
 here, is the tick itself — that it walks even when the freshness gate says
 nothing is newer (which is true, and beside the point, exactly when a
 back-dated report is what is being looked for), that it still yields to the
-harvest lock, and that «Обновить» spends only the caller's own budget.
+harvest lock, and that "Refresh" spends only the caller's own budget.
 
 Split off on 2026-09-23 because the file had grown past the 500-line ceiling
 and the seam was already there: everything above needed no fakes at all, and
@@ -159,7 +159,7 @@ def walked(monkeypatch: pytest.MonkeyPatch) -> list[tuple[date, date]]:
     redis = _FakeRedis()
 
     bundle = WorkspaceTokenBundle(
-        workspace_id=WORKSPACE, name="Демо", statistics="stat-token", finance="fin-token"
+        workspace_id=WORKSPACE, name="Demo", statistics="stat-token", finance="fin-token"
     )
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
@@ -239,7 +239,7 @@ async def test_an_ordinary_tick_still_skips_when_nothing_is_newer(
 async def test_the_reconciliation_pass_walks_despite_a_gate_that_says_no(
     walked: list[tuple[date, date]],
 ) -> None:
-    """«Ничего новее нет» is true and irrelevant when the missing report is older.
+    """The gate's "nothing newer" is true and irrelevant when the missing report is older.
 
     The gate probes the day AFTER the watermark, so it cannot see a back-dated
     report even in principle. Letting its verdict stop the pass would leave the
@@ -282,7 +282,7 @@ async def test_the_reconciliation_pass_still_respects_the_harvest_lock(
 async def test_the_button_walks_the_lookback_for_its_own_workspace(
     walked: list[tuple[date, date]],
 ) -> None:
-    """«Обновить» asks the thorough question, scoped to the caller.
+    """The "Refresh" button asks the thorough question, scoped to the caller.
 
     It used to ask the forward one, on the reasoning that widening a click into a
     fortnight of re-reads spends a seller's settlement budget on data already on
@@ -333,7 +333,7 @@ async def test_the_nightly_pass_reconciles_every_seller(
         WorkspaceTokenBundle(
             workspace_id=uuid.uuid5(uuid.NAMESPACE_DNS, name), name=name, finance="fin-token"
         )
-        for name in ("Демо", "NEVA", "Олег")
+        for name in ("Demo", "NEVA", "Oleg")
     ]
 
     async def _bundles(*_args: object, **_kwargs: object) -> list[WorkspaceTokenBundle]:
@@ -401,7 +401,7 @@ async def test_the_nightly_pass_asks_for_the_whole_history_s_totals(
 
     monkeypatch.setattr(ledger, "WBFinanceReportsClient", _Client)
     monkeypatch.setattr(ledger, "record_wb_totals", _record)
-    tokens = WorkspaceTokenBundle(workspace_id=WORKSPACE, name="Демо", finance="fin-token")
+    tokens = WorkspaceTokenBundle(workspace_id=WORKSPACE, name="Demo", finance="fin-token")
 
     await ledger.refresh_archive_totals(tokens=tokens, today=TODAY)
 

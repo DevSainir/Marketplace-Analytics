@@ -1,4 +1,4 @@
-"""«Выручка заполнена только для N из M строк» — the caveat's own counts.
+"""The counts behind "Revenue is filled in for only N of M sale rows".
 
 The P&L columns were added to an already-populated table zero-filled, so a
 window whose rows were never refetched showed a full period of withholdings
@@ -28,6 +28,7 @@ from tests.integration.finreports.conftest import (
     WINDOW_TO,
     WORKSPACE,
 )
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -58,7 +59,7 @@ async def test_a_sale_row_left_zero_filled_is_counted_as_uncovered(
             report_id=THIS_WEEK,
             workspace_id=WORKSPACE,
             nm_id=SKU_A,
-            supplier_oper_name="Продажа",
+            supplier_oper_name=wb.SALE,
             rr_dt=WINDOW_FROM,
             currency_name="KGS",
             quantity=1,
@@ -83,5 +84,5 @@ async def test_a_refund_is_not_a_sale_row(db_session: AsyncSession, seeded: None
         workspace_id=WORKSPACE, date_from=WINDOW_FROM, date_to=WINDOW_TO
     )
 
-    # The fixture's week holds two «Продажа» rows and one «Возврат».
+    # The fixture's week holds two sale rows and one refund.
     assert sale_rows == 2

@@ -81,7 +81,7 @@ class CostPriceBulkInput(BaseModel):
         """
         seen = {item.nm_id for item in items}
         if len(seen) != len(items):
-            raise UserInputError("Каждый артикул может встречаться в списке только один раз.")
+            raise UserInputError("Each SKU may appear in the list only once.")
         return items
 
 

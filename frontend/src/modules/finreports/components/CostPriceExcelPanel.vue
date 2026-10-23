@@ -39,12 +39,12 @@ function onFile(event) {
   <section
     class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
   >
-    <div class="text-tiny font-medium uppercase tracking-wide text-muted">Excel: массовый ввод</div>
+    <div class="text-tiny font-medium uppercase tracking-wide text-muted">Excel: bulk entry</div>
     <p class="mt-xs max-w-2xl text-base text-muted">
-      Скачайте P&amp;L по артикулам, заполните столбец «Себестоимость за 1 ед.» ({{
+      Download the P&amp;L by SKU, fill in the "Cost price per unit" column ({{
         currencyInWords(currency)
-      }}) и загрузите файл обратно. Читается только себестоимость и сопоставляется по «Артикул WB»;
-      пустые ячейки ничего не меняют. Форматы: .xlsx, .xls, .csv.
+      }}) and upload the file back. Only the cost price is read, matched by "WB ID"; empty cells
+      change nothing. Formats: .xlsx, .xls, .csv.
     </p>
 
     <div class="mt-md flex flex-wrap items-center gap-md phone:gap-sm">
@@ -54,14 +54,14 @@ function onFile(event) {
         :disabled="busy || exporting"
         @click="emit('export')"
       >
-        {{ exporting ? 'Скачиваем…' : 'Скачать Excel' }}
+        {{ exporting ? 'Downloading…' : 'Download Excel' }}
       </button>
 
       <label
         class="ui-btn ui-btn--primary cursor-pointer phone:w-full"
         :class="busy ? 'cursor-not-allowed opacity-50' : ''"
       >
-        {{ importing ? 'Загружаем…' : 'Загрузить Excel' }}
+        {{ importing ? 'Uploading…' : 'Upload Excel' }}
         <input
           type="file"
           accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
@@ -77,16 +77,16 @@ function onFile(event) {
       class="mt-md rounded-card border border-border-subtle bg-canvas p-md text-base"
     >
       <p class="text-primary">
-        Загружено себестоимостей: <b>{{ result.applied }}</b
-        >. Пропущено строк: {{ result.skipped }}.
+        Cost prices loaded: <b>{{ result.applied }}</b
+        >. Rows skipped: {{ result.skipped }}.
       </p>
       <div v-if="result.issues?.length" class="mt-sm">
         <p class="text-tiny font-medium uppercase tracking-wide text-status-warning">
-          Не применены ({{ result.issues.length }}):
+          Not applied ({{ result.issues.length }}):
         </p>
         <ul class="mt-xs max-h-40 overflow-y-auto text-tiny text-muted">
           <li v-for="(issue, i) in result.issues" :key="i" class="tabular-nums">
-            строка {{ issue.row }}<span v-if="issue.nm_id"> · артикул WB {{ issue.nm_id }}</span> —
+            row {{ issue.row }}<span v-if="issue.nm_id"> · WB ID {{ issue.nm_id }}</span> —
             {{ issue.reason }}
           </li>
         </ul>

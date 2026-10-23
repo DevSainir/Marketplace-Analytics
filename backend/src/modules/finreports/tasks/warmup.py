@@ -23,7 +23,7 @@ async def warm_settlement_rollup(*, workspace_id: uuid.UUID, name: str) -> None:
 
     The rollup repairs itself on read, so this is purely about WHO pays for the
     repair. A harvest that lands a new week leaves those days stale, and without
-    this the next person to open «Вся история» pays the rebuild — measured at
+    this the next person to open "All time" pays the rebuild — measured at
     17 s on the largest workspace, which the browser gives up on before it
     finishes. Done here, the same work costs a background minute and every
     window opens warm.
@@ -64,7 +64,7 @@ async def warm_every_settlement_rollup() -> int:
     were computed under the old one — and a worker starting is the first moment
     after that migration anything can rebuild it. Without this the rollup stays
     cold until a report lands or the 04:00 pass, and the first seller to open
-    «Вся история» waits out the rebuild.
+    "All time" waits out the rebuild.
 
     Returns:
         How many sellers were warmed.

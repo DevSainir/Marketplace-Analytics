@@ -1,4 +1,4 @@
-"""«Обновить» fills the provisional tail, and only for the workspace that asked.
+"""The "Refresh" button fills the provisional tail, and only for the workspace that asked.
 
 Two properties, and each was a bug before it was a rule.
 
@@ -63,7 +63,7 @@ class _FakeSession:
 
 
 def _bundle(workspace_id: uuid.UUID, name: str) -> WorkspaceTokenBundle:
-    """A workspace with the «Финансы» token the lane requires."""
+    """A workspace with the "Finance" token the lane requires."""
     return WorkspaceTokenBundle(workspace_id=workspace_id, name=name, finance="a-finance-token")
 
 
@@ -82,7 +82,7 @@ def run(monkeypatch: pytest.MonkeyPatch):
         return dict(daily_tail._EMPTY, reports=1)
 
     async def _one(_session: object, workspace_id: uuid.UUID) -> WorkspaceTokenBundle | None:
-        return _bundle(workspace_id, "Демо") if workspace_id == MINE else None
+        return _bundle(workspace_id, "Demo") if workspace_id == MINE else None
 
     class _Flight:
         def __init__(self, key: str, **_kwargs: object) -> None:
@@ -114,7 +114,7 @@ async def test_a_scoped_run_walks_only_the_workspace_that_asked(run) -> None:
 async def test_a_scoped_run_takes_its_own_lock_not_the_harvests(run) -> None:
     """Under the shared lock the button fetches nothing while the sweep runs.
 
-    That is the one case «Обновить» exists for, so the scoped run is keyed on
+    That is the one case "Refresh" exists for, so the scoped run is keyed on
     the workspace: it still cannot walk the same workspace twice at once, and it
     no longer waits on a sweep of everybody else's.
     """

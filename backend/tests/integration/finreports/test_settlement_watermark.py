@@ -9,7 +9,7 @@ table exists rather than a derived `max()` over the report headers:
   six days on 2026-09-07, and the fix is that the two numbers now come from
   different places and are allowed to disagree.
 * **It never rewinds.** Two harvests can overlap — the hourly tick holds a lock
-  but a «Обновить» for one workspace does not wait for it — and the loser of
+  but a "Refresh" for one workspace does not wait for it — and the loser of
   that race must not drag the mark back to its own older span, which would
   re-open a window that had already been closed.
 """

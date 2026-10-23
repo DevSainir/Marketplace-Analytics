@@ -1,6 +1,6 @@
-"""Marks on the «Баланс по товарным остаткам» grid — a seller editorial choice.
+"""Marks on the "Stock balance" grid — a seller editorial choice.
 
-One mark, on either axis: «Не считать» sends a warehouse column or a SKU row to
+One mark, on either axis: "Don't count" sends a warehouse column or a SKU row to
 the far end of the grid and out of every total, while leaving its figures on
 screen — for stock that is not the seller's to count, and which they still want
 to see.
@@ -12,7 +12,7 @@ both ways. A mark never touches a figure; it only decides what the totals are
 drawn from.
 
 The table used to carry two more kinds, ``sku`` and ``warehouse``, for a
-«Закрепить» that floated a row or column to the front. That feature was removed
+"Pin" that floated a row or column to the front. That feature was removed
 in 0.35; migration ``a3f81c2e57d4`` deleted their rows. ``kind`` is a plain text
 column rather than a PG enum, which is what made that a ``DELETE`` and not a
 type rewrite — keep it that way.
@@ -35,7 +35,7 @@ _SCHEMA: str = "finreports"
 class BalancePinKind(enum.StrEnum):
     """What a mark is attached to, and what it does to the grid."""
 
-    #: A warehouse marked «Не считать»: its stock stays visible but is left out
+    #: A warehouse marked "Don't count": its stock stays visible but is left out
     #: of every total, and the column sorts to the far right. For warehouses
     #: whose stock is not the seller's to count — goods already written off,
     #: or a transit point they do not sell from.

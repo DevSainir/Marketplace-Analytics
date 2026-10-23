@@ -13,16 +13,16 @@
   flex-direction: column;
   gap: var(--panel-gap);
 
-  /* Column widths. `--col-sku-w` fits a WB seller article («M-TRX01-BLK») plus
+  /* Column widths. `--col-sku-w` fits a WB seller article ("M-TRX01-BLK") plus
      its ⋮; the summary trio fits its own headers, which outrun the figures.
      Sized against the type scale below — grow one and these have to follow, or
-     «119 | 143 500с» starts clipping. */
+     "119 | KGS 143,500" starts clipping. */
   --col-sku-w: 12rem;
   --col-wh-w: 7.25rem;
   --col-qty-w: 5.5rem;
-  --col-way-w: 4rem;
+  --col-way-w: 4.5rem;
   --col-cost-w: 8.5rem;
-  /* The right-hand blocks — «Итого по артикулу» and the corner beneath it —
+  /* The right-hand blocks — "SKU total" and the corner beneath it —
      square up on this one figure instead of each re-adding the columns. */
   --panel-w: calc(var(--col-qty-w) + var(--col-way-w) + var(--col-cost-w));
 
@@ -113,7 +113,7 @@
   font-size: 14px;
   font-weight: 700;
 }
-/* Goods in motion, under the goods on the shelf: the same figure the «В пути»
+/* Goods in motion, under the goods on the shelf: the same figure the "In transit"
    column totals, kept quiet so the corner still reads as one number. */
 .corner-way {
   font-size: 11px;

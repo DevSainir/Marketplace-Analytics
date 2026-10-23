@@ -5,7 +5,7 @@ they are computed by two different queries over the same table:
 
 * ``latest_settled_date`` — ``max(date_to)`` — is what ``GET /harvest/state``
   returns as ``latest_settled``. The SPA compares it against the day already on
-  screen; a change is the whole basis of «Загружен отчёт по …» and of the
+  screen; a change is the whole basis of "Report loaded through …" and of the
   reload that follows it (``useHarvestRefresh``).
 * ``list_periods`` — every report with a resolved period — is what ``GET /weeks``
   serves, and the picker's whole span is built from it (``fullSpan`` in the
@@ -59,7 +59,7 @@ async def _weeks(session: AsyncSession) -> list[tuple[int, date, date]]:
 
 
 async def _settled(session: AsyncSession) -> date | None:
-    """The day «Обновить» would report as the latest settled one."""
+    """The day "Refresh" would report as the latest settled one."""
     return await FinancialReportRepository(session).latest_settled_date(workspace_id=WORKSPACE)
 
 
@@ -69,7 +69,7 @@ async def test_the_freshest_report_is_the_first_period_the_picker_offers(
     """A newly harvested week leads the period list and matches the settled day.
 
     The plain success case, asserted as the relationship rather than as two
-    values: whatever «Обновить» calls the latest settled day must be the day the
+    values: whatever "Refresh" calls the latest settled day must be the day the
     first week in the picker ends on, or the seller is told about a week the
     picker cannot select.
     """
@@ -98,7 +98,7 @@ async def test_a_report_with_no_stated_start_still_reaches_the_picker(
     rows carry a settlement end but leave both the stated start and ``rr_dt``
     blank lands with ``date_from IS NULL`` and ``date_to`` set. ``max(date_to)``
     counts that report; ``list_periods`` filters it out. The seller is then told
-    «Загружен отчёт по 2026-07-19» over a picker that stops a week earlier, and
+    "Report loaded through 19 Jul 2026" over a picker that stops a week earlier, and
     the freshness gate — probing from 2026-07-20 — never asks for it again.
     """
     db_session.add_all(

@@ -53,6 +53,7 @@ from tests.integration.finreports.conftest import (
     WINDOW_TO,
     WORKSPACE,
 )
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -186,7 +187,7 @@ async def test_account_level_charges_stay_out_of_the_sku_rows(
     # The penalty (25, labelling) is on nm_id 0 in the fixture, so it is the
     # bucket's, and its category label survives to the row.
     assert [p.reason for p in report.unallocated.penalties] == [
-        "Штраф за нарушение правил маркировки"
+        "Penalty for breaking the labeling rules"
     ]
 
 
@@ -209,7 +210,7 @@ async def test_the_monitoring_loaders_deliver_per_sku_figures(
 async def test_buyout_is_wbs_percentage_over_decided_orders_only(
     db_session: AsyncSession, seeded: None, monitoring_seeded: None
 ) -> None:
-    """«Выкуп» = buyouts ÷ (buyouts + refusals) by order date, as in WB's seller portal.
+    """Buyout rate = buyouts ÷ (buyouts + refusals) by order date, as in WB's seller portal.
 
     The second funnel day has not been through the cohort pass (its refusals
     are NULL); counting it as «no refusals» would invent a 100 % day, so it is
@@ -233,8 +234,8 @@ async def test_without_monitoring_history_the_columns_are_unknown_not_zero(
 
     assert row_a.orders_units is None
     assert row_a.advertising is None
-    assert any("Заказы" in note for note in report.notes)
-    assert any("Реклама" in note for note in report.notes)
+    assert any("Orders" in note for note in report.notes)
+    assert any("Advertising" in note for note in report.notes)
 
 
 async def test_the_profit_uses_the_sellers_cost_and_the_promo_spend(
@@ -275,7 +276,7 @@ async def test_a_stray_currency_row_does_not_poison_the_report_currency(
             report_id=THIS_WEEK,
             workspace_id=WORKSPACE,
             nm_id=SKU_A,
-            supplier_oper_name="Продажа",
+            supplier_oper_name=wb.SALE,
             rr_dt=WINDOW_FROM,
             currency_name="RUB",
             quantity=1,
@@ -295,7 +296,7 @@ async def test_a_stray_currency_row_does_not_poison_the_report_currency(
 async def test_excluding_a_sku_shrinks_the_dashboard_but_not_the_totals(
     db_session: AsyncSession, seeded: None
 ) -> None:
-    """The mark persists in real SQL and only the dashboard's «общий счёт» moves."""
+    """The mark persists in real SQL and only the dashboard's overall total moves."""
     before = await _report(db_session)
     row_a = next(r for r in before.rows if r.nm_id == SKU_A)
 

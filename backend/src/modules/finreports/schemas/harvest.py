@@ -1,4 +1,4 @@
-"""DTOs for the manual «Обновить» trigger and its status poll.
+"""DTOs for the manual "Refresh" trigger and its status poll.
 
 The poll carries the P&L's freshness line as well as the button's spinner: the
 same two facts answer "has the run finished?" and "why does the statement stop
@@ -52,7 +52,7 @@ class FreshnessCheckOut(BaseModel):
         "rate_blocked",
     ] = Field(
         description=(
-            "'wb_empty' is the only one that means «нового ничего нет». "
+            "'wb_empty' is the only one that means \"nothing new\". "
             "'probe_failed' means WB did not answer — an unanswered question, "
             "never to be rendered as reassurance. 'rate_blocked' means WB has "
             "the endpoint shut and we did not ask: also not reassurance, and "
@@ -128,13 +128,13 @@ class HarvestStateResponse(BaseModel):
         description=(
             "The last recorded freshness verdict, or null when there is none — "
             "never checked, expired, or an unreadable record. All three mean "
-            "«мы не проверяли», which is the honest answer."
+            '"we have not checked", which is the honest answer.'
         ),
     )
 
 
 class HarvestTriggerResponse(BaseModel):
-    """Outcome of pressing «Обновить» — always an answer, never a wait."""
+    """Outcome of pressing "Refresh" — always an answer, never a wait."""
 
     status: Literal["started", "already_running", "rate_limited"] = Field(
         description=(

@@ -131,18 +131,18 @@ def get_ingestion_service(
 def get_harvest_control_service(
     session: DbSession, report_repo: ReportRepoDep
 ) -> HarvestControlService:
-    """Compose the :class:`HarvestControlService` behind «Обновить».
+    """Compose the :class:`HarvestControlService` behind "Refresh".
 
     Takes the shared Redis directly for the lock — it reads one key and holds no
     state worth caching — and a Redis-backed freshness record store for the P&L's
     freshness line. Both fail open: an unreachable Redis costs the page its
-    footnote and the button its «уже выполняется», never the statement.
+    footnote and the button its "already running", never the statement.
     """
 
     async def _load_tokens(workspace_id: uuid.UUID) -> WorkspaceTokenBundle | None:
         """Resolve one workspace's WB credentials on the request's own session.
 
-        Scoped deliberately: «Обновить» needs the caller's statistics token to
+        Scoped deliberately: "Refresh" needs the caller's statistics token to
         name their rate bucket, and decrypting every tenant's secrets to answer
         one tenant's click would be a poor trade.
         """
@@ -170,7 +170,7 @@ def get_period_service(session: DbSession, report_repo: ReportRepoDep) -> Period
 
 
 def get_settlement_upload_service(session: DbSession) -> SettlementUploadService:
-    """Compose the :class:`SettlementUploadService` behind «Загрузить отчёт»."""
+    """Compose the :class:`SettlementUploadService` behind "Upload report"."""
     return SettlementUploadService(upload_repo=SettlementUploadRepository(session))
 
 

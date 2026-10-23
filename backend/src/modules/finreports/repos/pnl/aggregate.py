@@ -10,8 +10,8 @@ query plumbing.
 column against every ``supplier_oper_name`` over the seller's whole settled
 history shows each column is populated by exactly one family of operations and
 is identically zero on all the others: ``delivery_rub`` only ever by
-«Логистика»/«Коррекция логистики», ``storage_fee`` only by the three storage
-operations, ``penalty`` only by «Штраф», and so on. Summing the column over all
+logistics and its correction, ``storage_fee`` only by the three storage
+operations, ``penalty`` only by the penalty operation, and so on. Summing the column over all
 rows is therefore both simpler *and* safer than filtering by operation — if WB
 introduces an operation tomorrow that withholds storage, it lands in the storage
 line instead of vanishing. Only the revenue/units/payout lines need the operation
@@ -73,9 +73,9 @@ class SettlementAggregate:
         label: Human-readable name for the key (``sa_name`` for a SKU cut).
         date_from / date_to: Settlement dates actually observed in this group.
         currency: Settlement currency observed on the rows.
-        subject_name / brand_name: WB's catalogue identity for the row («Тип
-            предмета» / «Бренд»). Meaningful on the SKU cut only.
-        sold_units / returned_units: Units on «Продажа» / «Возврат» rows.
+        subject_name / brand_name: WB's catalogue identity for the row (category
+            / brand). Meaningful on the SKU cut only.
+        sold_units / returned_units: Units on sale / refund rows.
         sales_gross / returns_gross: ``retail_amount`` — what buyers paid and
             what was refunded.
         sales_before_spp / returns_before_spp: ``retail_price_withdisc_rub`` on
@@ -87,7 +87,7 @@ class SettlementAggregate:
             rows, on refund rows, and on everything else. The third bucket is
             not padding: WB's standalone compensations (damage, defects, substituted
             goods, lost goods) populate ``ppvz_for_pay`` and no other
-            money column, so filtering the payout to «Продажа» would drop them —
+            money column, so filtering the payout to sale rows would drop them —
             33 433 KGS in a single quarter of this seller's history.
         wb_commission_reported / wb_commission_vat: ``ppvz_vw`` and
             ``ppvz_vw_nds`` as WB publishes them, over the SALE rows only. The
@@ -97,7 +97,7 @@ class SettlementAggregate:
             instead, and that check RUNS:
             ``test_the_residual_commission_matches_the_one_wb_published``. They
             agree exactly on the fixture and to 0.075 % over a full seller history.
-            ``wb_commission_vat`` is additionally printed as the «в т.ч. НДС» of
+            ``wb_commission_vat`` is additionally printed as the "of which VAT" of
             the commission line, so both must be summed over the same rows the
             residual is; see the expression's own comment for what widening
             them costs.
@@ -106,23 +106,23 @@ class SettlementAggregate:
             the payout fail to reconcile by exactly that amount.
         acquiring_withheld: ``acquiring_fee`` that WB actually deducted from the
             payout, net of refunds.
-        acquiring_billed_apart: ``acquiring_fee`` labelled «Комиссия за
-            организацию платежа с НДС», which WB bills separately instead of
+        acquiring_billed_apart: ``acquiring_fee`` labelled as the payment-arrangement
+            fee incl. VAT, which WB bills separately instead of
             withholding — a memo figure, never a deduction from the payout.
-        agency_vat: «НДС агента» (agent's VAT) — a memo figure, NOT part of the payout.
+        agency_vat: The agent's VAT — a memo figure, NOT part of the payout.
         logistics_forward / logistics_return / logistics_unlegged:
             ``delivery_rub`` split by which leg counter WB set on the row. The
-            third bucket is «Коррекция логистики», which sets neither.
+            third bucket is the logistics correction, which sets neither.
         storage / acceptance / penalties / deductions / additional_payments /
             rebill_logistic_cost: The withholdings, each from its own column.
-        advertising: The «ВБ.Продвижение» share of ``deductions``. Aggregated
+        advertising: The "WB Promotion" share of ``deductions``. Aggregated
             here rather than read off the reason drill-down, because the
             drill-down is only built for the whole window — computing it there
             would leave every period row reporting zero advertising while the
             total reported millions.
         rows: How many settlement rows fed this aggregate.
         delivered_units: Σ ``delivery_amount`` — forward logistics legs, i.e.
-            units carried to a buyer. The denominator of the per-SKU «Выкуп»,
+            units carried to a buyer. The denominator of the per-SKU buyout,
             the same one the size cut uses (:mod:`.sizes`). Defaulted only so
             the period cuts, which never read it, need not spell it out.
     """
@@ -199,10 +199,10 @@ def _netted(column: SqlExpr) -> ColumnElement[Any]:
     """Sum a sale-side column with refunds subtracted.
 
     Refund rows carry the same columns as sales with the SAME positive sign, so
-    netting has to be explicit. Every operation other than «Возврат» counts
+    netting has to be explicit. Every operation other than a refund counts
     positively, which keeps WB's standalone compensations (they populate
     ``ppvz_for_pay`` and nothing else) inside the payout instead of dropping
-    them because they are not literally «Продажа».
+    them because they are not literally a sale.
     """
     return _sum(case((_is_return(), -column), else_=column))
 
@@ -210,7 +210,7 @@ def _netted(column: SqlExpr) -> ColumnElement[Any]:
 def _units(opers: Sequence[str]) -> ColumnElement[Any]:
     """Count units on the given operations only.
 
-    Never a bare ``SUM(quantity)``: «Возмещение издержек» carries a constant
+    Never a bare ``SUM(quantity)``: the cost-reimbursement operation carries a constant
     ``quantity = 2`` on every one of its rows as filler, which would add two
     phantom units per row to the seller's history.
     """
@@ -246,7 +246,7 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
     _on(SALE_OPERS, _T.ppvz_for_pay),
     _on(RETURN_OPERS, _T.ppvz_for_pay),
     # Everything that is neither a sale nor a refund but still pays out: WB's
-    # compensations, and «Корректировка эквайринга», which refunds over-charged
+    # compensations, and the acquiring correction, which refunds over-charged
     # acquiring as +ppvz_for_pay against a -acquiring_fee on the same row.
     _sum(
         case(
@@ -255,14 +255,14 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
             else_=_T.ppvz_for_pay,
         )
     ),
-    # SALE-side only, NOT _netted. «Возмещение издержек по перевозке» reuses these
+    # SALE-side only, NOT _netted. The transport cost reimbursement reuses these
     # two columns to express the VAT split of its own charge — rows whose
     # ppvz_vw and ppvz_vw_nds (both negative) add up to their
     # rebill_logistic_cost. It is not commission at all.
     #
     # These two decompose the commission line, and that line is a residual over
     # the sale-side payout, so they must be aggregated over the same rows. On the
-    # all-operation basis the printed «в т.ч. НДС комиссии» came out at 629 187.13
+    # all-operation basis the printed "of which VAT on commission" came out at 629 187.13
     # against a true 744 682.24 over the whole history, and carried the WRONG SIGN
     # on 16 of the 133 weekly reports (e.g. report 922728393: -1 350.10 printed
     # under a +23 241.61 commission).
@@ -283,10 +283,10 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
     ),
     _netted(_T.agency_vat),
     # Forward vs return leg. WB sets exactly one of the two counters on a
-    # «Логистика» row — 152 745 forward and 94 358 return over the history, none
+    # logistics row — 152 745 forward and 94 358 return over the history, none
     # with both or neither — so those two partition cleanly.
     #
-    # «Коррекция логистики» rows carry NEITHER counter, though (all 8 591 of them,
+    # Logistics correction rows carry NEITHER counter, though (all 8 591 of them,
     # 30 180 KGS). They are money on the logistics line that belongs to no leg, so
     # they get their own bucket rather than being folded into "forward" to make the
     # sub-lines add up. Three buckets that sum to the line beats two that lie.
@@ -325,14 +325,14 @@ _AGGREGATES: tuple[SqlExpr, ...] = (
             else_=_ZERO,
         )
     ),
-    # Catalogue identity, carried for the SKU cut's «Тип предмета» / «Бренд» columns.
+    # Catalogue identity, carried for the SKU cut's category / brand columns.
     # ``max`` because a SKU's rows all share them; ignored on period/total cuts.
     func.max(_T.subject_name),
     func.max(_T.brand_name),
     func.count(),
     # Appended rather than slotted in with the other units, so the positional
     # readers below keep their indices. Summed over every row, like the size
-    # cut: only «Логистика» rows set it, so Σ sizes = the article, exactly.
+    # cut: only logistics rows set it, so Σ sizes = the article, exactly.
     func.coalesce(func.sum(_T.delivery_amount), 0),
 )
 

@@ -1,4 +1,4 @@
-"""Data access for the balance grid's «Не считать» rows and columns."""
+"""Data access for the balance grid's "Don't count" rows and columns."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from src.modules.finreports.repos.base import BaseRepository
 
 
 class BalancePinRepository(BaseRepository):
-    """The «Не считать» marks of the balance grid, keyed ``(workspace, kind, value)``."""
+    """The "Don't count" marks of the balance grid, keyed ``(workspace, kind, value)``."""
 
     model = BalancePin
 

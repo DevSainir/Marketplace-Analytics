@@ -4,7 +4,7 @@
  *
  * The period lives in the store (it drives the request); its presets are the
  * calendar's own, bounded by the harvested span — they end on the newest
- * settled day, «Вся история» starts on the oldest, and the calendar greys out
+ * settled day, "All time" starts on the oldest, and the calendar grays out
  * every day outside it. The price base is the page's own (`priceBase.js`), so
  * it comes in as a `v-model` — switching it is a re-render, never a request.
  */

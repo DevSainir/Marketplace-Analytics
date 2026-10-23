@@ -1,4 +1,4 @@
-"""Read WB's «Еженедельный детализированный отчет» workbook into settlement rows.
+"""Read WB's weekly detailed report workbook into settlement rows.
 
 The file is what the seller downloads from WB's seller portal: a zip holding one
 .xlsx, one sheet, a header row and one row per settlement line. Every column is
@@ -6,9 +6,9 @@ located **by its header text**, and the set below was matched against the API's
 rows of report 992915233 value by value — 3 257 rows, each column agreeing on
 every row — except where noted:
 
-* «Вознаграждение Вайлдберриз (ВВ), без НДС» is a full float in the file; the
+* WB's reward net of VAT (``ppvz_vw``) is a full float in the file; the
   table keeps ten places, as the API's value does once stored.
-* «Дата заказа покупателем» and «Дата продажи» are Moscow dates; the API's are
+* The order date and the sale date are Moscow dates; the API's are
   a day earlier on ~7 % of rows (an evening event read in UTC). Neither is a key.
 * The columns that were zero on every row of that report — ``ppvz_reward``,
   ``additional_payment``, ``rebill_logistic_cost``, ``acceptance``, the
@@ -18,7 +18,7 @@ every row — except where noted:
 
 What the file does not carry, and the caller supplies: the row's ``rrdId``, the
 report number (it is in the file NAME), the settlement currency, and the
-operation date ``rr_dt`` — derived here as «Дата продажи» clamped into the
+operation date ``rr_dt`` — derived here as the sale date clamped into the
 period, which is the operation date on 3 179 of 3 257 rows and a day or two early
 on the rest, all of them logistics.
 
@@ -26,9 +26,8 @@ Hostile input is assumed: the archive's declared sizes are checked before
 anything is parsed, and the row cap holds while iterating.
 """
 
-# ruff: noqa: RUF001 — WB's column headers and the seller's messages are Russian,
-# and the confusable-character check fires on ordinary Cyrillic. The headers were
-# matched against WB's own file of report 992915233, every one of them.
+# check fires on ordinary Cyrillic. The headers were matched against WB's own file
+# of report 992915233, every one of them.
 from __future__ import annotations
 
 import io
@@ -52,17 +51,17 @@ MAX_DECOMPRESSED_BYTES = 640 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 50
 
 _NOT_A_REPORT = (
-    "Это не похоже на детализированный отчёт WB. Загрузите файл "
-    "«Еженедельный детализированный отчет» так, как скачали его из кабинета WB."
+    "This isn't a WB detailed report. Upload the weekly detailed report "
+    "exactly as downloaded from the WB seller portal."
 )
-_UNREADABLE = "Не удалось прочитать файл. Загрузите .zip или .xlsx из кабинета WB."
-_TOO_LARGE = "Файл слишком большой для одного недельного отчёта."
+_UNREADABLE = "Couldn't read the file. Upload the .zip or .xlsx from the WB seller portal."
+_TOO_LARGE = "File too large for one weekly report."
 _NO_NUMBER = (
-    "Не нашли номер отчёта в имени файла. Загрузите файл с тем именем, "
-    "с которым его скачали из кабинета WB: «…отчет №123456789…»."
+    "No report number in the file name. Upload the file under the name "
+    'the WB seller portal gave it: "…№123456789…".'
 )
 
-#: «№992915233» in «Еженедельный детализированный отчет №992915233_9383646.zip».
+#: "№992915233" in WB's file name, "<report title> №992915233_9383646.zip".
 _REPORT_NUMBER = re.compile(r"№\s*(\d{6,})")
 
 _TEXT = {
@@ -141,6 +140,12 @@ REQUIRED_HEADERS: frozenset[str] = frozenset(
     {*_TEXT, *_INT, *_DATE, *_MONEY, _GI_ID, _SHK_ID, _VW, _DLV_PRC, _SRV_DBS, _ORDINAL}
 )
 
+#: Each header by the ``logistics_transaction`` column it fills, so code that
+#: knows the column (a test building WB's file) need not spell WB's header.
+HEADER_FOR: dict[str, str] = {
+    column: header for header, column in (_TEXT | _INT | _DATE | _MONEY).items()
+} | {"gi_id": _GI_ID, "shk_id": _SHK_ID, "ppvz_vw": _VW, "dlv_prc": _DLV_PRC, "srv_dbs": _SRV_DBS}
+
 
 @dataclass(frozen=True, slots=True)
 class OpenedReport:
@@ -151,7 +156,7 @@ class OpenedReport:
 
 
 def report_number(*names: str) -> int | None:
-    """WB's report number from the first of ``names`` that carries «№…»."""
+    """WB's report number from the first of ``names`` that carries "№…"."""
     for name in names:
         match = _REPORT_NUMBER.search(name or "")
         if match:
@@ -197,7 +202,7 @@ def iter_report_rows(xlsx: bytes) -> Iterator[dict[str, Any]]:
     row at a time; run it twice rather than holding it.
 
     Raises:
-        ValidationError: Missing columns, a broken «№» sequence (an edited or
+        ValidationError: Missing columns, a broken "№" sequence (an edited or
             cut file), an unreadable cell, or more than :data:`MAX_ROWS` rows.
     """
     try:
@@ -225,7 +230,7 @@ def iter_report_rows(xlsx: bytes) -> Iterator[dict[str, Any]]:
 
 
 def _row(cells: tuple[Any, ...], at: dict[str, int], ordinal: int) -> dict[str, Any]:
-    """Map one sheet row; ``ordinal`` is where it must sit in WB's «№» sequence."""
+    """Map one sheet row; ``ordinal`` is where it must sit in WB's "№" sequence."""
 
     def cell(name: str) -> Any:
         index = at[name]
@@ -233,8 +238,8 @@ def _row(cells: tuple[Any, ...], at: dict[str, int], ordinal: int) -> dict[str, 
 
     if _int(cell(_ORDINAL), ordinal) != ordinal:
         raise ValidationError(
-            "Строки отчёта идут не подряд — файл изменён или обрезан. "
-            "Загрузите его заново из кабинета WB."
+            "The report's rows are out of sequence: the file was edited or cut. "
+            "Download it again from the WB seller portal."
         )
     row: dict[str, Any] = {column: _text(cell(name)) for name, column in _TEXT.items()}
     row |= {column: _int(cell(name), ordinal) for name, column in _INT.items()}
@@ -275,7 +280,7 @@ def _member_name(entry: zipfile.ZipInfo) -> str:
 
 
 def _bad(ordinal: int) -> ValidationError:
-    return ValidationError(f"Не удалось прочитать строку №{ordinal} отчёта.")
+    return ValidationError(f"Couldn't read row {ordinal} of the report.")
 
 
 def _text(value: object) -> str:
@@ -312,6 +317,7 @@ def _date(value: object, ordinal: int) -> date | None:
 
 
 __all__ = [
+    "HEADER_FOR",
     "MAX_ROWS",
     "REQUIRED_HEADERS",
     "OpenedReport",

@@ -1,4 +1,4 @@
-"""The per-SKU P&L report — the «По артикулам» cut of the statement.
+"""The per-SKU P&L report — the "By SKU" cut of the statement.
 
 Composition only, like :mod:`.statement`: settlement aggregates, cost prices,
 and the two cross-module mappings (orders, ad spend) in; one
@@ -9,7 +9,7 @@ the window statement, exactly.** Per-SKU figures come only from that SKU's own
 settlement rows; account-level money is never redistributed, because a
 redistribution key (by revenue? by units?) is an editorial choice that turns a
 verifiable report into a model. The reference workbook smears advertising over
-SKUs this way and its «Чистая прибыль» column absorbs the arbitrariness; here
+SKUs this way and its "Net profit" column absorbs the arbitrariness; here
 advertising per SKU is the Promotion API's own attribution instead, and the
 invoice-vs-stats gap stays visible in the unallocated row.
 """
@@ -27,7 +27,7 @@ _HUNDRED = Decimal(100)
 _CENTS = Decimal("0.01")
 
 #: Grouping label of the row that carries WB's account-level (nm_id = 0) money.
-UNALLOCATED_NAME = "Без привязки к артикулу (счёт целиком)"
+UNALLOCATED_NAME = "Not tied to a SKU (whole invoice)"
 
 
 def _pct(part: Decimal, whole: Decimal) -> Decimal | None:
@@ -65,7 +65,7 @@ def sku_payout_net(aggregate: SettlementAggregate) -> Decimal:
     are almost always zero (WB bills them at account level); for the nm_id = 0
     bucket they are the whole point. Keeping ONE formula — here, and called by
     every cut that needs it — is what makes Σ payout_net over rows +
-    unallocated equal the window's «Итого к оплате», and what keeps a per-day
+    unallocated equal the window's "Total payout", and what keeps a per-day
     cut of the same SKU from drifting off its per-window row.
     """
     withheld = (
@@ -112,9 +112,9 @@ def build_sku_row(
             as a positive magnitude. ``None`` when the write-off ledger has
             no coverage for the window — which must not be read as zero.
         penalties: This SKU's penalty categories.
-        subject_name: WB's «Тип предмета» (subject; blank on the totals/bucket rows).
-        brand_name: WB's «Бренд» (brand; blank on the totals/bucket rows).
-        is_excluded: Whether the seller marked the SKU «Не включать в общий счёт».
+        subject_name: WB's category (subject; blank on the totals/bucket rows).
+        brand_name: WB's brand (blank on the totals/bucket rows).
+        is_excluded: Whether the seller marked the SKU "Exclude from total".
         photo_url: The card's main image on WB's CDN, ``None`` when the
             monitoring catalogue holds none — and on the totals and
             account-level rows, which are not a product.
@@ -138,7 +138,7 @@ def build_sku_row(
     # advertising cost negative.
     #
     # The clamp is applied ONCE, here, and the clamped figure is what the row
-    # reports: «Реклама» minus «Бонусы» has to equal the cash cost on screen,
+    # reports: "Advertising" minus "Bonuses" has to equal the cash cost on screen,
     # which it cannot if the printed bonus is the unclamped one.
     bonus_applied = None if advertising is None or ad_bonus is None else min(ad_bonus, advertising)
     advertising_cash = None if advertising is None else advertising - (bonus_applied or _ZERO)
@@ -214,7 +214,7 @@ def build_sku_report(
         ad_bonus: WB-funded share of that spend per ``nm_id``; ``None`` = the
             write-off ledger does not cover this window.
         penalties: ``(nm_id, reason, amount)`` categories for the window.
-        excluded: ``nm_id``s marked «Не включать в общий счёт». Only flags the
+        excluded: ``nm_id``s marked "Exclude from total". Only flags the
             rows; ``totals`` stays the full reconciled window regardless (the
             exclusion-aware figures live in :func:`build_dashboard`).
         photos: Card thumbnails per ``nm_id``, from the monitoring catalogue.
@@ -273,7 +273,7 @@ def build_sku_report(
     totals = build_sku_row(
         total_aggregate,
         nm_id=0,
-        sa_name="Итого",
+        sa_name="Total",
         orders=None if orders is None else sum(orders.values()),
         buyouts=(
             None
@@ -289,20 +289,20 @@ def build_sku_report(
     # single price exists across SKUs); profit follows from it.
     totals.cogs = sum((r.cogs for r in rows if r.cogs is not None), _ZERO)
     # WB charges advertising twice over, in two units that are the same money:
-    # a weekly «Оказание услуг «WB Продвижение»» invoice, withheld inside «к
-    # перечислению», and the burn the Promotion API dates to the days the ads
+    # a weekly "WB Promotion" services invoice, withheld inside the
+    # payout, and the burn the Promotion API dates to the days the ads
     # ran. A SKU row only ever sees the second — the invoice carries no nm_id —
     # so its spend, net of WB's bonuses, is that row's advertising charge.
     #
-    # «Итого» is the invoice: what WB billed the workspace is the total, by the
+    # "Total" is the invoice: what WB billed the workspace is the total, by the
     # owner's decision of 2026-10-02 (the burn differs from it by when it is
     # dated — a week's invoice was 0.77..1.13 of that week's burn on one
     # workspace in September, 0.96 over five weeks — and, before 20.08.2026, by the rate:
     # WB converted the rouble invoices at the document day's rate, the burn is
-    # converted at each impression day's). The invoice is already inside «к
-    # перечислению», so the profit is the payout less the goods, and nothing is
-    # added back or taken off. «Реклама» on this row is the invoice plus WB's
-    # bonuses — the gross the rows sum towards — so «Реклама» minus «Бонусы» is
+    # converted at each impression day's). The invoice is already inside the
+    # payout, so the profit is the payout less the goods, and nothing is
+    # added back or taken off. "Advertising" on this row is the invoice plus WB's
+    # bonuses — the gross the rows sum towards — so "Advertising" minus "Bonuses" is
     # still the cash on screen.
     invoice = total_aggregate.advertising
     totals.advertising_cash = invoice
@@ -325,10 +325,10 @@ def build_dashboard(
 
     Computed as ``totals - sum(marked rows)`` rather than ``sum(included rows)`` on
     purpose: with nothing marked the dashboard then equals the full reconciled
-    ``totals`` to the kopeck (so «Продажи» matches WB's page and «Перечисление»
-    matches «Итого к оплате»), and each mark subtracts exactly that SKU's share —
-    including its slice of «Перечисление», which ``totals`` carries together with
-    the account-level bucket. «Прочие удержания» is account-level (no ``nm_id``),
+    ``totals`` to the kopeck (so "Sales" matches WB's page and "Payout"
+    matches "Total payout"), and each mark subtracts exactly that SKU's share —
+    including its slice of "Payout", which ``totals`` carries together with
+    the account-level bucket. "Other deductions" is account-level (no ``nm_id``),
     so it is read off the window aggregate and a mark never moves it.
 
     Args:
@@ -344,8 +344,8 @@ def build_dashboard(
     def _less(total: Decimal, pick: Callable[[PnlSkuRow], Decimal]) -> Decimal:
         return total - sum((pick(r) for r in marked), _ZERO)
 
-    # «Продажи» at the seller's own price (revenue_seller_price = «Цена розничная
-    # с учётом согласованной скидки», before SPP); «оплачено покупателями» is the
+    # "Sales" at the seller's own price (revenue_seller_price = WB's retail price
+    # net of the agreed discount, before SPP); "paid by buyers" is the
     # after-SPP amount, kept as the card's qualifier.
     sales = _less(totals.revenue_seller_price, lambda r: r.revenue_seller_price)
     paid = _less(totals.revenue_paid, lambda r: r.revenue_paid)

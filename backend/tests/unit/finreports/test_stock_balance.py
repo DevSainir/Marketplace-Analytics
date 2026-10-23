@@ -1,4 +1,4 @@
-"""The «Баланс по товарным остаткам» grid: what the backend is responsible for.
+"""The "Stock balance" grid: what the backend is responsible for.
 
 Its job is the pricing, the row order and the caveats — the totals belong to the
 client that draws the panels (they change with every mark and every keystroke in
@@ -32,9 +32,9 @@ def _balance(**overrides: object) -> object:
     """Build a grid over one costed SKU in two warehouses, unless overridden."""
     kwargs: dict[str, object] = {
         "stat_date": DAY,
-        "stock": {(NM_BRUKI, "Тула"): _at(72), (NM_BRUKI, "Коледино"): _at(8)},
+        "stock": {(NM_BRUKI, "Tula"): _at(72), (NM_BRUKI, "Koledino"): _at(8)},
         "costs": {NM_BRUKI: Decimal("800")},
-        "identity": {NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE")},
+        "identity": {NM_BRUKI: ("m-trx01-blk", "Trousers", "NORTH LINE")},
         "vendor_codes": {},
         "uncounted_warehouses": set(),
         "uncounted_skus": set(),
@@ -53,7 +53,7 @@ def test_a_cell_is_its_units_priced_at_the_sku_cost() -> None:
     """
     grid = _balance()
 
-    tula = next(cell for cell in grid.rows[0].cells if cell.warehouse_name == "Тула")
+    tula = next(cell for cell in grid.rows[0].cells if cell.warehouse_name == "Tula")
 
     assert tula.quantity == 72
     assert tula.balance == Decimal("57600")
@@ -67,10 +67,10 @@ def test_an_uncosted_sku_keeps_its_units_and_reports_no_money() -> None:
     so the panels can be read as the partial sums they are.
     """
     grid = _balance(
-        stock={(NM_BRUKI, "Тула"): _at(72), (NM_SHORTS, "Тула"): _at(40)},
+        stock={(NM_BRUKI, "Tula"): _at(72), (NM_SHORTS, "Tula"): _at(40)},
         identity={
-            NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE"),
-            NM_SHORTS: ("m-wdx02-wht", "Шорты", "NORTH LINE"),
+            NM_BRUKI: ("m-trx01-blk", "Trousers", "NORTH LINE"),
+            NM_SHORTS: ("m-wdx02-wht", "Shorts", "NORTH LINE"),
         },
     )
 
@@ -82,7 +82,7 @@ def test_an_uncosted_sku_keeps_its_units_and_reports_no_money() -> None:
 
 
 def test_rows_are_ranked_on_counted_stock_only() -> None:
-    """A warehouse marked «Не считать» decides neither a total nor the order.
+    """A warehouse marked "Don't count" decides neither a total nor the order.
 
     Its cells are still priced and still shown — the seller wants to see what is
     lying there — but a row must not be promoted by stock the seller has already
@@ -90,35 +90,35 @@ def test_rows_are_ranked_on_counted_stock_only() -> None:
     """
     grid = _balance(
         stock={
-            (NM_BRUKI, "СЦ Брак"): _at(500),
-            (NM_BRUKI, "Тула"): _at(1),
-            (NM_SHORTS, "Тула"): _at(10),
+            (NM_BRUKI, "SC Defects"): _at(500),
+            (NM_BRUKI, "Tula"): _at(1),
+            (NM_SHORTS, "Tula"): _at(10),
         },
         costs={NM_BRUKI: Decimal("800"), NM_SHORTS: Decimal("300")},
         identity={
-            NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE"),
-            NM_SHORTS: ("m-wdx02-wht", "Шорты", "NORTH LINE"),
+            NM_BRUKI: ("m-trx01-blk", "Trousers", "NORTH LINE"),
+            NM_SHORTS: ("m-wdx02-wht", "Shorts", "NORTH LINE"),
         },
-        uncounted_warehouses={"СЦ Брак"},
+        uncounted_warehouses={"SC Defects"},
     )
 
     assert [row.nm_id for row in grid.rows] == [NM_SHORTS, NM_BRUKI]
-    brak = next(c for c in grid.rows[1].cells if c.warehouse_name == "СЦ Брак")
+    brak = next(c for c in grid.rows[1].cells if c.warehouse_name == "SC Defects")
     assert brak.balance == Decimal("400000")
-    assert grid.uncounted_warehouses == ["СЦ Брак"]
+    assert grid.uncounted_warehouses == ["SC Defects"]
 
 
 def test_the_persisted_marks_travel_with_the_grid() -> None:
     """The client applies the marks, so it has to be told what they are.
 
-    «Не считать» sorts a row or column to the far end and drops it from the
+    "Don't count" sorts a row or column to the far end and drops it from the
     totals; both axes are answered from the persisted marks, not re-derived per
     request from anything on the client.
     """
-    grid = _balance(uncounted_skus={NM_SHORTS}, uncounted_warehouses={"Коледино"})
+    grid = _balance(uncounted_skus={NM_SHORTS}, uncounted_warehouses={"Koledino"})
 
     assert grid.uncounted_skus == [NM_SHORTS]
-    assert grid.uncounted_warehouses == ["Коледино"]
+    assert grid.uncounted_warehouses == ["Koledino"]
 
 
 def test_a_day_without_a_snapshot_is_empty_and_says_which_days_exist() -> None:
@@ -130,18 +130,18 @@ def test_a_day_without_a_snapshot_is_empty_and_says_which_days_exist() -> None:
     grid = _balance(stat_date=date(2026, 7, 4), stock={})
 
     assert grid.rows == []
-    assert "нет снимка остатков" in grid.notes[0]
-    assert "2026-01-01" in grid.notes[0]
+    assert "No stock snapshot" in grid.notes[0]
+    assert "1 Jan 2026" in grid.notes[0]
 
 
 def test_a_sku_that_never_settled_a_row_is_named_by_its_catalogue_code() -> None:
     """Fresh stock that has never sold still gets a name, not a bare nm_id.
 
     Its identity is absent from the settlement rows the P&L names SKUs from, so
-    the catalogue «Артикул продавца» stands in.
+    the catalogue vendor code stands in.
     """
     grid = _balance(
-        stock={(NM_SHORTS, "Тула"): _at(12)},
+        stock={(NM_SHORTS, "Tula"): _at(12)},
         costs={},
         identity={},
         vendor_codes={NM_SHORTS: "m-wdx02-wht"},
@@ -151,14 +151,14 @@ def test_a_sku_that_never_settled_a_row_is_named_by_its_catalogue_code() -> None
 
 
 def test_goods_in_transit_are_priced_beside_the_stock_not_inside_it() -> None:
-    """«В пути» is money the seller has spent, but not stock they can ship.
+    """Goods in transit are money the seller has spent, but not stock they can ship.
 
     The units riding to a buyer (or back from one) are already paid for and will
     either come back to the shelf or be bought out, so leaving them out of the
     money understates the balance. They stay out of ``quantity``, though: a
-    seller reading «80 в наличии» must not be reading goods that are on a van.
+    seller reading "80 in stock" must not be reading goods that are on a van.
     """
-    grid = _balance(stock={(NM_BRUKI, "Тула"): _at(72, in_way=5)})
+    grid = _balance(stock={(NM_BRUKI, "Tula"): _at(72, in_way=5)})
 
     tula = grid.rows[0].cells[0]
 
@@ -176,13 +176,13 @@ def test_a_sku_whose_stock_is_all_in_transit_still_ranks_by_its_money() -> None:
     """
     grid = _balance(
         stock={
-            (NM_BRUKI, "Тула"): _at(0, in_way=60),
-            (NM_SHORTS, "Тула"): _at(30),
+            (NM_BRUKI, "Tula"): _at(0, in_way=60),
+            (NM_SHORTS, "Tula"): _at(30),
         },
         costs={NM_BRUKI: Decimal("800"), NM_SHORTS: Decimal("300")},
         identity={
-            NM_BRUKI: ("m-trx01-blk", "Брюки", "NORTH LINE"),
-            NM_SHORTS: ("m-wdx02-wht", "Шорты", "NORTH LINE"),
+            NM_BRUKI: ("m-trx01-blk", "Trousers", "NORTH LINE"),
+            NM_SHORTS: ("m-wdx02-wht", "Shorts", "NORTH LINE"),
         },
     )
 

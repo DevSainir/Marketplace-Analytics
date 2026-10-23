@@ -11,7 +11,7 @@ Why it exists: the settlement detail is 1 459 394 rows and 870 MB against a
 128 MB `shared_buffers`, so a window covering most of it is a parallel *seq*
 scan — 714 MB off disk, ~7 s per pass, measured. The same rows collapse to
 27 857 groups on this key, which is a 40-fold reduction and small enough to live in
-cache. That is the difference between «Вся история» being a page and being a
+cache. That is the difference between "All time" being a page and being a
 timeout.
 
 The key carries ``report_id`` as well as ``rr_dt`` so every cut the statement
@@ -64,7 +64,7 @@ class SettlementDailyRollup(Base):
 
     sold_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     returned_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    #: Forward logistics legs — units carried to a buyer; the «Выкуп» denominator.
+    #: Forward logistics legs — units carried to a buyer; the buyout denominator.
     delivered_units: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )

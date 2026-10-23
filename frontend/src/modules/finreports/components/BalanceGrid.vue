@@ -28,10 +28,10 @@ defineProps({
   ordinaryCount: { type: Number, default: 0 },
   /** `(index) => boolean` — true on the first column of a new group. */
   isGroupBoundary: { type: Function, required: true },
-  /** `(index) => boolean` — true on the first «не считается» row. */
+  /** `(index) => boolean` — true on the first "not counted" row. */
   isRowBoundary: { type: Function, required: true },
-  /** «Артикул», or «Предмет» / «Бренд» / «Группа» when the rows are sums. */
-  firstHeader: { type: String, default: 'Артикул' },
+  /** "SKU", or "Category" / "Brand" / "Group" when the rows are sums. */
+  firstHeader: { type: String, default: 'SKU' },
 })
 
 const emit = defineEmits(['open-menu', 'show-tip', 'hide-tip'])
@@ -56,7 +56,7 @@ defineExpose({ scroller })
         <tr>
           <th rowspan="2" class="col-sku">{{ firstHeader }}</th>
           <th v-if="ordinaryCount > 0" :colspan="ordinaryCount" class="wh-group">
-            <span class="wh-group-label">Склады</span>
+            <span class="wh-group-label">Warehouses</span>
           </th>
           <th
             v-if="uncountedCount"
@@ -64,7 +64,7 @@ defineExpose({ scroller })
             class="wh-group wh-group--uncounted"
             :class="{ 'wh-divide': columns.length > uncountedCount }"
           >
-            <span class="wh-group-label">Не считается</span>
+            <span class="wh-group-label">Not counted</span>
           </th>
           <th rowspan="2" class="col-spacer"></th>
         </tr>
@@ -82,7 +82,7 @@ defineExpose({ scroller })
               <button
                 type="button"
                 class="mark-menu-btn"
-                :aria-label="`Действия со складом ${column.name}`"
+                :aria-label="`Actions for warehouse ${column.name}`"
                 @click="
                   emit('open-menu', {
                     event: $event,
@@ -114,7 +114,7 @@ defineExpose({ scroller })
                 v-if="!row.isGroup"
                 type="button"
                 class="mark-menu-btn"
-                :aria-label="`Действия с артикулом ${row.saName}`"
+                :aria-label="`Actions for SKU ${row.saName}`"
                 @click="
                   emit('open-menu', {
                     event: $event,
@@ -140,11 +140,11 @@ defineExpose({ scroller })
             :class="{ 'wh-divide': isGroupBoundary(index), 'is-uncounted': column.isUncounted }"
           >
             <!-- Zeros read as blanks — only real remainders carry figures. The
-                 divider sits on the column's centre line, stock closing on it
+                 divider sits on the column's center line, stock closing on it
                  from the left and money opening from the right, so a column
                  reads as two aligned numbers rather than one ragged string.
                  Both figures are what is LYING here: goods in transit belong to
-                 no shelf and are reported once, in «Итого по артикулу». -->
+                 no shelf and are reported once, in "SKU total". -->
             <div v-if="row.byWarehouse[column.name]" class="cell-split">
               <span class="cell-stock">
                 {{ formatNumber(row.byWarehouse[column.name].quantity) }}

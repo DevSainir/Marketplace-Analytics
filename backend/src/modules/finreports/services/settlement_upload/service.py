@@ -16,8 +16,8 @@ from src.modules.finreports.models import SettlementUpload, UploadStatus
 from src.modules.finreports.repos import SettlementUploadRepository
 from src.modules.finreports.services.settlement_upload.workbook import open_upload
 
-_BUSY = "Предыдущий файл ещё обрабатывается — подождите минуту."
-_UNKNOWN = "Загрузка не найдена."
+_BUSY = "The previous file is still being processed. Wait a minute."
+_UNKNOWN = "Upload not found."
 
 
 class SettlementUploadService:

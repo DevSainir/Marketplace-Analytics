@@ -3,12 +3,12 @@
  *
  * The panels are the part that can silently lie, and they are computed here
  * rather than fetched because a mark applies without a round trip. Three rules
- * carry the weight: a «Не считать» warehouse leaves every total but keeps its
+ * carry the weight: a "Don't count" warehouse leaves every total but keeps its
  * own column figures, a filter re-totals to the rows on screen (a bottom row
- * still summing the whole catalogue is a number a seller would act on), and an
+ * still summing the whole catalog is a number a seller would act on), and an
  * uncosted SKU never contributes a zero in place of an unknown. A fourth joins
  * them: goods in transit are money the seller has already spent, so they belong
- * in «По себестоимости» — but never in «По остаткам», which is what can ship.
+ * in "At cost price" — but never in "In stock", which is what can ship.
  */
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -23,35 +23,41 @@ import {
 
 beforeEach(() => setActivePinia(createPinia()))
 
-const BRUKI = {
+const TROUSERS = {
   nm_id: 953770957,
   sa_name: 'm-trx01-blk',
-  subject_name: 'Брюки',
+  subject_name: 'Trousers',
   brand_name: 'NORTH LINE',
   cost_price: '800',
   cells: [
     // Five units riding to or from a buyer, worth 4 000 on top of the 57 600
-    // lying in Тула — the whole point of the «В пути» column.
-    { warehouse_name: 'Тула', quantity: 72, in_way: 5, balance: '57600', in_way_balance: '4000' },
-    { warehouse_name: 'Коледино', quantity: 8, in_way: 0, balance: '6400', in_way_balance: '0' },
-    { warehouse_name: 'СЦ Брак', quantity: 5, in_way: 0, balance: '4000', in_way_balance: '0' },
+    // lying in Tula — the whole point of the "In transit" column.
+    { warehouse_name: 'Tula', quantity: 72, in_way: 5, balance: '57600', in_way_balance: '4000' },
+    { warehouse_name: 'Koledino', quantity: 8, in_way: 0, balance: '6400', in_way_balance: '0' },
+    {
+      warehouse_name: 'SC Defective',
+      quantity: 5,
+      in_way: 0,
+      balance: '4000',
+      in_way_balance: '0',
+    },
   ],
 }
 
 const SHORTS = {
   nm_id: 611450917,
   sa_name: 'm-wdx02-wht',
-  subject_name: 'Шорты',
+  subject_name: 'Shorts',
   brand_name: 'OTHER',
   cost_price: null,
-  cells: [{ warehouse_name: 'Тула', quantity: 40, in_way: 0, balance: null, in_way_balance: null }],
+  cells: [{ warehouse_name: 'Tula', quantity: 40, in_way: 0, balance: null, in_way_balance: null }],
 }
 
 function payload(overrides = {}) {
   return ref({
     stat_date: '2026-08-03',
     currency: 'KGS',
-    rows: [BRUKI, SHORTS],
+    rows: [TROUSERS, SHORTS],
     uncounted_warehouses: [],
     uncosted_count: 1,
     notes: [],
@@ -69,30 +75,30 @@ describe('useBalanceRows', () => {
     expect(totals.value.balance).toBe(72000)
   })
 
-  it('leaves a «Не считать» warehouse out of the totals but keeps its column', () => {
+  it('leaves a "Don\'t count" warehouse out of the totals but keeps its column', () => {
     const { columns, tableRows, totals } = useBalanceRows(
-      payload({ uncounted_warehouses: ['СЦ Брак'] }),
+      payload({ uncounted_warehouses: ['SC Defective'] }),
     )
 
-    const brak = columns.value.find((c) => c.name === 'СЦ Брак')
-    expect(brak.isUncounted).toBe(true)
+    const defective = columns.value.find((c) => c.name === 'SC Defective')
+    expect(defective.isUncounted).toBe(true)
     // Last column, still carrying its own figures…
-    expect(columns.value.at(-1).name).toBe('СЦ Брак')
+    expect(columns.value.at(-1).name).toBe('SC Defective')
     expect(totals.value.warehouses.at(-1).balance).toBe(4000)
     // …and out of both the row total and the corner.
-    expect(tableRows.value.find((r) => r.nmId === BRUKI.nm_id).totalBalance).toBe(68000)
+    expect(tableRows.value.find((r) => r.nmId === TROUSERS.nm_id).totalBalance).toBe(68000)
     expect(totals.value.balance).toBe(68000)
     expect(totals.value.quantity).toBe(120)
   })
 
-  it('leaves a «Не считать» SKU out of every total but keeps its own row', () => {
+  it('leaves a "Don\'t count" SKU out of every total but keeps its own row', () => {
     const { tableRows, totals, isRowBoundary } = useBalanceRows(
-      payload({ uncounted_skus: [BRUKI.nm_id] }),
+      payload({ uncounted_skus: [TROUSERS.nm_id] }),
     )
 
-    const excluded = tableRows.value.find((r) => r.nmId === BRUKI.nm_id)
+    const excluded = tableRows.value.find((r) => r.nmId === TROUSERS.nm_id)
 
-    // Its own «Итого по артикулу» still stands — the seller wants to see what
+    // Its own "SKU total" still stands — the seller wants to see what
     // is lying there; it just is not theirs to count.
     expect(excluded.isUncounted).toBe(true)
     expect(excluded.totalQuantity).toBe(85)
@@ -103,10 +109,10 @@ describe('useBalanceRows', () => {
     expect(totals.value.quantity).toBe(40)
     expect(totals.value.inWay).toBe(0)
     expect(totals.value.balance).toBe(0)
-    expect(totals.value.warehouses.find((w) => w.name === 'Коледино').quantity).toBe(0)
-    expect(totals.value.warehouses.find((w) => w.name === 'Тула').quantity).toBe(40)
+    expect(totals.value.warehouses.find((w) => w.name === 'Koledino').quantity).toBe(0)
+    expect(totals.value.warehouses.find((w) => w.name === 'Tula').quantity).toBe(40)
     // Excluded rows sink to the bottom, behind a seam of their own.
-    expect(tableRows.value.at(-1).nmId).toBe(BRUKI.nm_id)
+    expect(tableRows.value.at(-1).nmId).toBe(TROUSERS.nm_id)
     expect(isRowBoundary(1)).toBe(true)
   })
 
@@ -120,7 +126,7 @@ describe('useBalanceRows', () => {
     expect(totals.value.balance).toBe(72000)
     // The emptied column stays in place — a column disappearing mid-search
     // makes the grid jump under the reader.
-    expect(totals.value.warehouses.map((w) => w.name)).toEqual(['Тула', 'Коледино', 'СЦ Брак'])
+    expect(totals.value.warehouses.map((w) => w.name)).toEqual(['Tula', 'Koledino', 'SC Defective'])
   })
 
   it('keeps an uncosted SKU out of the money but not out of the units', () => {
@@ -136,35 +142,35 @@ describe('useBalanceRows', () => {
   it('keeps goods in transit out of the units but inside the money', () => {
     const { tableRows, totals } = useBalanceRows(payload())
 
-    const bruki = tableRows.value.find((r) => r.nmId === BRUKI.nm_id)
+    const trousers = tableRows.value.find((r) => r.nmId === TROUSERS.nm_id)
 
-    // «По остаткам» is what can be shipped today — the five in transit are not
+    // "In stock" is what can be shipped today — the five in transit are not
     // part of it, and a seller reading 85 must not be reading 90.
-    expect(bruki.totalQuantity).toBe(85)
-    expect(bruki.totalInWay).toBe(5)
-    // «По себестоимости» is money already spent, which the five very much are.
-    expect(bruki.totalBalance).toBe(72000)
+    expect(trousers.totalQuantity).toBe(85)
+    expect(trousers.totalInWay).toBe(5)
+    // "At cost price" is money already spent, which the five very much are.
+    expect(trousers.totalBalance).toBe(72000)
     // A cell is the SHELF and nothing else — units and money alike. The goods
     // in transit sit on no shelf and are reported once, in the row's summary.
-    expect(bruki.byWarehouse['Тула']).toEqual({ quantity: 72, balance: 57600 })
-    // So «Итого по складу» sums the shelves and the corner sums the holding.
+    expect(trousers.byWarehouse['Tula']).toEqual({ quantity: 72, balance: 57600 })
+    // So "Warehouse total" sums the shelves and the corner sums the holding.
     // They are MEANT to disagree, by exactly the money that is in transit —
-    // the day they tie out is the day «В пути» stopped being counted.
+    // the day they tie out is the day "In transit" stopped being counted.
     const shelves = totals.value.warehouses.reduce((sum, w) => sum + w.balance, 0)
     expect(shelves).toBe(68000)
     expect(totals.value.balance - shelves).toBe(4000)
   })
 
-  it('sinks «не считается» rows and columns to the back without a refetch', () => {
+  it('sinks "not counted" rows and columns to the back without a refetch', () => {
     const balance = payload()
     const { columns, tableRows, uncountedCount, isGroupBoundary } = useBalanceRows(balance)
 
-    // What the store does optimistically when the seller clicks «Не считать».
+    // What the store does optimistically when the seller clicks "Don't count".
     balance.value.uncounted_skus = [SHORTS.nm_id]
-    balance.value.uncounted_warehouses = ['Коледино']
+    balance.value.uncounted_warehouses = ['Koledino']
 
     expect(tableRows.value.at(-1).nmId).toBe(SHORTS.nm_id)
-    expect(columns.value.at(-1).name).toBe('Коледино')
+    expect(columns.value.at(-1).name).toBe('Koledino')
     expect(uncountedCount.value).toBe(1)
     expect(isGroupBoundary(columns.value.length - 1)).toBe(true)
     expect(isGroupBoundary(0)).toBe(false)
@@ -198,19 +204,20 @@ describe('groupBalanceRows', () => {
   const flat = (r, uncountedSkus = new Set()) => toRow(r, new Set(), uncountedSkus)
 
   it('sums a subject warehouse by warehouse, money unknown only when no article has a cost', () => {
-    const rows = [flat(BRUKI), flat({ ...SHORTS, subject_name: 'Брюки' })]
+    const rows = [flat(TROUSERS), flat({ ...SHORTS, subject_name: 'Trousers' })]
 
     const [trousers] = groupBalanceRows(rows, 'subject', [])
 
-    expect(trousers).toMatchObject({ saName: 'Брюки', n: 2, isGroup: true })
-    expect(trousers.byWarehouse['Тула']).toEqual({ quantity: 112, balance: 57600 })
+    // A one-word label is a name, not a code: it is not shouted in capitals.
+    expect(trousers).toMatchObject({ saName: 'Trousers', n: 2, isGroup: true })
+    expect(trousers.byWarehouse['Tula']).toEqual({ quantity: 112, balance: 57600 })
     expect(trousers.totalQuantity).toBe(125)
     expect(trousers.totalBalance).toBe(72000)
     expect(groupBalanceRows([flat(SHORTS)], 'subject', [])[0].totalBalance).toBeNull()
   })
 
-  it('leaves a «Не считать» article out of its group', () => {
-    const rows = [flat(BRUKI, new Set([BRUKI.nm_id])), flat(SHORTS)]
+  it('leaves a "Don\'t count" article out of its group', () => {
+    const rows = [flat(TROUSERS, new Set([TROUSERS.nm_id])), flat(SHORTS)]
 
     const out = groupBalanceRows(rows, 'brand', [])
 

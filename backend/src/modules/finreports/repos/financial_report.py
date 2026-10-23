@@ -344,7 +344,7 @@ class FinancialReportRepository(BaseRepository):
         report can land with one endpoint known and the other NULL. Requiring
         ``date_from`` here meant such a report was counted by
         :meth:`latest_settled_date` — ``max(date_to)``, which filters nothing —
-        and served by neither: «Обновить» announced a settlement day the picker
+        and served by neither: "Refresh" announced a settlement day the picker
         could not reach, and the freshness gate, probing the days *after* that
         day, never asked for the report again. Coalescing the two sides makes
         the divergence unrepresentable: every report ``max(date_to)`` can see

@@ -75,7 +75,7 @@ class PnlStatement(BaseModel):
     wb_reward: Decimal
     #: The acquiring WB actually deducted from the payout.
     acquiring: Decimal
-    #: «Комиссия за организацию платежа с НДС» — acquiring WB bills separately
+    #: The payment-arrangement fee incl. VAT — acquiring WB bills separately
     #: instead of withholding. A memo figure: it is not in ``payout_for_goods``
     #: and must not be subtracted anywhere on the statement.
     acquiring_billed_apart: Decimal
@@ -93,13 +93,13 @@ class PnlStatement(BaseModel):
     logistics: PnlSection
     logistics_forward: Decimal
     logistics_return: Decimal
-    #: «Коррекция логистики» — logistics money on no leg (WB sets no counter).
+    #: The logistics correction — logistics money on no leg (WB sets no counter).
     logistics_unlegged: Decimal
     storage: PnlSection
     acceptance: Decimal
     penalties: PnlSection
     deductions: PnlSection
-    #: Advertising billed through «ВБ.Продвижение», already inside ``deductions``.
+    #: Advertising billed through "WB Promotion", already inside ``deductions``.
     advertising: Decimal
     additional_payments: Decimal
     rebill_logistic_cost: Decimal
@@ -119,7 +119,7 @@ class PnlStatement(BaseModel):
     margin_pct: Decimal | None
 
     # --- Memo ---------------------------------------------------------------
-    #: «НДС агента» (agent's VAT). Reported by WB alongside the settlement but NOT deducted from
+    #: The agent's VAT. Reported by WB alongside the settlement but NOT deducted from
     #: it — shown so the figure is not mistaken for a missing cost.
     agency_vat: Decimal
     settlement_rows: int

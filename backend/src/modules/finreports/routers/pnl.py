@@ -52,10 +52,11 @@ from src.modules.workspaces.contract import CurrentWorkspaceId
 #: The OOXML spreadsheet media type — what browsers map to an ``.xlsx`` download.
 _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-#: Downloaded file name. ASCII fallback for `filename=`, the Cyrillic real name
-#: goes in the RFC 5987 `filename*` field so it survives older clients.
+#: Downloaded file name. A plain fallback for `filename=`; the real name, with its
+#: ampersand and spaces, goes percent-encoded in the RFC 5987 `filename*` field so
+#: it survives older clients.
 _EXPORT_ASCII_NAME = "pnl-cost-prices.xlsx"
-_EXPORT_UTF8_NAME = "P&L себестоимость.xlsx"
+_EXPORT_UTF8_NAME = "P&L cost price.xlsx"
 
 #: Cap on an uploaded workbook. The grid is at most a few thousand SKUs, so a
 #: legitimate file is tens of KB; this simply refuses a multi-MB paste before it
@@ -123,7 +124,7 @@ async def get_pnl(
     response_model=PnlSkuReportResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Per-SKU P&L rows for the window («По артикулам»)."},
+        200: {"description": 'Per-SKU P&L rows for the window ("By SKU").'},
         401: {"description": "Unauthorized access token."},
     },
 )
@@ -178,7 +179,7 @@ async def get_pnl_by_sku(
     response_model=PnlSizesResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Per-size P&L rows for one article («подтаблица размеров»)."},
+        200: {"description": "Per-size P&L rows for one SKU (the size sub-table)."},
         401: {"description": "Unauthorized access token."},
     },
 )
@@ -191,7 +192,7 @@ async def get_pnl_sizes(
 ) -> PnlSizesResponse:
     """Return one article's settlement rows cut by WB's size label.
 
-    The drill-down the «По артикулам» table opens under a row. Nothing here
+    The drill-down the "By SKU" table opens under a row. Nothing here
     comes from outside the settlement detail — WB stamps ``ts_name`` on every
     row it bills, so the sizes are a regrouping of the article's own rows and
     sum back to it. Advertising has no size and is therefore absent, which the
@@ -207,7 +208,7 @@ async def get_pnl_sizes(
     "/pnl/skus/{nm_id}/exclusion",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        204: {"description": "SKU marked «Не включать в общий счёт», or cleared."},
+        204: {"description": 'SKU marked "Exclude from total", or cleared.'},
         401: {"description": "Unauthorized access token."},
     },
 )
@@ -218,10 +219,10 @@ async def set_sku_exclusion(
     service: SkuReportServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> Response:
-    """Mark or clear one SKU's «Не включать в общий счёт» flag.
+    """Mark or clear one SKU's "Exclude from total" flag.
 
     The mark is stored per workspace, so it is shared across the workspace's
-    users, and it changes only the dashboard's «общий счёт» — the per-SKU rows
+    users, and it changes only the dashboard's overall total — the per-SKU rows
     and the reconciled totals are unaffected. Idempotent in both directions.
     """
     await service.set_exclusion(workspace_id=workspace_id, nm_id=nm_id, excluded=payload.excluded)
@@ -309,8 +310,8 @@ async def export_cost_prices(
 ) -> Response:
     """Download the per-SKU P&L as an XLSX for bulk offline cost entry.
 
-    The same «По артикулам» statement the screen shows, with an editable
-    «Себестоимость за 1 ед.» column. The seller fills it and uploads the file
+    The same "By SKU" statement the screen shows, with an editable
+    "Cost price per unit" column. The seller fills it and uploads the file
     back through ``POST /cost-prices/import``. The two cross-module columns
     (orders, advertising) are resolved here through the monitoring contract, the
     same way ``GET /pnl/skus`` does.
@@ -370,7 +371,7 @@ async def import_cost_prices(
     workspace_id: CurrentWorkspaceId,
     file: UploadFile = File(description="Cost sheet (.xlsx, .xls or .csv) with costs filled in."),
 ) -> CostPriceImportResponse:
-    """Apply the «Себестоимость» column of an uploaded cost sheet.
+    """Apply the "Cost price per unit" column of an uploaded cost sheet.
 
     Accepts ``.xlsx``, ``.xls`` and ``.csv``. Costs are written only for SKUs
     this workspace already knows and only in its settlement currency; blanks
@@ -380,10 +381,10 @@ async def import_cost_prices(
     data = await read_capped(
         file,
         max_bytes=_MAX_UPLOAD_BYTES,
-        too_large="Файл слишком большой для загрузки себестоимости.",
+        too_large="File too large for a cost price upload.",
     )
     if not data:
-        raise ValidationError("Файл пуст.")
+        raise ValidationError("The file is empty.")
     return await service.import_workbook(
         workspace_id=workspace_id, filename=file.filename or "", data=data
     )

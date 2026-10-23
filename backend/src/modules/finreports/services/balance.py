@@ -1,4 +1,4 @@
-"""«Баланс по товарным остаткам» — what the unsold stock is worth, by warehouse.
+"""The "Stock balance" grid — what the unsold stock is worth, by warehouse.
 
 The P&L answers what the goods that MOVED did to the seller's money. This answers
 the other half: how much money is still lying in WB's warehouses, and where. Both
@@ -19,6 +19,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+from src.core.calendar_words import day_text
 from src.modules.finreports.models import BalancePinKind
 from src.modules.finreports.repos import (
     BalancePinRepository,
@@ -63,9 +64,9 @@ def build_balance(
         identity: ``{nm_id: (sa_name, subject, brand)}`` from the settlement rows.
         vendor_codes: ``{nm_id: vendor_code}`` — the name fallback for a SKU that
             holds stock but has never settled a row.
-        uncounted_warehouses: Warehouses marked «Не считать» — priced like any
+        uncounted_warehouses: Warehouses marked "Don't count" — priced like any
             other, but never ranked on and never totalled.
-        uncounted_skus: SKUs marked «Не считать» — the same on the row axis.
+        uncounted_skus: SKUs marked "Don't count" — the same on the row axis.
         currency: Settlement currency every money figure is stated in.
         span: ``(first, last)`` snapshot day on record, for the day picker.
 
@@ -144,7 +145,7 @@ def _build_rows(
 
     # Money first — the row worth 600 000 matters more than the row of 600 units
     # of a cheap SKU. Uncosted rows have no balance to rank on and fall to the
-    # bottom, where the «без себестоимости» caveat expects them.
+    # bottom, where the "no cost price" caveat expects them.
     rows.sort(key=lambda row: (-ranking[row.nm_id][0], -ranking[row.nm_id][1], row.sa_name))
     return rows
 
@@ -161,19 +162,19 @@ def _notes(
     if not rows:
         first, last = span
         if first is None:
-            notes.append("Остатки ещё не собраны — по этому кабинету нет ни одного снимка склада.")
+            notes.append("No stock collected yet: this workspace has no warehouse snapshot.")
         else:
             notes.append(
-                f"За {stat_date.isoformat()} нет снимка остатков "
-                f"(есть с {first.isoformat()} по {last.isoformat() if last else '—'}). "
-                "Остатки не переносятся с соседнего дня — выберите день со снимком."
+                f"No stock snapshot for {day_text(stat_date)} "
+                f"(snapshots from {day_text(first)} to {day_text(last) if last else '—'}). "
+                "Stock is not carried over from another day: pick a day with a snapshot."
             )
         return notes
 
     if uncosted:
         notes.append(
-            f"Без себестоимости {len(uncosted)} SKU с остатками. "
-            "Заполните в разделе «Себестоимость»."
+            f"No cost price for {len(uncosted)} {'SKU' if len(uncosted) == 1 else 'SKUs'} "
+            'in stock. Fill it in under "Cost price".'
         )
     return notes
 
@@ -240,7 +241,7 @@ class BalanceService:
     async def set_pin(
         self, *, workspace_id: uuid.UUID, kind: BalancePinKind, value: str, pinned: bool
     ) -> None:
-        """Set or clear one «Не считать» mark on the grid. Idempotent both ways."""
+        """Set or clear one "Don't count" mark on the grid. Idempotent both ways."""
         await self._pins.set_pinned(
             workspace_id=workspace_id, kind=kind, value=value, pinned=pinned
         )

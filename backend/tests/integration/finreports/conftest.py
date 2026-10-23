@@ -25,6 +25,7 @@ from src.modules.finreports.repos import (
     PnlRepository,
 )
 from src.modules.finreports.services import PnlService
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -41,7 +42,7 @@ SKU_B = 995716075
 COST_A = Decimal("662")
 COST_B = Decimal("700")
 
-_FILLER_OPER = "Возмещение издержек по перевозке/по складским операциям с товаром"
+_FILLER_OPER = wb.REBILL
 
 
 def _row(rrd_id: int, oper: str, *, report: int = THIS_WEEK, rr_dt: date = WINDOW_FROM, **fields):
@@ -59,10 +60,10 @@ def _row(rrd_id: int, oper: str, *, report: int = THIS_WEEK, rr_dt: date = WINDO
 
 
 def _sale(rrd_id: int, nm_id: int, *, rr_dt: date, report: int, paid: str, payout: str, acq: str):
-    """A «Продажа» row obeying the payout identity."""
+    """A sale row obeying the payout identity."""
     return _row(
         rrd_id,
-        "Продажа",
+        wb.SALE,
         report=report,
         rr_dt=rr_dt,
         nm_id=nm_id,
@@ -73,7 +74,8 @@ def _sale(rrd_id: int, nm_id: int, *, rr_dt: date, report: int, paid: str, payou
         ppvz_for_pay=Decimal(payout),
         acquiring_fee=Decimal(acq),
         ppvz_vw=Decimal(paid) - Decimal(payout) - Decimal(acq),
-        payment_processing="Компенсация платёжных услуг",
+        # Any label but the separately billed one: this acquiring is withheld.
+        payment_processing="payment services compensation",
         agency_vat=Decimal("100"),
     )
 
@@ -100,7 +102,7 @@ async def seeded(db_session: AsyncSession) -> None:
             # A refund of a sale settled in an EARLIER week — served positive.
             _row(
                 3,
-                "Возврат",
+                wb.REFUND,
                 nm_id=SKU_A,
                 sa_name=f"sku-{SKU_A}",
                 rr_dt=WINDOW_TO,
@@ -113,30 +115,30 @@ async def seeded(db_session: AsyncSession) -> None:
                 agency_vat=Decimal("50"),
             ),
             # Both logistics legs — exactly one counter set on each.
-            _row(4, "Логистика", nm_id=SKU_A, delivery_amount=1, delivery_rub=Decimal("120")),
-            _row(5, "Логистика", nm_id=SKU_A, return_amount=1, delivery_rub=Decimal("80")),
+            _row(4, wb.LOGISTICS, nm_id=SKU_A, delivery_amount=1, delivery_rub=Decimal("120")),
+            _row(5, wb.LOGISTICS, nm_id=SKU_A, return_amount=1, delivery_rub=Decimal("80")),
             # Account-level charges (nm_id 0).
-            _row(6, "Хранение", storage_fee=Decimal("40")),
+            _row(6, wb.STORAGE, storage_fee=Decimal("40")),
             _row(
                 7,
-                "Штраф",
+                wb.PENALTY,
                 penalty=Decimal("25"),
-                bonus_type_name="Штраф за нарушение правил маркировки",
+                bonus_type_name="Penalty for breaking the labeling rules",
             ),
             _row(
                 8,
-                "Удержание",
+                wb.DEDUCTION,
                 deduction=Decimal("300"),
-                bonus_type_name="Оказание услуг «WB Продвижение», документ №1",
+                bonus_type_name=f"{wb.ADVERTISING_DEDUCTION} №1",
             ),
             # A compensation: ppvz_for_pay and nothing else.
-            _row(9, "Компенсация ущерба", nm_id=SKU_B, quantity=1, ppvz_for_pay=Decimal("70")),
+            _row(9, wb.DAMAGE_COMPENSATION, nm_id=SKU_B, quantity=1, ppvz_for_pay=Decimal("70")),
             # The filler operation, shaped like WB's rows: quantity 2, no
             # product identity, and its charge ALSO republished across the two
             # commission columns as its own VAT split. That last part is what
             # makes this row load-bearing — over a full history those columns
             # carry sizeable sums here, and summing them alongside the sales is
-            # what put «в т.ч. НДС комиссии» far out and sign-flipped it on
+            # what put "of which VAT on commission" far out and sign-flipped it on
             # several weeks.
             _row(
                 10,
@@ -162,7 +164,7 @@ async def seeded(db_session: AsyncSession) -> None:
                 report_id=THIS_WEEK,
                 workspace_id=OTHER_WORKSPACE,
                 nm_id=SKU_A,
-                supplier_oper_name="Продажа",
+                supplier_oper_name=wb.SALE,
                 rr_dt=WINDOW_FROM,
                 currency_name="KGS",
                 quantity=1,

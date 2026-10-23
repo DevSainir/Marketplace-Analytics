@@ -1,6 +1,6 @@
 """The per-SKU, per-settlement-day cut other modules read — composition only.
 
-Every figure comes out of the helpers the «По артикулам» row is built with
+Every figure comes out of the helpers the "By SKU" row is built with
 (:func:`~.sku_report.sku_payout_net`), so a SKU's days add up to its window row:
 the heatmap and the P&L cannot disagree about one article's money.
 """

@@ -4,7 +4,7 @@ Four route groups behind one prefix, split because they answer different
 questions of the same seller's data:
 
 * :mod:`.pnl` — the profit-and-loss statement and the cost-price editor.
-* :mod:`.harvest` — the manual «Обновить» trigger: fetch WB's finance reports
+* :mod:`.harvest` — the manual "Refresh" trigger: fetch WB's finance reports
   now, for the hours the hourly schedule cannot cover.
 * :mod:`.settlement_upload` — the weekly report uploaded by hand while WB's API
   holds it back, and the poll that says how it ended.

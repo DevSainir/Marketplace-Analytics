@@ -1,4 +1,4 @@
-"""Response DTOs for «Баланс по товарным остаткам» — the stock balance grid.
+"""Response DTOs for "Stock balance" — the stock balance grid.
 
 One picked DAY, not a period: remaining stock is a snapshot WB reports per day
 with no carry-over, so a range would have to either sum quantities that are the
@@ -18,7 +18,7 @@ goods is worse than no figure. Such SKUs are counted in ``uncosted_count``, and
 the totals the client draws are then honest partial sums of the costed ones.
 
 **What this response deliberately does NOT carry: the totals.** The grid's marks
-(pin, «Не считать») and its search apply the moment they are clicked, without a
+(pin, "Don't count") and its search apply the moment they are clicked, without a
 round trip, and each of them changes every total on screen — so the panels are
 summed by the client from these priced cells. Sending server-side totals as well
 would be a second implementation of the same addition, guaranteed to disagree
@@ -37,7 +37,7 @@ from src.modules.finreports.models import BalancePinKind
 
 
 class BalancePinInput(BaseModel):
-    """Request body for marking a SKU row or a warehouse column «Не считать»."""
+    """Request body for marking a SKU row or a warehouse column "Don't count"."""
 
     kind: BalancePinKind
     #: ``nm_id`` as text for a SKU mark, the WB warehouse name for a column one.
@@ -95,11 +95,11 @@ class BalanceResponse(BaseModel):
     #: Rows, largest balance first. The client re-orders them as marks change.
     rows: list[BalanceSkuRow]
 
-    #: Warehouses marked «Не считать»: shown, sorted last, and left out of every
+    #: Warehouses marked "Don't count": shown, sorted last, and left out of every
     #: total the client draws.
     uncounted_warehouses: list[str]
-    #: SKUs marked «Не считать» — the same, one axis over: the row is shown and
-    #: keeps its own «Итого по артикулу», but contributes to no column total and
+    #: SKUs marked "Don't count" — the same, one axis over: the row is shown and
+    #: keeps its own SKU total, but contributes to no column total and
     #: not to the corner.
     uncounted_skus: list[int]
 

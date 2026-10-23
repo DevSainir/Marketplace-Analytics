@@ -65,7 +65,7 @@ async def settle_upload_on_booking(
     logger.error(
         "finreports: WB's API served uploaded report %d and it differs from the file: "
         "file %d rows, for-pay %s; API %d rows, for-pay %s. The API's rows now stand; "
-        "check the file against WB's кабинет.",
+        "check the file against WB's seller portal.",
         report_id,
         upload.rows_total,
         upload.for_pay_sum,

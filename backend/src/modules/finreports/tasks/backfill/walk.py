@@ -100,7 +100,7 @@ async def advance_pnl(
         zero.
     """
     if not tokens.finance:
-        return LaneStep(0, 0, None, True, "Нет токена «Финансы» — P&L пропущен.")
+        return LaneStep(0, 0, None, True, 'No "Finance" token: P&L skipped.')
 
     today = moscow_today()
     floor = WB_REPORTS_EPOCH
@@ -119,7 +119,7 @@ async def advance_pnl(
             total=0,
             cursor=format_cursor(ceiling, sweep, at_sweep_start, in_flight),
             finished=False,
-            message="Ждём окно Wildberries…",
+            message="Waiting for a Wildberries window…",
         )
 
     try:
@@ -137,7 +137,7 @@ async def advance_pnl(
             total=0,
             cursor=format_cursor(ceiling, sweep, at_sweep_start, in_flight),
             finished=False,
-            message="Wildberries не отдал список отчётов — повторим.",
+            message="Wildberries didn't return the report list. Retrying.",
         )
 
     # WB's own per-report totals, onto every report we already hold. Free — the
@@ -176,9 +176,9 @@ async def advance_pnl(
         cursor=format_cursor(moved, sweep, at_sweep_start or backlog.outstanding, still_open),
         finished=False,
         message=(
-            f"Собираем окно: {rows} строк…"
+            f"Collecting a window: {_count(rows, 'row')}…"
             if still_open is not None
-            else f"Собираем историю P&L: {done} из {backlog.total} отчётов."
+            else f"Collecting P&L history: {done} of {_count(backlog.total, 'report')}."
         ),
         rows=rows,
     )
@@ -204,7 +204,7 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
     pass changed nothing, and the lane stops rather than becoming a permanent
     1/min load on an endpoint that answers with penalty blocks.
 
-    It says «забрать не удалось», not «Wildberries их не отдаёт», and the
+    It says "couldn't be fetched", not "Wildberries doesn't serve them", and the
     distinction was paid for. On one workspace 2026-09-23 a pass fetched over a hundred
     thousand rows and booked none of them — every window died on its second
     page — so the backlog did not move and the lane announced that WB was
@@ -224,7 +224,7 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
     """
     outstanding, total, done = backlog.outstanding, backlog.total, backlog.done
     if outstanding == 0:
-        return LaneStep(total, total, None, True, "История P&L собрана.")
+        return LaneStep(total, total, None, True, "P&L history collected.")
     if at_sweep_start and outstanding >= at_sweep_start:
         logger.error(
             "finreports: P&L history gave up with %d report(s) unfetched after a full pass "
@@ -237,14 +237,14 @@ def _end_of_sweep(backlog: Backlog, *, sweep: int, at_sweep_start: int, today: d
             total,
             None,
             True,
-            f"История P&L собрана; {outstanding} отчётов забрать не удалось.",
+            f"P&L history collected; {_count(outstanding, 'report')} couldn't be fetched.",
         )
     return LaneStep(
         done=done,
         total=total,
         cursor=format_cursor(today, sweep + 1, outstanding),
         finished=False,
-        message=f"Повторяем {outstanding} отчётов, которые не удалось забрать…",
+        message=f"Retrying {_count(outstanding, 'report')} that couldn't be fetched…",
     )
 
 
@@ -258,7 +258,7 @@ async def _shut_for(token: str) -> float:
     it costs no WB request and sends nothing.
 
     Args:
-        token: The workspace's «Финансы» token — buckets are per seller account.
+        token: The workspace's "Finance" token — buckets are per seller account.
 
     Returns:
         The longer of the two refusals, or ``0.0`` when nothing stands in the
@@ -270,6 +270,11 @@ async def _shut_for(token: str) -> float:
         await gate.retry_after(SALES_REPORTS_BY_PERIOD_PATH),
         await gate.retry_after(SALES_REPORTS_LIST_PATH),
     )
+
+
+def _count(number: int, noun: str) -> str:
+    """Return "1 report" or "3,257 rows" — the progress line's English plural."""
+    return f"{number:,} {noun if number == 1 else noun + 's'}"
 
 
 __all__ = ["advance_pnl"]

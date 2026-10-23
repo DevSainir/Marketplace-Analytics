@@ -78,10 +78,10 @@ SETTLEMENT_PUBLICATION_GRACE_DAYS: int = 7
 #: refilling rather than WB refusing. The method is one token a minute, so an
 #: empty bucket reports at most 60 s; a penalty block reports hundreds or
 #: thousands. The gate queues a caller through the first on its own, so only the
-#: second is a reason to skip a seller or to tell «Обновить» to wait.
+#: second is a reason to skip a seller or to tell "Refresh" to wait.
 SETTLEMENT_BLOCK_THRESHOLD_SECONDS: float = 120.0
 
-#: The oldest day WB is asked about — early enough to mean «everything».
+#: The oldest day WB is asked about — early enough to mean "everything".
 #:
 #: There is no depth limit any more, and that is a measurement rather than a
 #: preference. A new seller used to get three months because the old endpoint
@@ -96,8 +96,8 @@ SETTLEMENT_BLOCK_THRESHOLD_SECONDS: float = 120.0
 #: no longer the thing a new seller waits for, at any depth, so there is
 #: nothing left for a floor to buy.
 #:
-#: A date rather than a day count because it is not a window: it is «before any
-#: report can exist». Verified live on one workspace 2026-09-23 — `list` accepts an
+#: A date rather than a day count because it is not a window: it is "before any
+#: report can exist". Verified live on one workspace 2026-09-23 — `list` accepts an
 #: 11.7-year window and answers with the account's own history, 143 reports from
 #: its first week, rather than refusing or truncating.
 WB_REPORTS_EPOCH = date(2015, 1, 1)
@@ -125,7 +125,7 @@ SETTLEMENT_LIST_WINDOW_DAYS: int = 45
 #:
 #: Six hours is four attempts a day against the rotation's one every five
 #: nights, and it caps a permanently stuck day at four walks a day rather than
-#: twenty-four. «Обновить» is deliberately NOT subject to it: a person asking is
+#: twenty-four. "Refresh" is deliberately NOT subject to it: a person asking is
 #: not a schedule, and the request is one tenant's own.
 GAP_REPAIR_COOLDOWN_SECONDS: int = 6 * 60 * 60
 
@@ -147,7 +147,7 @@ FRESHNESS_RECORD_TTL_SECONDS: int = 30 * 24 * 60 * 60
 LIST_ANSWERED_KEY: str = "finreports:list_answered:{period}:{workspace_id}"
 
 #: How long that mark may bound a first sighting. Past a week the previous
-#: answer is no bound worth keeping — a report «appeared some time this week»
+#: answer is no bound worth keeping — a report "appeared some time this week"
 #: tells the statistics nothing — so the log writes ``null`` instead.
 LIST_ANSWERED_TTL_SECONDS: int = 7 * 24 * 60 * 60
 
@@ -179,7 +179,7 @@ SALE_OPERS: tuple[str, ...] = ("Продажа",)
 #: them is subtracted, never summed with the sales.
 RETURN_OPERS: tuple[str, ...] = ("Возврат",)
 
-#: ``delivery_rub``. «Коррекция логистики» is the only one that goes negative.
+#: ``delivery_rub``. The logistics correction is the only one that goes negative.
 LOGISTICS_OPERS: tuple[str, ...] = ("Логистика", "Коррекция логистики")
 
 #: ``storage_fee``.
@@ -226,12 +226,12 @@ COMPENSATION_OPERS: tuple[str, ...] = (
 
 #: The ``doc_type_name`` that makes a row's ``ppvz_for_pay`` come OFF the payout.
 #: WB serves the value positive on every row and puts the direction here, not in
-#: the operation: «Коррекция продаж», «Коррекция возвратов», «Компенсация
-#: ущерба», «Добровольная компенсация при возврате» and «Частичная компенсация
-#: брака» each arrive under both document types. WB's own ``forPaySum`` is
+#: the operation: the sales and returns corrections, the damage compensation,
+#: the voluntary compensation on return and the partial defect compensation
+#: each arrive under both document types. WB's own ``forPaySum`` is
 #: exactly Σ ``ppvz_for_pay`` with this document type negated — to the kopeck on
 #: all 143 reports of one workspace's history (2026-09-24). A rule by operation
-#: name matched 121 of them; the one that always subtracted «Коррекция продаж»
+#: name matched 121 of them; the one that always subtracted the sales correction
 #: was right about report 989286628 and wrong about 37 other rows.
 REFUND_DOC_TYPE: str = "Возврат"
 
@@ -252,20 +252,20 @@ CLASSIFIED_OPERS: frozenset[str] = frozenset(
 # --------------------------------------------------------------------------- #
 # Deduction reasons
 # --------------------------------------------------------------------------- #
-# «Удержание» is one operation carrying several unrelated costs, told apart only
+# The deduction operation is one carrying several unrelated costs, told apart only
 # by the free-text ``bonus_type_name`` — which embeds an invoice number, so the
 # match has to be by substring. Advertising alone is 5 979 875 of the 7 862 125
-# KGS ever withheld (95 %), and burying it inside «прочие удержания» would hide
+# KGS ever withheld (95 %), and burying it inside "Other deductions" would hide
 # the seller's single largest controllable cost.
 #
 # Substring matching against WB's prose is fragile by nature. It is safe *here*
-# because an unrecognised label falls through to «Прочие удержания» — a renamed
+# because an unrecognised label falls through to "Other deductions" — a renamed
 # invoice line shows up in the wrong bucket, never disappears from the total.
 
-#: Marketing spend billed through «ВБ.Продвижение».
+#: Marketing spend billed through "WB Promotion".
 ADVERTISING_DEDUCTION_MARKER: str = "Продвижение"
 
-#: The «Джем» seller-subscription fee.
+#: The "Jam" seller-subscription fee.
 SUBSCRIPTION_DEDUCTION_MARKER: str = "Джем"
 
 #: Inbound transit delivery of supplies to the warehouse.
@@ -282,7 +282,7 @@ TRANSIT_DEDUCTION_MARKER: str = "транзитных поставок"
 #: ``ppvz_for_pay = retail_amount - ppvz_vw - ppvz_vw_nds - acquiring_fee -
 #: ppvz_reward`` fails on 5 727 rows, and on 3 293 of them the residual equals
 #: ``acquiring_fee`` to the kopeck — every single one carrying this label. Its
-#: three siblings («Перевыставление эквайринга», «Компенсация платёжных услуг»,
+#: three siblings (acquiring re-billing, payment-services compensation, and
 #: blank) break the identity on 102 rows in total.
 #:
 #: So this fee is billed elsewhere. Subtracting it from the payout as if it were
@@ -325,7 +325,7 @@ DAILY_TAIL_VERIFY_LIMIT: int = 3
 #:
 #: A fleet sweep takes :data:`HARVEST_LOCK_KEY`, because it walks every seller
 #: in turn and two of them would spend minutes queued on the same WB buckets. A
-#: click cannot take that lock: it would answer «already running» and fetch
+#: click cannot take that lock: it would answer "already running" and fetch
 #: nothing exactly when the hourly sweep is in flight, which is the case the
 #: button exists for. One key per workspace keeps the only guarantee a scoped
 #: run needs — that two clicks on the same workspace do not walk it twice.

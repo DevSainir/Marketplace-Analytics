@@ -1,5 +1,5 @@
 /*
- * Styles for BalanceColumnTotals.vue — block 3, «Итого по складу».
+ * Styles for BalanceColumnTotals.vue — block 3, "Warehouse total".
  *
  * Every width here MUST match BalanceGrid.css, because the grid drives this
  * block's horizontal offset: the label column is `--col-sku-w`, each warehouse
@@ -34,7 +34,7 @@ td {
   height: var(--row-foot-h);
   padding: 4px 8px;
   font-size: var(--font-cell);
-  /* Centred, not aligned to the grid's divider: each cell here holds ONE
+  /* Centered, not aligned to the grid's divider: each cell here holds ONE
      figure, and with no divider to close on it reads best on the column's
      own axis. */
   text-align: center;
@@ -44,7 +44,7 @@ td {
 }
 
 /* The label column: sticky, so the two rows stay named while the warehouses
-   scroll past — the same behaviour the grid's article column has. */
+   scroll past — the same behavior the grid's article column has. */
 td.cell-sku {
   position: sticky;
   left: 0;

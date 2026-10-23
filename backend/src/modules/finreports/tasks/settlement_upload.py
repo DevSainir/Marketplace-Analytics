@@ -13,7 +13,7 @@ hold for the period's days, daily-tail rows included:
 * anything else — we hold a row the file lacks, or WB's API has already served
   this report whole and it differs → ``diverged``: nothing written, an alert.
 
-Written rows carry a negative ``rrd_id`` and ``rr_dt`` from «Дата продажи»
+Written rows carry a negative ``rrd_id`` and ``rr_dt`` from the sale date
 clamped into the period (see the model). While an upload stands, the daily lane
 leaves its days alone, and the API's own report replaces it when it lands
 (:mod:`...services.settlement_upload.reconcile`).
@@ -111,7 +111,7 @@ async def _read_and_decide(
     if file.count == 0 or last_sale is None:
         raise ValidationError(wording.EMPTY)
     # No row of a weekly report is dated after its period, and a week's last
-    # day always has sales: the latest «Дата продажи» names the period.
+    # day always has sales: the latest sale date names the period.
     date_to = settlement_period_end(last_sale)
     date_from = settlement_period_start(date_to)
     if date_to >= moscow_today():
@@ -220,7 +220,7 @@ async def _insert(rows: LogisticsTransactionRepository, batch: list[dict[str, An
 
 
 def _operation_day(sale: date | None, period: tuple[date, date]) -> date:
-    """«Дата продажи» clamped into the period — the operation date on 97.6 % of rows."""
+    """The sale date clamped into the period — the operation date on 97.6 % of rows."""
     start, end = period
     if sale is None:
         return start

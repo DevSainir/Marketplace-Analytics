@@ -173,7 +173,7 @@ class _FakeReportRepo:
 def _bundle() -> WorkspaceTokenBundle:
     """One workspace with a usable statistics token."""
     return WorkspaceTokenBundle(
-        workspace_id=WORKSPACE, name="Демо", statistics="stat-token", finance="a-finance-token"
+        workspace_id=WORKSPACE, name="Demo", statistics="stat-token", finance="a-finance-token"
     )
 
 
@@ -308,7 +308,7 @@ async def test_a_list_wb_did_not_answer_leaves_the_warning_and_walks_nothing(
     fetch ARE the list, so an unanswered list leaves nothing to walk to.
 
     The verdict must still say so. `probe_failed` is what makes the page warn
-    «данные могут быть неполными» rather than report the silence as a quiet
+    "the data may be incomplete" rather than report the silence as a quiet
     week, which is the failure this record exists to prevent.
     """
     verdict = FreshnessVerdict(
@@ -329,7 +329,7 @@ async def test_a_walk_that_lost_a_window_leaves_the_failure_standing(
     """A partly-failed walk proves nothing, so it may not overwrite a warning.
 
     This is the direction that must never be got wrong: upgrading an incomplete
-    walk to «нового ничего нет» would report a gap in the data as reassurance —
+    walk to "nothing new" would report a gap in the data as reassurance —
     the same failure as narrating a failed probe that way.
     """
     redis, _ = redis_and_walk(

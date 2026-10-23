@@ -1,15 +1,15 @@
 """A weekly report the seller uploaded by hand, and what became of it.
 
 WB shows the weekly report in the seller's portal hours — once eight days —
-before its API serves it. The seller can download it there («Еженедельный
-детализированный отчет №…», a zip with one .xlsx) and upload it here; the rows
+before its API serves it. The seller can download it there (a zip with
+one .xlsx, named "…№<report id>…") and upload it here; the rows
 then stand in the P&L until the API serves the same report.
 
 The file is WB's own document and carries every money column the API row does
 (matched column for column on 992915233, 3 257 rows), but not two things the
 service keys on: the row's ``rrdId`` and its operation date ``rr_dt``. So the
 rows are written with negative ids from ``finreports.upload_row_seq`` — never a
-real WB id — and with ``rr_dt`` taken from «Дата продажи» clamped into the
+real WB id — and with ``rr_dt`` taken from the sale date clamped into the
 period, which is the operation date on 97.6 % of rows and a day or two early on
 some logistics rows. When the API serves the report the uploaded rows are
 compared with it and removed, the API's taking their place with the real id and
@@ -85,7 +85,7 @@ class SettlementUpload(Base):
         message: What the seller is told, in Russian.
         rows_total: Data rows in the file.
         rows_written: Rows this upload put into ``logistics_transaction``.
-        for_pay_sum: Σ «К перечислению Продавцу», signed by document type.
+        for_pay_sum: Σ of the payout to the seller, signed by document type.
         digest: Fingerprint of the file's rows, order-free — see
             :mod:`~src.modules.finreports.services.settlement_upload.compare`.
         payload: The workbook bytes, cleared once read.

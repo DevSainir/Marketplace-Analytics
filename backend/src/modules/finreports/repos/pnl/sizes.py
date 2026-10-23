@@ -2,8 +2,8 @@
 
 WB publishes no size in any of its report AGGREGATES, but it stamps ``ts_name``
 on every settlement row it bills — measured over one workspace's last quarter, all
-76 017 «Логистика», 13 101 «Продажа» and 1 560 «Возврат» rows carry one, and the
-only rows without are the 126 account-level «Хранение»/«Удержание» lines that
+76 017 logistics, 13 101 sale and 1 560 refund rows carry one, and the
+only rows without are the 126 account-level storage/deduction lines that
 belong to no article either. So a size cut of one article is a regrouping of the
 rows the article's own row is already built from, not an allocation: Σ sizes =
 the article, exactly, and that is what
@@ -45,10 +45,10 @@ class SizeSettlement:
 
     Attributes:
         ts_name: WB's size label (``""`` on the rows WB bills without one).
-        sold_units / returned_units: Units on «Продажа» / «Возврат» rows.
+        sold_units / returned_units: Units on sale / refund rows.
         delivered_units: Σ ``delivery_amount`` — forward logistics legs, i.e.
             how many units WB actually carried to a buyer. The size-level
-            denominator of «Выкуп»: the funnel's orders have no size.
+            denominator of the buyout: the funnel's orders have no size.
         sales_gross / returns_gross: ``retail_amount`` — paid and refunded.
         sales_before_spp / returns_before_spp: ``retail_price_withdisc_rub`` —
             the same at the seller's own price, before WB's SPP.
@@ -58,7 +58,7 @@ class SizeSettlement:
             ``delivery_rub`` split by which leg counter WB set on the row.
         penalties / storage / acceptance / deductions / additional_payments /
             rebill_logistic_cost: The withholdings, each from its own column —
-            carried so this cut's «К перечислению» is the SAME formula the
+            carried so this cut's payout is the SAME formula the
             article's is, and therefore sums back to it.
         rows: How many settlement rows fed this size.
     """
@@ -99,7 +99,7 @@ def _on(opers: tuple[str, ...], column: Any) -> ColumnElement[Any]:
 def _units(opers: tuple[str, ...]) -> ColumnElement[Any]:
     """Count units on the given operations only.
 
-    Never a bare ``SUM(quantity)`` — «Возмещение издержек» carries a constant
+    Never a bare ``SUM(quantity)`` — the cost-reimbursement operation carries a constant
     filler quantity, the same trap the statement's own unit counters avoid.
     """
     return func.coalesce(

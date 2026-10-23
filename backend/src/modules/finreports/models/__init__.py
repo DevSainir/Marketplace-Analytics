@@ -20,10 +20,10 @@ Plus the one table whose contents WB did not author:
 
 * :class:`ProductCostPrice` — the seller's own cost of goods per SKU, the single
   input the P&L cannot verify against a WB document.
-* :class:`PnlSkuExclusion` — SKUs the seller marked «Не включать в общий счёт»;
-  the mark shapes the dashboard's «общий счёт» only, never a settlement fact.
+* :class:`PnlSkuExclusion` — SKUs the seller marked "Exclude from total";
+  the mark shapes the dashboard's overall total only, never a settlement fact.
 * :class:`BalancePin` — the rows and columns the seller pinned to the front of
-  the «Баланс по товарным остаткам» grid; ordering only, never a figure.
+  the "Stock balance" grid; ordering only, never a figure.
 """
 
 from src.modules.finreports.models.balance_pin import BalancePin, BalancePinKind

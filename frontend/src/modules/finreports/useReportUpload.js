@@ -1,10 +1,10 @@
 /**
- * «Загрузить отчёт» — the weekly report WB shows the seller before its API serves it.
+ * "Upload report" — the weekly report WB shows the seller before its API serves it.
  *
- * The seller downloads «Еженедельный детализированный отчет» from their WB account
+ * The seller downloads the weekly detailed report from the WB seller portal
  * and picks it here. The backend answers at once (is it WB's file, which
  * report) and a worker reads it; this polls until the worker is done and then
- * shows the worker's own sentence — «загружен», «уже есть», or why not.
+ * shows the worker's own sentence — loaded, already on file, or why not.
  *
  * Kept out of the store, which sits at the file ceiling: the only thing the
  * store needs from an upload is to reload what it shows once rows were written.
@@ -18,7 +18,7 @@ import { fetchSettlementUpload, uploadSettlementReport } from '@/modules/finrepo
 const POLL_MS = 1500
 /** Past this the worker is presumed busy elsewhere; the seller is told to look later. */
 const GIVE_UP_MS = 5 * 60 * 1000
-const STILL_READING = 'Файл ещё читается — результат появится здесь после обновления страницы.'
+const STILL_READING = 'Still reading the file — reload the page later for the result.'
 
 const IN_FLIGHT = new Set(['queued', 'processing'])
 

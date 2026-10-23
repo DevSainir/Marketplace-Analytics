@@ -1,5 +1,5 @@
 /**
- * The «Обновить» click as it survives a page reload.
+ * The "Refresh" click as it survives a page reload.
  *
  * Reloading mid-refresh used to put an enabled button back over a run that was
  * still going. Reading the harvest lock on load fixed the middle of that, but
@@ -30,7 +30,7 @@ const PENDING_KEY = 'finreports:pending-refresh'
  * background, so a note older than that describes a refresh the page has
  * already stopped claiming to watch. Past it the button must come back — a
  * worker that died mid-task holds no lock and finishes nothing, and a
- * permanently disabled «Обновить» would be a worse failure than the one this
+ * permanently disabled "Refresh" would be a worse failure than the one this
  * file exists to fix.
  */
 const PENDING_TTL_MS = 20 * 60 * 1000

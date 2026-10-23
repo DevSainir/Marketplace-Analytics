@@ -1,4 +1,4 @@
-"""Component tests for the manual «Обновить» surface (``/v1/finreports/harvest``).
+"""Component tests for the manual "Refresh" surface (``/v1/finreports/harvest``).
 
 The button exists because the hourly schedule cannot cover every hour: a report
 WB publishes at 02:00 waits for the 08:00 tick, and a worker that was down for
@@ -182,7 +182,7 @@ async def test_the_click_walks_behind_our_coverage_not_only_ahead_of_it(
     """The button exists for the case where the schedule already got it wrong.
 
     Enqueued as an ordinary gated tick, a click answered whatever the hourly
-    schedule had just answered — and the moment somebody presses «Обновить» is
+    schedule had just answered — and the moment somebody presses "Refresh" is
     precisely the moment that answer is not to be trusted. On 2026-09-14 the
     click was logged as «settled through 13.09 — nothing newer can exist yet,
     skipping» over a week WB had published that morning.
@@ -205,7 +205,7 @@ async def test_a_click_inside_wbs_rate_window_answers_instead_of_queueing_a_wait
 
     Prod 2026-09-09: a click landed inside the endpoint's ~15-minute window, the
     harvest was enqueued anyway, and its first act was to sit still for 383
-    seconds before asking. Seven minutes of «Обновляем…» over a walk that could
+    seconds before asking. Seven minutes of "Refreshing…" over a walk that could
     not have done anything sooner. The bucket knew the number before any of that,
     and the wait is worth more to the caller than to the queue.
     """
@@ -227,8 +227,8 @@ async def test_a_running_harvest_is_reported_ahead_of_the_rate_limit(
     """The running harvest is usually what emptied the bucket, and it is the better news.
 
     Both are true at once for most of a run — the walk holds the lock and has
-    just spent the token. «Ограничение по запросам» alone would say only that
-    nothing can start, where «уже идёт» says the work the caller wants is
+    just spent the token. "Rate limited" alone would say only that
+    nothing can start, where "already running" says the work the caller wants is
     already happening.
     """
     control.running = True
@@ -309,7 +309,7 @@ async def test_the_poll_carries_what_we_hold_and_when_we_last_asked(
 ) -> None:
     """Both halves of the freshness line, or neither is worth showing.
 
-    «Новых отчётов нет» means nothing without «и мы спросили 12 минут назад»: a
+    "No new reports" means nothing without "and we asked 12 minutes ago": a
     confident "nothing new" that is six hours stale is a dead harvester wearing
     the same words. So the report we hold and the last verdict travel together.
     """
@@ -333,7 +333,7 @@ async def test_the_poll_carries_what_we_hold_and_when_we_last_asked(
 async def test_the_poll_names_the_report_wb_has_formed_and_not_yet_served(
     client: httpx.AsyncClient, headers: dict[str, str], control: _StubHarvestControl
 ) -> None:
-    """The page can say «сформирован, ждём API» only if the period reaches it.
+    """The page can say "formed, waiting for the API" only if the period reaches it.
 
     WB shows the report on its own site hours before the API lists it; without
     the period the seller sees a report there and none here, and reads a broken
@@ -361,7 +361,7 @@ async def test_no_formed_report_reads_as_null(
 async def test_a_failed_probe_travels_as_a_failure(
     client: httpx.AsyncClient, headers: dict[str, str], control: _StubHarvestControl
 ) -> None:
-    """WB not answering must never reach the page as «нового ничего нет».
+    """WB not answering must never reach the page as "nothing new".
 
     The endpoint relays the outcome verbatim rather than collapsing it to a
     boolean: an unanswered question dressed as reassurance is the exact failure
@@ -384,7 +384,7 @@ async def test_nothing_recorded_reads_as_nothing_recorded(
 ) -> None:
     """Never checked, expired, or a corrupt record all arrive as null.
 
-    The page renders that as «мы не проверяли» — the honest answer, and a
+    The page renders that as "we have not checked" — the honest answer, and a
     warning rather than a reassurance.
     """
     control.last_check = None

@@ -14,6 +14,6 @@ export const finreportsRoutes = [
     path: '/finreports/cost-prices',
     name: 'finreports-cost-prices',
     component: () => import('@/modules/finreports/views/CostPricesView.vue'),
-    meta: { title: 'Себестоимость', requiresAuth: true, module: 'finreports' },
+    meta: { title: 'Cost price', requiresAuth: true, module: 'finreports' },
   },
 ]

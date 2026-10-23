@@ -125,14 +125,14 @@ const invalid = computed(() =>
         :disabled="saving || !pendingCount || invalid"
         @click="emit('save', edits)"
       >
-        {{ saving ? 'Сохраняем…' : `Сохранить (${pendingCount})` }}
+        {{ saving ? 'Saving…' : `Save (${pendingCount})` }}
       </button>
       <p v-if="invalid" class="text-base text-status-negative">
-        Себестоимость должна быть неотрицательным числом.
+        Cost price must be a non-negative number.
       </p>
       <p v-else class="text-tiny text-muted">
-        Себестоимость за 1 ед. с фулфилментом, {{ currencyInWords(currency) }}. Применяется ко всей
-        истории продаж.
+        Cost price per unit, fulfillment included, {{ currencyInWords(currency) }}. Applies to all
+        sales history.
       </p>
     </div>
 
