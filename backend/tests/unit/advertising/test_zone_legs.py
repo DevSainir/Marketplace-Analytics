@@ -1,4 +1,4 @@
-"""Which zone a campaign-day's money lands in — the «На что ушли» table's rows.
+"""Which zone a campaign-day's money lands in — the "Where the money went" table's rows.
 
 The rules mirror the monitoring matrix's ``_classify``; these tests pin the
 money side so a campaign cannot sit in one zone on the matrix and another here.
@@ -17,7 +17,7 @@ def _meta(payment: str, bid: str | None, *, search: bool, shelves: bool) -> AdCa
 
 
 def test_a_manual_search_campaign_sheds_its_remainder_into_the_catalogue() -> None:
-    """WB search campaigns also serve the catalogue: what normquery does not see is «Каталог»."""
+    """WB search campaigns also serve the catalogue: what normquery does not see is "Catalog"."""
     meta = _meta("cpm", "manual", search=True, shelves=False)
 
     legs = zone_legs(meta, Decimal("100"), Decimal("88"))
@@ -35,7 +35,7 @@ def test_a_manual_search_day_without_a_slice_stays_in_search() -> None:
 
 
 def test_a_unified_campaign_splits_into_search_and_shelves() -> None:
-    """«Единая ставка»: the slice is «Поиск», the remainder «Полки» (catalogue inside it)."""
+    """A unified bid: the slice is "Search", the remainder "Shelves" (catalogue inside it)."""
     meta = _meta("cpm", "unified", search=True, shelves=True)
 
     legs = zone_legs(meta, Decimal("100"), Decimal("30"))

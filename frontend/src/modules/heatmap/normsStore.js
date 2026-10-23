@@ -1,5 +1,5 @@
 /**
- * The heatmap's hand-set norms («Норма: ручной ввод»), one per article and metric.
+ * The heatmap's hand-set norms ("Target: manual"), one per article and metric.
  *
  * Its own store because nothing about a norm costs the grid a request: the
  * norms are read once, all of them, and a change repaints what is already on

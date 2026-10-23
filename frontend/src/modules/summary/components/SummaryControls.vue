@@ -7,8 +7,8 @@
  * re-aggregation of the settlement window.
  *
  * The calendar is bounded by the settled span: presets end on its newest day,
- * never on today — «30 дней» measured to today would include days no WB report
- * covers yet and read as a collapse in sales — «Вся история» starts on its
+ * never on today — "30 days" measured to today would include days no WB report
+ * covers yet and read as a collapse in sales — "All time" starts on its
  * oldest, and no day outside it can be picked.
  */
 import PeriodSelector from '@/core/components/PeriodSelector.vue'

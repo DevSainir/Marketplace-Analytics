@@ -3,9 +3,9 @@
  * The per-article (or subject, or brand) advertising table — the desktop
  * projection; `AdsSkuCards` is the phone one, fed the same rows.
  *
- * PrimeVue for the sorting and the frozen first column, sorted by «Реклама»
+ * PrimeVue for the sorting and the frozen first column, sorted by "Spend"
  * to start with: the question the table answers first is "where is the money". The
- * «Итого» is the whole current filter. «Промо-бонусы» sits next to the money
+ * "Total" is the whole current filter. "Promo bonuses" sits next to the money
  * it is part of and only exists while the page shows bonuses.
  *
  * The ▶ beside a row opens its money by display zone (`AdsSkuZones`), the way
@@ -27,9 +27,9 @@ const props = defineProps({
   rows: { type: Array, required: true },
   /** `totalRow` of the same rows. */
   total: { type: Object, required: true },
-  /** Heading of the first column: «Артикул», «Предмет» or «Бренд». */
+  /** Heading of the first column: "SKU", "Category", "Brand" or "Group". */
   labelHeader: { type: String, required: true },
-  /** Rows before filtering, for «Итого 12 из 30». `0` hides the «из». */
+  /** Rows before filtering, for "Total · 12 of 30". `0` hides the "of". */
   ofTotal: { type: Number, default: 0 },
   currency: { type: String, default: '' },
   showBonus: { type: Boolean, default: false },
@@ -47,11 +47,13 @@ function toggle(label) {
 const money = (value) => formatMoney(value, props.currency)
 const count = (value) => (value === null ? '—' : formatNumber(value))
 const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
+/** An SKU row is an article code; a category, brand or group name is printed as named. */
+const nameOf = (row) => (row.nmId ? formatSku(row.label) : row.label)
 
 const foot = computed(() => ({
   label:
-    `Итого ${props.rows.length}` +
-    (props.ofTotal && props.rows.length < props.ofTotal ? ` из ${props.ofTotal}` : ''),
+    `Total · ${props.rows.length}` +
+    (props.ofTotal && props.rows.length < props.ofTotal ? ` of ${props.ofTotal}` : ''),
   spend: money(props.total.spend),
   bonus: money(props.total.bonus),
   drr: drr(props.total),
@@ -74,7 +76,7 @@ const foot = computed(() => ({
       scroll-height="min(40rem, 70vh)"
     >
       <template #empty>
-        <DataState kind="empty" layout="bare" text="Ничего не найдено" />
+        <DataState kind="empty" layout="bare" text="Nothing found" />
       </template>
 
       <Column field="label" :header="labelHeader" sortable frozen :footer="foot.label">
@@ -84,7 +86,7 @@ const foot = computed(() => ({
               type="button"
               class="inline-flex h-5 w-5 flex-none items-center justify-center rounded-btn text-micro text-muted transition hover:bg-hover hover:text-primary"
               :aria-expanded="Boolean(expanded[data.label])"
-              :title="expanded[data.label] ? 'Свернуть зоны показа' : 'По зонам показа'"
+              :title="expanded[data.label] ? 'Hide placements' : 'By placement'"
               @click="toggle(data.label)"
             >
               <span class="inline-block transition" :class="expanded[data.label] && 'rotate-90'">
@@ -92,18 +94,18 @@ const foot = computed(() => ({
               </span>
             </button>
             <span>
-              <span class="font-medium">{{ formatSku(data.label) }}</span>
+              <span class="font-medium">{{ nameOf(data) }}</span>
               <span v-if="data.n" class="text-muted"> · {{ data.n }}</span>
             </span>
           </span>
         </template>
       </Column>
-      <Column field="spend" class="col-num" header="Реклама" sortable :footer="foot.spend">
+      <Column field="spend" class="col-num" header="Spend" sortable :footer="foot.spend">
         <template #body="{ data }">{{ money(data.spend) }}</template>
       </Column>
       <Column v-if="showBonus" field="bonus" class="col-num" sortable :footer="foot.bonus">
         <template #header>
-          Промо-бонусы<InfoHint text="Часть рекламы, которую оплатил WB из бонусного пула" />
+          Promo bonuses<InfoHint text="The part of the spend WB paid from its bonus pool" />
         </template>
         <template #body="{ data }">
           <span :class="{ 'text-muted': !data.bonus }">
@@ -113,7 +115,7 @@ const foot = computed(() => ({
       </Column>
       <Column field="drr" class="col-num" sortable :footer="foot.drr">
         <template #header>
-          ДРР от продаж<InfoHint text="Реклама за рассчитанные дни ÷ продажи за те же дни" />
+          ACoS (sales)<InfoHint text="Spend on settled days ÷ sales on the same days" />
         </template>
         <template #body="{ data }">
           <span :class="{ 'text-status-negative': showDrr && data.drr > DRR_ALARM }">
@@ -123,18 +125,18 @@ const foot = computed(() => ({
       </Column>
       <Column field="share" class="col-num" sortable :footer="foot.share">
         <template #header>
-          <span>Доля</span>
-          <InfoHint text="Доля общих рекламных расходов на этот артикул" />
+          <span>Share</span>
+          <InfoHint text="Share of all ad spend that went to this row" />
         </template>
         <template #body="{ data }">{{ ratioPct(data.share) }}</template>
       </Column>
-      <Column field="orders" class="col-num" header="Заказы" sortable :footer="foot.orders">
+      <Column field="orders" class="col-num" header="Orders" sortable :footer="foot.orders">
         <template #body="{ data }">{{ count(data.orders) }}</template>
       </Column>
       <Column field="sales" class="col-num" sortable :footer="foot.sales">
         <template #header>
-          <span>Продажи</span>
-          <InfoHint text="Продажи (выкупы) минус возвраты по цене продавца, за рассчитанные дни" />
+          <span>Sales</span>
+          <InfoHint text="Sales (buyouts) minus returns at the seller price, over settled days" />
         </template>
         <template #body="{ data }">{{ data.sales === null ? '—' : money(data.sales) }}</template>
       </Column>

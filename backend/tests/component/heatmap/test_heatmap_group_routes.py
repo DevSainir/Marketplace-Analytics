@@ -1,7 +1,7 @@
-"""Component tests for the heatmap's «Группы» routes and the catalogue their editor reads.
+"""Component tests for the heatmap's "Groups" routes and the catalogue their editor reads.
 
-Groups are a control on four pages — «Сводка», P&L, «Тепловая карта» and
-«Реклама» — rather than a page of their own, so what is proved here is that any
+Groups are a control on four pages — "Summary", P&L, "Heatmap" and
+"Advertising" — rather than a page of their own, so what is proved here is that any
 one of those grants opens them, that none of the others does, and that a write
 still needs the writing level on top.
 """
@@ -76,7 +76,7 @@ class _StubGroupService:
         """Delete the known group; anything else is missing."""
         self.calls.append(("delete", kwargs))
         if kwargs["group_id"] != self.known:
-            raise NotFoundError("Группа не найдена.")
+            raise NotFoundError("Group not found.")
 
 
 @pytest.fixture
@@ -138,7 +138,7 @@ async def test_no_page_with_the_filter_no_groups(
     catalog: _StubCatalogService,
     path: str,
 ) -> None:
-    """«Мониторинг» and A/B tests carry no group filter, so they open nothing here."""
+    """Monitoring and A/B tests carry no group filter, so they open nothing here."""
     login_as(role=EffectiveRole.MANAGER, modules=_WITHOUT_GROUPS)
 
     response = await client.get(path, headers=headers)
@@ -158,7 +158,7 @@ async def test_a_writer_with_pnl_alone_creates_a_group(
     login_as(role=EffectiveRole.MANAGER, modules=("finreports",))
 
     response = await client.post(
-        "/api/v1/heatmap/groups", json={"name": "Лето", "nm_ids": [1]}, headers=headers
+        "/api/v1/heatmap/groups", json={"name": "Summer", "nm_ids": [1]}, headers=headers
     )
 
     assert response.status_code == 201
@@ -176,7 +176,7 @@ async def test_a_read_only_manager_cannot_create_a_group(
 
     response = await client.post(
         "/api/v1/heatmap/groups",
-        json={"name": "Двойки", "nm_ids": [1]},
+        json={"name": "Two-pieces", "nm_ids": [1]},
         headers=headers,
     )
 
@@ -193,7 +193,7 @@ async def test_a_writer_creates_a_group_in_the_active_workspace(
     """The workspace comes from the header; the body cannot name one."""
     response = await client.post(
         "/api/v1/heatmap/groups",
-        json={"name": "  Двойки  ", "nm_ids": [1, 2]},
+        json={"name": "  Two-pieces  ", "nm_ids": [1, 2]},
         headers=headers,
     )
 
@@ -201,7 +201,7 @@ async def test_a_writer_creates_a_group_in_the_active_workspace(
     kind, call = groups.calls[0]
     assert kind == "create"
     assert call["workspace_id"] == workspace.id
-    assert call["payload"].name == "Двойки"
+    assert call["payload"].name == "Two-pieces"
 
 
 async def test_a_blank_group_name_is_refused(

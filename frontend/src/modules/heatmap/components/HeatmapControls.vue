@@ -33,17 +33,17 @@ const emit = defineEmits([
 ])
 
 const NORM_MODES = [
-  { value: 'default', label: 'Норма: по умолчанию' },
-  { value: 'manual', label: 'Норма: ручной ввод' },
+  { value: 'default', label: 'Target: median' },
+  { value: 'manual', label: 'Target: manual' },
 ]
 const PERIODS = [
-  { value: 'day', label: 'По дням' },
-  { value: 'week', label: 'По неделям' },
-  { value: 'month', label: 'По месяцам' },
+  { value: 'day', label: 'Daily' },
+  { value: 'week', label: 'Weekly' },
+  { value: 'month', label: 'Monthly' },
 ]
 const MODES = [
-  { value: 'row', label: 'По строке' },
-  { value: 'table', label: 'По всей таблице' },
+  { value: 'row', label: 'By row' },
+  { value: 'table', label: 'Whole table' },
 ]
 </script>
 
@@ -53,7 +53,7 @@ const MODES = [
       <select
         class="ui-select ui-select--sm phone:w-full"
         :value="metric"
-        aria-label="Основная метрика"
+        aria-label="Primary metric"
         @change="emit('update:metric', $event.target.value)"
       >
         <optgroup v-for="group in METRIC_GROUPS" :key="group.label" :label="group.label">
@@ -67,8 +67,8 @@ const MODES = [
         type="button"
         class="ui-trigger ui-trigger--icon"
         :disabled="!metric2"
-        title="Поменять метрики местами"
-        aria-label="Поменять метрики местами"
+        title="Swap metrics"
+        aria-label="Swap metrics"
         @click="emit('swap')"
       >
         ⇄
@@ -77,10 +77,10 @@ const MODES = [
       <select
         class="ui-select ui-select--sm hm-metrics__second phone:w-full"
         :value="metric2 ?? ''"
-        aria-label="Вторая метрика"
+        aria-label="Second metric"
         @change="emit('update:metric2', $event.target.value || null)"
       >
-        <option value="">{{ metric2 ? 'Без второй метрики' : 'Выберите метрику' }}</option>
+        <option value="">{{ metric2 ? 'No second metric' : 'Pick a metric' }}</option>
         <optgroup v-for="group in METRIC_GROUPS" :key="group.label" :label="group.label">
           <option
             v-for="option in group.metrics"
@@ -98,7 +98,7 @@ const MODES = [
       <select
         class="ui-select ui-select--sm phone:w-full"
         :value="normMode"
-        aria-label="Откуда берётся норма"
+        aria-label="Target source"
         @change="emit('update:normMode', $event.target.value)"
       >
         <option
@@ -113,7 +113,7 @@ const MODES = [
       <select
         class="ui-select ui-select--sm phone:w-full"
         :value="period"
-        aria-label="Период колонок"
+        aria-label="Column period"
         @change="emit('update:period', $event.target.value)"
       >
         <option v-for="option in PERIODS" :key="option.value" :value="option.value">
@@ -123,8 +123,8 @@ const MODES = [
       <select
         class="ui-select ui-select--sm phone:w-full"
         :value="mode"
-        aria-label="Как сравнивать цвета"
-        title="По строке — каждая строка сравнивается сама с собой. По всей таблице — все строки на одной шкале."
+        aria-label="Color comparison"
+        title="By row: each row is compared with itself. Whole table: every row on one scale."
         @change="emit('update:mode', $event.target.value)"
       >
         <option v-for="option in MODES" :key="option.value" :value="option.value">

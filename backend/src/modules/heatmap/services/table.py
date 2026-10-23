@@ -9,7 +9,7 @@ The rules worth stating:
   a brand or a group is a larger one. Cells are the articles' facts folded with
   :func:`~.metrics.merge_skus`, and the metric is read off the fold — never off
   the articles' own metric values.
-* **«Итого» counts every article once.** Groups may overlap (one article can
+* **"Total" counts every article once.** Groups may overlap (one article can
   sit in two), so the totals are folded from the distinct articles of the
   selection, not from the rows — otherwise an article in two groups would be
   counted twice at the top of the table.
@@ -37,9 +37,9 @@ from src.modules.heatmap.services.periods import column_of_day
 from src.modules.monitoring.contract import CatalogCard
 
 #: Label of the row for articles WB gave no subject or brand.
-UNNAMED = "(не указан)"
+UNNAMED = "(not set)"
 #: Label of the row for articles in no group.
-UNGROUPED = "Без группы"
+UNGROUPED = "No group"
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,7 +207,7 @@ def build_rows(
     rank: Mapping[int, int],
     settled: list[bool] | None = None,
 ) -> tuple[HeatmapRow, list[HeatmapRow]]:
-    """Compute every row and the «Итого» line, most-ordered row first.
+    """Compute every row and the "Total" line, most-ordered row first.
 
     Args:
         specs: The rows, from :func:`build_row_specs`.
@@ -215,7 +215,7 @@ def build_rows(
         width: Number of columns.
         metrics: The primary metric and the optional second one.
         rank: Ordered units per article over the window — the default order,
-            «популярность», cheap to know whatever metric is on screen.
+            "popularity", cheap to know whatever metric is on screen.
         settled: Per column, whether WB has settled any day of it; ``None``
             when no finance metric is on screen.
     """
@@ -233,6 +233,6 @@ def build_rows(
         rows.append((sum(rank.get(nm, 0) for nm in present), row))
     rows.sort(key=lambda pair: (-pair[0], pair[1].label, pair[1].key))
 
-    all_skus = RowSpec(key="total", label="Итого", nm_ids=frozenset(seen))
+    all_skus = RowSpec(key="total", label="Total", nm_ids=frozenset(seen))
     cells, total = _fold(grid, sorted(seen), width)
     return _row(all_skus, cells, total, metrics, known), [row for _, row in rows]

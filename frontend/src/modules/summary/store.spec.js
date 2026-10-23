@@ -1,7 +1,7 @@
 /**
  * The window the summary opens on.
  *
- * It has to be exactly the window the calendar's «7 дней» stands for: the
+ * It has to be exactly the window the calendar's "7 days" stands for: the
  * presets live in the calendar now, and a default built by other arithmetic
  * opens the page with no preset lit — the summary computed its own through
  * `toISOString` once, a day early east of Greenwich.
@@ -33,7 +33,7 @@ beforeEach(async () => {
 })
 
 describe('the period on load', () => {
-  it("opens on the calendar's «7 дней» ending on the newest settled day", async () => {
+  it("opens on the calendar's '7 days' ending on the newest settled day", async () => {
     expect(store.dateTo).toBe(SPAN.date_to)
     expect({ from: store.dateFrom, to: store.dateTo }).toEqual(presetRange(7, SPAN.date_to))
   })
@@ -59,11 +59,11 @@ describe('a failed reload', () => {
     const shown = { kpi: { revenue_seller: '10' }, days: [], rows: [], currency: 'KGS' }
     fetchSummary.mockResolvedValueOnce(shown)
     await store.setPeriod('2026-09-01', '2026-09-07')
-    fetchSummary.mockRejectedValueOnce({ response: { data: { detail: 'Сбой' } } })
+    fetchSummary.mockRejectedValueOnce({ response: { data: { detail: 'Outage' } } })
 
     await store.setPeriod('2026-09-08', '2026-09-14')
 
-    expect(store.error).toBe('Сбой')
+    expect(store.error).toBe('Outage')
     expect(store.kpi).toEqual(shown.kpi)
   })
 })

@@ -35,7 +35,9 @@ const money = (value) => formatMoney(value, props.currency)
 
 <template>
   <div class="bg-inset px-md py-sm">
-    <p v-if="!lines.length" class="text-tiny text-muted">У этой строки нет рекламы за период.</p>
+    <p v-if="!lines.length" class="text-tiny text-muted">
+      No advertising for this row in the period.
+    </p>
     <div
       v-else
       class="grid w-max gap-x-lg gap-y-0.5 text-tiny tabular-nums"
@@ -45,10 +47,10 @@ const money = (value) => formatMoney(value, props.currency)
           : 'grid-cols-[minmax(12rem,auto)_6.5rem_4rem]'
       "
     >
-      <span class="text-muted">Зона показа</span>
-      <span class="text-right text-muted">Реклама</span>
-      <span v-if="showBonus" class="text-right text-muted">Промо-бонусы</span>
-      <span class="text-right text-muted">Доля</span>
+      <span class="text-muted">Placement</span>
+      <span class="text-right text-muted">Spend</span>
+      <span v-if="showBonus" class="text-right text-muted">Promo bonuses</span>
+      <span class="text-right text-muted">Share</span>
 
       <template v-for="line in lines" :key="line.zone">
         <span class="inline-flex items-center gap-xs text-primary">

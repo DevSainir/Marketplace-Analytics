@@ -143,7 +143,7 @@ export const useHeatmapStore = defineStore('heatmap', () => {
 
   async function load() {
     if (tooLong.value) {
-      error.value = `Можно выбрать только период не длиннее ${MAX_DAYS} дней — выберите короче.`
+      error.value = `The period can be at most ${MAX_DAYS} days.`
       return
     }
     inFlight?.abort()
@@ -199,7 +199,7 @@ export const useHeatmapStore = defineStore('heatmap', () => {
     ;[metric.value, metric2.value] = [metric2.value, metric.value]
   }
 
-  /** Desc, then asc, then back to «популярность». */
+  /** Desc, then asc, then back to "popularity". */
   function toggleSort(by) {
     const current = sort.value
     if (current.by !== by) sort.value = { by, dir: 'desc' }

@@ -1,4 +1,4 @@
-"""«Сводка» against real SQL: does it agree with the report it is derived from?
+"""The summary against real SQL: does it agree with the report it is derived from?
 
 The arithmetic is unit-tested against hand-written figures. Two things only a
 real database can prove, and both are new SQL:
@@ -92,7 +92,7 @@ async def test_the_window_is_not_scanned_more_times_than_it_has_to_be(
     Before all of this the page reached its day buckets through the full P&L
     statement, which also computes a whole-window total, four drill-downs by
     WB's own reason strings and the caveat queries: nine passes to draw a chart
-    that reads two of them, and a «вся история» that answered with a timeout
+    that reads two of them, and an "All time" that answered with a timeout
     instead of a page.
 
     The bound is deliberately loose — it is here to catch a second freshness
@@ -110,7 +110,7 @@ async def test_the_window_is_not_scanned_more_times_than_it_has_to_be(
     ]
     # The GROUP BY of each, which is what names the pass that ran.
     cuts = [text.split("GROUP BY")[1].strip()[:60] if "GROUP BY" in text else "—" for text in scans]
-    assert len(scans) <= 3, f"{len(scans)} проходов по расчёту: {cuts}"
+    assert len(scans) <= 3, f"{len(scans)} passes over the settlement: {cuts}"
 
 
 async def test_the_daily_margin_sums_to_the_margin_card(
@@ -120,8 +120,8 @@ async def test_the_daily_margin_sums_to_the_margin_card(
 
     This is the assertion that was missing when the page first shipped, and the
     bug it would have caught was real: the card subtracted
-    advertising twice — once as WB's weekly invoice, already inside «к
-    перечислению», and once as the burn the statistics recorded — while the
+    advertising twice — once as WB's weekly invoice, already inside the
+    payout, and once as the burn the statistics recorded — while the
     chart subtracted it once. One workspace, one 54-day window: the card came out
     about a third below the chart under it, the gap being the invoices to the som.
 
@@ -246,9 +246,9 @@ async def test_a_window_reaching_past_the_settlement_charges_only_what_it_earned
     """Advertising burnt after the last settled day is not this window's cost.
 
     The window ends four days past anything WB has calculated — the normal shape
-    of «последняя неделя», since the funnel and the promotion statistics land
+    of "last week", since the funnel and the promotion statistics land
     daily and settlements weekly and late. Both figures the advertising enters
-    must ignore that tail: «Средний ДРР» divided seven days of spend by four
+    must ignore that tail: the ACoS card divided seven days of spend by four
     days of revenue and read far above the worst day the chart drew, and the
     margin lost the same money twice over.
 

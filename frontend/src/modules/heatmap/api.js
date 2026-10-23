@@ -1,5 +1,5 @@
 /**
- * Heatmap API layer — the grid, the catalogue behind its filters, «Группы» and norms.
+ * Heatmap API layer — the grid, the catalogue behind its filters, "Groups" and norms.
  *
  * Errors propagate to the caller (the store decides what the page says).
  */

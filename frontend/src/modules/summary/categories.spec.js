@@ -1,17 +1,19 @@
 /**
- * Folding the per-article rows into «Выручка по категории».
+ * Folding the per-article rows into "Revenue by category".
  *
  * This moved to the browser on purpose: grouping, sorting and the price base
  * used to be query parameters, and each click re-aggregated the whole
  * settlement window on the server. What is pinned here is the arithmetic that
  * came with it.
  */
+import { UNNAMED } from '@/modules/heatmap'
+
 import { buildCategories, revenueOf } from './categories'
 
 const row = (over = {}) => ({
   nm_id: 1,
   code: 'm-trx01-blk',
-  subject: 'Брюки',
+  subject: 'Trousers',
   brand: 'NORTH LINE',
   revenue_paid: '600',
   revenue_seller: '1200',
@@ -31,14 +33,14 @@ describe('buildCategories', () => {
   it('folds articles into their subject and counts them', () => {
     const bars = buildCategories(
       [
-        row({ nm_id: 1, revenue_paid: '600', margin: '300', subject: 'Брюки' }),
-        row({ nm_id: 2, revenue_paid: '400', margin: '100', subject: 'Брюки' }),
-        row({ nm_id: 3, revenue_paid: '200', margin: '50', subject: 'Костюмы' }),
+        row({ nm_id: 1, revenue_paid: '600', margin: '300', subject: 'Trousers' }),
+        row({ nm_id: 2, revenue_paid: '400', margin: '100', subject: 'Trousers' }),
+        row({ nm_id: 3, revenue_paid: '200', margin: '50', subject: 'Suits' }),
       ],
       { cut: 'subject', base: 'paid', sort: 'revenue' },
     )
 
-    expect(bars[0].label).toBe('Брюки')
+    expect(bars[0].label).toBe('Trousers')
     expect(bars[0].revenue).toBe(1000)
     expect(bars[0].skuCount).toBe(2)
     expect(bars[1].skuCount).toBe(1)
@@ -49,16 +51,16 @@ describe('buildCategories', () => {
     // for being less well documented.
     const bars = buildCategories(
       [
-        row({ nm_id: 1, brand: 'Полная', margin: '300' }),
-        row({ nm_id: 2, brand: 'Неполная', margin: null }),
+        row({ nm_id: 1, brand: 'Complete', margin: '300' }),
+        row({ nm_id: 2, brand: 'Incomplete', margin: null }),
       ],
       { cut: 'brand', base: 'paid', sort: 'revenue' },
     )
 
     const byLabel = Object.fromEntries(bars.map((bar) => [bar.label, bar]))
-    expect(byLabel['Полная'].margin).toBe(300)
-    expect(byLabel['Неполная'].margin).toBeNull()
-    expect(byLabel['Неполная'].marginShare).toBeNull()
+    expect(byLabel['Complete'].margin).toBe(300)
+    expect(byLabel['Incomplete'].margin).toBeNull()
+    expect(byLabel['Incomplete'].marginShare).toBeNull()
   })
 
   it('ranks by the chosen metric and keeps loss-makers visible', () => {
@@ -104,7 +106,7 @@ describe('buildCategories', () => {
       sort: 'revenue',
     })
 
-    expect(bars[0].label).toBe('(не указан)')
+    expect(bars[0].label).toBe(UNNAMED)
   })
 
   it('is empty rather than broken when the window settled nothing', () => {
@@ -112,22 +114,22 @@ describe('buildCategories', () => {
   })
 })
 
-describe('buildCategories by «Группы»', () => {
+describe('buildCategories by "Groups"', () => {
   it('sums each group, and shares each against the articles, not the overlapping bars', () => {
     const rows = [
       row({ nm_id: 1, revenue_seller: '100', margin: '10' }),
       row({ nm_id: 2, revenue_seller: '300', margin: '30' }),
     ]
     const groups = [
-      { id: 'a', name: 'Лето', nm_ids: [1, 2] },
-      { id: 'b', name: 'Хиты', nm_ids: [2] },
+      { id: 'a', name: 'Summer', nm_ids: [1, 2] },
+      { id: 'b', name: 'Bestsellers', nm_ids: [2] },
     ]
 
     const bars = buildCategories(rows, { cut: 'group', base: 'seller', sort: 'revenue', groups })
 
     expect(bars.map((b) => [b.label, b.revenue, b.revenueShare])).toEqual([
-      ['Лето', 400, 100],
-      ['Хиты', 300, 75],
+      ['Summer', 400, 100],
+      ['Bestsellers', 300, 75],
     ])
   })
 })

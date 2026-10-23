@@ -12,6 +12,7 @@
  */
 import { computed, ref } from 'vue'
 
+import { formatDay, formatDayShort } from '@/core/utils/calendarWords'
 import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
 import { MARGIN, buildScales, labelStep, linePath } from '@/modules/summary/chartGeometry'
 import { useChartWidth } from '@/modules/summary/useChartWidth'
@@ -62,7 +63,7 @@ const xLabels = computed(() => {
     .map((entry) => ({
       key: entry.day,
       x: scales.value.x(entry.index),
-      text: `${entry.day.slice(8, 10)}.${entry.day.slice(5, 7)}`,
+      text: formatDayShort(entry.day),
     }))
 })
 
@@ -207,7 +208,7 @@ function render(point) {
     </svg>
 
     <div v-if="readout" class="ui-glass ui-glass--pop sum-tip" :style="tooltipStyle">
-      <div class="sum-tip__day">{{ readout.day.split('-').reverse().join('.') }}</div>
+      <div class="sum-tip__day">{{ formatDay(readout.day) }}</div>
       <div v-for="point in readout.points" :key="point.name" class="sum-tip__row">
         <span class="sum-tip__name">
           <span class="sum-tip__dot" :style="{ background: point.color }"></span>

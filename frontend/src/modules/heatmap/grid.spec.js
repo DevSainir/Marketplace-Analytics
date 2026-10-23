@@ -11,11 +11,15 @@ const row = (key, values, total = null) => ({ key, values, total })
 
 describe('columnLabel', () => {
   it('names a day with its weekday', () => {
-    expect(columnLabel({ start: '2026-09-23', end: '2026-09-23' }, 'day')).toBe('23.09 (ср)')
+    expect(columnLabel({ start: '2026-09-23', end: '2026-09-23' }, 'day')).toBe('Wed 23 Sep')
   })
 
   it('names a week by its first and last day', () => {
-    expect(columnLabel({ start: '2026-09-21', end: '2026-09-27' }, 'week')).toBe('21.09–27.09')
+    expect(columnLabel({ start: '2026-09-21', end: '2026-09-27' }, 'week')).toBe('21–27 Sep')
+  })
+
+  it('names both months of a week that spans two', () => {
+    expect(columnLabel({ start: '2026-09-28', end: '2026-10-04' }, 'week')).toBe('28 Sep–4 Oct')
   })
 
   it('names a month in words', () => {

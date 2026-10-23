@@ -1,8 +1,8 @@
 <script setup>
 /**
- * «Добавить группу» / editing one: a name and a hand-picked set of articles.
+ * "Add group" / editing one: a name and a hand-picked set of articles.
  *
- * One form, one «Сохранить» — the group is replaced whole, name and members
+ * One form, one "Save" — the group is replaced whole, name and members
  * together, so a failed save leaves nothing half-edited behind. Deleting asks
  * twice (the second click is the confirmation), because a group is shared by
  * everyone in the workspace and is gone for all of them.
@@ -62,9 +62,9 @@ const matches = computed(() => {
 const shown = computed(() => matches.value.slice(0, RENDER_LIMIT))
 const canSave = computed(() => name.value.trim() && picked.value.size > 0 && !props.busy)
 
-/** «Заказов: 12 · Костюм летний» — the orders are what the list is sorted by. */
+/** "Orders: 12 · Summer suit" — the orders are what the list is sorted by. */
 function pickerNote(card) {
-  const orders = `Заказов: ${card.orders ?? 0}`
+  const orders = `Orders: ${card.orders ?? 0}`
   return card.title ? `${orders} · ${card.title}` : orders
 }
 
@@ -90,26 +90,26 @@ function close() {
 </script>
 
 <template>
-  <UiDialog :open="open" :title="group ? 'Группа' : 'Новая группа'" :busy="busy" @close="close">
-    <label class="block text-tiny font-medium text-muted" for="group-name"> Название </label>
+  <UiDialog :open="open" :title="group ? 'Group' : 'New group'" :busy="busy" @close="close">
+    <label class="block text-tiny font-medium text-muted" for="group-name"> Name </label>
     <input
       id="group-name"
       v-model="name"
       type="text"
       maxlength="80"
       class="ui-input mt-xs w-full"
-      placeholder="Например, спандекс_двойка"
+      placeholder="e.g. spandex_two_piece"
     />
 
     <div class="mt-md flex items-center justify-between gap-sm">
-      <span class="text-tiny font-medium text-muted">Артикулы</span>
-      <span class="text-tiny text-muted">Выбрано: {{ picked.size }}</span>
+      <span class="text-tiny font-medium text-muted">SKUs</span>
+      <span class="text-tiny text-muted">Selected: {{ picked.size }}</span>
     </div>
     <SearchField
       v-model="query"
       class="mt-xs"
-      placeholder="Артикул продавца или WB, название"
-      aria-label="Поиск артикула"
+      placeholder="Vendor code, WB ID or title"
+      aria-label="Search SKUs"
     />
 
     <ul class="mt-sm min-h-0 flex-1 overflow-y-auto">
@@ -126,7 +126,7 @@ function close() {
           <SkuThumb :src="card.photo_url" :label="card.vendor_code" />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-base text-primary">
-              {{ formatSku(card.vendor_code) ?? `Артикул WB ${card.nm_id}` }}
+              {{ formatSku(card.vendor_code) ?? `WB ID ${card.nm_id}` }}
             </span>
             <span class="block truncate text-tiny text-muted">
               {{ pickerNote(card) }}
@@ -136,7 +136,7 @@ function close() {
       </li>
     </ul>
     <p v-if="matches.length > shown.length" class="mt-xs text-tiny text-muted">
-      Показано {{ shown.length }} из {{ matches.length }} — уточните поиск.
+      Showing {{ shown.length }} of {{ matches.length }}. Narrow the search.
     </p>
 
     <p v-if="error" class="mt-sm text-base text-status-negative">{{ error }}</p>
@@ -152,9 +152,9 @@ function close() {
       >
         {{ removal.isArmed('group') ? confirmLabel('Delete') : 'Delete' }}
       </button>
-      <button type="button" class="ui-btn" :disabled="busy" @click="close">Отмена</button>
+      <button type="button" class="ui-btn" :disabled="busy" @click="close">Cancel</button>
       <button type="button" class="ui-btn ui-btn--primary" :disabled="!canSave" @click="save">
-        {{ busy ? 'Сохраняем…' : 'Сохранить' }}
+        {{ busy ? 'Saving…' : 'Save' }}
       </button>
     </template>
   </UiDialog>

@@ -1,4 +1,4 @@
-"""Component tests for the «Реклама» HTTP surface.
+"""Component tests for the "Advertising" HTTP surface.
 
 The arithmetic is covered in ``tests/unit/advertising``; what is proved here is
 the transport contract — who may reach the page, that
@@ -121,7 +121,7 @@ async def test_a_manager_without_the_advertising_grant_cannot_reach_it(
     advertising: _StubAdvertisingService,
     path: str,
 ) -> None:
-    """«Реклама» is its own grant: every other module does not open it."""
+    """The advertising page is its own grant: every other module does not open it."""
     login_as(
         role=EffectiveRole.MANAGER,
         modules=tuple(m for m in ALL_MODULES if m != "advertising"),
@@ -140,7 +140,7 @@ async def test_the_advertising_grant_alone_opens_the_whole_page(
     login_as: Callable[..., None],
     path: str,
 ) -> None:
-    """Neither «Мониторинг» nor «Отчёты» is asked for: the owner decided on this grant."""
+    """Neither "Monitoring" nor "Reports" is asked for: the owner decided on this grant."""
     login_as(role=EffectiveRole.MANAGER, modules=("advertising",))
 
     response = await client.get(path, headers=headers)

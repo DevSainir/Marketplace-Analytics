@@ -1,4 +1,4 @@
-"""Folding SKU-day facts into the heatmap's rows and its «Итого» line."""
+"""Folding SKU-day facts into the heatmap's rows and its "Total" line."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ _DAY = date(2026, 9, 23)
 _COLUMNS = build_columns(_DAY, _DAY, "day")
 
 
-def _card(nm_id: int, *, subject: str = "Костюмы", brand: str = "NEVA") -> CatalogCard:
+def _card(nm_id: int, *, subject: str = "Suits", brand: str = "NEVA") -> CatalogCard:
     """A catalogue card with just enough identity for a label."""
     return CatalogCard(
         nm_id=nm_id,
@@ -38,12 +38,12 @@ def _orders(count: int) -> Facts:
 
 
 def test_an_article_in_two_groups_is_counted_once_in_the_totals() -> None:
-    """Groups overlap; the «Итого» line folds distinct articles, not rows."""
+    """Groups overlap; the "Total" line folds distinct articles, not rows."""
     facts = {(1, _DAY): _orders(5), (2, _DAY): _orders(3)}
     grid = fold_sku_days(facts, _COLUMNS)
     groups = [
-        GroupSpec(key="a", name="Двойки", nm_ids=frozenset({1, 2})),
-        GroupSpec(key="b", name="Хиты", nm_ids=frozenset({1})),
+        GroupSpec(key="a", name="Two-pieces", nm_ids=frozenset({1, 2})),
+        GroupSpec(key="b", name="Bestsellers", nm_ids=frozenset({1})),
     ]
     specs = build_row_specs("group", nm_ids=grid.cells, cards={}, groups=groups)
 
@@ -56,28 +56,28 @@ def test_articles_in_no_group_get_a_row_of_their_own() -> None:
     """Cutting by group must not silently drop the articles nobody grouped."""
     facts = {(1, _DAY): _orders(5), (2, _DAY): _orders(3)}
     grid = fold_sku_days(facts, _COLUMNS)
-    groups = [GroupSpec(key="a", name="Двойки", nm_ids=frozenset({1}))]
+    groups = [GroupSpec(key="a", name="Two-pieces", nm_ids=frozenset({1}))]
 
     specs = build_row_specs("group", nm_ids=grid.cells, cards={}, groups=groups)
 
     assert [(spec.label, spec.nm_ids) for spec in specs] == [
-        ("Двойки", frozenset({1})),
+        ("Two-pieces", frozenset({1})),
         (UNGROUPED, frozenset({2})),
     ]
 
 
 def test_an_article_wb_gave_no_subject_is_grouped_as_unnamed() -> None:
     """A blank subject is its own row with a readable label, not an empty string."""
-    cards = {1: _card(1, subject=""), 2: _card(2, subject="Платья")}
+    cards = {1: _card(1, subject=""), 2: _card(2, subject="Dresses")}
 
     specs = build_row_specs("subject", nm_ids=[1, 2], cards=cards)
 
-    assert sorted(spec.label for spec in specs) == [UNNAMED, "Платья"]
+    assert sorted(spec.label for spec in specs) == [UNNAMED, "Dresses"]
 
 
 def test_a_category_row_sums_its_articles() -> None:
     """A category's orders are its articles' orders, folded before the metric is read."""
-    cards = {1: _card(1), 2: _card(2), 3: _card(3, subject="Платья")}
+    cards = {1: _card(1), 2: _card(2), 3: _card(3, subject="Dresses")}
     facts = {(1, _DAY): _orders(5), (2, _DAY): _orders(3), (3, _DAY): _orders(1)}
     grid = fold_sku_days(facts, _COLUMNS)
     specs = build_row_specs("subject", nm_ids=grid.cells, cards=cards)
@@ -85,8 +85,8 @@ def test_a_category_row_sums_its_articles() -> None:
     _totals, rows = build_rows(specs, grid, width=1, metrics=("orders", None), rank={1: 5, 2: 3})
 
     assert [(row.label, row.total, row.sku_count) for row in rows] == [
-        ("Костюмы", 8.0, 2),
-        ("Платья", 1.0, 1),
+        ("Suits", 8.0, 2),
+        ("Dresses", 1.0, 1),
     ]
 
 

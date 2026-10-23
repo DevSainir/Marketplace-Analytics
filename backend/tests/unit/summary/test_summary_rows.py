@@ -1,4 +1,4 @@
-"""The per-article rows «Выручка по категории» is folded from.
+"""The per-article rows "Revenue by category" is folded from.
 
 The block itself — grouping by subject or brand, sorting, folding the tail — is
 the page's work now, because a reader changes those several times a minute and
@@ -66,14 +66,14 @@ def test_a_row_carries_both_bases_and_its_catalogue_identity() -> None:
         payout_net="500",
         cost_price="10",
         net_profit="300",
-        subject="Брюки",
+        subject="Trousers",
         brand="NORTH LINE",
     )
     totals = make_row(nm_id=0, revenue="600", payout_net="500", cost_price="10", net_profit="300")
 
     built = build_rows(make_report([row], totals=totals))[0]
 
-    assert (built.subject, built.brand) == ("Брюки", "NORTH LINE")
+    assert (built.subject, built.brand) == ("Trousers", "NORTH LINE")
     assert (built.revenue_paid, built.revenue_seller) == (Decimal("600"), Decimal("1200"))
 
 

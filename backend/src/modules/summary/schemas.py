@@ -1,4 +1,4 @@
-"""Response DTOs for the «Сводка» surface.
+"""Response DTOs for the "Summary" surface.
 
 One window, three cuts of it: the headline figures, the same figures per day for
 the charts, and the per-article rows the category block is built from.
@@ -31,8 +31,8 @@ from pydantic import BaseModel
 class SummaryKpi(BaseModel):
     """The headline cards.
 
-    There is deliberately no fixed-cost line and no «Прибыль»: this service has
-    no source for taxes, salaries or rent, and a «Прибыль» computed without them
+    There is deliberately no fixed-cost line and no "Profit": this service has
+    no source for taxes, salaries or rent, and a "Profit" computed without them
     would be a margin wearing a more confident name.
     """
 
@@ -53,12 +53,12 @@ class SummaryKpi(BaseModel):
     buyouts: int | None
     #: Deliveries ANSWERED — bought out or refused — over the same window, and
     #: the only denominator :attr:`buyouts` may be divided by. WB's own
-    #: «Процент выкупа» is defined this way, and it is what keeps the figure
+    #: buyout rate is defined this way, and it is what keeps the figure
     #: from starting near zero and climbing for three weeks: an order still in
     #: transit belongs to neither half rather than counting as a refusal.
     buyout_decided: int | None
     #: ``True`` when the figure had to be taken from the standing
-    #: «21-7 дней назад» window because the chosen period is too fresh to have
+    #: "21-7 days ago" window because the chosen period is too fresh to have
     #: decided deliveries of its own. The page says so rather than passing one
     #: period's rate off as another's.
     buyout_lagged: bool
@@ -162,7 +162,7 @@ class SummarySpan(BaseModel):
 
 
 class SummaryResponse(BaseModel):
-    """Everything the «Сводка» page draws, for one window."""
+    """Everything the "Summary" page draws, for one window."""
 
     date_from: date
     date_to: date

@@ -7,45 +7,37 @@
  * payload already carries every row of the selection, so a header click or a
  * page flip is instant instead of a round trip over the whole window.
  */
-import { MONTHS } from '@/core/utils/calendarModel'
+import { MONTHS, formatDayShort, weekdayOf } from '@/core/utils/calendarWords'
 import { heatStyle, scaleAround, scaleOf } from '@/modules/heatmap/heatScale'
 import { addsUp } from '@/modules/heatmap/metrics'
 
-const WEEKDAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
-
-/** "2026-09-23" → "23.09". */
-function dayMonth(iso) {
-  const [, month, day] = iso.split('-')
-  return `${day}.${month}`
-}
-
 /**
- * The caption of one column: «23.09 (ср)», «15.09–21.09», «Сентябрь 2026».
+ * The caption of one column: "Wed 23 Sep", "21–27 Sep" (or "28 Sep–4 Oct"
+ * across two months), "September 2026".
  *
  * @param {{start: string, end: string}} column
  * @param {'day'|'week'|'month'} period
  * @returns {string}
  */
 export function columnLabel(column, period) {
-  if (period === 'day') {
-    const weekday = WEEKDAYS[new Date(`${column.start}T12:00:00`).getDay()]
-    return `${dayMonth(column.start)} (${weekday})`
-  }
+  if (period === 'day') return `${weekdayOf(column.start)} ${formatDayShort(column.start)}`
   if (period === 'month') {
     const [year, month] = column.start.split('-')
     return `${MONTHS[Number(month) - 1]} ${year}`
   }
-  return `${dayMonth(column.start)}–${dayMonth(column.end)}`
+  const [first, last] = [formatDayShort(column.start), formatDayShort(column.end)]
+  const [day, month] = first.split(' ')
+  return last.endsWith(` ${month}`) ? `${day}–${last}` : `${first}–${last}`
 }
 
 /**
  * Rows in the order the seller asked for. Empty cells always sink to the
  * bottom, whichever way the column is sorted — a row with nothing to show is
- * never the answer to «кто лучше» or «кто хуже».
+ * never the answer to "who is best" or "who is worst".
  *
  * @param {Array<object>} rows As the backend sends them (already ranked by orders).
  * @param {{by: 'total'|number|null, dir: 'asc'|'desc'}} sort `by` is a column
- *   index, `'total'` for «Итого», or `null` for the backend's own order.
+ *   index, `'total'` for "Total", or `null` for the backend's own order.
  * @returns {Array<object>}
  */
 export function sortRows(rows, sort) {
@@ -90,10 +82,10 @@ export function columnDays(columns) {
 /**
  * Tints for every cell of the rows on screen.
  *
- * «По строке» measures each row against its own norm (the median of its days);
- * «по всей таблице» measures every row against the norm of the whole
+ * "By row" measures each row against its own norm (the median of its days);
+ * "Whole table" measures every row against the norm of the whole
  * SELECTION — not only this page — so turning the page does not quietly change
- * what green means. The «Итого» column and row are not painted: they are the
+ * what green means. The "Total" column and row are not painted: they are the
  * yardstick, not a sample.
  *
  * With `normOf`, a row that has a hand-set norm is painted against it instead.

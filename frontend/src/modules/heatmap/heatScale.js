@@ -15,12 +15,12 @@
  *   the worst cell, above it at the best — so a spike deepens only its own
  *   side and the ordinary days next to the norm stay pale.
  *
- * * **A hand-set norm replaces the median** («Норма: ручной ввод»), and the
+ * * **A hand-set norm replaces the median** ("Target: manual"), and the
  *   extremes stretch to include it: when every day sits under a norm of 80,
  *   the day furthest under it is the full red.
  *
- * Direction decides the hue: «больше — лучше» paints above the norm green,
- * «меньше — лучше» (DRR, CPC, CPM, CPO, the ad budget) paints it red. Prices,
+ * Direction decides the hue: "higher is better" paints above the norm green,
+ * "lower is better" (DRR, CPC, CPM, CPO, the ad budget) paints it red. Prices,
  * SPP and stock have no better end: with the default norm they are painted in
  * the action hue by magnitude, the cheapest white; against a hand-set norm, in
  * the same hue by distance from it, either way.

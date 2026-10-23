@@ -1,4 +1,4 @@
-"""Component tests for the heatmap's hand-set norms («Норма: ручной ввод»).
+"""Component tests for the heatmap's hand-set norms ("Target: manual").
 
 What is proved here: the norms need the monitoring grant like the page, the
 workspace from the header scopes every read and write, a read-only manager

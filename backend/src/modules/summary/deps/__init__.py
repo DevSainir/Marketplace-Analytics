@@ -1,4 +1,4 @@
-"""DI wiring for «Сводка».
+"""DI wiring for "Summary".
 
 The chain is shorter than every other module's because this one has no
 repositories: it composes two finreports services, and it takes them from that

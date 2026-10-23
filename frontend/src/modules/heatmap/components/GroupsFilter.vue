@@ -1,7 +1,7 @@
 <script setup>
 /**
- * «Группы» — the filter every page with «Предметы» and «Бренды» carries, and
- * where groups are made: its menu ends in «Добавить группу», and every group
+ * "Groups" — the filter every page with "Categories" and "Brands" carries, and
+ * where groups are made: its menu ends in "Add group", and every group
  * has a pencil that opens it for editing. The list of groups is where a seller
  * looks for them, so that is where they are managed.
  *
@@ -11,7 +11,7 @@
  *
  * Shown only to a caller the server lets read groups — anybody holding one of
  * the pages that carry this filter (`GROUP_MODULES`), which every page
- * rendering it is. «Добавить» and ✎ only for one who may write: a read-only manager or a
+ * rendering it is. "Add group" and ✎ only for one who may write: a read-only manager or a
  * guest in another company's workspace is refused by the server anyway.
  *
  * `cards` is what the editor offers; the heatmap passes its catalogue (ranked
@@ -45,7 +45,7 @@ const items = computed(() =>
   store.groups.map((group) => ({
     value: group.id,
     label: group.name,
-    sub: `Артикулов: ${group.nm_ids.length}`,
+    sub: `SKUs: ${group.nm_ids.length}`,
   })),
 )
 const editorCards = computed(() => props.cards ?? store.cards)
@@ -60,7 +60,7 @@ watch(
   },
 )
 
-// A list that fails to load reads as «Групп пока нет»; the page's own figures
+// A list that fails to load reads as "No groups yet"; the page's own figures
 // do not wait on it.
 onMounted(() => {
   if (readable.value) store.load().catch(() => {})
@@ -88,18 +88,18 @@ async function remove(id) {
   <FilterMenu
     v-if="readable"
     ref="menu"
-    label="Группы"
+    label="Groups"
     :items="items"
     :model-value="modelValue"
     badge
-    empty-text="Групп пока нет"
+    empty-text="No groups yet"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <template v-if="writable" #action="{ item }">
       <button
         type="button"
         class="shrink-0 rounded-btn px-sm py-xs text-tiny text-muted transition hover:text-action"
-        :aria-label="`Изменить группу ${item.label}`"
+        :aria-label="`Edit group ${item.label}`"
         @click="openEditor(item.value)"
       >
         ✎
@@ -107,7 +107,7 @@ async function remove(id) {
     </template>
     <template v-if="writable" #footer>
       <button type="button" class="text-tiny font-semibold text-action" @click="openEditor()">
-        + Добавить группу
+        + Add group
       </button>
     </template>
   </FilterMenu>

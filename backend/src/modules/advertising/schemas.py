@@ -1,4 +1,4 @@
-"""DTOs of the «Реклама» page.
+"""DTOs of the "Advertising" page.
 
 Money is a ``Decimal`` in the response's ``currency``. ``None`` and ``0`` stay
 apart everywhere: ``sales`` is ``None`` for a day or article the settlement has
@@ -18,7 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-#: The «На что ушли» buckets — see ``services/zones.py`` for which campaign lands where.
+#: The "Where the money went" buckets — see ``services/zones.py`` for which campaign lands where.
 Zone = Literal[
     "cpm_manual_search",
     "cpm_manual_catalog",
@@ -36,7 +36,7 @@ class AdvertisingSpan(BaseModel):
 
     date_from: date | None
     date_to: date | None
-    #: The last day the settlement covers — where «ДРР от продаж» stops.
+    #: The last day the settlement covers — where "ACoS (sales)" stops.
     settled_to: date | None
 
 
@@ -45,7 +45,7 @@ class AdvertisingTotals(BaseModel):
 
     #: Everything ``fullstats`` booked, whoever paid for it.
     spend: Decimal
-    #: The part WB's bonus pool paid («Кэшбэк» in the ledger).
+    #: The part WB's bonus pool paid (the ledger's cashback payment type).
     bonus: Decimal
     #: Spend on the days the settlement covers.
     spend_settled: Decimal
@@ -81,7 +81,7 @@ class AdvertisingSkuZone(BaseModel):
     article's part of that campaign-day: an article that took 40 % of a
     campaign's day takes 40 % of each of its zones. normquery does carry an
     article, but a campaign-day split per article from it would send all of
-    an article's spend to «Поиск» whenever it had no search row of its own.
+    an article's spend to "Search" whenever it had no search row of its own.
     """
 
     zone: Zone

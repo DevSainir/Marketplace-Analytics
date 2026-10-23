@@ -6,8 +6,8 @@
  * else. The qualifiers that used to sit beside the figures (the period, the
  * share, the settled-to day) repeated what the page already says above them.
  *
- * «С баланса» is spend minus WB's bonus — the seller's own money, whether the
- * balance or the settlement payout paid it. «ДРР от продаж» is that own money
+ * "From balance" is spend minus WB's bonus — the seller's own money, whether the
+ * balance or the settlement payout paid it. "ACoS (sales)" is that own money
  * on the settled days over the settled sales of the same days, across every
  * article: Σ (ad spend − bonuses) ÷ Σ sales, never a mean of per-article ratios.
  * When it cannot be computed the card shows a dash, and says why on hover.
@@ -32,22 +32,23 @@ const spend = computed(() => Number(props.totals.spend))
 const bonus = computed(() => Number(props.totals.bonus))
 
 const drr = computed(() => {
-  if (!props.drrComparable) return { value: '—', why: 'Реклама и продажи в разных валютах' }
-  if (props.totals.sales === null) return { value: '—', why: 'Продажи ещё не рассчитаны' }
-  if (Number(props.totals.sales) <= 0) return { value: '—', why: 'Возвратов больше, чем продаж' }
+  if (!props.drrComparable)
+    return { value: '—', why: 'Spend and sales are in different currencies' }
+  if (props.totals.sales === null) return { value: '—', why: 'Sales not calculated yet' }
+  if (Number(props.totals.sales) <= 0) return { value: '—', why: 'More returns than sales' }
   const own = Number(props.totals.spend_settled) - Number(props.totals.bonus_settled)
   return { value: ratioPct(drrOf(own, Number(props.totals.sales))), why: '' }
 })
 
 const cards = computed(() => [
-  { key: 'spend', label: 'Потрачено на рекламу', value: money(spend.value) },
+  { key: 'spend', label: 'Ad spend', value: money(spend.value) },
   ...(props.showBonus
     ? [
-        { key: 'own', label: 'С баланса', value: money(spend.value - bonus.value) },
-        { key: 'bonus', label: 'Промо-бонусы', value: money(bonus.value) },
+        { key: 'own', label: 'From balance', value: money(spend.value - bonus.value) },
+        { key: 'bonus', label: 'Promo bonuses', value: money(bonus.value) },
       ]
     : []),
-  { key: 'drr', label: 'ДРР от продаж', value: drr.value.value, why: drr.value.why },
+  { key: 'drr', label: 'ACoS (sales)', value: drr.value.value, why: drr.value.why },
 ])
 </script>
 

@@ -8,8 +8,8 @@
  */
 
 /**
- * Plot margins, in px. Left is wide enough for a «1,2 млн» tick; right for a
- * «20 %» one, because the DRR charts carry a second axis over there.
+ * Plot margins, in px. Left is wide enough for a "1.2M" tick; right for a
+ * "20%" one, because the DRR charts carry a second axis over there.
  */
 export const MARGIN = { left: 58, right: 44, top: 12, bottom: 26 }
 
@@ -34,7 +34,7 @@ export function niceMax(value) {
 }
 
 /**
- * Short money for an axis tick: 1 234 567 -> «1,2 млн».
+ * Short money for an axis tick: 1,234,567 -> "1.2M".
  *
  * An axis carrying full figures is unreadable at this width, and the tooltip
  * is where the exact number belongs.
@@ -45,10 +45,9 @@ export function niceMax(value) {
 export function shortNumber(value) {
   if (!Number.isFinite(value)) return '—'
   const size = Math.abs(value)
-  if (size >= 1e6)
-    return `${(value / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} млн`
-  if (size >= 1e4) return `${Math.round(value / 1e3).toLocaleString('ru-RU')} тыс`
-  return Math.round(value).toLocaleString('ru-RU')
+  if (size >= 1e6) return `${(value / 1e6).toLocaleString('en-US', { maximumFractionDigits: 1 })}M`
+  if (size >= 1e4) return `${Math.round(value / 1e3).toLocaleString('en-US')}K`
+  return Math.round(value).toLocaleString('en-US')
 }
 
 /**

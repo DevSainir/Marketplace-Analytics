@@ -1,8 +1,8 @@
 """The heatmap's own tables: seller-defined groups of articles, and their norms.
 
 Everything else the heatmap shows belongs to other modules and is read through
-their contracts; what it owns is what a seller types into it — the «Группы»
-(«спандекс_двойка» as five colour variants of one product, read as one row) and
+their contracts; what it owns is what a seller types into it — the "Groups"
+("spandex_two_piece" as five colour variants of one product, read as one row) and
 the hand-set norm an article's cells are painted against.
 
 Every table carries ``workspace_id``, the membership table included. The group id
@@ -91,7 +91,7 @@ class SkuGroupItem(Base):
 class SkuNorm(Base):
     """A seller's own norm for one article on one metric.
 
-    What «Норма: ручной ввод» paints the article's cells against instead of the
+    What "Target: manual" paints the article's cells against instead of the
     median of its days. Per day, in the metric's own unit — the page scales it
     to a week or a month for the metrics that add up.
 

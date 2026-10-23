@@ -1,7 +1,7 @@
-"""«Выкуп» — WB's own definition, and the lag that makes it readable.
+"""The buyout rate — WB's own definition, and the lag that makes it readable.
 
 The card divides bought-out deliveries by ANSWERED ones (bought out plus
-refused), not by orders. That is WB's definition, the one «Сравнение SKU» has
+refused), not by orders. That is WB's definition, the one the old "SKU comparison" page has
 used since it was written, and the difference is not cosmetic: an order still in
 transit belongs to neither half, so the figure does not start near zero and
 climb for three weeks after every cohort.
@@ -54,7 +54,7 @@ def test_a_cohort_nobody_has_answered_yet_is_not_counted() -> None:
     Its refusals are unknown, so counting its buyouts against a denominator
     without them would invent a cohort that answered perfectly. The matrix
     excludes such a day for the same reason, and that exclusion is what made
-    «Процент выкупа» there agree with WB's own figure.
+    the buyout rate there agree with WB's own figure.
     """
     days = [
         _day(date(2026, 8, 10), buyouts=27, decided=100),

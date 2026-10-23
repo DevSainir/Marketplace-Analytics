@@ -10,6 +10,8 @@
  */
 import { ref, watch } from 'vue'
 
+import { normalizeTypedNumber } from '@/core/utils/format'
+
 const props = defineProps({
   value: { type: Number, default: null },
   /** What the field is for, read out by a screen reader. */
@@ -25,7 +27,7 @@ watch(
 )
 
 function commit() {
-  const text = draft.value.replace(/\s/g, '').replace(',', '.')
+  const text = normalizeTypedNumber(draft.value)
   if (text === '') return emit('commit', null)
   const value = Number(text)
   if (Number.isFinite(value)) emit('commit', value)

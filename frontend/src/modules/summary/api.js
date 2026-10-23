@@ -8,7 +8,7 @@
 import apiClient, { WINDOW_TIMEOUT_MS } from '@/core/api/axios'
 
 /**
- * GET /v1/summary — every figure the «Сводка» page draws for one window.
+ * GET /v1/summary — every figure the "Summary" page draws for one window.
  *
  * The window is the only parameter. Price base, grouping and sort order are
  * answered from the payload, which carries both bases and every article row —

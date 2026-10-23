@@ -1,6 +1,6 @@
-"""HTTP routes for the heatmap's hand-set norms («Норма: ручной ввод»).
+"""HTTP routes for the heatmap's hand-set norms ("Target: manual").
 
-Behind the «Тепловая карта» grant, like the rest of the page. They
+Behind the "Heatmap" grant, like the rest of the page. They
 were ours only while tried out at /labs/heatmap, and opened to every
 subscriber on 2026-10-01.
 
@@ -45,8 +45,10 @@ async def list_norms(service: SkuNormServiceDep, workspace_id: CurrentWorkspaceI
     status_code=status.HTTP_200_OK,
     responses={
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Доступ только для чтения."},
-        422: {"description": "Артикула нет в каталоге кабинета или значение вне границ."},
+        403: {"description": "Read-only access."},
+        422: {
+            "description": "The SKU is not in the workspace catalog, or the value is out of bounds."
+        },
     },
 )
 async def set_norm(
@@ -69,7 +71,7 @@ async def set_norm(
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Доступ только для чтения."},
+        403: {"description": "Read-only access."},
     },
 )
 async def clear_norm(

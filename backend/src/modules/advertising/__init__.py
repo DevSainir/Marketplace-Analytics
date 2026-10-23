@@ -1,4 +1,4 @@
-"""«Реклама» — where a workspace's advertising money went, and what it bought.
+"""The advertising page — where a workspace's advertising money went, and what it bought.
 
 Owns no tables. Every figure is composed from the monitoring module's
 campaign-grain advertising facts and the finreports settlement, both through

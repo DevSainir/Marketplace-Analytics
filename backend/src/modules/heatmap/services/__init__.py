@@ -2,11 +2,11 @@
 
 * :mod:`.metrics` — a cell's additive facts and the metrics read off them.
 * :mod:`.periods` — the window cut into day / week / month columns.
-* :mod:`.table` — folding SKU-day facts into rows and the «Итого» line.
+* :mod:`.table` — folding SKU-day facts into rows and the "Total" line.
 * :mod:`.loader` — gathering the facts through other modules' contracts.
 * :mod:`.heatmap` — the orchestrating read service.
-* :mod:`.groups` — the seller-defined «Группы».
-* :mod:`.norms` — the hand-set norms of «Норма: ручной ввод».
+* :mod:`.groups` — the seller-defined "Groups".
+* :mod:`.norms` — the hand-set norms of "Target: manual".
 """
 
 from src.modules.heatmap.services.groups import SkuGroupService

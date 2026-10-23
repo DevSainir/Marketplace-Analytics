@@ -1,4 +1,4 @@
-"""DI wiring for «Реклама».
+"""DI wiring for "Advertising".
 
 No repositories of its own: advertising facts come through the monitoring
 contract as plain loaders, and sales through the finreports services, taken

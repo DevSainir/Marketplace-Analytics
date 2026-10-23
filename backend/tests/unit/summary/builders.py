@@ -1,4 +1,4 @@
-"""Builders for the «Сводка» unit tests.
+"""Builders for the "Summary" unit tests.
 
 Shared because the two test files exercise the same window from different
 angles, and because a hand-written P&L row carries thirty fields: duplicating
@@ -6,7 +6,7 @@ that per file is how the two halves start testing different reports.
 
 Every field the summary does NOT read is filled with a zero rather than left
 out. The alternative — a builder that tracks the report's full shape — turns
-adding one column to «По артикулам» into an edit across every test here.
+adding one column to the P&L's per-SKU report into an edit across every test here.
 """
 
 from __future__ import annotations
@@ -30,11 +30,11 @@ def make_row(
     net_profit: str | None,
     sold_units: int = 10,
     returned_units: int = 0,
-    subject: str = "Брюки",
+    subject: str = "Trousers",
     brand: str = "NEVA",
     penalties_total: str = "0",
 ) -> PnlSkuRow:
-    """One SKU row, carrying only the fields «Сводка» reads.
+    """One SKU row, carrying only the fields "Summary" reads.
 
     The rest are filled with zeroes rather than omitted: the summary must keep
     working when the report grows a column, and a builder that tracks every
@@ -89,9 +89,9 @@ def make_report(
 ) -> PnlSkuReportResponse:
     """A report around the given rows.
 
-    Two dashboard figures are settable because «Сводка» reads them: the
+    Two dashboard figures are settable because "Summary" reads them: the
     account-level withholdings and the advertising invoices inside them, which
-    the «Штрафы и удержания» card has to take back out.
+    the "Penalties and deductions" card has to take back out.
     """
     return PnlSkuReportResponse(
         date_from=date(2026, 7, 15),
@@ -122,7 +122,7 @@ def make_report(
 def make_day(
     *, day: date, revenue: str, margin_profit: str, advertising: str = "0"
 ) -> PnlStatement:
-    """One settlement-date bucket, carrying only the fields «Сводка» reads."""
+    """One settlement-date bucket, carrying only the fields "Summary" reads."""
     empty = PnlSection(label="", amount=ZERO, share_pct=None, breakdown=[])
     return PnlStatement(
         key=day.isoformat(),

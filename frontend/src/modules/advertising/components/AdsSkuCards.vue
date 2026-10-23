@@ -3,9 +3,9 @@
  * The per-article list below `sm` — the same rows `AdsSkuTable` renders, one
  * two-line record each.
  *
- * «Реклама» leads with DRR beside it; share, orders and bonus are the second
+ * "Spend" leads with DRR beside it; share, orders and bonus are the second
  * line. A list has no headers to click, so it carries its own sort, grows ten
- * records at a time, and puts the «Итого» first. «Зоны» under a record opens
+ * records at a time, and puts the "Total" first. "Placements" under a record opens
  * its money by display zone, as the ▶ does in the desktop table.
  */
 import { computed, ref, watch } from 'vue'
@@ -13,7 +13,7 @@ import { computed, ref, watch } from 'vue'
 import ShowMoreButton from '@/core/components/ShowMoreButton.vue'
 import DataState from '@/core/components/DataState.vue'
 import AdsSkuZones from '@/modules/advertising/components/AdsSkuZones.vue'
-import { formatMoney, formatNumber, formatSku } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatSku, plural } from '@/core/utils/format'
 import { DRR_ALARM, ratioPct } from '@/modules/advertising/adsFormat'
 
 const props = defineProps({
@@ -27,10 +27,10 @@ const props = defineProps({
 const PAGE = 10
 
 const SORTS = [
-  { key: 'spend', label: 'По рекламе' },
-  { key: 'drr', label: 'По ДРР от продаж' },
-  { key: 'share', label: 'По доле' },
-  { key: 'orders', label: 'По заказам' },
+  { key: 'spend', label: 'By spend' },
+  { key: 'drr', label: 'By ACoS (sales)' },
+  { key: 'share', label: 'By share' },
+  { key: 'orders', label: 'By orders' },
 ]
 
 /** Labels of the records whose zones are open. */
@@ -62,27 +62,31 @@ const visible = computed(() => sorted.value.slice(0, shown.value))
 
 const money = (value) => formatMoney(value, props.currency)
 const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
+/** An SKU row is an article code; a category, brand or group name is printed as named. */
+const nameOf = (row) => (row.nmId ? formatSku(row.label) : row.label)
+const ordersOf = (n) =>
+  n === null ? '— orders' : `${formatNumber(n)} ${plural(n, ['order', 'orders'])}`
 </script>
 
 <template>
   <div class="rounded-card border border-border-subtle bg-surface px-md py-sm shadow-card">
-    <select v-model="sortKey" aria-label="Сортировка" class="ui-select mb-sm w-full">
+    <select v-model="sortKey" aria-label="Sort" class="ui-select mb-sm w-full">
       <option v-for="s in SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
     </select>
 
     <div class="flex items-baseline justify-between gap-sm border-b border-border-subtle pb-sm">
-      <span class="text-base font-semibold text-primary">Итого {{ rows.length }}</span>
+      <span class="text-base font-semibold text-primary">Total · {{ rows.length }}</span>
       <span class="font-semibold tabular-nums text-primary">
         {{ money(total.spend) }} · {{ drr(total) }}
       </span>
     </div>
 
-    <DataState v-if="!rows.length" kind="empty" layout="bare" text="Ничего не найдено" />
+    <DataState v-if="!rows.length" kind="empty" layout="bare" text="Nothing found" />
     <ul class="divide-y divide-border-subtle">
       <li v-for="row in visible" :key="row.label" class="min-h-11 py-sm">
         <div class="flex items-baseline justify-between gap-sm">
           <span class="min-w-0 truncate text-base font-medium text-primary">
-            {{ formatSku(row.label) }}<span v-if="row.n" class="text-muted"> · {{ row.n }}</span>
+            {{ nameOf(row) }}<span v-if="row.n" class="text-muted"> · {{ row.n }}</span>
           </span>
           <span class="flex-none font-semibold tabular-nums text-primary">
             {{ money(row.spend) }}
@@ -93,10 +97,10 @@ const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
         </div>
         <div class="flex justify-between gap-sm text-tiny tabular-nums text-muted">
           <span>
-            доля {{ ratioPct(row.share) }} ·
-            {{ row.orders === null ? '—' : formatNumber(row.orders) }} заказов
+            share {{ ratioPct(row.share) }} ·
+            {{ ordersOf(row.orders) }}
           </span>
-          <span v-if="showBonus">бонусы {{ money(row.bonus) }}</span>
+          <span v-if="showBonus">bonuses {{ money(row.bonus) }}</span>
         </div>
         <button
           type="button"
@@ -105,7 +109,7 @@ const drr = (row) => (props.showDrr ? ratioPct(row.drr) : '—')
           @click="toggle(row.label)"
         >
           <span class="inline-block transition" :class="open.has(row.label) && 'rotate-90'">▶</span>
-          Зоны показа
+          Placements
         </button>
         <AdsSkuZones
           v-if="open.has(row.label)"

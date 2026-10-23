@@ -47,7 +47,7 @@ class _StubHeatmapService:
         """Echo the resolved query back through an empty grid."""
         self.calls.append(kwargs)
         query = kwargs["query"]
-        empty = HeatmapRow(key="total", label="Итого", sku_count=0, total=None, values=[])
+        empty = HeatmapRow(key="total", label="Total", sku_count=0, total=None, values=[])
         return HeatmapResponse(
             date_from=query.date_from,
             date_to=query.date_to,
@@ -146,7 +146,7 @@ async def test_the_heatmap_grant_is_needed_for_the_page(
     login_as: Callable[..., None],
     heatmap: _StubHeatmapService,
 ) -> None:
-    """Every other grant held, «Тепловая карта» withheld — nothing."""
+    """Every other grant held, "Heatmap" withheld — nothing."""
     login_as(role=EffectiveRole.MANAGER, modules=tuple(m for m in ALL_MODULES if m != "heatmap"))
 
     response = await client.get("/api/v1/heatmap", headers=headers)

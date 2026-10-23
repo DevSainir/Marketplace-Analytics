@@ -22,29 +22,29 @@ const SIZES = [30, 50, 100]
     <select
       class="ui-select ui-select--sm phone:w-full"
       :value="pageSize"
-      aria-label="Строк на странице"
+      aria-label="Rows per page"
       @change="emit('update:pageSize', Number($event.target.value))"
     >
       <option v-for="size in SIZES" :key="size" :value="size">{{ size }}</option>
     </select>
-    <span class="text-tiny text-muted">строк · всего {{ total }}</span>
+    <span class="text-tiny text-muted">rows · {{ total }} total</span>
 
     <div v-if="pages > 1" class="ml-auto flex items-center gap-xs">
       <button
         type="button"
         class="ui-trigger ui-trigger--icon"
         :disabled="page <= 1"
-        aria-label="Предыдущая страница"
+        aria-label="Previous page"
         @click="emit('update:page', page - 1)"
       >
         ‹
       </button>
-      <span class="px-sm text-base tabular-nums text-primary">{{ page }} из {{ pages }}</span>
+      <span class="px-sm text-base tabular-nums text-primary">{{ page }} of {{ pages }}</span>
       <button
         type="button"
         class="ui-trigger ui-trigger--icon"
         :disabled="page >= pages"
-        aria-label="Следующая страница"
+        aria-label="Next page"
         @click="emit('update:page', page + 1)"
       >
         ›

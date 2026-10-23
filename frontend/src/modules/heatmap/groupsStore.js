@@ -1,5 +1,5 @@
 /**
- * «Группы» — a workspace's hand-made sets of articles, one list for every page.
+ * "Groups" — a workspace's hand-made sets of articles, one list for every page.
  *
  * The heatmap had them alone; the P&L, the balance and advertising filter by
  * them too now. One store, so a group created or edited on one page is the
@@ -95,18 +95,18 @@ export function articlesOfGroups(groups, ids) {
 }
 
 /** The bucket of articles in none of the groups — the heatmap's own words. */
-export const UNGROUPED = 'Без группы'
+export const UNGROUPED = 'No group'
 
 /** The bucket of articles WB left without a subject or a brand. */
-export const UNNAMED = '(не указан)'
+export const UNNAMED = '(not set)'
 
 /**
  * Split items by subject, brand or group — the cuts `GroupingChips` offers
- * beyond «Артикулы», which is no split at all.
+ * beyond "SKUs", which is no split at all.
  *
  * By group an item lands in EVERY group it is in, and the rest share one
- * «Без группы» bucket: the heatmap's rule. The buckets can then hold more
- * items between them than there are, so a page's «Итого» is summed over the
+ * "No group" bucket: the heatmap's rule. The buckets can then hold more
+ * items between them than there are, so a page's "Total" is summed over the
  * items, never over the buckets.
  *
  * @template T
@@ -159,9 +159,9 @@ export function useGroupsReadable() {
 }
 
 /**
- * What a page cutting by «Группы» needs: the list, loaded when the cut is
+ * What a page cutting by "Groups" needs: the list, loaded when the cut is
  * chosen, and whether the caller may have it at all. A caller who may not is
- * put back on «Артикулы» rather than shown a cut that can only say «Без группы».
+ * put back on "SKUs" rather than shown a cut that can only say "No group".
  * Every page with the cut is one of `GROUP_MODULES`, so that is a safety net
  * for a page added later outside the list, not a case that happens today.
  *

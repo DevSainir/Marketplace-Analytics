@@ -2,15 +2,15 @@
 /**
  * The heatmap on a phone: one column at a time, as a list.
  *
- * A grid of articles × days has no «record» to fold into a card, and swiping a
+ * A grid of articles × days has no "record" to fold into a card, and swiping a
  * thirty-column table sideways loses the row the reader was on — the same
  * finding that made the monitoring matrix page its day axis. So the columns
- * are paged instead (`‹ 23.09 (ср) ›`) and each article is one line: its name,
- * the painted value for that column, and its «Итого» for the window. The
- * «Итого» line comes first, as the phone recipe asks.
+ * are paged instead (`‹ Wed 23 Sep ›`) and each article is one line: its name,
+ * the painted value for that column, and its "Total" for the window. The
+ * "Total" line comes first, as the phone recipe asks.
  *
  * The same rows and tints the desktop grid draws — one source, two projections.
- * With «Норма: ручной ввод» each article line carries its norm field too.
+ * With "Target: manual" each article line carries its norm field too.
  */
 import { computed, ref, watch } from 'vue'
 
@@ -55,7 +55,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
         type="button"
         class="ui-trigger ui-trigger--icon"
         :disabled="index <= 0"
-        aria-label="Раньше"
+        aria-label="Earlier"
         @click="index -= 1"
       >
         ‹
@@ -65,7 +65,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
         type="button"
         class="ui-trigger ui-trigger--icon"
         :disabled="index >= columns.length - 1"
-        aria-label="Позже"
+        aria-label="Later"
         @click="index += 1"
       >
         ›
@@ -74,7 +74,7 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
 
     <ul class="divide-y divide-border-subtle rounded-card bg-surface shadow-card">
       <li v-if="totals" class="flex items-center gap-sm bg-canvas px-md py-sm font-semibold">
-        <span class="flex-1">Итого</span>
+        <span class="flex-1">Total</span>
         <span class="text-right">
           <span class="block">{{ top(totals, index) }}</span>
           <span v-if="secondary" class="block text-tiny text-muted">{{
@@ -93,15 +93,15 @@ const bottom = (row, at) => cellText(row, at, props.secondary, props.currencies,
           <span class="block truncate text-base text-primary">
             {{ row.nm_id ? formatSku(row.label) : row.label }}
           </span>
-          <span class="block text-tiny text-muted">Итого: {{ top(row, 'total') }}</span>
+          <span class="block text-tiny text-muted">Total: {{ top(row, 'total') }}</span>
           <label v-if="normOf" class="mt-xs flex items-center gap-xs text-tiny text-muted">
             <!-- No metric name on a phone: it is in the select above, and the
                  full name wrapped the line into three. -->
-            {{ addsUp(primary) ? 'Норма в день' : 'Норма' }}
+            {{ addsUp(primary) ? 'Daily target' : 'Target' }}
             <span class="w-20 shrink-0">
               <HeatmapNormInput
                 :value="normOf(row.nm_id)"
-                :label="`Норма «${primary.label}»${addsUp(primary) ? ' в день' : ''} для ${formatSku(row.label) ?? row.nm_id}`"
+                :label="`${addsUp(primary) ? 'Daily target' : 'Target'}: ${primary.label} — ${formatSku(row.label) ?? row.nm_id}`"
                 @commit="emit('norm', row.nm_id, $event)"
               />
             </span>

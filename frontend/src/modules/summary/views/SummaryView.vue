@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Сводка» — /summary.
+ * "Summary" — /summary.
  *
  * The whole workspace in one window: what it earned, what it kept, and which
  * articles produced both. Every figure comes from one request, so the cards and
@@ -31,8 +31,8 @@ const store = useSummaryStore()
 const labels = computed(() => store.days.map((day) => day.day))
 
 const dayCharts = computed(() => [
-  { title: 'Заказы и ДРР в день', series: orderSeries(store.days, { base: store.revenueBase }) },
-  { title: 'Продажи и ДРР в день', series: saleSeries(store.days, { base: store.revenueBase }) },
+  { title: 'Orders and ACoS by day', series: orderSeries(store.days, { base: store.revenueBase }) },
+  { title: 'Sales and ACoS by day', series: saleSeries(store.days, { base: store.revenueBase }) },
 ])
 
 const revenueLines = computed(() =>
@@ -46,7 +46,7 @@ onMounted(() => store.init())
 
 <template>
   <div class="app-container py-lg">
-    <PageHeader title="Сводка" subtitle="Сводные показатели по кабинету за выбранный период" />
+    <PageHeader title="Summary" subtitle="The workspace's key figures for the period" />
     <BackfillNotice :lanes="['pnl']" />
 
     <SummaryControls
@@ -71,7 +71,7 @@ onMounted(() => store.init())
         />
 
         <section class="ui-sec">
-          <h2 class="ui-sec__title">Выручка</h2>
+          <h2 class="ui-sec__title">Revenue</h2>
           <div class="sum-card mt-md">
             <div class="sum-legend">
               <span v-for="line in revenueLines" :key="line.name" class="sum-legend__item">
@@ -113,7 +113,7 @@ onMounted(() => store.init())
 
         <section class="ui-sec">
           <div class="flex flex-wrap items-center justify-between gap-md">
-            <h2 class="ui-sec__title">Выручка по категории</h2>
+            <h2 class="ui-sec__title">Revenue by category</h2>
             <div class="flex flex-wrap items-center gap-lg">
               <div class="flex items-center gap-xs">
                 <button

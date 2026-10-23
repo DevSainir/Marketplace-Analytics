@@ -1,13 +1,13 @@
 /**
- * «Выручка по категории»: folding the per-article rows into bars.
+ * "Revenue by category": folding the per-article rows into bars.
  *
  * Pure functions, and deliberately on this side of the wire. Grouping, sorting
  * and the price base used to be query parameters, so every click cost a round
  * trip over the whole settlement window — seconds, for arithmetic over a few
  * dozen rows the browser already holds.
  *
- * Cut by «Группы» it follows the heatmap: an article sits in every group it
- * is in, the rest under «Без группы» (`splitBy`).
+ * Cut by "Groups" it follows the heatmap: an article sits in every group it
+ * is in, the rest under "No group" (`splitBy`).
  *
  * One rule carries through: a bar reports no margin at all as soon as one of
  * its articles has none. Letting the costed half stand would rank a group above
@@ -17,20 +17,20 @@ import { splitBy } from '@/modules/heatmap'
 
 /** What the bars may be ranked by. */
 export const SORTS = [
-  { key: 'revenue', label: 'По выручке' },
-  { key: 'margin', label: 'По марже' },
+  { key: 'revenue', label: 'By revenue' },
+  { key: 'margin', label: 'By margin' },
 ]
 
 /**
  * Which price base the figures are shown at, the seller's own first.
  *
- * It is also the default. WB's SPP is a discount WB funds, so «цена реализации»
- * is what the buyer paid and «цена селлера» is what the payout is actually
+ * It is also the default. WB's SPP is a discount WB funds, so the customer price
+ * is what the buyer paid and the seller price is what the payout is actually
  * pegged to — the base a seller plans against.
  */
 export const BASES = [
-  { key: 'seller', label: 'Цена селлера — до СПП' },
-  { key: 'paid', label: 'Цена реализации' },
+  { key: 'seller', label: 'Seller price — before WB discount' },
+  { key: 'paid', label: 'Customer price' },
 ]
 
 /** Revenue of one row at the requested base. */
@@ -55,7 +55,7 @@ function bucketsOf(rows, cut, groups) {
  *
  * @param {Array<object>} rows Per-article rows from the API.
  * @param {{cut: string, base: string, sort: string, groups?: Array<object>}} options
- *   `groups` — the workspace's «Группы», for the `group` cut.
+ *   `groups` — the workspace's "Groups", for the `group` cut.
  * @returns {Array<object>} Bars, largest first by the chosen metric, each with
  *   its share of the visible total and its own margin percentage.
  */

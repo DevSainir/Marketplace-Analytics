@@ -2,7 +2,7 @@
 /**
  * The headline cards.
  *
- * Six figures, no «Прибыль»: this service has no source for taxes, salaries or
+ * Six figures, no "Profit": this service has no source for taxes, salaries or
  * rent, and a profit computed without them would be a margin wearing a more
  * confident name.
  *
@@ -14,7 +14,7 @@
 import { computed } from 'vue'
 
 import KpiTile from '@/core/components/KpiTile.vue'
-import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
+import { formatMoney, formatNumber, formatPercent, plural } from '@/core/utils/format'
 
 const props = defineProps({
   kpi: { type: Object, required: true },
@@ -39,53 +39,45 @@ const count = (value) =>
 const pct = formatPercent
 
 const baseNote = computed(() =>
-  props.revenueBase === 'seller' ? 'по цене селлера' : 'по цене реализации',
+  props.revenueBase === 'seller' ? 'at seller price' : 'at customer price',
 )
 
-/** «1 артикул», «2 артикула», «5 артикулов» — the card names the count. */
-function articles(count_) {
-  const hundreds = Math.abs(count_) % 100
-  const tens = hundreds % 10
-  if (hundreds > 10 && hundreds < 20) return 'артикулов'
-  if (tens > 1 && tens < 5) return 'артикула'
-  if (tens === 1) return 'артикул'
-  return 'артикулов'
-}
-
-const uncostedNote = computed(
-  () => `нет себестоимости: ${props.kpi.uncosted_skus} ${articles(props.kpi.uncosted_skus)}`,
-)
+/** "no cost price: 1 SKU", "… 5 SKUs" — the card names the count. */
+const uncostedNote = computed(() => {
+  const n = props.kpi.uncosted_skus
+  return `no cost price: ${n} ${plural(n, ['SKU', 'SKUs'])}`
+})
 
 const cards = computed(() => [
   {
     key: 'revenue',
-    label: 'Выручка',
+    label: 'Revenue',
     value: formatMoney(revenue.value, props.currency),
     note: baseNote.value,
   },
   {
     key: 'margin',
-    label: 'Чистая прибыль',
+    label: 'Net profit',
     value: props.kpi.margin === null ? '—' : formatMoney(props.kpi.margin, props.currency),
     note:
       props.kpi.margin === null
         ? uncostedNote.value
-        : `${pct(ratio(props.kpi.margin, revenue.value))} выручки`,
+        : `${pct(ratio(props.kpi.margin, revenue.value))} of revenue`,
     muted: props.kpi.margin === null,
     negative: props.kpi.margin !== null && Number(props.kpi.margin) < 0,
     positive: props.kpi.margin !== null && Number(props.kpi.margin) > 0,
   },
   {
     key: 'sold',
-    label: 'Продажи, шт',
+    label: 'Sales, units',
     value: count(props.kpi.sold_units),
-    note: 'чистых единиц',
+    note: 'net units',
   },
   {
     key: 'orders',
-    label: 'Заказы, шт',
+    label: 'Orders, units',
     value: count(props.kpi.orders),
-    note: props.kpi.orders === null ? 'нет данных воронки' : 'штук',
+    note: props.kpi.orders === null ? 'no funnel data' : 'units',
     muted: props.kpi.orders === null,
   },
   // WB's own definition: bought out over ANSWERED deliveries — bought out plus
@@ -94,7 +86,7 @@ const cards = computed(() => [
   // three weeks after every cohort.
   {
     key: 'buyout',
-    label: 'Выкуп',
+    label: 'Buyout rate',
     value: pct(ratio(props.kpi.buyouts, props.kpi.buyout_decided)),
     // The lag says whose period the figure describes. A window entirely inside
     // it — the page's own default week — has no answered deliveries of its own,
@@ -102,20 +94,20 @@ const cards = computed(() => [
     // one period's rate off as another's.
     note:
       props.kpi.buyout_decided === null
-        ? 'нет данных воронки'
+        ? 'no funnel data'
         : props.kpi.buyout_lagged
-          ? 'Усреднённый показатель за предыдущие дни'
-          : 'из доставленных',
+          ? 'Average over earlier days'
+          : 'of delivered',
     hint: props.kpi.buyout_lagged
-      ? 'Поскольку заказы за последнюю неделю ещё не успели выкупиться, берётся усреднённое значение за предыдущие две недели.'
+      ? "Last week's orders haven't had time to be bought out, so this is the average of the two weeks before."
       : '',
     muted: props.kpi.buyout_decided === null,
   },
   {
     key: 'penalties',
-    label: 'Штрафы и удержания',
+    label: 'Penalties and deductions',
     value: formatMoney(props.kpi.penalties, props.currency),
-    note: 'без счетов за рекламу',
+    note: 'excluding ad invoices',
     negative: Number(props.kpi.penalties) > 0,
   },
   // DRR is computed here rather than sent, so it follows the price base the
@@ -123,10 +115,10 @@ const cards = computed(() => [
   // price and of the after-SPP one.
   {
     key: 'drr',
-    label: 'ДРР от продаж',
+    label: 'ACoS (sales)',
     // A window that returned more than it sold has no meaningful DRR.
     value: pct(revenue.value > 0 ? ratio(props.kpi.ad_spend, revenue.value) : null),
-    note: props.kpi.ad_spend === null ? 'нет данных рекламы' : 'реклама к выручке',
+    note: props.kpi.ad_spend === null ? 'no ad data' : 'ad spend to revenue',
     muted: props.kpi.ad_spend === null,
   },
 ])

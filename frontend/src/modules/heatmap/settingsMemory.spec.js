@@ -30,7 +30,7 @@ describe('settings memory', () => {
     expect(recallSettings()).toBeNull()
   })
 
-  it('keeps each кабинет separate', () => {
+  it('keeps each workspace separate', () => {
     rememberSettings({ nmIds: [1] })
     setWorkspaceId('ws-2')
 

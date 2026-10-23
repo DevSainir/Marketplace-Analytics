@@ -14,9 +14,9 @@ describe('bidCards', () => {
     const { cards } = bidCards(ZONES)
 
     expect(cards.map((c) => [c.label, c.spend])).toEqual([
-      ['Единая ставка', 300],
-      ['Ручной поиск', 700],
-      ['Ручные полки', 0],
+      ['Unified bid', 300],
+      ['Manual search', 700],
+      ['Manual shelves', 0],
       ['CPC', 0],
     ])
   })
@@ -27,17 +27,17 @@ describe('bidCards', () => {
     expect(manual.share).toBeCloseTo(0.7)
     expect(manual.bonus).toBe(60)
     expect(manual.zones.map((z) => [z.label, z.spend])).toEqual([
-      ['Поиск', 600],
-      ['Каталог', 100],
+      ['Search', 600],
+      ['Catalog', 100],
     ])
     expect(manual.zones[1].share).toBeCloseTo(100 / 700)
   })
 
-  it('gives единая ставка no catalogue', () => {
+  it('gives the unified bid no catalog', () => {
     // WB reports only its search slice; the rest is the shelves.
     const unified = bidCards(ZONES).cards.find((c) => c.key === 'unified')
 
-    expect(unified.zones.map((z) => z.label)).toEqual(['Поиск', 'Полки'])
+    expect(unified.zones.map((z) => z.label)).toEqual(['Search', 'Shelves'])
   })
 
   it('keeps spend with no campaign settings off the cards, but counts it in the shares', () => {
@@ -63,15 +63,15 @@ describe('skuZoneLines', () => {
     )
 
     expect(lines.map((l) => [l.label, l.share])).toEqual([
-      ['Единая ставка · Полки', 0.25],
-      ['Ручной поиск · Поиск', 0.5],
-      ['Ручные полки', 0.25],
+      ['Unified bid · Shelves', 0.25],
+      ['Manual search · Search', 0.5],
+      ['Manual shelves', 0.25],
     ])
   })
 
   it('names spend whose campaign has no settings rather than dropping it', () => {
     const [line] = skuZoneLines([{ zone: 'unclassified', spend: 10, bonus: 0 }], 10)
 
-    expect(line.label).toBe('Без настроек кампании')
+    expect(line.label).toBe('No campaign settings')
   })
 })

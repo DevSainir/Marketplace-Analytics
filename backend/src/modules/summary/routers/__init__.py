@@ -1,14 +1,14 @@
 """HTTP presentation layer for the ``summary`` module.
 
-One route behind one prefix, and the «Сводка» grant in front of it.
+One route behind one prefix, and the "Summary" grant in front of it.
 
 The page shows the settlement's revenue and margin beside monitoring's orders
-and advertising. It asked for BOTH the «Мониторинг» and P&L grants until
+and advertising. It asked for BOTH the "Monitoring" and P&L grants until
 2026-10-12; since then every page of the header is a grant of its own, and
-this one opens the whole page — an owner who gives «Сводка» is deciding about
+this one opens the whole page — an owner who gives "Summary" is deciding about
 its money too. Existing managers got it exactly where they held both before.
 
-It restates two things WB's own cabinet does not, and both are on the page
+It restates two things WB's own seller portal does not, and both are on the page
 rather than in this docstring: the weekly advertising invoice is spread over the
 days the ads actually ran, and the margin is withheld entirely until every
 settled SKU has a cost price.

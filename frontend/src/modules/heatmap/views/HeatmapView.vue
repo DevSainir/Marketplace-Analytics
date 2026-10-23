@@ -1,10 +1,10 @@
 <script setup>
 /**
- * «Тепловая карта» — /heatmap.
+ * "Heatmap" — /heatmap.
  *
  * Every article of the workspace, day by day, painted by one metric: the view for
  * a workspace with too many working articles to watch one at a time, where the
- * question is not «how is this card» but «which cards dipped, and when».
+ * question is not "how is this card" but "which cards dipped, and when".
  *
  * The view composes; the store decides what costs a request. The previous grid
  * stays on screen, dimmed, while the next one loads — blanking it would turn
@@ -16,6 +16,7 @@ import { extractErrorMessage } from '@/core/api/axios'
 import PageHeader from '@/core/components/PageHeader.vue'
 import BusyRegion from '@/core/components/BusyRegion.vue'
 import DataState from '@/core/components/DataState.vue'
+import { formatDay } from '@/core/utils/calendarWords'
 import { useHistoryKeys } from '@/core/utils/historyKeys'
 import { BackfillNotice } from '@/modules/profile'
 
@@ -53,8 +54,7 @@ const currencies = computed(() => ({
 const settledNote = computed(() => {
   const data = store.data
   if (!data?.settled_to || !(store.primary?.settled || store.secondary?.settled)) return ''
-  const [year, month, day] = data.settled_to.split('-')
-  return `Финансы из отчётов WB — по ${day}.${month}.${year}; позже дни ещё не рассчитаны.`
+  return `Finance from WB reports, up to ${formatDay(data.settled_to)}. Later days are not settled yet.`
 })
 
 // A group edited here changes the grid when the grid is cut or filtered by
@@ -80,7 +80,7 @@ useHistoryKeys({
 })
 
 // A norm belongs to an article: any other cut switches it off, and the
-// picker greys «ручной ввод» out until the cut is «По товару» again.
+// picker greys "Target: manual" out until the cut is "SKUs" again.
 watch(
   () => store.groupBy,
   (groupBy) => {
@@ -93,10 +93,7 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
 
 <template>
   <div class="app-container py-lg">
-    <PageHeader
-      title="Тепловая карта"
-      subtitle="Артикулы по дням: где показатель вырос, а где просел"
-    >
+    <PageHeader title="Heatmap" subtitle="SKUs by day: where a metric rose and where it dipped">
       <template #actions><HeatmapHelp /></template>
     </PageHeader>
     <BackfillNotice :lanes="['funnel', 'advertising', 'pnl']" />
@@ -189,9 +186,9 @@ onMounted(() => norms.load().catch((err) => (norms.error = extractErrorMessage(e
     <!-- Under the card, like the monitoring matrix's edit hint. -->
     <p v-if="store.manualNorms" class="mt-sm text-tiny text-muted">
       <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Z</kbd>
-      — отменить,
+      — undo,
       <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Shift</kbd>+<kbd class="ui-kbd">Z</kbd> —
-      повторить.
+      redo.
     </p>
   </div>
 </template>

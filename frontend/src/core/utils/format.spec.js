@@ -5,6 +5,7 @@ import {
   formatNumber,
   formatPercent,
   formatSku,
+  normalizeTypedNumber,
   plural,
   withCurrency,
 } from '@/core/utils/format'
@@ -149,5 +150,22 @@ describe('plural', () => {
     [21, 'reasons'],
   ])('%i → %s', (n, word) => {
     expect(plural(n, forms)).toBe(word)
+  })
+})
+
+describe('normalizeTypedNumber', () => {
+  it.each([
+    ['1,200', '1200'],
+    ['1 200', '1200'],
+    ['1,200.50', '1200.50'],
+    ['12,345,678', '12345678'],
+    ['795,50', '795.50'],
+    ['1,5', '1.5'],
+    ['', ''],
+  ])('%s → %s', (typed, normal) => {
+    // "1,200" is twelve hundred in English, "795,50" a price with kopecks in
+    // the way sellers on WB write one; reading either the other way round
+    // stores a cost a thousand times off.
+    expect(normalizeTypedNumber(typed)).toBe(normal)
   })
 })

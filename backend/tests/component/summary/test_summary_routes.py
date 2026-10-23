@@ -1,4 +1,4 @@
-"""Component tests for the «Сводка» HTTP surface.
+"""Component tests for the "Summary" HTTP surface.
 
 The arithmetic is covered in ``tests/unit/summary``; what is proved here is the
 transport contract — who may reach the route at all, that the caller's active
@@ -110,7 +110,7 @@ async def test_a_manager_without_the_summary_grant_is_refused(
     headers: dict[str, str],
     login_as: Callable[..., None],
 ) -> None:
-    """Every other grant held, «Мониторинг» and P&L among them — still a 403.
+    """Every other grant held, "Monitoring" and P&L among them — still a 403.
 
     The page is its own grant since 2026-10-12; holding both of the sections
     its figures come from no longer opens it.
@@ -125,7 +125,7 @@ async def test_a_manager_without_the_summary_grant_is_refused(
 async def test_the_summary_grant_alone_opens_it(
     client: httpx.AsyncClient, headers: dict[str, str], login_as: Callable[..., None]
 ) -> None:
-    """The other half: «Сводка» with nothing else is enough, money included."""
+    """The other half: "Summary" with nothing else is enough, money included."""
     login_as(role=EffectiveRole.MANAGER, modules=("summary",))
 
     response = await client.get("/api/v1/summary", headers=headers)
@@ -167,7 +167,7 @@ async def test_an_omitted_window_defaults_to_the_last_week(
 
     WB dates every settlement row by the Moscow calendar, so resolving the open
     end from the host's own clock drops the newest day for the three hours
-    between 00:00 and 03:00 MSK. The length is the page's own: «Сводка» answers
+    between 00:00 and 03:00 MSK. The length is the page's own: "Summary" answers
     «how are things going right now», and a month of history flattens the few days that
     answer it.
     """

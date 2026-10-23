@@ -1,10 +1,10 @@
 <script setup>
 /**
  * The row above the grid: the period and the three filters that decide WHICH
- * articles the heatmap covers — «Предметы», «Группы», «Артикулы» — and, at its
+ * articles the heatmap covers — "Categories", "Groups", "SKUs" — and, at its
  * right end, what a row of the grid stands for (`GroupingChips`).
  *
- * They combine by intersection, and an empty filter means «все». «Группы» is
+ * They combine by intersection, and an empty filter means "all". "Groups" is
  * the app's shared `GroupsFilter`, where groups are also made and edited.
  *
  * Dumb by contract: options in, selections and intents out.
@@ -17,6 +17,7 @@ import PeriodSelector from '@/core/components/PeriodSelector.vue'
 import { isoDaysAgo } from '@/core/utils/dates'
 import { formatSku } from '@/core/utils/format'
 import GroupsFilter from '@/modules/heatmap/components/GroupsFilter.vue'
+import { UNNAMED } from '@/modules/heatmap/groupsStore'
 import { MAX_DAYS } from '@/modules/heatmap/store'
 
 const props = defineProps({
@@ -47,7 +48,7 @@ const subjectItems = computed(() => {
   // Cards WB (or a catalogue sync that has not run yet) left without a subject
   // are still articles; they get an option of their own rather than vanishing.
   if (props.catalog.items.some((card) => !card.subject_name)) {
-    items.push({ value: '', label: '(не указан)' })
+    items.push({ value: '', label: UNNAMED })
   }
   return items
 })
@@ -55,8 +56,8 @@ const subjectItems = computed(() => {
 const skuItems = computed(() =>
   props.catalog.items.map((card) => ({
     value: card.nm_id,
-    label: formatSku(card.vendor_code) ?? `Артикул WB ${card.nm_id}`,
-    sub: `Заказов: ${card.orders ?? 0}${card.title ? ` · ${card.title}` : ''}`,
+    label: formatSku(card.vendor_code) ?? `WB ID ${card.nm_id}`,
+    sub: `Orders: ${card.orders ?? 0}${card.title ? ` · ${card.title}` : ''}`,
     photo: card.photo_url,
   })),
 )
@@ -73,11 +74,11 @@ const skuItems = computed(() =>
     />
 
     <FilterMenu
-      label="Предметы"
+      label="Categories"
       :items="subjectItems"
       :model-value="subjects"
-      placeholder="Поиск категории…"
-      empty-text="Предметов нет — они появятся после синхронизации каталога"
+      placeholder="Search categories…"
+      empty-text="No categories until the catalog syncs"
       @update:model-value="emit('update:subjects', $event)"
     />
 
@@ -88,10 +89,10 @@ const skuItems = computed(() =>
     />
 
     <FilterMenu
-      label="Артикулы"
+      label="SKUs"
       :items="skuItems"
       :model-value="nmIds"
-      placeholder="Артикул продавца или WB, название"
+      placeholder="Vendor code, WB ID or title"
       @update:model-value="emit('update:nmIds', $event)"
     />
 

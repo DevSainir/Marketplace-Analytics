@@ -3,26 +3,29 @@
  *
  * Both ratios are re-derived from summed money, never averaged:
  *
- * * **«ДРР от продаж»** — the seller's own spend (WB's bonus taken off) on
+ * * **"ACoS (sales)"** — the seller's own spend (WB's bonus taken off) on
  *   SETTLED days over settled sales. The page's own window may run past the
  *   settlement; those days' spend has no sales to be divided by and stays out
  *   of the numerator (the backend sends it apart as `spend_settled` and
  *   `bonus_settled`).
- * * **«Доля»** — the row's spend over the workspace's whole spend for the window,
- *   whatever the filter: «доля общих рекламных расходов».
+ * * **"Share"** — the row's spend over the workspace's whole spend for the window,
+ *   whatever the filter: "share of all ad spend".
  */
 
 import { splitBy } from '@/modules/heatmap'
 
-/** The cuts the table offers; `col` heads the first column, `by` ends the title. */
+/** The cuts the table offers; `col` heads the first column, `by` ends the title ("Advertising by SKU"). */
 export const AD_GROUPS = [
-  { id: 'sku', name: 'Артикулы', col: 'Артикул', by: 'артикулам' },
-  { id: 'subject', name: 'Предметы', col: 'Предмет', by: 'предметам' },
-  { id: 'brand', name: 'Бренды', col: 'Бренд', by: 'брендам' },
-  { id: 'group', name: 'Группы', col: 'Группа', by: 'группам' },
+  { id: 'sku', name: 'SKUs', col: 'SKU', by: 'SKU' },
+  { id: 'subject', name: 'Categories', col: 'Category', by: 'category' },
+  { id: 'brand', name: 'Brands', col: 'Brand', by: 'brand' },
+  { id: 'group', name: 'Groups', col: 'Group', by: 'group' },
 ]
 
 export { UNGROUPED } from '@/modules/heatmap'
+
+/** The label of the total row — prose, so it never goes through `formatSku`. */
+export const TOTAL = 'Total'
 
 /** What a missing subject or brand reads as — and groups under. */
 const NONE = '—'
@@ -79,7 +82,7 @@ function mergeZones(acc, zones) {
 
 /** Distinct subjects and brands, alphabetical, for the filter selects. */
 export function filterOptions(rows) {
-  const sorted = (values) => [...new Set(values)].sort((a, b) => a.localeCompare(b, 'ru'))
+  const sorted = (values) => [...new Set(values)].sort((a, b) => a.localeCompare(b, 'en'))
   return {
     subjects: sorted(rows.map((row) => row.subject)),
     brands: sorted(rows.map((row) => row.brand)),
@@ -149,9 +152,9 @@ function withRatios(row, cabinetSpend) {
  * The same money at the chosen grain, with ratios. A group row carries `n`,
  * the number of articles in it.
  *
- * By «Группы» an article sits in every group it belongs to — the heatmap's
- * rule — and the ones in none share a «Без группы» row. The rows can then add
- * up to more than the workspace spent, which is why the «Итого» is summed over
+ * By "Groups" an article sits in every group it belongs to — the heatmap's
+ * rule — and the ones in none share a "No group" row. The rows can then add
+ * up to more than the workspace spent, which is why the "Total" is summed over
  * the articles, never over these rows ({@link totalRow}).
  *
  * @param {Array<{name: string, nm_ids: number[]}>} [groups] For `group` only.
@@ -172,7 +175,7 @@ export function groupRows(rows, group, cabinetSpend, groups = []) {
   return [...byKey].map(([key, members]) => withRatios(sum(members, key), cabinetSpend))
 }
 
-/** The «Итого» of the given article rows — the picked ones, not the grouped. */
+/** The "Total" of the given article rows — the picked ones, not the grouped. */
 export function totalRow(rows, cabinetSpend) {
-  return withRatios(sum(rows, 'Итого'), cabinetSpend)
+  return withRatios(sum(rows, TOTAL), cabinetSpend)
 }

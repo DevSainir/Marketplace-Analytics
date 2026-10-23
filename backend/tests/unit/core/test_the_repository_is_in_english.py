@@ -84,21 +84,6 @@ _IN_TRANSLATION: dict[str, tuple[str, ...]] = {
         "backend/tests/*/monitoring/*",
         "frontend/src/modules/monitoring/*",
     ),
-    "advertising": (
-        "backend/src/modules/advertising/*",
-        "backend/tests/*/advertising/*",
-        "frontend/src/modules/advertising/*",
-    ),
-    "heatmap": (
-        "backend/src/modules/heatmap/*",
-        "backend/tests/*/heatmap/*",
-        "frontend/src/modules/heatmap/*",
-    ),
-    "summary": (
-        "backend/src/modules/summary/*",
-        "backend/tests/*/summary/*",
-        "frontend/src/modules/summary/*",
-    ),
     "finreports": (
         "backend/src/modules/finreports/*",
         "backend/tests/*/finreports/*",

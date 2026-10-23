@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Куда ушли деньги» — one card per kind of campaign.
+ * "Where the money went" — one card per kind of campaign.
  *
  * Each card answers its two questions top to bottom: how much this kind of
  * campaign took (the figure, and its share of all advertising), then where it
@@ -51,15 +51,15 @@ const segmentStyle = (zone) => ({
 
       <div class="mt-sm text-h2 font-bold tabular-nums text-primary">{{ money(card.spend) }}</div>
       <div class="text-tiny text-muted">
-        <template v-if="card.spend">{{ ratioPct(card.share) }} всей рекламы</template>
-        <template v-else>не крутилась в этом периоде</template>
+        <template v-if="card.spend">{{ ratioPct(card.share) }} of all advertising</template>
+        <template v-else>Didn't run this period</template>
       </div>
 
       <div
         class="mt-md flex h-2 gap-0.5 overflow-hidden rounded-full bg-canvas"
         role="img"
         :aria-label="
-          card.zones.map((z) => `${z.label} ${ratioPct(z.share)}`).join(', ') || 'нет расхода'
+          card.zones.map((z) => `${z.label} ${ratioPct(z.share)}`).join(', ') || 'no spend'
         "
       >
         <span
@@ -95,7 +95,7 @@ const segmentStyle = (zone) => ({
         v-if="showBonus"
         class="mt-auto flex items-center gap-sm border-t border-border-subtle pt-sm text-tiny tabular-nums"
       >
-        <span class="flex-1 text-muted">Бонусы WB</span>
+        <span class="flex-1 text-muted">WB bonuses</span>
         <span :class="card.bonus ? 'text-primary' : 'text-muted'">
           {{ money(card.bonus) }}
         </span>

@@ -7,6 +7,6 @@ export const heatmapRoutes = [
     path: '/heatmap',
     name: 'heatmap',
     component: () => import('@/modules/heatmap/views/HeatmapView.vue'),
-    meta: { title: 'Тепловая карта', requiresAuth: true, module: 'heatmap' },
+    meta: { title: 'Heatmap', requiresAuth: true, module: 'heatmap' },
   },
 ]

@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Выручка по категории» — a paired bar per article, subject or brand.
+ * "Revenue by category" — a paired bar per article, subject or brand.
  *
  * Laid out in HTML rather than SVG. The original drew this into a fixed-width
  * viewBox scaled to the container, which magnified every label on a wide screen
@@ -78,13 +78,13 @@ function track(event) {
   <div class="sum-cat">
     <div class="sum-cat__head">
       <span class="sum-cat__legend">
-        <span class="sum-cat__swatch sum-cat__swatch--rev"></span>выручка
-        <span class="sum-cat__swatch sum-cat__swatch--mar"></span>маржа
+        <span class="sum-cat__swatch sum-cat__swatch--rev"></span>revenue
+        <span class="sum-cat__swatch sum-cat__swatch--mar"></span>margin
       </span>
-      <span class="sum-cat__colhead">выручка</span>
-      <span class="sum-cat__colhead">доля в общей</span>
-      <span class="sum-cat__colhead">маржа</span>
-      <span class="sum-cat__colhead">доля в общей</span>
+      <span class="sum-cat__colhead">revenue</span>
+      <span class="sum-cat__colhead">share of total</span>
+      <span class="sum-cat__colhead">margin</span>
+      <span class="sum-cat__colhead">share of total</span>
     </div>
 
     <div
@@ -121,11 +121,11 @@ function track(event) {
         :style="{ left: `${pointer.x}px`, top: `${pointer.y}px` }"
       >
         <div class="sum-cat__tiprow">
-          <span>Продано</span>
-          <span class="sum-cat__tipval">{{ formatNumber(row.soldUnits) }} шт</span>
+          <span>Sold</span>
+          <span class="sum-cat__tipval">{{ formatNumber(row.soldUnits) }} units</span>
         </div>
         <div class="sum-cat__tiprow">
-          <span>Чистая прибыль от выручки</span>
+          <span>Net profit, % of revenue</span>
           <span class="sum-cat__tipval">{{ pct(row.marginPct) }}</span>
         </div>
       </div>

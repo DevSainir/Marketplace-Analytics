@@ -1,4 +1,4 @@
-"""HTTP route for «Сводка».
+"""HTTP route for "Summary".
 
 Pure pass-through: the window is resolved and bounded here, everything else is
 the service's. Workspace-scoped through ``X-Workspace-Id`` — this is a seller's
@@ -25,7 +25,7 @@ DEFAULT_WINDOW_DAYS = 7
 
 #: Hard cap on how much settlement history one request may aggregate.
 #:
-#: Sized to «Вся история» rather than below it: the button exists, and a cap that
+#: Sized to "All time" rather than below it: the button exists, and a cap that
 #: refuses the workspace's own settled span makes it a button that always errors.
 #: The oldest settlement on this service is from 2024, so three years of slack is
 #: the whole product — and the bound still has to exist, because an unbounded
@@ -50,9 +50,9 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     end = date_to or moscow_today()
     start = date_from or (end - timedelta(days=DEFAULT_WINDOW_DAYS))
     if start > end:
-        raise ValidationError("Конец периода раньше начала.")
+        raise ValidationError("The period ends before it starts.")
     if (end - start).days > MAX_WINDOW_DAYS:
-        raise ValidationError(f"Период больше {MAX_WINDOW_DAYS} дней.")
+        raise ValidationError(f"The period is longer than {MAX_WINDOW_DAYS} days.")
     return start, end
 
 
@@ -61,9 +61,9 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     response_model=SummarySpan,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Диапазон рассчитанных дней кабинета."},
+        200: {"description": "The range of the workspace's settled days."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет раздела «Сводка»."},
+        403: {"description": "No access to the summary."},
     },
 )
 async def get_summary_span(
@@ -84,10 +84,10 @@ async def get_summary_span(
     response_model=SummaryResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Сводные показатели кабинета за период."},
+        200: {"description": "The workspace's summary figures for the period."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет раздела «Сводка»."},
-        422: {"description": "Период инвертирован или длиннее допустимого."},
+        403: {"description": "No access to the summary."},
+        422: {"description": "The period is inverted or longer than allowed."},
     },
 )
 async def get_summary(
@@ -97,7 +97,7 @@ async def get_summary(
     date_from: date | None = Query(default=None, description="Inclusive settlement-date start."),
     date_to: date | None = Query(default=None, description="Inclusive settlement-date end."),
 ) -> SummaryResponse:
-    """Return every figure the «Сводка» page draws for one window.
+    """Return every figure the "Summary" page draws for one window.
 
     The window is the ONLY parameter. Price base, grouping and sort order used
     to be query parameters, and every click on one of them cost a round trip

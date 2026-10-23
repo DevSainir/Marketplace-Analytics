@@ -1,4 +1,4 @@
-"""Which display zone a campaign-day's spend went to — the «На что ушли» buckets.
+"""Which display zone a campaign-day's spend went to — the "Where the money went" buckets.
 
 The rules are the monitoring matrix's (``monitoring/services/matrix/
 classification.py``, ``_classify``), restated for money alone: the matrix splits
@@ -11,11 +11,11 @@ a campaign must land in the same zone on both pages.
 * CPC is its own group whatever the bid type says: paid per click, its money is
   not comparable with a CPM campaign's.
 * A manual search-only campaign also delivers in the CATALOG (fullstats runs
-  ~10-13 % above the normquery sum), so its remainder is «Каталог». Without a
-  harvested slice the whole day stays in «Поиск» — sending ~90 % of a search
+  ~10-13 % above the normquery sum), so its remainder is "Catalog". Without a
+  harvested slice the whole day stays in "Search" — sending ~90 % of a search
   campaign to the catalogue on a missing row would be worse.
-* A unified campaign's remainder is «Полки». WB reports no zone finer than the
-  search slice for a unified-bid campaign, so it has no «Каталог» on this page or on
+* A unified campaign's remainder is "Shelves". WB reports no zone finer than the
+  search slice for a unified-bid campaign, so it has no "Catalog" on this page or on
   the monitoring matrix; in practice it runs almost entirely on the shelves.
 """
 

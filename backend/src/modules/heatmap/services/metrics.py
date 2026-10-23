@@ -2,7 +2,7 @@
 
 A cell is not a number. It is the ADDITIVE facts behind every metric — orders,
 opens, spend, revenue… — and a metric is derived from them only at the end.
-That is the whole trick of the «Итого» row and column: a CTR over a week is
+That is the whole trick of the "Total" row and column: a CTR over a week is
 Σ clicks / Σ views, never the average of seven CTRs, and a category's DRR is its
 summed spend over its summed orders. Summing ratios is how a heatmap's totals
 come out plausible and wrong.
@@ -280,7 +280,7 @@ def _profit(f: Facts) -> float | None:
 
     The ads are the settled days' spend minus WB's bonus share of it — the
     money that actually left the seller's account, which is what the P&L's
-    «Чистая прибыль» subtracts too.
+    "Net profit" subtracts too.
     """
     if not f.finance_known or f.uncosted:
         return None
@@ -336,13 +336,13 @@ def spread_bonus(
     campaigns, not days: the bonus is only defined over a window
     (:func:`~src.modules.monitoring.contract.load_ad_bonus_by_nm`). So the
     article's window bonus is laid over its days in proportion to what each
-    day spent — the same move «Сводка» makes for the whole workspace — and only
+    day spent — the same move "Summary" makes for the whole workspace — and only
     the settled days' share is kept, next to :attr:`Facts.settled_spend`.
 
     Clamped at the article's own spend, as the P&L clamps it: a write-off dated
     inside the window for impressions just outside it must not turn an
     advertising cost negative. Over a fully settled window an article's days
-    therefore charge exactly what its «По артикулам» row charges.
+    therefore charge exactly what its per-SKU row on the P&L charges.
 
     Args:
         facts: SKU-day cells, already marked settled.

@@ -1,5 +1,5 @@
 /**
- * «Куда ушли деньги» as one card per kind of campaign, from the API's flat zones.
+ * "Where the money went" as one card per kind of campaign, from the API's flat zones.
  *
  * The backend sends one money row per leaf zone (`services/zones.py`). The
  * page used to draw them as a tree four levels deep and four pies under it;
@@ -12,15 +12,15 @@
  * by size, so a card is always in the same place from one period to the next; a kind that did not
  * run stays on the row at zero rather than vanishing.
  *
- * The unified bid has no «Каталог»: WB reports only a unified campaign's search
- * slice, so the rest of it is «Полки» and nothing finer can be told apart.
+ * The unified bid has no "Catalog": WB reports only a unified campaign's search
+ * slice, so the rest of it is "Shelves" and nothing finer can be told apart.
  */
 
 /** The three zones money is split into, in their fixed colour order. */
 export const ZONE_KINDS = [
-  { kind: 'search', label: 'Поиск' },
-  { kind: 'shelves', label: 'Полки' },
-  { kind: 'catalog', label: 'Каталог' },
+  { kind: 'search', label: 'Search' },
+  { kind: 'shelves', label: 'Shelves' },
+  { kind: 'catalog', label: 'Catalog' },
 ]
 
 const LABEL = Object.fromEntries(ZONE_KINDS.map((z) => [z.kind, z.label]))
@@ -29,7 +29,7 @@ const LABEL = Object.fromEntries(ZONE_KINDS.map((z) => [z.kind, z.label]))
 const CARDS = [
   {
     key: 'unified',
-    label: 'Единая ставка',
+    label: 'Unified bid',
     tag: 'CPM',
     zones: [
       { zone: 'cpm_unified_search', kind: 'search' },
@@ -38,7 +38,7 @@ const CARDS = [
   },
   {
     key: 'manual_search',
-    label: 'Ручной поиск',
+    label: 'Manual search',
     tag: 'CPM',
     zones: [
       { zone: 'cpm_manual_search', kind: 'search' },
@@ -47,14 +47,14 @@ const CARDS = [
   },
   {
     key: 'manual_shelves',
-    label: 'Ручные полки',
+    label: 'Manual shelves',
     tag: 'CPM',
     zones: [{ zone: 'cpm_manual_shelves', kind: 'shelves' }],
   },
   {
     key: 'cpc',
     label: 'CPC',
-    tag: 'за клики',
+    tag: 'per click',
     zones: [
       { zone: 'cpc_search', kind: 'search' },
       { zone: 'cpc_shelves', kind: 'shelves' },
@@ -119,7 +119,7 @@ const ZONE_LINES = CARDS.flatMap((card, cardIndex) =>
   })),
 )
 const LINE = Object.fromEntries(ZONE_LINES.map((line) => [line.zone, line]))
-const UNTYPED_LINE = { kind: null, label: 'Без настроек кампании', order: 999 }
+const UNTYPED_LINE = { kind: null, label: 'No campaign settings', order: 999 }
 
 /**
  * An article's (or a group's) money by zone, for the row's breakdown.

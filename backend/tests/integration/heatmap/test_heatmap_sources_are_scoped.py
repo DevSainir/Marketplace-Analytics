@@ -47,6 +47,7 @@ from src.modules.monitoring.models import (
 )
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -58,7 +59,7 @@ DAY = date(2026, 9, 23)
 
 async def _workspace(session: AsyncSession, name: str) -> Workspace:
     """Persist a workspace in an organisation of its own."""
-    org = Organization(name=f"Орг {name}", is_primary=False)
+    org = Organization(name=f"Org {name}", is_primary=False)
     session.add(org)
     await session.flush()
     workspace = Workspace(organization_id=org.id, name=name)
@@ -100,7 +101,7 @@ async def _card(session: AsyncSession, workspace: Workspace, nm_id: int, subject
             ),
             PriceSnapshot(nm_id=nm_id, stat_date=DAY, seller_price=Decimal("1000.00")),
             StockSnapshot(
-                nm_id=nm_id, stat_date=DAY, warehouse_name="Коледино", chrt_id=nm_id, quantity=7
+                nm_id=nm_id, stat_date=DAY, warehouse_name="Koledino", chrt_id=nm_id, quantity=7
             ),
         ]
     )
@@ -109,11 +110,11 @@ async def _card(session: AsyncSession, workspace: Workspace, nm_id: int, subject
 
 async def _two_tenants(session: AsyncSession) -> tuple[Workspace, Workspace]:
     """Two workspaces: mine with two articles, theirs with one, all active on DAY."""
-    mine = await _workspace(session, "Мой")
-    theirs = await _workspace(session, "Чужой")
-    await _card(session, mine, MINE, "Костюмы")
-    await _card(session, mine, MINE_TOO, "Платья")
-    await _card(session, theirs, THEIRS, "Костюмы")
+    mine = await _workspace(session, "Mine")
+    theirs = await _workspace(session, "Theirs")
+    await _card(session, mine, MINE, "Suits")
+    await _card(session, mine, MINE_TOO, "Dresses")
+    await _card(session, theirs, THEIRS, "Suits")
     return mine, theirs
 
 
@@ -168,13 +169,13 @@ async def test_the_catalogue_is_one_workspaces_cards(db_session: AsyncSession) -
     cards = await load_workspace_catalog(db_session, workspace_id=mine.id)
 
     assert {card.nm_id: card.subject_name for card in cards} == {
-        MINE: "Костюмы",
-        MINE_TOO: "Платья",
+        MINE: "Suits",
+        MINE_TOO: "Dresses",
     }
 
 
 async def test_the_grid_totals_count_only_this_workspace(db_session: AsyncSession) -> None:
-    """«Итого» is this workspace's orders; the foreign article's nine are nowhere."""
+    """The "Total" line is this workspace's orders; the foreign article's nine are nowhere."""
     mine, _ = await _two_tenants(db_session)
     query = HeatmapQuery(
         date_from=DAY, date_to=DAY, period="day", group_by="sku", metric="orders", metric2="spend"
@@ -188,7 +189,7 @@ async def test_the_grid_totals_count_only_this_workspace(db_session: AsyncSessio
 
 
 async def test_a_category_filter_narrows_the_grid(db_session: AsyncSession) -> None:
-    """«Категории» keeps the chosen subject's articles and nothing else."""
+    """The "Categories" filter keeps the chosen subject's articles and nothing else."""
     mine, _ = await _two_tenants(db_session)
     query = HeatmapQuery(
         date_from=DAY,
@@ -197,7 +198,7 @@ async def test_a_category_filter_narrows_the_grid(db_session: AsyncSession) -> N
         group_by="sku",
         metric="orders",
         metric2=None,
-        subjects=frozenset({"Платья"}),
+        subjects=frozenset({"Dresses"}),
     )
 
     grid = await _heatmap(db_session).build(db_session, workspace_id=mine.id, query=query)
@@ -214,7 +215,7 @@ async def test_a_group_cannot_hold_another_workspaces_article(db_session: AsyncS
         await service.create(
             db_session,
             workspace_id=mine.id,
-            payload=SkuGroupWrite(name="Чужое", nm_ids=[MINE, THEIRS]),
+            payload=SkuGroupWrite(name="Foreign", nm_ids=[MINE, THEIRS]),
         )
 
 
@@ -223,15 +224,15 @@ async def test_groups_are_listed_for_their_own_workspace(db_session: AsyncSessio
     mine, theirs = await _two_tenants(db_session)
     service = SkuGroupService(SkuGroupRepository(db_session))
     await service.create(
-        db_session, workspace_id=mine.id, payload=SkuGroupWrite(name="Мои", nm_ids=[MINE])
+        db_session, workspace_id=mine.id, payload=SkuGroupWrite(name="Mine", nm_ids=[MINE])
     )
     await service.create(
-        db_session, workspace_id=theirs.id, payload=SkuGroupWrite(name="Их", nm_ids=[THEIRS])
+        db_session, workspace_id=theirs.id, payload=SkuGroupWrite(name="Theirs", nm_ids=[THEIRS])
     )
 
     listed = await service.list_groups(workspace_id=mine.id)
 
-    assert [(group.name, group.nm_ids) for group in listed.items] == [("Мои", [MINE])]
+    assert [(group.name, group.nm_ids) for group in listed.items] == [("Mine", [MINE])]
 
 
 async def test_a_group_cuts_the_grid_into_its_own_row(db_session: AsyncSession) -> None:
@@ -239,7 +240,7 @@ async def test_a_group_cuts_the_grid_into_its_own_row(db_session: AsyncSession) 
     mine, _ = await _two_tenants(db_session)
     groups = SkuGroupService(SkuGroupRepository(db_session))
     await groups.create(
-        db_session, workspace_id=mine.id, payload=SkuGroupWrite(name="Костюмы", nm_ids=[MINE])
+        db_session, workspace_id=mine.id, payload=SkuGroupWrite(name="Suits", nm_ids=[MINE])
     )
     query = HeatmapQuery(
         date_from=DAY, date_to=DAY, period="day", group_by="group", metric="stock", metric2=None
@@ -248,8 +249,8 @@ async def test_a_group_cuts_the_grid_into_its_own_row(db_session: AsyncSession) 
     grid = await _heatmap(db_session).build(db_session, workspace_id=mine.id, query=query)
 
     assert sorted((row.label, row.total) for row in grid.rows) == [
-        ("Без группы", 7.0),
-        ("Костюмы", 7.0),
+        ("No group", 7.0),
+        ("Suits", 7.0),
     ]
     assert grid.totals.total == 14.0
 
@@ -276,7 +277,7 @@ async def test_the_ad_currency_comes_from_this_workspaces_own_campaigns(
             AdvertisingWriteOffDaily(
                 stat_date=DAY,
                 campaign_id=MINE,
-                payment_type="Баланс",
+                payment_type=wb.BALANCE,
                 currency="KGS",
                 amount=Decimal("10"),
                 write_offs=1,
@@ -284,7 +285,7 @@ async def test_the_ad_currency_comes_from_this_workspaces_own_campaigns(
             AdvertisingWriteOffDaily(
                 stat_date=DAY,
                 campaign_id=MINE,
-                payment_type="Кэшбэк",
+                payment_type=wb.CASHBACK,
                 currency="BYN",
                 amount=Decimal("5"),
                 write_offs=1,
@@ -292,7 +293,7 @@ async def test_the_ad_currency_comes_from_this_workspaces_own_campaigns(
             AdvertisingWriteOffDaily(
                 stat_date=DAY,
                 campaign_id=THEIRS,
-                payment_type="Баланс",
+                payment_type=wb.BALANCE,
                 currency="RUB",
                 amount=Decimal("99"),
                 write_offs=1,

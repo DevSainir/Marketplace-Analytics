@@ -32,8 +32,8 @@
 
 /* --- the grid ------------------------------------------------------------- */
 
-/* Its own scroll box, both ways: the header and the «Итого» line stick to its
-   top, the article and «Итого» columns to its left. `isolate` keeps those
+/* Its own scroll box, both ways: the header and the "Total" line stick to its
+   top, the article and "Total" columns to its left. `isolate` keeps those
    z-indexes inside the card, below the page chrome and the filter menus. */
 .hm-grid-wrap {
   --hm-head: 44px;
@@ -94,7 +94,7 @@
   font-size: 0.75rem;
 }
 
-/* «Итого» sits right under the header and stays there: it is the yardstick
+/* "Total" sits right under the header and stays there: it is the yardstick
    every row is read against. Opaque, or the rows would scroll through it. */
 .hm-grid__totals td {
   position: sticky;
@@ -125,7 +125,7 @@
   font-weight: 600;
 }
 
-/* «Норма «…»» — between the article and «Итого», sticky with both. Its header
+/* "Target: …" — between the article and "Total", sticky with both. Its header
    wraps: the metric's name is part of it, and some are long. */
 .hm-grid .hm-grid__norm {
   position: sticky;

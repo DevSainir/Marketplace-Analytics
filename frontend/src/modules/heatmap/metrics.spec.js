@@ -45,7 +45,7 @@ describe('a money figure carries its own currency sign', () => {
 
 describe('metricLabel', () => {
   it('names a money metric without a currency — the sign is on the figure', () => {
-    expect(metricLabel(metricOf('spend'))).toBe('Расход на рекламу')
+    expect(metricLabel(metricOf('spend'))).toBe('Ad spend')
   })
 })
 

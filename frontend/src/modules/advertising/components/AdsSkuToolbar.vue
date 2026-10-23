@@ -1,7 +1,7 @@
 <script setup>
 /**
- * The per-article table's filters: search and «Предметы» / «Бренды» /
- * «Группы» — the app's `FilterMenu`, several choices each, as on the heatmap.
+ * The per-article table's filters: search and "Categories" / "Brands" /
+ * "Groups" — the app's `FilterMenu`, several choices each, as on the heatmap.
  * The grain is `GroupingChips`, at the top right of the section.
  *
  * Presentational: every value is a `v-model` owned by `useAdsSource`, which is
@@ -21,7 +21,7 @@ defineProps({
   /** `filterOptions` — what the menus offer. */
   subjectOptions: { type: Array, default: () => [] },
   brandOptions: { type: Array, default: () => [] },
-  /** Whether any filter is set — shows «Сбросить фильтр». */
+  /** Whether any filter is set — shows "Clear filters". */
   filtering: { type: Boolean, default: false },
 })
 
@@ -46,17 +46,17 @@ const options = (values) => values.map((value) => ({ value, label: value }))
     />
 
     <FilterMenu
-      label="Предметы"
+      label="Categories"
       :items="options(subjectOptions)"
       :model-value="subjects"
-      placeholder="Поиск предмета"
+      placeholder="Search categories…"
       @update:model-value="emit('update:subjects', $event)"
     />
     <FilterMenu
-      label="Бренды"
+      label="Brands"
       :items="options(brandOptions)"
       :model-value="brands"
-      placeholder="Поиск бренда"
+      placeholder="Search brands…"
       @update:model-value="emit('update:brands', $event)"
     />
     <GroupsFilter :model-value="groupIds" @update:model-value="emit('update:groupIds', $event)" />
@@ -67,7 +67,7 @@ const options = (values) => values.map((value) => ({ value, label: value }))
       class="ui-btn ui-btn--ghost ui-btn--sm"
       @click="emit('clear')"
     >
-      Сбросить фильтр
+      Clear filters
     </button>
   </div>
 </template>

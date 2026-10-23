@@ -1,4 +1,4 @@
-"""Pure assembly of the «Реклама» page from campaign-grain facts.
+"""Pure assembly of the "Advertising" page from campaign-grain facts.
 
 No I/O: the service loads, this cuts. Every cut — days, zones, articles, the
 headline — is built from the same campaign-day rows, and the bonus reaches each

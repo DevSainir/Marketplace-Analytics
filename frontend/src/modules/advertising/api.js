@@ -1,4 +1,4 @@
-/** HTTP calls of the «Реклама» page. Workspace header and cookies come from the shared client. */
+/** HTTP calls of the "Advertising" page. Workspace header and cookies come from the shared client. */
 import apiClient, { WINDOW_TIMEOUT_MS } from '@/core/api/axios'
 
 /** Every figure for one window: `{date_from, date_to}`. */

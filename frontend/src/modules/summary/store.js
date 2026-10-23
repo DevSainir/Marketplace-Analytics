@@ -8,7 +8,7 @@
  * click on one meant re-aggregating the whole settlement window on the server —
  * seconds of waiting for arithmetic over a few dozen rows.
  *
- * Presets end on the newest SETTLED day rather than today. «30 дней» measured to
+ * Presets end on the newest SETTLED day rather than today. "30 days" measured to
  * today would include days no WB report covers yet and read as a collapse in
  * sales.
  */

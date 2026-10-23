@@ -8,7 +8,7 @@ const SKUS = [
   {
     vendor_code: 'm-a',
     nm_id: 1,
-    subject: 'Брюки',
+    subject: 'Trousers',
     brand: 'X',
     spend: '100',
     bonus: '10',
@@ -23,13 +23,13 @@ const SKUS = [
   },
 ]
 
-function mountTable() {
-  const rows = groupRows(toRows(SKUS), 'sku', 100)
+function mountTable(grain = 'sku', groups = []) {
+  const rows = groupRows(toRows(SKUS), grain, 100, groups)
   return mount(AdsSkuTable, {
     props: {
       rows,
-      total: totalRow(rows, 100),
-      labelHeader: 'Артикул',
+      total: totalRow(toRows(SKUS), 100),
+      labelHeader: 'SKU',
       currency: 'KGS',
       showBonus: true,
     },
@@ -40,13 +40,25 @@ function mountTable() {
 describe('AdsSkuTable — an article opens into its display zones', () => {
   it('shows the zones under the row only once the ▶ is clicked', async () => {
     const wrapper = mountTable()
-    expect(wrapper.text()).not.toContain('Зона показа')
+    expect(wrapper.text()).not.toContain('Placement')
 
     await wrapper.find('button[aria-expanded]').trigger('click')
 
     const text = wrapper.text()
-    expect(text).toContain('Единая ставка · Полки')
-    expect(text).toContain('Ручной поиск · Поиск')
-    expect(text.indexOf('Единая ставка · Полки')).toBeLessThan(text.indexOf('Ручной поиск'))
+    expect(text).toContain('Unified bid · Shelves')
+    expect(text).toContain('Manual search · Search')
+    expect(text.indexOf('Unified bid · Shelves')).toBeLessThan(text.indexOf('Manual search'))
+  })
+})
+
+describe('AdsSkuTable — names', () => {
+  it('prints an article code uppercase and a group or the total as named', () => {
+    const bySku = mountTable().text()
+    const byGroup = mountTable('group', [{ id: 'a', name: 'Summer', nm_ids: [1] }]).text()
+
+    expect(bySku).toContain('M-A')
+    expect(byGroup).toContain('Summer')
+    expect(byGroup).not.toContain('SUMMER')
+    expect(byGroup).toContain('Total · 1')
   })
 })

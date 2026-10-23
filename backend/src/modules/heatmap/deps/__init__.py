@@ -2,7 +2,7 @@
 
 The read service composes its own repository with two finreports services,
 taken from that module's contract rather than rebuilt from its repositories —
-the same arrangement «Сводка» uses.
+the same arrangement "Summary" uses.
 """
 
 from typing import Annotated

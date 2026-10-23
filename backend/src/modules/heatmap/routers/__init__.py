@@ -3,13 +3,13 @@
 Two grants, each attached where its router is included so no route under it
 can forget it:
 
-* ``require_heatmap`` — the grid and its hand-set norms: «Тепловая карта» is a
+* ``require_heatmap`` — the grid and its hand-set norms: "Heatmap" is a
   page of its own, and its grant opens every metric on it, the settlement's
   money included (that also asked for P&L until 2026-10-12).
 * ``require_groups`` — the groups and the card catalogue their editor picks
-  from. Groups are a control on «Сводка», P&L, «Тепловая карта» and «Реклама»,
+  from. Groups are a control on "Summary", P&L, "Heatmap" and "Advertising",
   so whoever holds any one of those reads them; until 2026-10-12 they sat
-  behind «Мониторинг», and a manager with P&L alone had no group filter.
+  behind "Monitoring", and a manager with P&L alone had no group filter.
 
 Both resolve through ``require_member``, so a lapsed subscription is refused
 before anything is asked. Writes add ``WritingAccess`` per route

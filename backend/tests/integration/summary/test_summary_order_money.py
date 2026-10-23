@@ -1,6 +1,6 @@
-"""«Сводка»'s ordered money is in the workspace's currency, at either price base.
+"""The summary's ordered money is in the workspace's currency, at either price base.
 
-«ДРР от заказов» divides advertising — in soms on a Kyrgyz workspace — by what
+"ACoS (orders)" divides advertising — in soms on a Kyrgyz workspace — by what
 the orders were worth. At the seller's price that is WB's own funnel sum,
 already in soms; at the customer's price WB publishes none, so the WB sum is
 scaled by the card's customer/seller price ratio. A day WB served no sum for is

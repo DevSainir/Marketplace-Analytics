@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, StringConstraints
 
 #: Every metric the heatmap can paint, grouped the way the picker lists them.
 MetricKey = Literal[
-    # «Воронка» — WB's sales funnel, one row per SKU per day.
+    # "Funnel" — WB's sales funnel, one row per SKU per day.
     "orders",
     "order_sum",
     "opens",
@@ -24,7 +24,7 @@ MetricKey = Literal[
     "cart_conversion",
     "order_conversion",
     "organic_opens",
-    # «Реклама» — the Promotion API's per-SKU statistics.
+    # "Advertising" — the Promotion API's per-SKU statistics.
     "spend",
     "ad_views",
     "ad_clicks",
@@ -35,12 +35,12 @@ MetricKey = Literal[
     "ad_cr",
     "cpo",
     "drr_orders",
-    # «Цены и остатки» (prices and stock) — daily snapshots.
+    # "Prices and stock" — daily snapshots.
     "seller_price",
     "customer_price",
     "spp",
     "stock",
-    # «Финансы» (finance) — WB's settlement, which arrives weekly.
+    # "Finance" — WB's settlement, which arrives weekly.
     "revenue",
     "sales",
     "profit",
@@ -66,11 +66,11 @@ class HeatmapColumn(BaseModel):
 
 
 class HeatmapRow(BaseModel):
-    """One row: an article, a category, a brand, a group — or the «Итого» line.
+    """One row: an article, a category, a brand, a group — or the "Total" line.
 
     ``values`` runs parallel to :attr:`HeatmapResponse.columns`; ``None`` is a
     cell with nothing to show (not measured, not settled yet, or a ratio with
-    no denominator), which the page renders as «—» and leaves unpainted.
+    no denominator), which the page renders as "—" and leaves unpainted.
     """
 
     key: str
@@ -81,7 +81,7 @@ class HeatmapRow(BaseModel):
     photo_url: str = ""
     #: How many articles the row covers — 1 for an article row.
     sku_count: int
-    #: The primary metric over the whole window («Итого» column).
+    #: The primary metric over the whole window ("Total" column).
     total: float | None
     values: list[float | None]
     #: The second metric, when one was asked for.
@@ -116,7 +116,7 @@ class HeatmapResponse(BaseModel):
     #: spend cell names its own in :attr:`HeatmapRow.units`; a cell over two
     #: currencies has no figure (on one workspace, RUB until 20.08.2026, KGS after).
     ad_currencies: list[str] = Field(default_factory=list)
-    #: What «Заказы, деньги» is in — WB's funnel sums, the settlement currency.
+    #: What "Orders" (the money) is in — WB's funnel sums, the settlement currency.
     order_currency: str = ""
     #: Last day WB has settled for this workspace. Finance cells after it are
     #: ``None`` — WB has not calculated them — rather than zero.
@@ -124,7 +124,7 @@ class HeatmapResponse(BaseModel):
     #: Oldest first: the grid reads left to right in time, like the monitoring
     #: matrix, and opens scrolled to its newest end.
     columns: list[HeatmapColumn]
-    #: «Итого» — every article of the selection, counted once.
+    #: "Total" — every article of the selection, counted once.
     totals: HeatmapRow
     #: Most-ordered first; the page re-sorts on a header click.
     rows: list[HeatmapRow]
@@ -144,7 +144,7 @@ class HeatmapCatalogItem(BaseModel):
 
 
 class HeatmapCatalogResponse(BaseModel):
-    """The workspace's catalogue, for the «Категории» and «Артикулы» filters.
+    """The workspace's catalogue, for the "Categories" and "SKUs" filters.
 
     Items come most-ordered first over the requested window.
     """
@@ -155,7 +155,7 @@ class HeatmapCatalogResponse(BaseModel):
 
 
 class SkuGroupRead(BaseModel):
-    """A seller-defined set of articles, shown as one «Группы» option."""
+    """A seller-defined set of articles, shown as one "Groups" option."""
 
     id: uuid.UUID
     name: str

@@ -1,4 +1,4 @@
-"""Where «Сводка» gets each daily figure, and what it does when a source stops.
+"""Where "Summary" gets each daily figure, and what it does when a source stops.
 
 The reconciliation tests next door ask whether the arithmetic closes. These ask
 the question underneath it: which WB surface answered, whether it was allowed to
@@ -69,7 +69,7 @@ async def test_a_day_outside_the_window_is_not_loaded(
 async def test_the_ordered_money_needs_a_price_and_says_so_when_it_has_none(
     db_session: AsyncSession, catalogued: None
 ) -> None:
-    """«ДРР от заказов» divides by Σ(orders x price) — or by nothing at all.
+    """The "ACoS (orders)" line divides by Σ(orders x price) — or by nothing at all.
 
     WB's funnel publishes counts, never a money volume, so a day is worth its
     orders priced at that day's own snapshot. A day with no snapshot therefore
@@ -87,13 +87,13 @@ async def test_the_ordered_money_needs_a_price_and_says_so_when_it_has_none(
 async def test_a_window_too_fresh_to_have_a_cohort_borrows_the_standing_one(
     db_session: AsyncSession, catalogued: None
 ) -> None:
-    """«Выкуп» for the last week comes from «21-7 дней назад», and says so.
+    """The buyout rate for the last week comes from "21-7 days ago", and says so.
 
     The page opens on a week, and a week's own deliveries have barely been
     answered — only a small fraction of them, reading several points below the
     long-run rate because refusals arrive before buyouts. So the card falls
     back to the standing window rather than reporting a cohort that is merely
-    early, and carries a flag the page turns into «за 21-7 дней до сегодня».
+    early, and carries a flag the page turns into "Average over earlier days".
     """
     settled_day = moscow_today() - timedelta(days=14)
     db_session.add_all(

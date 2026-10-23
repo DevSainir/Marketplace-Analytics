@@ -4,8 +4,8 @@ Orchestration only — which articles are selected, which sources to load, and
 handing the facts to the pure folding in :mod:`.table`. The numbers themselves
 are decided in :mod:`.metrics`.
 
-Filters narrow, they never widen, and they combine by intersection — «Категории»,
-«Группы» and «Артикулы» all at once. Every one of them is applied to the workspace's OWN
+Filters narrow, they never widen, and they combine by intersection — "Categories",
+"Groups" and "SKUs" all at once. Every one of them is applied to the workspace's OWN
 catalogue, so an article id from somewhere else is not in the set to begin with.
 """
 
@@ -83,7 +83,7 @@ class HeatmapService:
     ) -> HeatmapCatalogResponse:
         """Every card of the workspace, most-ordered in the window first, and its subjects.
 
-        The article pickers — the «Артикулы» filter and the group editor — list a
+        The article pickers — the "SKUs" filter and the group editor — list a
         few hundred cards on a large workspace; the ones a seller is looking for
         are the ones that sell, so they come first rather than alphabetically.
         """

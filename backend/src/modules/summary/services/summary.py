@@ -1,4 +1,4 @@
-"""Read-side service for «Сводка».
+"""Read-side service for "Summary".
 
 This module owns no data. It composes two finreports cuts of the settlement —
 the per-SKU report and the same window cut by settlement date — with the three
@@ -51,7 +51,7 @@ _ANSWERED_ENOUGH = 0.5
 
 
 class SummaryService:
-    """Builds the «Сводка» for a workspace and window."""
+    """Builds the "Summary" for a workspace and window."""
 
     def __init__(self, *, pnl: PnlService, skus: SkuReportService) -> None:
         """Wire the read service from the finreports services it composes."""
@@ -90,7 +90,7 @@ class SummaryService:
         """Return the window's buyout cohort, or the standing one if it has none.
 
         The cohort is lagged by :data:`BUYOUT_LAG_END_DAYS`, the same lag the
-        «Мониторинг SKU» matrix applies, and for the same measured reason: inside
+        monitoring matrix applies, and for the same measured reason: inside
         a fresh cohort the refusals arrive before the buyouts do. Measured on
         one workspace, the current week read several points below the long-run
         rate, with under a tenth of its deliveries answered at all.
@@ -104,7 +104,7 @@ class SummaryService:
         answered, it read high.
 
         So the period answers for itself only when most of what it ordered has
-        been answered. Otherwise the standing «21-7 дней назад» window answers
+        been answered. Otherwise the standing "21-7 days ago" window answers
         instead, and the page says that is what it did rather than passing one
         period's rate off as another's.
 

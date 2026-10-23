@@ -36,20 +36,20 @@ describe('AdsDailyChart — the legend checkboxes switch lines', () => {
   it('hides a line when its box is unticked and brings it back when ticked', async () => {
     const wrapper = mountChart()
 
-    await legendBox(wrapper, 'Промо-бонусы').setValue(false)
+    await legendBox(wrapper, 'Promo bonuses').setValue(false)
     const hidden = seriesNames(wrapper)
-    await legendBox(wrapper, 'Промо-бонусы').setValue(true)
+    await legendBox(wrapper, 'Promo bonuses').setValue(true)
 
-    expect(hidden).toEqual(['Расход с баланса', 'ДРР от продаж'])
-    expect(seriesNames(wrapper)).toEqual(['Расход с баланса', 'Промо-бонусы', 'ДРР от продаж'])
+    expect(hidden).toEqual(['Spend from balance', 'ACoS (sales)'])
+    expect(seriesNames(wrapper)).toEqual(['Spend from balance', 'Promo bonuses', 'ACoS (sales)'])
   })
 
-  it('takes the percent axis away with the ДРР line', async () => {
+  it('takes the percent axis away with the ACoS line', async () => {
     const wrapper = mountChart()
 
-    await legendBox(wrapper, 'ДРР от продаж').setValue(false)
+    await legendBox(wrapper, 'ACoS (sales)').setValue(false)
 
     expect(wrapper.findComponent(BaseChartStub).props('option').yAxis[1].show).toBe(false)
-    expect(legendBox(wrapper, 'ДРР от продаж').element.checked).toBe(false)
+    expect(legendBox(wrapper, 'ACoS (sales)').element.checked).toBe(false)
   })
 })

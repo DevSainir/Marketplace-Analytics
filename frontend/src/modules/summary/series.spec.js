@@ -42,13 +42,13 @@ describe('drr', () => {
   })
 
   it('is withheld on a day that returned more than it sold, rather than negative', () => {
-    // A sample day: 1 520 of advertising against −14 870 of sales.
+    // A sample day: 1,520 of advertising against −14,870 of sales.
     expect(drr('1520', '-14870')).toBeNull()
   })
 })
 
 describe('the day charts', () => {
-  it('puts ДРР on its own axis, as a percentage', () => {
+  it('puts ACoS on its own axis, as a percentage', () => {
     const [count, share] = orderSeries([day()], { base: 'seller' })
 
     expect(count.axis).toBeUndefined()
@@ -77,6 +77,6 @@ describe('the revenue chart', () => {
   it('omits the margin line entirely while the window is uncosted', () => {
     const lines = revenueSeries([day()], { base: 'seller', costed: false })
 
-    expect(lines.map((line) => line.name)).toEqual(['Выручка'])
+    expect(lines.map((line) => line.name)).toEqual(['Revenue'])
   })
 })

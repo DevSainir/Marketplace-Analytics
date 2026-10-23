@@ -1,4 +1,4 @@
-/* «Выручка по категории». Split out only because the repo caps a component at
+/* "Revenue by category". Split out only because the repo caps a component at
    250 lines; still `scoped` — referenced with `<style scoped src>`.
 
    The grid is one template shared by the header and every row, so the columns

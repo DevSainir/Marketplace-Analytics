@@ -1,6 +1,6 @@
 """The page's four cuts — headline, days, zones, articles — come from one set of rows.
 
-The reason they must agree is the reader: «Итого» in the article table, the
+The reason they must agree is the reader: "Total" in the article table, the
 headline card and the sum of the chart are the same money, and any difference
 between them reads as a bug in the report rather than as rounding.
 """
@@ -49,8 +49,8 @@ def _facts() -> AdCampaignFacts:
 
 def _cards() -> list[CatalogCard]:
     return [
-        CatalogCard(NM_A, "M-A", "", "", "Брюки", "X"),
-        CatalogCard(NM_B, "M-B", "", "", "Куртки", "Y"),
+        CatalogCard(NM_A, "M-A", "", "", "Trousers", "X"),
+        CatalogCard(NM_B, "M-B", "", "", "Jackets", "Y"),
     ]
 
 

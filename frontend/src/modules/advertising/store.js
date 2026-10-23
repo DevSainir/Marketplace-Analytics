@@ -1,5 +1,5 @@
 /**
- * «Реклама» Pinia store (setup style).
+ * "Advertising" Pinia store (setup style).
  *
  * The window is the only thing that costs a round trip. The bonus switch, the
  * table's grain, its filters and its search are all answered from the payload.
@@ -81,7 +81,7 @@ export const useAdvertisingStore = defineStore('advertising', () => {
   const drrComparable = computed(() =>
     (data.value?.ad_currencies ?? []).every((code) => code === currency.value),
   )
-  /** The «Куда ушли деньги» cards, and the spend no card can hold. */
+  /** The "Where the money went" cards, and the spend no card can hold. */
   const bids = computed(() => bidCards(data.value?.zones ?? []))
 
   async function load() {
@@ -115,7 +115,7 @@ export const useAdvertisingStore = defineStore('advertising', () => {
    * could end on its last day — which put a whole round trip in front of the
    * first figure. Advertising statistics are a stream that reaches today, so
    * the window can end today without waiting to be told; the span arrives in
-   * parallel and only feeds the picker («Вся история» starts at its first
+   * parallel and only feeds the picker ("All time" starts at its first
    * day). A failed span read is swallowed: the page does not need it to load.
    */
   async function init() {

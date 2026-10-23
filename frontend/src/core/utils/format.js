@@ -179,3 +179,20 @@ export function formatPercent(value, fractionDigits = 2) {
 export function plural(n, [one, other]) {
   return Math.abs(n) === 1 ? one : other
 }
+
+/**
+ * A number as a person types it, normalised so `Number()` reads it as meant:
+ * "1,200" and "1 200" are twelve hundred, "1,200.50" carries cents, and
+ * "795,50" — a comma with one or two digits after it and no point anywhere —
+ * is still a decimal comma, the way sellers on a Russian-language marketplace
+ * write a price. Only the separators are resolved; whether the result is a
+ * number at all is the caller's to check.
+ *
+ * @param {string|null|undefined} text What was typed.
+ * @returns {string} `''` for an empty field.
+ */
+export function normalizeTypedNumber(text) {
+  const raw = String(text ?? '').replace(/[\s\u00a0\u202f]/g, '')
+  if (raw.includes('.') || /^-?\d{1,3}(,\d{3})+$/.test(raw)) return raw.replace(/,/g, '')
+  return raw.replace(',', '.')
+}

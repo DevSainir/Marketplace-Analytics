@@ -1,4 +1,4 @@
-"""HTTP routes for the heatmap's «Группы».
+"""HTTP routes for the heatmap's "Groups".
 
 Reads take the tenant from ``X-Workspace-Id``. Writes take ``WritingAccess`` as
 well: a group is shared by everyone in the workspace and changes what their
@@ -25,9 +25,11 @@ router = APIRouter(prefix="/heatmap/groups")
 
 _WRITE_ERRORS: dict[int | str, dict[str, str]] = {
     401: {"description": "Unauthorized access token."},
-    403: {"description": "Доступ только для чтения."},
-    409: {"description": "Группа с таким названием уже есть."},
-    422: {"description": "Название пустое, артикулов нет в каталоге или достигнут лимит."},
+    403: {"description": "Read-only access."},
+    409: {"description": "A group with this name already exists."},
+    422: {
+        "description": "The name is empty, an SKU is not in the catalog, or the limit is reached."
+    },
 }
 
 
@@ -65,7 +67,7 @@ async def create_group(
     "/{group_id}",
     response_model=SkuGroupRead,
     status_code=status.HTTP_200_OK,
-    responses={**_WRITE_ERRORS, 404: {"description": "Группа не найдена."}},
+    responses={**_WRITE_ERRORS, 404: {"description": "Group not found."}},
 )
 async def update_group(
     _writer: WritingAccess,
@@ -90,8 +92,8 @@ async def update_group(
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Доступ только для чтения."},
-        404: {"description": "Группа не найдена."},
+        403: {"description": "Read-only access."},
+        404: {"description": "Group not found."},
     },
 )
 async def delete_group(

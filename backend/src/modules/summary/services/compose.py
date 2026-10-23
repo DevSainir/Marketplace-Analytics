@@ -1,4 +1,4 @@
-"""The «Сводка» arithmetic — pure functions over already-loaded figures.
+"""The "Summary" arithmetic — pure functions over already-loaded figures.
 
 Nothing here touches a session. Every input is a DTO the finreports and
 monitoring contracts already produced, which is what lets the whole surface be
@@ -12,10 +12,10 @@ Three rules run through all of it:
   is right for a table a seller reads row by row and wrong for one headline
   number, where the omission is invisible.
 * **Advertising is charged once, and the total is WB's invoice.** WB withholds
-  it as one invoice per week, already inside «к перечислению», and the Promotion
+  it as one invoice per week, already inside the payout, and the Promotion
   API reports the same spend dated to the days the ads ran. The cards charge
   the invoices — what WB billed is the total, the owner's decision of
-  2026-10-02, the same as the P&L's «Итого». The daily margin lays those
+  2026-10-02, the same as the P&L's "Total". The daily margin lays those
   invoices over the days in proportion to each day's own burn, so a day neither
   craters on invoice day nor counts the charge twice, and the chart still sums
   to the card.
@@ -73,7 +73,7 @@ def build_kpi(
             denominator the buyouts may be divided by.
         buyout_lagged: Whether those two came from the standing window rather
             than from the chosen period.
-        settled_advertising: The «WB Продвижение» invoices the window's
+        settled_advertising: The "WB Promotion" invoices the window's
             settlement withheld — what the cards charge for advertising.
 
     Returns:
@@ -82,7 +82,7 @@ def build_kpi(
     totals = report.totals
     missing = uncosted_skus(report)
 
-    # Advertising is subtracted exactly ONCE, as WB's invoice: «к перечислению»
+    # Advertising is subtracted exactly ONCE, as WB's invoice: the payout
     # is already net of it, so the margin is the payout less the goods. Taking
     # the burn off as well charged it twice, and understated the margin by the
     # whole advertising bill.
@@ -181,9 +181,9 @@ def build_days(
         ad_cash = cash_by_day.get(day)
         margin = None
         if costed and bucket is not None:
-            # bucket.advertising is the «WB Продвижение» invoice the settlement
+            # bucket.advertising is the "WB Promotion" invoice the settlement
             # charged on this date; bucket.margin_profit has already subtracted
-            # it inside «Удержания». It goes back, and the day's share of the
+            # it inside "Deductions". It goes back, and the day's share of the
             # window's invoices comes off instead.
             margin = bucket.margin_profit + bucket.advertising - invoiced.get(day, _ZERO)
         days.append(
@@ -264,9 +264,9 @@ def build_rows(report: PnlSkuReportResponse) -> list[SummarySkuRow]:
 def buyout_cohort(days: list[OrderDay], *, until: date) -> tuple[int | None, int | None]:
     """Sum the buyout cohort over the days that have answered, up to ``until``.
 
-    WB's own definition of «Процент выкупа»: bought out over bought out plus
+    WB's own definition of the buyout rate: bought out over bought out plus
     refused. A day the cohort pass has never refreshed carries no refusals to
-    add, so it is skipped rather than read as «none were refused» — that
+    add, so it is skipped rather than read as "none were refused" — that
     exclusion is what makes the matrix's figure match WB's, and the same reason
     applies here.
 

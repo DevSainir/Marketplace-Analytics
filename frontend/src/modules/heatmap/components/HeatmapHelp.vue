@@ -1,9 +1,9 @@
 <script setup>
 /**
- * «Как использовать» — the page's own short manual, opened in place.
+ * "How to use" — the page's own short manual, opened in place.
  *
  * Deliberately short: what the colours mean, the two ways of comparing, the
- * second metric and the two «Итого». The method behind the colour lives in
+ * second metric and the two "Total"s. The method behind the colour lives in
  * `heatScale.js`, not in front of the seller.
  */
 import { ref } from 'vue'
@@ -19,7 +19,7 @@ const open = ref(false)
       :aria-expanded="open"
       @click="open = !open"
     >
-      ⓘ Как использовать
+      ⓘ How to use
     </button>
     <div v-if="open" class="fixed inset-0 z-30" @click="open = false"></div>
     <div
@@ -27,40 +27,38 @@ const open = ref(false)
       class="ui-pop ui-glass ui-glass--pop right-0 mt-xs max-h-[70vh] w-[min(28rem,calc(100vw-32px))] overflow-y-auto p-lg text-base text-primary"
     >
       <p>
-        <b>Цвет.</b> Норма — медиана. Выше нормы — зелёный, ниже — красный; чем ближе к лучшему или
-        худшему значению, тем ярче. Для ДРР, CPC, CPM, CPO и расхода на рекламу лучше — меньше.
-        Цены, СПП и остатки — фиолетовые: чем выше значение, тем ярче. «Итого» и пустые ячейки не
-        красятся.
+        <b>Color.</b> The target is the median. Above it is green, below it red; the closer to the
+        best or worst value, the brighter. For ACoS, CPC, CPM, CPO and ad spend, lower is better.
+        Prices, WB discount and stock are purple: the higher the value, the brighter. "Total" and
+        empty cells are not colored.
       </p>
       <p class="mt-sm">
-        <b>Сравнение по строке.</b> Показатели сопоставляются в пределах одной строки (товара,
-        бренда, категории или группы) за выбранный период. Норма рассчитывается отдельно для этой
-        строки.
+        <b>By row.</b> Figures are compared within one row (an SKU, brand, category or group) over
+        the selected period. The target is computed for that row alone.
       </p>
       <p class="mt-sm">
-        Удобно, когда нужно разобраться во внутренней динамике отдельного объекта: где рост, где
-        спад, где нестабильность.
+        Useful for reading one item's own trend: where it grows, where it dips, where it wavers.
       </p>
       <p class="mt-sm">
-        <b>Сравнение по всей таблице.</b> Показатели сопоставляются между всеми строками текущей
-        выборки. Норма рассчитывается сразу по всей таблице. Удобно, когда нужно ранжировать объекты
-        между собой: найти лидеров, отстающих и общий уровень эффективности.
+        <b>Whole table.</b> Figures are compared across every row of the current selection. The
+        target is computed over the whole table. Useful for ranking: finding the leaders, the
+        laggards and the overall level.
       </p>
       <p class="mt-sm">
-        <b>Норма.</b> «По умолчанию» — норма считается сама, это медиана. «Ручной ввод» — впишите
-        свою норму для артикула в колонке «Норма»: цвет покажет, выше он или ниже. Норма — за один
-        день; в виде по неделям и месяцам она умножается на количество дней (кроме процентов, цен и
-        остатков). У каждой метрики своя норма. Работает в разбивке только по товару. «По всей
-        таблице» — артикул всё равно сравнивается со своей нормой, но самый яркий цвет — у самого
-        большого отклонения во всей таблице, поэтому у небольших товаров цвета бледнее.
+        <b>Target.</b> "Median" — computed for you. "Manual" — type your own target for an SKU in
+        the "Target" column, and the color shows whether it is above or below. A target is per day;
+        the weekly and monthly views multiply it by the number of days (except percentages, prices
+        and stock). Each metric has its own target. Works only with rows by SKU. With "Whole table"
+        an SKU is still compared with its own target, but the brightest color goes to the largest
+        deviation in the table, so small SKUs look paler.
       </p>
       <p class="mt-sm">
-        <b>Две метрики.</b> Выберите вторую справа — в ячейке будет два числа: сверху основная (по
-        ней цвет), снизу вторая. ⇄ меняет их местами.
+        <b>Two metrics.</b> Pick a second one on the right: each cell then holds two numbers, the
+        primary on top (it sets the color) and the second below. ⇄ swaps them.
       </p>
       <p class="mt-sm">
-        <b>Итого.</b> Строка сверху — все выбранные артикулы за день. Колонка слева — строка за весь
-        период.
+        <b>Total.</b> The top row: every selected SKU, per column. The left column: each row over
+        the whole period.
       </p>
     </div>
   </div>

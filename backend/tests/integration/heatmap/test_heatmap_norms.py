@@ -25,7 +25,7 @@ THEIRS = 322222222
 
 async def _workspace_with_card(session: AsyncSession, name: str, nm_id: int) -> Workspace:
     """Persist a workspace in an organisation of its own, owning one article."""
-    org = Organization(name=f"Орг {name}", is_primary=False)
+    org = Organization(name=f"Org {name}", is_primary=False)
     session.add(org)
     await session.flush()
     workspace = Workspace(organization_id=org.id, name=name)
@@ -38,7 +38,7 @@ async def _workspace_with_card(session: AsyncSession, name: str, nm_id: int) -> 
 
 async def test_setting_a_norm_twice_keeps_the_last_value(db_session: AsyncSession) -> None:
     """One norm per article and metric: a second set replaces, never stacks."""
-    mine = await _workspace_with_card(db_session, "Мой", MINE)
+    mine = await _workspace_with_card(db_session, "Mine", MINE)
     service = SkuNormService(SkuNormRepository(db_session))
 
     await service.set_norm(db_session, workspace_id=mine.id, nm_id=MINE, metric="orders", value=50)
@@ -56,8 +56,8 @@ async def test_a_norm_cannot_be_set_on_another_workspaces_article(
     db_session: AsyncSession,
 ) -> None:
     """«This article exists» is not «this article is yours»."""
-    mine = await _workspace_with_card(db_session, "Мой", MINE)
-    await _workspace_with_card(db_session, "Чужой", THEIRS)
+    mine = await _workspace_with_card(db_session, "Mine", MINE)
+    await _workspace_with_card(db_session, "Theirs", THEIRS)
     service = SkuNormService(SkuNormRepository(db_session))
 
     with pytest.raises(ValidationError):
@@ -70,8 +70,8 @@ async def test_norms_are_listed_and_cleared_for_their_own_workspace(
     db_session: AsyncSession,
 ) -> None:
     """Another workspace's norm is neither listed nor cleared, even when named."""
-    mine = await _workspace_with_card(db_session, "Мой", MINE)
-    theirs = await _workspace_with_card(db_session, "Чужой", THEIRS)
+    mine = await _workspace_with_card(db_session, "Mine", MINE)
+    theirs = await _workspace_with_card(db_session, "Theirs", THEIRS)
     service = SkuNormService(SkuNormRepository(db_session))
     await service.set_norm(db_session, workspace_id=mine.id, nm_id=MINE, metric="orders", value=1)
     await service.set_norm(

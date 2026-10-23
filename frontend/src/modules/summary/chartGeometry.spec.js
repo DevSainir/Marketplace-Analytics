@@ -24,8 +24,8 @@ describe('niceMax', () => {
 
 describe('shortNumber', () => {
   it('shortens an axis tick without inventing precision', () => {
-    expect(shortNumber(1_200_000)).toBe('1,2 млн')
-    expect(shortNumber(23_400)).toBe('23 тыс')
+    expect(shortNumber(1_200_000)).toBe('1.2M')
+    expect(shortNumber(23_400)).toBe('23K')
     expect(shortNumber(842)).toBe('842')
   })
 })

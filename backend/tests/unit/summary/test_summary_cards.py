@@ -1,4 +1,4 @@
-"""The «Сводка» cards and its daily series, against hand-written figures.
+"""The "Summary" cards and its daily series, against hand-written figures.
 
 Both are pure functions over DTOs the finreports and monitoring contracts
 already produced, so they are provable here rather than in a tier that needs
@@ -68,11 +68,11 @@ def test_a_fully_costed_window_reports_its_margin() -> None:
 
 
 def test_advertising_is_charged_once_as_wbs_invoice() -> None:
-    """«К перечислению» is already net of WB's weekly invoice, and the invoice is the total.
+    """The payout is already net of WB's weekly invoice, and the invoice is the total.
 
     Taking the burn off as well charged it twice, and the card came out well
     below the true margin over a 54-day window. Since 2026-10-02 the card
-    charges the invoice, as the P&L's «Итого» does.
+    charges the invoice, as the P&L's "Total" does.
     """
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     # payout_net 800 is already net of a 200 invoice.
@@ -93,7 +93,7 @@ def test_advertising_is_charged_once_as_wbs_invoice() -> None:
 
 
 def test_the_invoice_stays_inside_the_payout() -> None:
-    """WB's invoice is withheld inside «к перечислению»; nothing is added back."""
+    """WB's invoice is withheld inside the payout; nothing is added back."""
     row = make_row(nm_id=1, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
     totals = make_row(nm_id=0, revenue="1000", payout_net="800", cost_price="30", net_profit="500")
 
@@ -144,7 +144,7 @@ def test_the_buyout_counter_travels_with_its_own_denominator() -> None:
     """Bought out and ANSWERED go out raw; the page divides them.
 
     The denominator is deliveries the buyer answered — bought out or refused —
-    which is WB's own definition and the one «Сравнение SKU» has always used.
+    which is WB's own definition and the one the old "SKU comparison" page has always used.
     Dividing by ORDERS instead is what made this card climb for three weeks
     after every order: an order still in transit counted against the rate as
     though it had been refused. Illustratively, the orders-based figure reads
@@ -198,7 +198,7 @@ def test_no_funnel_coverage_is_not_zero_orders() -> None:
 
 
 def test_both_price_bases_travel_on_every_figure() -> None:
-    """Switching «Цена реализации» ⇄ «Цена селлера» must cost nothing.
+    """Switching "Customer price" ⇄ "Seller price" must cost nothing.
 
     Sending one base and re-requesting for the other put a round trip over the
     whole settlement window behind a toggle — seconds, for a division the page
@@ -356,9 +356,9 @@ def test_a_day_wb_has_not_calculated_still_shows_its_orders_and_its_spend() -> N
 
 
 def test_the_advertising_invoice_is_not_counted_as_a_withholding() -> None:
-    """«Штрафы и удержания» excludes the money the DRR card already reports.
+    """The "Penalties and deductions" card excludes the money the DRR card already reports.
 
-    WB withholds advertising as an invoice inside «Удержания», so a card that
+    WB withholds advertising as an invoice inside "Deductions", so a card that
     summed that line whole would show the same spend twice — once as a
     withholding, once as advertising — and a seller reading both would conclude
     the workspace paid for it twice.

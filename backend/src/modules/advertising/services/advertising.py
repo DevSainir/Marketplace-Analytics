@@ -1,4 +1,4 @@
-"""The «Реклама» read service: load from two contracts, hand to :mod:`.compose`.
+"""The "Advertising" read service: load from two contracts, hand to :mod:`.compose`.
 
 Advertising comes from monitoring (WB's ``fullstats``, the search slice, the
 funding ledger, the campaign settings); sales come from the finreports
@@ -27,7 +27,7 @@ from src.modules.monitoring.contract import (
 
 
 class AdvertisingService:
-    """Builds the «Реклама» page for a workspace and window."""
+    """Builds the "Advertising" page for a workspace and window."""
 
     def __init__(self, *, pnl: PnlService, skus: SkuReportService) -> None:
         """Wire the read service from the finreports services it takes sales from."""
@@ -54,7 +54,7 @@ class AdvertisingService:
     ) -> AdvertisingResponse:
         """Return every figure the page draws for one window.
 
-        DRR is "of sales" («от продаж») in the strict sense: the seller's own spend — WB's
+        DRR is "of sales" (ACoS (sales)) in the strict sense: the seller's own spend — WB's
         bonus taken off — on the settled days, over the settled sales of the
         SAME days (minus returns, at the seller's price, the base the P&L takes
         every share of). Days past the settlement have spend and no sales, and

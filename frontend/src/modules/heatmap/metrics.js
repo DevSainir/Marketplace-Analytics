@@ -5,12 +5,12 @@
  * Keys are the backend's (`MetricKey` in `heatmap/schemas.py`), shared
  * verbatim; this file owns only presentation — the same split the monitoring
  * matrix uses. The direction is what the colour is built on, so it is the one
- * field here with consequences: «меньше — лучше» for every cost ratio (DRR,
- * CPC, CPM, CPO) and for the ad budget, «нейтрально» for prices and stock,
- * which have no better end, and «больше — лучше» for everything else.
+ * field here with consequences: "lower is better" for every cost ratio (DRR,
+ * CPC, CPM, CPO) and for the ad budget, "neutral" for prices and stock,
+ * which have no better end, and "higher is better" for everything else.
  *
  * Money names carry no currency; every figure carries its own sign
- * («1 240с», «4 120₽») from `currencyOf` — the prices' for prices and order
+ * ("KGS 1,240", "₽4,120") from `currencyOf` — the prices' for prices and order
  * sums, the campaigns' for spend and its costs, the settlement's for revenue
  * and profit. A workspace settled in KGS is priced in RUB, so one workspace-wide
  * unit was wrong for some figure whichever unit it was.
@@ -26,56 +26,62 @@ import { formatNumber, withCurrency } from '@/core/utils/format'
  *   group: string, settled?: boolean, currencyOf?: CurrencySource}>}
  */
 export const METRICS = [
-  { key: 'orders', label: 'Заказы, шт', unit: 'count', direction: 'up', group: 'Воронка' },
+  { key: 'orders', label: 'Orders, units', unit: 'count', direction: 'up', group: 'Funnel' },
   {
     key: 'order_sum',
-    label: 'Заказы',
+    label: 'Orders',
     unit: 'money',
     currencyOf: 'orders',
     direction: 'up',
-    group: 'Воронка',
+    group: 'Funnel',
   },
-  { key: 'opens', label: 'Переходы в карточку', unit: 'count', direction: 'up', group: 'Воронка' },
-  { key: 'carts', label: 'Корзины', unit: 'count', direction: 'up', group: 'Воронка' },
+  { key: 'opens', label: 'Card clicks', unit: 'count', direction: 'up', group: 'Funnel' },
+  { key: 'carts', label: 'Add to cart', unit: 'count', direction: 'up', group: 'Funnel' },
   {
     key: 'cart_conversion',
-    label: 'Конверсия в корзину, %',
+    label: 'Cart conversion, %',
     unit: 'percent',
     direction: 'up',
-    group: 'Воронка',
+    group: 'Funnel',
   },
   {
     key: 'order_conversion',
-    label: 'Конверсия в заказ, %',
+    label: 'Order conversion, %',
     unit: 'percent',
     direction: 'up',
-    group: 'Воронка',
+    group: 'Funnel',
   },
   {
     key: 'organic_opens',
-    label: 'Переходы без рекламы',
+    label: 'Organic card clicks',
     unit: 'count',
     direction: 'up',
-    group: 'Воронка',
+    group: 'Funnel',
   },
   {
     key: 'spend',
-    label: 'Расход на рекламу',
+    label: 'Ad spend',
     unit: 'money',
     currencyOf: 'ads',
     direction: 'down',
-    group: 'Реклама',
+    group: 'Advertising',
   },
-  { key: 'ad_views', label: 'Показы рекламы', unit: 'count', direction: 'up', group: 'Реклама' },
-  { key: 'ad_clicks', label: 'Клики по рекламе', unit: 'count', direction: 'up', group: 'Реклама' },
-  { key: 'ctr', label: 'CTR, %', unit: 'percent', direction: 'up', group: 'Реклама' },
+  {
+    key: 'ad_views',
+    label: 'Ad impressions',
+    unit: 'count',
+    direction: 'up',
+    group: 'Advertising',
+  },
+  { key: 'ad_clicks', label: 'Ad clicks', unit: 'count', direction: 'up', group: 'Advertising' },
+  { key: 'ctr', label: 'CTR, %', unit: 'percent', direction: 'up', group: 'Advertising' },
   {
     key: 'cpc',
     label: 'CPC',
     unit: 'money',
     currencyOf: 'ads',
     direction: 'down',
-    group: 'Реклама',
+    group: 'Advertising',
   },
   {
     key: 'cpm',
@@ -83,87 +89,93 @@ export const METRICS = [
     unit: 'money',
     currencyOf: 'ads',
     direction: 'down',
-    group: 'Реклама',
+    group: 'Advertising',
   },
-  { key: 'ad_orders', label: 'Заказы с рекламы', unit: 'count', direction: 'up', group: 'Реклама' },
-  { key: 'ad_cr', label: 'CR рекламы, %', unit: 'percent', direction: 'up', group: 'Реклама' },
+  {
+    key: 'ad_orders',
+    label: 'Orders from ads',
+    unit: 'count',
+    direction: 'up',
+    group: 'Advertising',
+  },
+  { key: 'ad_cr', label: 'Ad CR, %', unit: 'percent', direction: 'up', group: 'Advertising' },
   {
     key: 'cpo',
     label: 'CPO',
     unit: 'money',
     currencyOf: 'ads',
     direction: 'down',
-    group: 'Реклама',
+    group: 'Advertising',
   },
   {
     key: 'drr_orders',
-    label: 'ДРР от заказов, %',
+    label: 'ACoS (orders), %',
     unit: 'percent',
     direction: 'down',
-    group: 'Реклама',
+    group: 'Advertising',
   },
   {
     key: 'seller_price',
-    label: 'Цена до СПП',
+    label: 'Seller price',
     unit: 'money',
     currencyOf: 'prices',
     direction: 'neutral',
-    group: 'Цены и остатки',
+    group: 'Prices and stock',
   },
   {
     key: 'customer_price',
-    label: 'Цена с СПП',
+    label: 'Customer price',
     unit: 'money',
     currencyOf: 'prices',
     direction: 'neutral',
-    group: 'Цены и остатки',
+    group: 'Prices and stock',
   },
   {
     key: 'spp',
-    label: 'СПП, %',
+    label: 'WB discount, %',
     unit: 'percent',
     direction: 'neutral',
-    group: 'Цены и остатки',
+    group: 'Prices and stock',
   },
   {
     key: 'stock',
-    label: 'Остатки на складах, шт',
+    label: 'Stock in warehouses, units',
     unit: 'count',
     direction: 'neutral',
-    group: 'Цены и остатки',
+    group: 'Prices and stock',
   },
   {
     key: 'revenue',
-    label: 'Выручка',
+    label: 'Revenue',
     unit: 'money',
     currencyOf: 'settlement',
     direction: 'up',
-    group: 'Финансы (отчёты WB)',
+    group: 'Finance (WB reports)',
     settled: true,
   },
   {
     key: 'sales',
-    label: 'Продажи, шт',
+    label: 'Sales, units',
     unit: 'count',
     direction: 'up',
-    group: 'Финансы (отчёты WB)',
+    group: 'Finance (WB reports)',
     settled: true,
   },
   {
     key: 'profit',
-    label: 'Чистая прибыль',
+    label: 'Net profit',
     unit: 'money',
     currencyOf: 'settlement',
     direction: 'up',
-    group: 'Финансы (отчёты WB)',
+    group: 'Finance (WB reports)',
     settled: true,
   },
   {
     key: 'margin',
-    label: 'Маржинальность, %',
+    label: 'Margin, %',
     unit: 'percent',
     direction: 'up',
-    group: 'Финансы (отчёты WB)',
+    group: 'Finance (WB reports)',
     settled: true,
   },
 ]
@@ -268,7 +280,7 @@ export function formatValue(value, unit, currency = '') {
  * figure (the backend sends null).
  *
  * @param {object} row A `HeatmapRow`.
- * @param {number|'total'} at A column index, or the row's «Итого».
+ * @param {number|'total'} at A column index, or the row's "Total".
  * @param {(typeof METRICS)[number]|null} metric
  * @param {object} currencies The grid's currencies (see {@link currencyOf}).
  * @param {boolean} [second] Read the second metric's values.

@@ -1,11 +1,11 @@
-"""The heatmap's hand-set norms: what «Норма: ручной ввод» paints an article against.
+"""The heatmap's hand-set norms: what "Target: manual" paints an article against.
 
 One number per article per metric, shared by everyone in the workspace. The page
 reads them all at once — at most every card times every metric — and paints;
 nothing here touches the grid, which stays the same whichever norm is on.
 
 An article is proved to be the workspace's own before its norm is written, for the
-reason «Группы» are: WB article numbers are global, and a row for a stranger's
+reason "Groups" are: WB article numbers are global, and a row for a stranger's
 card would sit in this workspace's table for good.
 """
 
@@ -53,7 +53,7 @@ class SkuNormService:
         """
         cards = await load_workspace_catalog(session, workspace_id=workspace_id)
         if nm_id not in {card.nm_id for card in cards}:
-            raise ValidationError("Артикула нет в каталоге кабинета.")
+            raise ValidationError("The SKU is not in the workspace catalog.")
         await self._repo.upsert(workspace_id, nm_id, metric, value)
         return SkuNormRead(nm_id=nm_id, metric=metric, value=value)
 

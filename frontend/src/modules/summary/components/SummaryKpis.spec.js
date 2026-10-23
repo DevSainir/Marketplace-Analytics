@@ -2,7 +2,7 @@
  * What the buyout card says about its own period.
  *
  * The figure can come from two places — the chosen period, or the standing
- * «предыдущие дни» window when that period is too fresh to have been answered —
+ * "earlier days" window when that period is too fresh to have been answered —
  * and the two are indistinguishable as a bare percentage. The note is the only
  * thing that tells them apart, so it is worth a test: it shipped once as the
  * old wording because a text edit silently failed to apply and nothing checked.
@@ -33,9 +33,9 @@ describe('the buyout card', () => {
   it('reports the period when the period answered for itself', () => {
     const wrapper = mount(SummaryKpis, { props: { kpi: KPI, currency: 'KGS' } })
 
-    const buyout = card(wrapper, 'Выкуп')
+    const buyout = card(wrapper, 'Buyout rate')
     expect(buyout.text()).toContain('27')
-    expect(buyout.text()).toContain('из доставленных')
+    expect(buyout.text()).toContain('of delivered')
     expect(buyout.find('[data-testid="hint"]').exists()).toBe(false)
   })
 
@@ -44,10 +44,10 @@ describe('the buyout card', () => {
 
     const wrapper = mount(SummaryKpis, { props: { kpi, currency: 'KGS' } })
 
-    const buyout = card(wrapper, 'Выкуп')
-    expect(buyout.text()).toContain('Усреднённый показатель за предыдущие дни')
+    const buyout = card(wrapper, 'Buyout rate')
+    expect(buyout.text()).toContain('Average over earlier days')
     expect(buyout.find('[data-testid="hint"]').attributes('aria-label')).toContain(
-      'ещё не успели выкупиться',
+      "haven't had time to be bought out",
     )
   })
 })

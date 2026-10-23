@@ -1,9 +1,9 @@
 <script setup>
 /**
- * «Реклама» — /advertising.
+ * "Advertising" — /advertising.
  *
  * Top to bottom: the toolbar (period and the bonus switch, which governs the
- * whole page); «Куда ушли деньги» — the headline strip over one card per kind
+ * whole page); "Where the money went" — the headline strip over one card per kind
  * of campaign; the daily chart with DRR; the
  * per-article table.
  */
@@ -32,8 +32,8 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
 <template>
   <div class="app-container py-lg">
     <PageHeader
-      title="Реклама"
-      subtitle="Куда ушли деньги на рекламу и что они принесли за выбранный период"
+      title="Advertising"
+      subtitle="Where the ad money went and what it brought in over the period"
     />
     <BackfillNotice :lanes="['advertising', 'pnl']" />
 
@@ -61,11 +61,11 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
         <DataState
           v-if="!store.data.days.length"
           kind="empty"
-          text="За этот период рекламы не было"
+          text="No advertising in this period"
         />
         <div v-else class="flex flex-col gap-xl">
           <section>
-            <h2 class="mb-md text-h3 font-semibold text-primary">Куда ушли деньги</h2>
+            <h2 class="mb-md text-h3 font-semibold text-primary">Where the money went</h2>
             <div class="flex flex-col gap-md">
               <AdsKpis
                 :totals="store.totals"
@@ -79,14 +79,14 @@ const settledTo = computed(() => store.data?.settled_to ?? null)
                 :show-bonus="store.bonusVisible"
               />
               <p v-if="store.bids.untyped" class="text-tiny text-muted">
-                Ещё {{ formatMoney(store.bids.untyped, store.currency) }} не разнесено по видам: WB
-                не отдал настройки этих кампаний.
+                Another {{ formatMoney(store.bids.untyped, store.currency) }} has no campaign type:
+                WB didn't send these campaigns' settings.
               </p>
             </div>
           </section>
 
           <section v-if="store.data.days.length > 1">
-            <h2 class="mb-md text-h3 font-semibold text-primary">Открутка по дням</h2>
+            <h2 class="mb-md text-h3 font-semibold text-primary">Daily spend</h2>
             <AdsDailyChart
               :days="store.data.days"
               :currency="store.currency"

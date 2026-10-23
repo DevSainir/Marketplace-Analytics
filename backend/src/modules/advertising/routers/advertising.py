@@ -1,4 +1,4 @@
-"""HTTP routes for «Реклама».
+"""HTTP routes for "Advertising".
 
 Pure pass-through: the window is resolved and bounded here, everything else is
 the service's. Workspace-scoped through ``X-Workspace-Id`` — this is a seller's
@@ -22,11 +22,11 @@ from src.modules.workspaces.contract import CurrentWorkspaceId
 #: span a seller reviews an advertising budget over.
 DEFAULT_WINDOW_DAYS = 29
 
-#: Hard cap on one request — sized to «Вся история», like «Сводка»'s.
+#: Hard cap on one request — sized to "All time", like "Summary"'s.
 #:
 #: WB keeps advertising statistics for a campaign's whole life (no retention
 #: cliff; one seller goes back to 2023-10-24), so a cap below the workspace's own
-#: history would make the «Вся история» button an error. Measured 2026-10-05:
+#: history would make the "All time" button an error. Measured 2026-10-05:
 #: that whole span answers in ~1 s for that seller. The bound still has to exist —
 #: an unbounded window is a cheap way for one caller to keep Postgres busy.
 MAX_WINDOW_DAYS = 1200
@@ -44,9 +44,9 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     end = date_to or moscow_today()
     start = date_from or (end - timedelta(days=DEFAULT_WINDOW_DAYS))
     if start > end:
-        raise ValidationError("Конец периода раньше начала.")
+        raise ValidationError("The period ends before it starts.")
     if (end - start).days > MAX_WINDOW_DAYS:
-        raise ValidationError(f"Период больше {MAX_WINDOW_DAYS} дней.")
+        raise ValidationError(f"The period is longer than {MAX_WINDOW_DAYS} days.")
     return start, end
 
 
@@ -55,9 +55,9 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     response_model=AdvertisingSpan,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Дни, за которые у кабинета есть реклама."},
+        200: {"description": "The days the workspace has advertising for."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет раздела «Реклама»."},
+        403: {"description": "No access to advertising."},
     },
 )
 async def get_advertising_span(
@@ -72,10 +72,10 @@ async def get_advertising_span(
     response_model=AdvertisingResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Реклама кабинета за период."},
+        200: {"description": "The workspace's advertising for the period."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет раздела «Реклама»."},
-        422: {"description": "Период инвертирован или длиннее допустимого."},
+        403: {"description": "No access to advertising."},
+        422: {"description": "The period is inverted or longer than allowed."},
     },
 )
 async def get_advertising(
@@ -85,9 +85,9 @@ async def get_advertising(
     date_from: date | None = Query(default=None, description="Inclusive day start."),
     date_to: date | None = Query(default=None, description="Inclusive day end."),
 ) -> AdvertisingResponse:
-    """Return every figure the «Реклама» page draws for one window.
+    """Return every figure the "Advertising" page draws for one window.
 
-    **This GET may write, as «Сводка»'s does**: reading settled sales fills the
+    **This GET may write, as "Summary"'s does**: reading settled sales fills the
     settlement rollup for days it did not already cover. Nothing the caller
     sends decides what is written — it is derived from the workspace's own
     settlement rows, under the tenant :data:`CurrentWorkspaceId` binds.

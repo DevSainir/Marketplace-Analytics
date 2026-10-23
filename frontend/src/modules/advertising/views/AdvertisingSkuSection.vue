@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Реклама по …» — the toolbar and whichever projection the viewport carries.
+ * "Advertising by …" — the toolbar and whichever projection the viewport carries.
  *
  * A view-level part rather than a component: it reads the store, which `components/`
  * may not, and it is split from `AdvertisingView` to keep both under the size limit.
@@ -39,7 +39,7 @@ const picked = computed(() =>
   }),
 )
 const rows = computed(() => groupRows(picked.value, store.group, cabinetSpend.value, groups.groups))
-// Over the articles, not the rows: by «Группы» one article can sit in two.
+// Over the articles, not the rows: by "Groups" one article can sit in two.
 const total = computed(() => totalRow(picked.value, cabinetSpend.value))
 const groupDef = computed(() => AD_GROUPS.find((g) => g.id === store.group))
 const filtering = computed(() => {
@@ -51,7 +51,7 @@ const filtering = computed(() => {
 <template>
   <section>
     <div class="mb-md flex flex-wrap items-center justify-between gap-md">
-      <h2 class="text-h3 font-semibold text-primary">Реклама по {{ groupDef.by }}</h2>
+      <h2 class="text-h3 font-semibold text-primary">Advertising by {{ groupDef.by }}</h2>
       <GroupingChips v-model="store.group" />
     </div>
     <AdsSkuToolbar

@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Промо-бонусы» — the page-wide switch for WB's bonus money.
+ * "Promo bonuses" — the page-wide switch for WB's bonus money.
  *
  * A switch, not a checkbox or a chip: it changes how the whole page reads
  * (cards, table columns, chart line), and a sliding track is the control that
@@ -28,8 +28,8 @@ const props = defineProps({
 const emit = defineEmits(['update:on'])
 
 const why = computed(() => {
-  if (props.locked) return 'Настройку кабинета меняет участник с правом записи'
-  return 'Настройка кабинета: меняется для всех его участников'
+  if (props.locked) return 'Only a member with write access can change this workspace setting'
+  return 'Workspace setting: changes it for every member'
 })
 </script>
 
@@ -44,6 +44,6 @@ const why = computed(() => {
     @click="emit('update:on', !on)"
   >
     <UiSwitch :on="on" />
-    Промо-бонусы
+    Promo bonuses
   </button>
 </template>

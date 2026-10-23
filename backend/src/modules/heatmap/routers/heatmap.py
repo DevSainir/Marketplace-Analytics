@@ -5,7 +5,7 @@ service's. Workspace-scoped through ``X-Workspace-Id`` — this is a seller's
 orders, advertising and profit, so it may never resolve without a tenant.
 
 Two routers, because the two routes answer to different grants: the grid is
-«Тепловая карта» (:data:`router`), the catalogue is what the group editor picks
+"Heatmap" (:data:`router`), the catalogue is what the group editor picks
 articles from on every page that has groups (:data:`catalog_router`). The
 guards are attached where :mod:`src.modules.heatmap.routers` includes them.
 """
@@ -62,11 +62,9 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     end = date_to or (moscow_today() - timedelta(days=1))
     start = date_from or (end - timedelta(days=DEFAULT_WINDOW_DAYS - 1))
     if start > end:
-        raise ValidationError("Конец периода раньше начала.")
+        raise ValidationError("The period ends before it starts.")
     if (end - start).days + 1 > MAX_WINDOW_DAYS:
-        raise ValidationError(
-            f"Можно выбрать только период не длиннее {MAX_WINDOW_DAYS} дней — выберите короче."
-        )
+        raise ValidationError(f"The period can be at most {MAX_WINDOW_DAYS} days.")
     return start, end
 
 
@@ -75,10 +73,10 @@ def _resolve_window(date_from: date | None, date_to: date | None) -> tuple[date,
     response_model=HeatmapResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Тепловая карта за период."},
+        200: {"description": "The heatmap for the period."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет раздела «Тепловая карта»."},
-        422: {"description": "Период инвертирован или длиннее допустимого."},
+        403: {"description": "No access to the heatmap."},
+        422: {"description": "The period is inverted or longer than allowed."},
     },
 )
 async def get_heatmap(
@@ -91,19 +89,19 @@ async def get_heatmap(
     metric2: MetricKey | None = Query(default=None, description="Optional second metric."),
     period: Period = Query(default="day", description="Column width."),
     group_by: GroupBy = Query(default="sku", description="What one row stands for."),
-    subjects: list[Subject] = Query(default=[], max_length=200, description="WB «Предмет»."),
+    subjects: list[Subject] = Query(default=[], max_length=200, description="WB categories."),
     group_ids: list[uuid.UUID] = Query(default=[], max_length=100, description="Groups."),
     nm_ids: list[PositiveNm] = Query(default=[], max_length=1000, description="Articles."),
 ) -> HeatmapResponse:
     """Return the grid: one row per article (or category, brand, group), one column per period.
 
-    **This GET can write, and deliberately** — the same way «Сводка» does. A
+    **This GET can write, and deliberately** — the same way "Summary" does. A
     finance metric reads the settlement rollup, which verifies itself against
     the detail's own row counts and rebuilds the days that disagree. Nothing a
     caller sends decides what is written; the tenant is bound by
     :data:`CurrentWorkspaceId` exactly as for the read.
 
-    The «Тепловая карта» grant is attached where the router is included
+    The "Heatmap" grant is attached where the router is included
     (:mod:`src.modules.heatmap.routers`), and it opens every metric: the money
     ones stopped asking for P&L as well on 2026-10-12, when each page became a
     grant of its own.
@@ -128,9 +126,9 @@ async def get_heatmap(
     response_model=HeatmapCatalogResponse,
     status_code=status.HTTP_200_OK,
     responses={
-        200: {"description": "Каталог кабинета для фильтров."},
+        200: {"description": "The workspace catalog for the filters."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Нет ни одного раздела с группами."},
+        403: {"description": "No access to any page with groups."},
     },
 )
 async def get_catalog(
@@ -140,7 +138,7 @@ async def get_catalog(
     date_from: date | None = Query(default=None, description="Inclusive start."),
     date_to: date | None = Query(default=None, description="Inclusive end."),
 ) -> HeatmapCatalogResponse:
-    """Return the workspace's cards and subjects, for «Категории», «Артикулы» and the group editor.
+    """Return the workspace's cards and subjects, for "Categories", "SKUs" and the group editor.
 
     Its own route because the filters need it before a grid exists. The window
     only orders the cards — most-ordered first — so it is bounded the same way

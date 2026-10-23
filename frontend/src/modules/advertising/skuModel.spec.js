@@ -1,10 +1,17 @@
-import { UNGROUPED, groupRows, pickRows, toRows, totalRow } from '@/modules/advertising/skuModel'
+import {
+  TOTAL,
+  UNGROUPED,
+  groupRows,
+  pickRows,
+  toRows,
+  totalRow,
+} from '@/modules/advertising/skuModel'
 
 const SKUS = [
   {
     vendor_code: 'M-A',
     nm_id: 1,
-    subject: 'Брюки',
+    subject: 'Trousers',
     brand: 'X',
     spend: '50',
     bonus: '5',
@@ -16,7 +23,7 @@ const SKUS = [
   {
     vendor_code: 'M-B',
     nm_id: 2,
-    subject: 'Брюки',
+    subject: 'Trousers',
     brand: 'X',
     spend: '30',
     bonus: '0',
@@ -28,15 +35,15 @@ const SKUS = [
 ]
 
 describe('groupRows', () => {
-  it("derives a group's ДРР from summed settled money, not by averaging its articles", () => {
-    // A mean of 50 % and 5 % is 27,5 %; the brand actually spent 60 against 300 of sales.
+  it("derives a group's ACoS from summed settled money, not by averaging its articles", () => {
+    // A mean of 50% and 5% is 27.5%; the brand actually spent 60 against 300 of sales.
     const [brand] = groupRows(toRows(SKUS), 'brand', 400)
 
     expect(brand).toMatchObject({ label: 'X', spend: 80, spendSettled: 60, sales: 300, n: 2 })
     expect(brand.drr).toBeCloseTo(0.2)
   })
 
-  it("measures a row's share against the кабинет's whole spend, not the filtered table", () => {
+  it("measures a row's share against the workspace's whole spend, not the filtered table", () => {
     const [first] = groupRows(toRows(SKUS), 'sku', 400)
 
     expect(first.share).toBeCloseTo(50 / 400)
@@ -44,14 +51,18 @@ describe('groupRows', () => {
 })
 
 describe('totalRow', () => {
-  it('keeps ДРР unknown while nothing has settled, rather than infinite', () => {
+  it('keeps ACoS unknown while nothing has settled, rather than infinite', () => {
     const rows = toRows(SKUS.map((s) => ({ ...s, sales: null })))
 
     expect(totalRow(rows, 80).drr).toBeNull()
   })
+
+  it('is labelled as prose, not as an article code', () => {
+    expect(totalRow(toRows(SKUS), 80).label).toBe(TOTAL)
+  })
 })
 
-describe('ДРР от продаж', () => {
+describe('ACoS (sales)', () => {
   it("is the seller's own money over sales — WB's bonus comes off the spend", () => {
     // 50 spent, 20 of it paid by WB, against 100 of sales: the seller paid 30%.
     const [row] = groupRows(
@@ -64,7 +75,7 @@ describe('ДРР от продаж', () => {
   })
 
   it('is withheld when returns outweighed sales, rather than negative', () => {
-    // A day whose returns outweigh its sales: 1 520 of advertising, sales net of returns −14 870.
+    // A day whose returns outweigh its sales: 1,520 of advertising, sales net of returns −14,870.
     const [row] = groupRows(
       toRows([{ ...SKUS[0], spend_settled: '1520', sales: '-14870' }]),
       'sku',
@@ -97,21 +108,21 @@ describe('the zone breakdown of a group', () => {
   })
 })
 
-describe('by «Группы»', () => {
+describe('by "Groups"', () => {
   const third = { ...SKUS[0], vendor_code: 'M-C', nm_id: 3, brand: 'Y', spend: '20' }
   const rows = toRows([...SKUS, third])
   const groups = [
-    { id: 'a', name: 'Лето', nm_ids: [1, 2] },
-    { id: 'b', name: 'Хиты', nm_ids: [2] },
-    { id: 'c', name: 'Пустая', nm_ids: [99] },
+    { id: 'a', name: 'Summer', nm_ids: [1, 2] },
+    { id: 'b', name: 'Bestsellers', nm_ids: [2] },
+    { id: 'c', name: 'Empty', nm_ids: [99] },
   ]
 
-  it('puts an article in every group it is in, and the rest under «Без группы»', () => {
+  it('puts an article in every group it is in, and the rest under "No group"', () => {
     const out = groupRows(rows, 'group', 100, groups)
 
     expect(out.map((r) => [r.label, r.n, r.spend])).toEqual([
-      ['Лето', 2, 80],
-      ['Хиты', 1, 30],
+      ['Summer', 2, 80],
+      ['Bestsellers', 1, 30],
       [UNGROUPED, 1, 20],
     ])
   })
@@ -129,7 +140,7 @@ describe('pickRows', () => {
   it('widens within a filter and narrows across them', () => {
     expect(labels({ brands: ['X', 'Y'] })).toEqual(['M-A', 'M-B', 'M-C'])
     expect(labels({ brands: ['X', 'Y'], articles: new Set([2, 3]) })).toEqual(['M-B', 'M-C'])
-    expect(labels({ subjects: ['Шорты'] })).toEqual([])
+    expect(labels({ subjects: ['Shorts'] })).toEqual([])
   })
 
   it('treats no articles as no group filter, and an empty set as one that matches nothing', () => {

@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Открутка по дням»: spend, the bonus part of it, and DRR from sales.
+ * "Daily spend": spend, the bonus part of it, and DRR from sales.
  *
  * DRR is on its own right-hand percent scale, as asked, so its line does not
  * flatten against money in the hundreds of thousands. Two scales on one plot
@@ -9,8 +9,8 @@
  * the last settled day — past it there are no sales to divide by, and a gap is
  * honest where a zero would read as "the advertising paid for itself for free".
  *
- * With bonuses hidden the blue line is «Расход» — everything the campaigns
- * spent. With them shown it becomes «Расход с баланса», the spend minus what
+ * With bonuses hidden the blue line is "Spend" — everything the campaigns
+ * spent. With them shown it becomes "Spend from balance", the spend minus what
  * WB's bonus paid, and the bonus gets its own line: the two then add up to the
  * day's whole spend instead of one being a part of the other.
  *
@@ -25,8 +25,9 @@
 import { computed, ref } from 'vue'
 
 import BaseChart from '@/core/components/BaseChart.vue'
+import { formatDay, formatDayShort } from '@/core/utils/calendarWords'
 import { formatMoney } from '@/core/utils/format'
-import { SERIES, dateRu, ratioPct } from '@/modules/advertising/adsFormat'
+import { SERIES, ratioPct } from '@/modules/advertising/adsFormat'
 import { drrOf } from '@/modules/advertising/skuModel'
 
 const props = defineProps({
@@ -43,7 +44,11 @@ const INK_MUTED = '#61616F'
 const LINE_HAIRLINE = '#E5E5EF'
 const INK = '#12121A'
 
-const spendName = computed(() => (props.showBonus ? 'Расход с баланса' : 'Расход'))
+/** The DRR line's name — also how the tooltip tells it from the money lines. */
+const DRR_NAME = 'ACoS (sales)'
+const BONUS_NAME = 'Promo bonuses'
+
+const spendName = computed(() => (props.showBonus ? 'Spend from balance' : 'Spend'))
 
 /** Keys of the lines the reader switched off. */
 const hidden = ref(new Set())
@@ -58,8 +63,8 @@ function toggle(key) {
 
 const legend = computed(() => [
   { key: 'spend', name: spendName.value, dashed: false },
-  ...(props.showBonus ? [{ key: 'bonus', name: 'Промо-бонусы', dashed: false }] : []),
-  ...(props.showDrr ? [{ key: 'drr', name: 'ДРР от продаж', dashed: true }] : []),
+  ...(props.showBonus ? [{ key: 'bonus', name: BONUS_NAME, dashed: false }] : []),
+  ...(props.showDrr ? [{ key: 'drr', name: DRR_NAME, dashed: true }] : []),
 ])
 
 /**
@@ -95,10 +100,10 @@ const option = computed(() => ({
     trigger: 'axis',
     textStyle: { color: INK, fontSize: 12 },
     formatter: (points) =>
-      [`<b>${dateRu(props.days[points[0].dataIndex].day)}</b>`]
+      [`<b>${formatDay(props.days[points[0].dataIndex].day)}</b>`]
         .concat(
           points.map((p) =>
-            p.seriesName === 'ДРР от продаж'
+            p.seriesName === DRR_NAME
               ? `${p.marker}${p.seriesName}: ${ratioPct(p.value === null ? null : p.value / 100)}`
               : `${p.marker}${p.seriesName}: ${formatMoney(p.value, props.currency)}`,
           ),
@@ -107,7 +112,7 @@ const option = computed(() => ({
   },
   xAxis: {
     type: 'category',
-    data: props.days.map((d) => `${d.day.slice(8, 10)}.${d.day.slice(5, 7)}`),
+    data: props.days.map((d) => formatDayShort(d.day)),
     axisLine: { lineStyle: { color: LINE_HAIRLINE } },
     axisTick: { show: false },
     axisLabel: { color: INK_MUTED, fontSize: 10 },
@@ -141,7 +146,7 @@ const option = computed(() => ({
     ...(props.showBonus && shown('bonus')
       ? [
           moneyLine(
-            'Промо-бонусы',
+            BONUS_NAME,
             SERIES.bonus,
             props.days.map((d) => Number(d.bonus)),
           ),
@@ -150,7 +155,7 @@ const option = computed(() => ({
     ...(props.showDrr && shown('drr')
       ? [
           {
-            name: 'ДРР от продаж',
+            name: DRR_NAME,
             type: 'line',
             yAxisIndex: 1,
             smooth: 0.3,
