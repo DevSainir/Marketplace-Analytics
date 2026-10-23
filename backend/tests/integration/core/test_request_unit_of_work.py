@@ -146,6 +146,10 @@ async def test_a_cancelled_request_still_releases_its_connection(
     took the API down.
     """
     session_holder: dict[str, AsyncSession] = {}
+    # Cancel only once the handler is parked in its slow await. A fixed sleep
+    # here raced the flush on a loaded machine: the cancel landed before the
+    # `try`, nothing rolled back, and the test failed with the code correct.
+    handler_waiting = asyncio.Event()
 
     async def request_that_gets_cancelled() -> None:
         generator = get_db()
@@ -154,13 +158,14 @@ async def test_a_cancelled_request_still_releases_its_connection(
         session.add(_user("uow-cancelled@example.com"))
         await session.flush()
         try:
+            handler_waiting.set()
             await asyncio.sleep(30)  # stand-in for a slow handler
         except asyncio.CancelledError:
             await generator.athrow(asyncio.CancelledError())
             raise
 
     task = asyncio.create_task(request_that_gets_cancelled())
-    await asyncio.sleep(0.2)
+    await asyncio.wait_for(handler_waiting.wait(), timeout=10)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
