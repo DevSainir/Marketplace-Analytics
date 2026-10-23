@@ -1,0 +1,17 @@
+# Findings gitleaks reports on this history that are test values, not secrets.
+# Each line is a finding's fingerprint (commit:path:rule:line). Listing them
+# keeps a full-history scan empty, so a new finding stands out instead of
+# hiding among known ones. Add a line only after reading the value.
+
+# The local-only Fernet key the template ships. It decodes to
+# "local-only-fernet-key-not-secret", and every non-local environment refuses
+# to start with it.
+a531584895c8612e2608bd2f27c874f96fd11396:backend/.env.example:generic-api-key:175
+a531584895c8612e2608bd2f27c874f96fd11396:backend/src/core/config/security.py:generic-api-key:23
+
+# An age recipient: a public key, which is not a secret.
+5a32e9c7eb49c4815e0a8b23fe5c01f1f6260304:backend/tests/unit/core/test_backup_encryption_recipients.py:generic-api-key:46
+
+# The password a test changes to.
+7eb0b39a0c56e06a69e8706a0613aff923e3edc5:backend/tests/unit/users/test_password_change.py:generic-api-key:34
+7eb0b39a0c56e06a69e8706a0613aff923e3edc5:backend/tests/component/users/test_session_routes.py:generic-api-key:26
