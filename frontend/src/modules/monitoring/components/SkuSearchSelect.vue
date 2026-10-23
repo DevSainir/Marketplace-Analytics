@@ -69,7 +69,7 @@ function onApply() {
 
 <template>
   <div ref="root" class="relative" @focusout="onFocusOut" @keydown.esc="close">
-    <!-- On a phone «Применить» beside the field leaves the input too narrow to
+    <!-- On a phone "Apply" beside the field leaves the input too narrow to
          show an article, so the pair stacks and each takes the full width. -->
     <form class="flex items-stretch gap-sm phone:flex-col" @submit.prevent="onApply">
       <div class="relative flex-1">
@@ -90,7 +90,7 @@ function onApply() {
           type="text"
           role="combobox"
           :aria-expanded="open"
-          placeholder="Выберите SKU из списка или начните вводить артикул…"
+          placeholder="Pick a SKU or type a vendor code…"
           class="ui-input w-full pl-9 pr-10"
           @focus="open = true"
           @input="open = true"
@@ -98,7 +98,7 @@ function onApply() {
         <button
           v-if="query"
           type="button"
-          aria-label="Очистить поиск"
+          aria-label="Clear search"
           class="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-primary"
           @click="clearQuery"
         >
@@ -115,7 +115,7 @@ function onApply() {
         </button>
       </div>
 
-      <button type="submit" class="ui-btn ui-btn--primary flex-none">Применить</button>
+      <button type="submit" class="ui-btn ui-btn--primary flex-none">Apply</button>
     </form>
 
     <!-- Dropdown: full width of the bar, all SKUs, filtered live -->
@@ -130,9 +130,9 @@ function onApply() {
         class="absolute inset-x-0 top-full z-20 mt-sm max-h-96 overflow-y-auto rounded-card bg-surface shadow-card"
         role="listbox"
       >
-        <BusyBar v-if="loading" label="Загружаем…" class="px-md py-md" />
+        <BusyBar v-if="loading" label="Loading…" class="px-md py-md" />
         <p v-else-if="!filtered.length" class="px-md py-md text-base text-muted">
-          Ничего не совпало — проверьте артикул или очистите поиск.
+          No match — check the SKU or clear the search.
         </p>
         <ul v-else class="divide-y divide-border-subtle">
           <li v-for="item in filtered" :key="item.nm_id">
@@ -157,7 +157,7 @@ function onApply() {
                 v-if="item.is_out_of_stock"
                 class="flex-none rounded-full bg-status-negative/10 px-sm text-tiny font-medium text-status-negative"
               >
-                нет на складе
+                out of stock
               </span>
               <span class="flex-none text-tiny tabular-nums text-muted">WB {{ item.nm_id }}</span>
             </button>

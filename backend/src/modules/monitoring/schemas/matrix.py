@@ -15,17 +15,17 @@ from pydantic import BaseModel, Field
 from src.modules.monitoring.constants import MAX_MATRIX_DAYS
 
 #: Traffic buckets, in column order. ``uni_*`` are the unified-bid campaign
-#: («Единая ставка») zones — split from search-cluster stats; ``manual_*`` are
+#: ("Unified bid") zones — split from search-cluster stats; ``manual_*`` are
 #: manual-bid campaigns by their enabled zone (``manual_catalog`` is the
 #: CATALOG slice of a search-only campaign: WB's search campaigns also
 #: deliver in the catalogue, derived as fullstats - normquery). A unified bid has
-#: no catalogue bucket: WB reports only its search slice, so a unified «Каталог»
+#: no catalogue bucket: WB reports only its search slice, so a unified "Catalog"
 #: column could only ever be empty and was removed on 2026-10-05. ``cpc_*``
-#: are the pay-per-click campaigns («CPC»), which WB bills per click rather
+#: are the pay-per-click campaigns ("CPC"), which WB bills per click rather
 #: than per 1000 views and whose bids therefore cannot be read
 #: alongside a CPM campaign's — they get their own traffic-type group, split
-#: into the same two zones; ``total`` is the funnel-wide «Общая» column and
-#: ``organic`` is «Органика» (overall - advertising).
+#: into the same two zones; ``total`` is the funnel-wide "Overall" column and
+#: ``organic`` is "Organic" (overall - advertising).
 MATRIX_BUCKETS: tuple[str, ...] = (
     "uni_search",
     "uni_shelves",
@@ -50,7 +50,7 @@ MATRIX_AD_BUCKETS: tuple[str, ...] = (
     "cpc_shelves",
 )
 
-#: «Доля трафика» is normalized WITHIN a traffic type, so each type
+#: "Traffic share" is normalized WITHIN a traffic type, so each type
 #: sums to 100% on its own: a unified campaign's zones cannot be a share of a
 #: manual campaign's views, and a CPC campaign — bought per click — is not
 #: comparable to either. Maps a bucket to the type it is normalized against.
@@ -77,8 +77,8 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "spend",
     "views",
     "ctr",
-    # The «Общая» column's ADVERTISING clicks — the numerator of its CTR, whose
-    # «Клики» row shows the funnel's clicks instead. Emitted for that column
+    # The "Overall" column's ADVERTISING clicks — the numerator of its CTR, whose
+    # "Clicks" row shows the funnel's clicks instead. Emitted for that column
     # only; the frontend reads it into the CTR hover, never as a row.
     "ad_clicks",
     "cpm",
@@ -101,11 +101,11 @@ MATRIX_METRIC_KEYS: tuple[str, ...] = (
     "drr_orders",
     "drr_sales",
     "buyout_percent",
-    # Prices & SPP — «Общая»-column only, derived from the price snapshot.
+    # Prices & WB discount — "Overall"-column only, derived from the price snapshot.
     "seller_price",
     "customer_price",
     "spp",
-    # Stock — «Общая»-column only, read-only facts from the stock snapshot.
+    # Stock — "Overall"-column only, read-only facts from the stock snapshot.
     "stock_quantity",
     "stock_to_client",
     "stock_from_client",
@@ -119,7 +119,7 @@ class MatrixMetricRow(BaseModel):
 
     ``values`` is flat and day-major: the cell for day index ``d`` and bucket
     index ``b`` (within :data:`MATRIX_BUCKETS`) lives at
-    ``values[d * len(buckets) + b]``. ``None`` renders as «—» (metric not
+    ``values[d * len(buckets) + b]``. ``None`` renders as "—" (metric not
     defined / not computable for that cell).
     """
 
@@ -133,7 +133,7 @@ class MatrixMetricRow(BaseModel):
 class MatrixDayCurrencies(BaseModel):
     """What each money cell of one day column is counted in.
 
-    Two sources, never merged: the order money («Заказы»/«Выкупы» in money) is
+    Two sources, never merged: the order money ("Orders"/"Buyouts" in money) is
     WB's own funnel sum — in the workspace's settlement currency — or, on a day WB
     served none, the order count at the day's price, in the prices' currency.
     The spend is in whatever each campaign is billed in, fixed at its creation,
@@ -144,7 +144,7 @@ class MatrixDayCurrencies(BaseModel):
     orders: str = Field(default="", description="Currency of the day's order money.")
     ads: dict[str, list[str]] = Field(
         default_factory=dict,
-        description="Spend currencies per bucket key; «total» is the card's whole day.",
+        description="Spend currencies per bucket key; 'total' is the card's whole day.",
     )
 
 
@@ -189,7 +189,7 @@ class MatrixAdSkuBase(BaseModel):
     """The viewed card's own share of an ad bucket's metrics.
 
     An advertising bucket is the whole campaign; these are the part of it
-    booked on the card being viewed. «Общая» and «Органика» are built from
+    booked on the card being viewed. "Overall" and "Organic" are built from
     them — the card's own day, and that day minus what the ads brought — and
     the carts/orders hover reports the rest as the associated share.
     """
@@ -213,7 +213,7 @@ class MatrixAdBucketBase(BaseModel):
 
     ``order_sum`` is ``None`` for split (unified / dual-placement) campaigns
     whose order revenue cannot be attributed to a single zone — that cell
-    renders «—» and is not editable.
+    renders "—" and is not editable.
 
     ``sku`` is the viewed card's own share of all of it (see
     :class:`MatrixAdSkuBase`).
@@ -249,11 +249,11 @@ class MatrixAdBucketBase(BaseModel):
 
 
 class MatrixFunnelBase(BaseModel):
-    """The editable organic-funnel inputs for one day (the «Общая» column).
+    """The editable organic-funnel inputs for one day (the "Overall" column).
 
     ``seller_price``/``customer_price`` are the day's snapshot prices and are
-    editable; «Заказы, ₽» and «СПП» derive from them (read-only). Prices are
-    ``None`` (rendered «—», not editable) when no snapshot exists for the day.
+    editable; "Orders, ₽" and "WB discount" derive from them (read-only). Prices are
+    ``None`` (rendered "—", not editable) when no snapshot exists for the day.
 
     ``has_funnel`` is ``False`` on days WB has not served a funnel row for yet
     (the CURRENT day — prices/stock are snapshotted at harvest time, but the
@@ -283,7 +283,7 @@ class MatrixFunnelBase(BaseModel):
 
 
 class MatrixStockBase(BaseModel):
-    """The day's stock totals (read-only facts, «Общая» column).
+    """The day's stock totals (read-only facts, "Overall" column).
 
     Carried from the nearest stock snapshot (see the matrix builder); never
     editable — stock is a harvested fact, not a derivable input.
@@ -298,14 +298,14 @@ class MatrixDayBase(BaseModel):
     """All input facts for a single day column.
 
     ``buckets`` holds only the ad buckets that delivered that day; missing ones
-    render «—». ``unclassified`` is the ad remainder (campaigns whose settings
-    are unsynced) — hidden and read-only, but summed into «Общая»/«Органика» and
+    render "—". ``unclassified`` is the ad remainder (campaigns whose settings
+    are unsynced) — hidden and read-only, but summed into "Overall"/"Organic" and
     the traffic-share denominator so those stay faithful.
     ``lagged_buyout_percent`` and ``stock`` are precomputed facts and read-only;
-    «Выкупы, ₽» is derived order-date («Заказы, ₽» x «Процент выкупа»).
+    "Buyouts, ₽" is derived order-date ("Orders, ₽" x "Buyout rate").
 
     ``cell_overrides`` holds DISPLAY overrides for non-invertible cells (a
-    derived rollup, the empty «Каталог» zone, a tainted split) keyed by
+    derived rollup, the empty "Catalog" zone, a tainted split) keyed by
     ``"<bucket>:<metric>"`` — applied verbatim AFTER the formulas run, so every
     cell is editable without disturbing the dynamic recompute of input cells.
     """

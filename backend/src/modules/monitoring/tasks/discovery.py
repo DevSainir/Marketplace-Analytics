@@ -66,7 +66,7 @@ async def _discover_and_harvest_workspace(
     SKUs.
 
     Discovery is a SOURCE, not a precondition. When the Content API refuses
-    (no token, or one whose categories do not include «Контент»), the harvest
+    (no token, or one whose categories do not include "Content"), the harvest
     falls back to the SKUs already registered to the workspace and runs every
     other source over them; only a workspace with no catalogue at all has
     nothing left to harvest. Letting it abort instead cost a
@@ -82,7 +82,7 @@ async def _discover_and_harvest_workspace(
             The nightly fleet walk passes ``False`` because
             ``monitoring.refresh_buyout_cohorts`` owns that hour; the
             single-workspace entrypoint leaves it ``True``, because the person
-            who triggered it is waiting for «Процент выкупа» to move.
+            who triggered it is waiting for "Buyout rate" to move.
 
     Returns:
         A mapping of persisted row counts per metric family.
@@ -243,7 +243,7 @@ async def _discover_and_harvest(days: int) -> dict[str, int]:
 #: ``frontend/src/modules/monitoring/store.js``). A backend limit above that
 #: ceiling turns every slow run into a task the poller abandons while it is
 #: still working — the 2026-07-30 failure mode, where harvests that genuinely
-#: succeeded were all reported as «не завершилось за отведённое время».
+#: succeeded were all reported as "did not finish in time".
 _DISCOVER_SOFT_TIME_LIMIT_SECONDS: int = 25 * 60
 
 
@@ -260,8 +260,8 @@ def discover_workspace(
     """Interactive entrypoint: discover ONE workspace's SKUs, then harvest them.
 
     The single-tenant counterpart of :func:`harvest_all`, and the answer to a
-    workspace whose token was set today: its catalogue is empty, so «Обновить
-    все SKU» had no ``nm_id`` to pass to ``monitoring.harvest_sku_window`` and
+    workspace whose token was set today: its catalogue is empty, so "Refresh
+    all SKUs" had no ``nm_id`` to pass to ``monitoring.harvest_sku_window`` and
     answered 404 until the nightly pass ran at 06:00 MSK. Discovery IS the
     refresh for that workspace — the Content API is the only source that can
     say which SKUs exist, and until this task it was reachable from no button.

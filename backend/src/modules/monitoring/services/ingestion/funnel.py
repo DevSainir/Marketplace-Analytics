@@ -112,7 +112,7 @@ class FunnelIngestion:
 
         Only rows with actual activity are written: the aggregate answers for
         every product on any date, and inserting all-zero rows would fabricate
-        funnel days the seller never traded (the matrix correctly shows «—»
+        funnel days the seller never traded (the matrix correctly shows "—"
         for absent days).
 
         Conversions are computed from the counts (the aggregate carries them

@@ -16,8 +16,8 @@
  * These three are the system's own hues (`tokens.css`: action `#715FFF`,
  * positive `#067A52`, warning `#C2700B`) taken to a tint light enough that
  * `--ui-ink` stays comfortably readable on them, and far enough apart in hue to
- * separate at a glance. They carry no status meaning — a pin is not «good» or
- * «bad» — they are simply this system's three most distinguishable marks.
+ * separate at a glance. They carry no status meaning — a pin is not "good" or
+ * "bad" — they are simply this system's three most distinguishable marks.
  *
  * Plain hex, not Tailwind tokens, because the colour is DATA: it round-trips
  * through the API (`PinColorUpdateRequest`, validated as `#rrggbb`) and is
@@ -30,7 +30,7 @@
  * existing workspaces on deploy.
  */
 export const PIN_COLORS = [
-  { value: '#E3DEFF', label: 'Сиреневый' },
-  { value: '#D3E8DE', label: 'Зелёный' },
-  { value: '#F2E4CC', label: 'Песочный' },
+  { value: '#E3DEFF', label: 'Lilac' },
+  { value: '#D3E8DE', label: 'Green' },
+  { value: '#F2E4CC', label: 'Sand' },
 ]

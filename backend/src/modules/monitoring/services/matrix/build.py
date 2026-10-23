@@ -65,14 +65,14 @@ def _acc_from_base(base: MatrixAdBucketBase) -> _BucketAcc:
 def _day_ad_from_base(day: MatrixDayBase) -> _SkuSlice | None:
     """Reconstruct the CARD's own advertising day = Σ its slice of each bucket.
 
-    «Общая» is the viewed card's whole day and «Органика» that day minus what
+    "Overall" is the viewed card's whole day and "Organic" that day minus what
     the ads brought, so both are built from the card's own share of each
     bucket — never from the campaigns' totals, which for a campaign promoting
-    several cards would lend this one the others' spend and drive «Органика»
+    several cards would lend this one the others' spend and drive "Organic"
     negative.
 
-    Returns ``None`` for days with no advertising at all, so «Общая» ad cells
-    render «—» exactly as before (a zero accumulator would show ``0``).
+    Returns ``None`` for days with no advertising at all, so "Overall" ad cells
+    render "—" exactly as before (a zero accumulator would show ``0``).
     """
     if not day.has_advertising:
         return None
@@ -107,7 +107,7 @@ def build_matrix_from_base(base: MatrixBaseState) -> MetricsMatrixRead:
         for day in base.days:
             day_ad = _day_ad_from_base(day)
             bucket_accs = {name: _acc_from_base(b) for name, b in day.buckets.items()}
-            # «Доля трафика» is normalized within each traffic type (unified /
+            # "Traffic share" is normalized within each traffic type (unified /
             # manual / CPC each sum to 100%), so precompute per-type total
             # views.
             type_views: dict[str, int] = {}

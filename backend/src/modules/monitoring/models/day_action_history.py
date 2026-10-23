@@ -1,4 +1,4 @@
-"""SKU day-action history — every change ever saved to a «Действия» row.
+"""SKU day-action history — every change ever saved to an "Actions" row.
 
 :class:`~src.modules.monitoring.models.day_actions.SkuDayAction` holds only the
 LAST state of a day (the frontend PUTs the whole day, last write wins), so on
@@ -30,7 +30,7 @@ _SCHEMA: str = "monitoring"
 
 
 class SkuDayActionHistory(Base):
-    """One saved change of one SKU-day's «Действия» answers.
+    """One saved change of one SKU-day's "Actions" answers.
 
     Attributes:
         id: UUIDv7, so rows sort by time even within one ``changed_at`` tick.

@@ -62,7 +62,7 @@ function mountChart(props = {}) {
 const chips = (wrapper) => wrapper.findAll('button[aria-pressed]')
 const chip = (wrapper, label) => chips(wrapper).find((button) => button.text() === label)
 const legend = (wrapper) =>
-  wrapper.findAll('[aria-label="Показано на графике"] li').map((item) => item.text())
+  wrapper.findAll('[aria-label="On the chart"] li').map((item) => item.text())
 
 describe('MetricsChart', () => {
   it('renders nothing at all when the window has no days', () => {
@@ -75,7 +75,7 @@ describe('MetricsChart', () => {
   it('carries its own title', () => {
     // It sits under two other blocks that name themselves; unnamed, it read as
     // an appendix to whichever table happened to be above it.
-    expect(mountChart().find('h2').text()).toBe('График')
+    expect(mountChart().find('h2').text()).toBe('Chart')
   })
 
   it('opens on its default metrics rather than on an empty plot', () => {
@@ -84,7 +84,13 @@ describe('MetricsChart', () => {
     // orders).
     const wrapper = mountChart()
 
-    expect(legend(wrapper)).toEqual(['Затраты', 'Показы', 'CTR, %', 'Корзины, шт', 'Заказы, шт'])
+    expect(legend(wrapper)).toEqual([
+      'Spend',
+      'Impressions',
+      'CTR, %',
+      'Add to cart, units',
+      'Orders, units',
+    ])
   })
 
   it('lists the legend in catalogue order, not in the order chips were clicked', () => {
@@ -92,45 +98,45 @@ describe('MetricsChart', () => {
     // — so a stable legend and a stable chart are the same fact.
     const wrapper = mountChart({ defaultMetrics: [] })
 
-    return chip(wrapper, 'Заказы, шт')
+    return chip(wrapper, 'Orders, units')
       .trigger('click')
-      .then(() => chip(wrapper, 'Затраты').trigger('click'))
+      .then(() => chip(wrapper, 'Spend').trigger('click'))
       .then(() => {
-        expect(legend(wrapper)).toEqual(['Затраты', 'Заказы, шт'])
+        expect(legend(wrapper)).toEqual(['Spend', 'Orders, units'])
       })
   })
 
   it('offers no mode switch: everything is an index', async () => {
-    // «Значения» put «Заказы» at 500 000 beside «Затраты» at 7 000 on one
+    // "Values" put "Orders" at 500,000 beside "Spend" at 7,000 on one
     // axis, which is a flat line and a lie about the smaller of the two.
     const wrapper = mountChart()
 
     const labels = wrapper.findAll('button').map((button) => button.text())
-    expect(labels).not.toContain('Значения')
-    expect(labels).not.toContain('Индекс')
+    expect(labels).not.toContain('Values')
+    expect(labels).not.toContain('Index')
   })
 
   it('stops drawing a metric once its chip is unticked', async () => {
     const wrapper = mountChart()
 
-    await chip(wrapper, 'Затраты').trigger('click')
+    await chip(wrapper, 'Spend').trigger('click')
 
-    expect(legend(wrapper)).not.toContain('Затраты')
+    expect(legend(wrapper)).not.toContain('Spend')
   })
 
   it('draws a metric once its chip is ticked', async () => {
     const wrapper = mountChart()
 
-    await chip(wrapper, 'Клики').trigger('click')
+    await chip(wrapper, 'Clicks').trigger('click')
 
-    expect(legend(wrapper)).toContain('Клики')
+    expect(legend(wrapper)).toContain('Clicks')
   })
 
   it('asks for a selection rather than drawing empty axes', async () => {
     // Unticking everything is a legitimate state, not an error.
     const wrapper = mountChart({ defaultMetrics: [] })
 
-    expect(wrapper.text()).toContain('Выберите метрики')
+    expect(wrapper.text()).toContain('Pick the metrics')
     expect(wrapper.findComponent({ name: 'BaseChart' }).exists()).toBe(false)
   })
 
@@ -142,7 +148,7 @@ describe('MetricsChart', () => {
       defaultMetrics: ['spend'],
     })
 
-    expect(wrapper.text()).toContain('нет данных')
+    expect(wrapper.text()).toContain('No data')
   })
 
   it('plots a single-unit pick as the values themselves', () => {
@@ -190,8 +196,8 @@ describe('MetricsChart', () => {
     })
 
     const labels = chips(wrapper).map((button) => button.text())
-    expect(labels).toContain('Заказы')
-    expect(labels).not.toContain('Цена покупателя')
+    expect(labels).toContain('Orders')
+    expect(labels).not.toContain('Customer price')
     expect(labels).not.toContain('CTR, %')
   })
 
@@ -199,17 +205,17 @@ describe('MetricsChart', () => {
     // No unit beats a guessed one — and the chip must match the legend's name.
     const wrapper = mountChart({ view: matrixView(POPULATED, {}) })
 
-    expect(chip(wrapper, 'Затраты')).toBeDefined()
-    expect(legend(wrapper)).toContain('Затраты')
+    expect(chip(wrapper, 'Spend')).toBeDefined()
+    expect(legend(wrapper)).toContain('Spend')
   })
 
-  it('groups the chips under «Реклама», «Воронка» and «Общие»', () => {
+  it('groups the chips under "Advertising", "Funnel" and "General"', () => {
     // Visual separation only — but a reader looks for a metric by family, and
     // the groups are how they find it.
     const wrapper = mountChart()
 
-    expect(wrapper.text()).toContain('Реклама')
-    expect(wrapper.text()).toContain('Воронка')
-    expect(wrapper.text()).toContain('Общие')
+    expect(wrapper.text()).toContain('Advertising')
+    expect(wrapper.text()).toContain('Funnel')
+    expect(wrapper.text()).toContain('General')
   })
 })

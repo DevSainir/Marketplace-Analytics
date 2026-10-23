@@ -187,7 +187,7 @@ async def _yield_to_harvest(
     await record_progress(
         workspace_id=uuid.UUID(workspace_id),
         lane=lane,
-        message="Ждём ночную загрузку данных…",
+        message="Waiting for the nightly data load…",
     )
     celery_app.send_task(
         task_name,
@@ -221,7 +221,7 @@ def backfill_catalogue(self: Task[object, object], workspace_id: str) -> dict[st
             workspace_id=ws_id,
             lane=BackfillLane.CATALOGUE,
             state=BackfillState.RUNNING,
-            message="Загружаем карточки товаров…",
+            message="Loading product cards…",
         )
         cards = []
         if tokens.content:
@@ -238,9 +238,9 @@ def backfill_catalogue(self: Task[object, object], workspace_id: str) -> dict[st
             done_units=len(cards),
             total_units=len(cards),
             message=(
-                f"Каталог загружен: {len(cards)} SKU."
+                f"Catalog loaded: {len(cards)} {'SKU' if len(cards) == 1 else 'SKUs'}."
                 if cards
-                else "Нет токена «Контент» — используем уже известные SKU."
+                else "No Content token — using the SKUs already known."
             ),
         )
         for task_name in ("monitoring.backfill_funnel", "monitoring.backfill_advertising"):
@@ -295,7 +295,7 @@ def backfill_funnel_sums(
     without the funnel's money as unfinished, so re-walking fills the sums of a
     workspace harvested before they were stored. It reports into its own lane,
     ``funnel_sums``, which the profile does not render: a seller whose history
-    loaded long ago should not see «Загружаем историю» come back. The watchdog
+    loaded long ago should not see "Loading history" come back. The watchdog
     restarts it after a deploy all the same.
 
     Args:
@@ -371,7 +371,7 @@ async def _funnel_tick(
             workspace_id=tokens.workspace_id,
             lane=lane,
             state=BackfillState.DONE,
-            message="Нет SKU — воронку собирать не для чего.",
+            message="No SKUs — no funnel to collect.",
         )
         return {"skipped": True}
     cursor = await read_cursor(workspace_id=tokens.workspace_id, lane=lane)

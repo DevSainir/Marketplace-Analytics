@@ -10,6 +10,7 @@
  * onto a canvas and cannot resolve a Tailwind class; when a token moves, it
  * moves here too.
  */
+import { formatDay, formatDayShort } from '@/core/utils/calendarWords'
 import {
   formatMoney,
   formatMoneyFigure,
@@ -38,14 +39,14 @@ const LINE_GRID = '#BFBFBF'
  *
  * Colour used to be handed out by slot: the first metric ticked took blue, the
  * second orange. That made the same metric a different colour on every visit —
- * «Заказы» blue on one reading of the page and orange on the next — so the
+ * "Orders" blue on one reading of the page and orange on the next — so the
  * legend had to be re-read every time and two screenshots of the same card
  * could not be compared.
  *
- * The four the reader named are fixed by meaning: «Затраты» and «Остатки» are
- * the two greens, «Корзины» blue, «Заказы» orange. Around those, related
+ * The four the reader named are fixed by meaning: "Spend" and "Stock" are
+ * the two greens, "Add to cart" blue, "Orders" orange. Around those, related
  * metrics take a lighter shade of their family's hue — cart conversion is
- * a paler «Корзины» blue, order conversion a paler «Заказы» orange — so a
+ * a paler "Add to cart" blue, order conversion a paler "Orders" orange — so a
  * funnel reads as a funnel before the legend is consulted.
  *
  * Keyed by CATALOGUE key, not by metric: `orders` and `orders_organic` read
@@ -53,7 +54,7 @@ const LINE_GRID = '#BFBFBF'
  */
 export const METRIC_COLORS = {
   // Advertising
-  spend: '#1BAF7A', // green — «Затраты»
+  spend: '#1BAF7A', // green — "Spend"
   views: '#4A3AA7', // violet
   clicks: '#9179E0', // lighter — the same views, but clicked
   ctr: '#EDA100', // yellow
@@ -62,18 +63,18 @@ export const METRIC_COLORS = {
   drr_orders: '#C14BAD', // purple
   drr_sales: '#E87BA4', // pink — the same DRR, a different base
   // Funnel
-  carts: '#2A78D6', // blue — «Корзины»
+  carts: '#2A78D6', // blue — "Add to cart"
   cart_conversion: '#5FA8E8', // lighter — conversion into the same carts
-  orders: '#EB6834', // orange — «Заказы»
+  orders: '#EB6834', // orange — "Orders"
   order_conversion: '#F2A25C', // lighter — conversion into the same orders
   buyout_percent: '#8A6D3B', // brown
   // General
   seller_price: '#00838F', // teal
   customer_price: '#5B7C99', // grey-blue
-  stock_quantity: '#0B7A3B', // dark green — «Остатки»
+  stock_quantity: '#0B7A3B', // dark green — "Stock"
   stock_total: '#0B7A3B', // the same meaning on the summary page
   order_sum: '#B8471F', // dark orange — the same orders, in money
-  orders_organic: '#C98A4B', // «Заказы» without advertising
+  orders_organic: '#C98A4B', // "Orders" without advertising
 }
 
 /** A metric outside the map is a bug, but a grey line beats no line. */
@@ -95,22 +96,10 @@ const FORMATTERS = {
   percent: formatPercent,
 }
 
-/** Tooltip/legend text for one value; `null` reads «нет данных», not «0». */
+/** Tooltip/legend text for one value; `null` reads "no data", not "0". */
 function formatValue(unit, value, currency, sign) {
   if (value == null || !Number.isFinite(value)) return '—'
   return (FORMATTERS[unit] ?? FORMATTERS.number)(value, currency, sign)
-}
-
-/** "2026-07-05" -> "05.07.2026" — what a short window's rotated dates carry. */
-export function fullDayLabel(iso) {
-  const [year, month, day] = iso.split('-')
-  return `${day}.${month}.${year}`
-}
-
-/** "2026-07-05" -> "05.07" — the year does not fit 52 weekly labels. */
-export function shortDayLabel(iso) {
-  const [, month, day] = iso.split('-')
-  return `${day}.${month}`
 }
 
 /**
@@ -118,10 +107,10 @@ export function shortDayLabel(iso) {
  *
  * **Columns only while they fit.** Carts, orders and stock are columns up
  * to {@link BARS_UP_TO_DAYS} and lines past it — a card a year wide would draw
- * 365 of them at 1,5px each, which is a texture rather than a bar. Never
+ * 365 of them at 1.5px each, which is a texture rather than a bar. Never
  * stacked: a stack would draw a total in which a cart is a unit of stock.
  *
- * A line is 1,6px with a 3,5px dot rather than 2px and 5px: at a year's density
+ * A line is 1.6px with a 3.5px dot rather than 2px and 5px: at a year's density
  * a 5px dot is a bead necklace instead of a day.
  *
  * **Every line carries its own area**, in its own hue at {@link AREA_OPACITY}.
@@ -180,7 +169,7 @@ function seriesMark(series, color) {
 const PLOT_TOP = 12
 const PLOT_BOTTOM = 54
 
-/** Width of the y-axis column, wide enough for «12 000». */
+/** Width of the y-axis column, wide enough for "12,000". */
 export const AXIS_GUTTER_PX = 74
 
 /** Ink of the weekly uprights, and of the horizontal rules. */
@@ -335,7 +324,7 @@ function valueAxis({
  *
  * The first two are drawn whether or not anything is on them — that is the
  * point of a fixed scale, and an axis that appears and disappears with the
- * selection is what made «Заказы» a readable column one moment and a smear the
+ * selection is what made "Orders" a readable column one moment and a smear the
  * next. The third carries the unitless series and shows nothing: an index has
  * no unit, so a ruler would have nothing to say, and the hover holds the real
  * value.
@@ -363,12 +352,12 @@ function valueAxes(rulers) {
  * A tooltip whose rows are grouped the way the picker above it is grouped.
  *
  * Once five or six metrics are on one plot the hover is a list, and a list of
- * six unlike numbers is read by hunting. «Реклама», «Воронка» and «Общие» are
+ * six unlike numbers is read by hunting. "Advertising", "Funnel" and "General" are
  * where the reader already looks for a metric — repeating that split here,
  * with the same titles and a dotted rule between them, means the eye lands in
  * the right third before it reads a single number.
  *
- * Each row is formatted by ITS OWN unit: with «Затраты» beside «ДРР, %» a
+ * Each row is formatted by ITS OWN unit: with "Spend" beside "ACoS, %" a
  * chart-wide formatter would print one of the two in the other's units.
  *
  * @param {Array<object>} series The built series, in chart order.
@@ -420,8 +409,8 @@ function groupedTooltip(series, hover, currency) {
  * How close to a mark the cursor has to be for the hover to be about it.
  *
  * The filled area belongs to its series as far as ECharts is concerned, so a
- * cursor anywhere inside the band — most of the plot — arrived as "hovering
- * «Затраты»" and answered with «Затраты» alone. The fill is not a mark, it is the
+ * cursor anywhere inside the band — most of the plot — arrived as a hover on
+ * "Spend" and answered with "Spend" alone. The fill is not a mark, it is the
  * floor; a question about one metric is asked by pointing at the metric.
  */
 const MARK_REACH_PX = 14
@@ -507,7 +496,7 @@ export function buildChartOption({ days, rulers = [], hover, series, currency = 
       left: AXIS_GUTTER_PX,
       // The right-hand column is reserved whatever is ticked, because the
       // ruler in it is. It is the wider of the two: the money scale is the one
-      // that has to fit «1 527 868».
+      // that has to fit "1,527,868".
       right: rulers.length > 1 ? AXIS_GUTTER_PX + 20 : 12,
       top: PLOT_TOP,
       bottom: PLOT_BOTTOM,
@@ -524,7 +513,9 @@ export function buildChartOption({ days, rulers = [], hover, series, currency = 
     },
     xAxis: {
       type: 'category',
-      data: days.map(weekly ? shortDayLabel : fullDayLabel),
+      // "5 Jul 2026" a day on a short window; "5 Jul" a week past it, where the
+      // year does not fit 52 labels.
+      data: days.map(weekly ? formatDayShort : formatDay),
       // Lines close their area against the origin; columns need the half-slot
       // either side, or the first and last of them are cut in half by the grid.
       boundaryGap: hasBar,

@@ -5,9 +5,9 @@ Two slowly-changing dimensions sourced from the WB Content API
 human-readable identifiers the funnel and stock feeds omit:
 
 * :class:`ProductCard` — one row per SKU (``nm_id``) carrying the seller
-  ``vendor_code`` (the "Артикул продавца" column) and card ``title``.
+  ``vendor_code`` (the "Vendor code" column) and card ``title``.
 * :class:`ProductSize` — one row per size characteristic (``chrt_id``) carrying
-  its human ``tech_size`` label (the "Размер вещи" column, e.g. ``"52/170-177"``
+  its human ``tech_size`` label (WB's item-size column, e.g. ``"52/170-177"``
   / ``"L"``), joined onto the label-less ``StockSnapshot`` rows by ``chrt_id``.
 
 Keeping these as separate dimension tables (rather than columns on the
@@ -29,7 +29,7 @@ from src.core.database import Base
 
 _SCHEMA: str = "monitoring"
 
-#: Column widths for WB's «Предмет» and «Бренд». WB's own names run to a few
+#: Column widths for WB's subject (category) and brand. WB's own names run to a few
 #: dozen characters; the ingest truncates to these rather than failing a whole
 #: catalogue page on one oversized value.
 SUBJECT_MAX_LENGTH: int = 128
@@ -53,7 +53,7 @@ class ProductCard(Base):
             schema — no FK, keeping the modules decoupled; ``None`` only for
             legacy rows never claimed by a harvest, which are invisible to
             every workspace).
-        vendor_code: Seller article code (the "Артикул продавца", e.g.
+        vendor_code: Seller article code (the "Vendor code", e.g.
             ``"M-TRX01-BLK"``).
         title: Card title (may be blank if the seller left it empty).
         photo_url: The card's main gallery image on WB's public CDN, or ``""``
@@ -65,7 +65,7 @@ class ProductCard(Base):
             seller re-shoots the card, and the three screens that show it would
             otherwise cost a Content API call each — an endpoint whose page is
             100 cards and whose rate limit the harvest already spends.
-        subject_name: WB's «Предмет» (e.g. «Костюмы»), ``""`` until the first
+        subject_name: WB's subject, the "Category" (e.g. "Suits"), ``""`` until the first
             catalogue sync that carried it. The heatmap groups and filters by it.
         brand: The card's brand, ``""`` the same way.
         feedback_rating: The buyer rating, 1.0-5.0 — the storefront's stars,
@@ -117,7 +117,7 @@ class ProductSize(Base):
     Attributes:
         chrt_id: WB size characteristic id (``chrtID``); primary key.
         nm_id: Owning SKU identifier (denormalized for per-SKU lookups).
-        tech_size: Human size label (the "Размер вещи", e.g. ``"52/170-177"`` /
+        tech_size: Human size label (WB's item size, e.g. ``"52/170-177"`` /
             ``"L"`` / ``"42"``); may be blank for one-size items.
         wb_size: WB's alternate size scale (e.g. ``"2XL/ 170-177"`` / ``"46"``).
         barcode: The size's first WB barcode (``sizes[].skus[0]``), or blank

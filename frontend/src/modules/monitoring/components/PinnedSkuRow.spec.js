@@ -19,7 +19,7 @@ function mountRow(props = {}) {
 }
 
 const chips = (wrapper) => wrapper.findAll('.pin-chip')
-const pencil = (wrapper) => wrapper.get('[aria-label="Редактировать цвета закреплённых SKU"]')
+const pencil = (wrapper) => wrapper.get('[aria-label="Edit pinned SKU colors"]')
 /** The swatch buttons of the palette popover — absent until a chip is picked. */
 const swatches = (wrapper) => wrapper.findAll(`[aria-label="${PIN_COLORS[0].label}"]`)
 
@@ -37,7 +37,7 @@ describe('paint mode', () => {
 
     await pencil(wrapper).trigger('click')
 
-    expect(wrapper.text()).toContain('Режим раскраски')
+    expect(wrapper.text()).toContain('Paint mode')
     expect(swatches(wrapper)).toHaveLength(0)
   })
 
@@ -51,7 +51,7 @@ describe('paint mode', () => {
     await chips(wrapper)[1].trigger('click')
 
     expect(swatches(wrapper)).toHaveLength(1)
-    expect(wrapper.text()).toContain('Цвет для «BBB»')
+    expect(wrapper.text()).toContain('Color for "BBB"')
     expect(wrapper.emitted('select')).toBeUndefined()
   })
 
@@ -65,7 +65,7 @@ describe('paint mode', () => {
     expect(wrapper.emitted('recolor')).toEqual([[1, PIN_COLORS[0].value]])
   })
 
-  it('clears the tint through «Убрать цвет»', async () => {
+  it('clears the tint through "Remove color"', async () => {
     const wrapper = mountRow()
 
     await pencil(wrapper).trigger('click')
@@ -98,6 +98,6 @@ describe('paint mode', () => {
     await pencil(wrapper).trigger('click')
 
     expect(swatches(wrapper)).toHaveLength(0)
-    expect(wrapper.text()).not.toContain('Режим раскраски')
+    expect(wrapper.text()).not.toContain('Paint mode')
   })
 })

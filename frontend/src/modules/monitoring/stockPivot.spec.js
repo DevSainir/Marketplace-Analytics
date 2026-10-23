@@ -10,7 +10,7 @@ import {
 } from '@/modules/monitoring/stockPivot'
 
 /**
- * The «Остатки» grid's arithmetic. Pure functions, so they are pinned here
+ * The "Stock" grid's arithmetic. Pure functions, so they are pinned here
  * rather than through a mounted table — the pivot rules and the two encodings
  * are decisions about the DATA, and none of them needs a DOM to be wrong in.
  */
@@ -25,40 +25,40 @@ const label = (row) => row.tech_size ?? `chrt ${row.chrt_id}`
 
 describe('pivotWarehouses', () => {
   it('puts the fullest warehouse leftmost', () => {
-    const cells = [cell(1, 'S', 'Коледино', 5), cell(1, 'S', 'Казань', 40)]
+    const cells = [cell(1, 'S', 'Koledino', 5), cell(1, 'S', 'Kazan', 40)]
 
     const result = pivotWarehouses(cells)
 
-    expect(result.map((w) => w.name)).toEqual(['Казань', 'Коледино'])
+    expect(result.map((w) => w.name)).toEqual(['Kazan', 'Koledino'])
   })
 
   it('drops a warehouse holding nothing', () => {
     // WB reports every seller warehouse, stubs included, so an empty one would
     // otherwise cost a column of zeros on a grid that is already too wide.
-    const cells = [cell(1, 'S', 'Пустой', 0), cell(1, 'S', 'Казань', 7)]
+    const cells = [cell(1, 'S', 'Elektrostal', 0), cell(1, 'S', 'Kazan', 7)]
 
     const result = pivotWarehouses(cells)
 
-    expect(result.map((w) => w.name)).toEqual(['Казань'])
+    expect(result.map((w) => w.name)).toEqual(['Kazan'])
   })
 
   it('breaks a tie on stock by name', () => {
-    const cells = [cell(1, 'S', 'Тула', 4), cell(1, 'S', 'Казань', 4)]
+    const cells = [cell(1, 'S', 'Tula', 4), cell(1, 'S', 'Kazan', 4)]
 
     const result = pivotWarehouses(cells)
 
-    expect(result.map((w) => w.name)).toEqual(['Казань', 'Тула'])
+    expect(result.map((w) => w.name)).toEqual(['Kazan', 'Tula'])
   })
 })
 
 describe('pivotRows', () => {
   it('sums a size across warehouses', () => {
-    const cells = [cell(1, 'S', 'Казань', 4), cell(1, 'S', 'Коледино', 6)]
+    const cells = [cell(1, 'S', 'Kazan', 4), cell(1, 'S', 'Koledino', 6)]
 
     const [row] = pivotRows(cells, null, label)
 
     expect(row.total).toBe(10)
-    expect(row.quantities).toEqual({ Казань: 4, Коледино: 6 })
+    expect(row.quantities).toEqual({ Kazan: 4, Koledino: 6 })
   })
 
   it('keeps clothing sizes in wear order, not lexical order', () => {
@@ -108,24 +108,24 @@ describe('the single-warehouse layout', () => {
   const day = (...names) => ({ warehouses: names.map((name) => ({ name, total: 1 })) })
 
   it('applies when no day holds more than one warehouse', () => {
-    expect(isSingleWarehouse([day('Коледино'), day(), day('Коледино')])).toBe(true)
+    expect(isSingleWarehouse([day('Koledino'), day(), day('Koledino')])).toBe(true)
   })
 
   it('does not apply once any day holds two', () => {
-    expect(isSingleWarehouse([day('Коледино'), day('Коледино', 'Казань')])).toBe(false)
+    expect(isSingleWarehouse([day('Koledino'), day('Koledino', 'Kazan')])).toBe(false)
   })
 
   it('does not apply to a period with no stock at all', () => {
     expect(isSingleWarehouse([day(), day()])).toBe(false)
   })
 
-  it('drops «Всего» and keeps an empty day as one blank column', () => {
-    expect(dayColumns(day('Коледино'), true).map((c) => c.kind)).toEqual(['wh'])
+  it('drops "Total" and keeps an empty day as one blank column', () => {
+    expect(dayColumns(day('Koledino'), true).map((c) => c.kind)).toEqual(['wh'])
     expect(dayColumns(day(), true).map((c) => c.kind)).toEqual(['blank'])
   })
 
-  it('leads a regular day with «Всего»', () => {
-    expect(dayColumns(day('Коледино', 'Казань'), false).map((c) => c.kind)).toEqual([
+  it('leads a regular day with "Total"', () => {
+    expect(dayColumns(day('Koledino', 'Kazan'), false).map((c) => c.kind)).toEqual([
       'total',
       'wh',
       'wh',

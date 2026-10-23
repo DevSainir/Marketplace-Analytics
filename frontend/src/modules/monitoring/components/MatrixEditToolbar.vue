@@ -16,7 +16,7 @@ defineProps({
   dirty: { type: Boolean, default: false },
   /** A save (PUT) is in flight. */
   saving: { type: Boolean, default: false },
-  /** A WB re-harvest («Обновить») is in flight. */
+  /** A WB re-harvest ("Refresh") is in flight. */
   refreshing: { type: Boolean, default: false },
   /**
    * Staged progress of the in-flight refresh, `{ percent, message }` or null.
@@ -44,27 +44,25 @@ defineEmits(['save', 'refresh'])
      UNDER the buttons so its appearance moves nothing. -->
   <div class="mt-sm flex flex-wrap items-start gap-md">
     <p class="min-w-0 text-tiny text-muted">
-      Кликните по значению, чтобы изменить его — зависимые ячейки пересчитаются.
+      Click a value to edit it — dependent cells recalculate.
       <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Z</kbd>
-      — отменить,
-      <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Shift</kbd>+<kbd class="ui-kbd">Z</kbd> —
-      повторить.
+      undoes,
+      <kbd class="ui-kbd">Ctrl</kbd>+<kbd class="ui-kbd">Shift</kbd>+<kbd class="ui-kbd">Z</kbd>
+      redoes.
     </p>
 
     <!-- The keyboard hint above is desktop advice (there is no Ctrl+Z on a
          phone), so on a phone the actions come first and take the full width
          rather than sitting as two stubs at the right edge. -->
     <div class="ml-auto flex flex-wrap items-center gap-sm phone:order-first phone:w-full">
-      <span v-if="dirty" class="text-base font-bold text-status-warning">
-        Есть несохранённые изменения
-      </span>
+      <span v-if="dirty" class="text-base font-bold text-status-warning"> Unsaved changes </span>
       <button
         type="button"
         :disabled="!dirty || saving || refreshing"
         class="ui-btn ui-btn--primary phone:flex-1"
         @click="$emit('save')"
       >
-        {{ saving ? 'Сохраняем…' : 'Сохранить' }}
+        {{ saving ? 'Saving…' : 'Save' }}
       </button>
       <button
         type="button"
@@ -72,7 +70,7 @@ defineEmits(['save', 'refresh'])
         class="ui-btn phone:flex-1"
         @click="$emit('refresh')"
       >
-        {{ refreshing ? 'Обновляем…' : 'Обновить' }}
+        {{ refreshing ? 'Refreshing…' : 'Refresh' }}
       </button>
     </div>
   </div>

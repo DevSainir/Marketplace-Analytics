@@ -1,9 +1,9 @@
 /**
- * The row set the «Остатки по складам» ribbon shares across its days.
+ * The row set the "Stock by warehouse" ribbon shares across its days.
  *
  * The grid renders the UNION of every day's sizes, so each row exists under
  * every day and a size absent from one of them shows blank there rather than
- * shifting the rows below it. One «Размер» column labels the whole period.
+ * shifting the rows below it. One "Size" column labels the whole period.
  *
  * Pure, and out of the view because the view composes rather than computes —
  * `MonitoringView` is at its 250-line ceiling and this was the piece with the
@@ -25,5 +25,5 @@ export function unionStockSizes(days) {
   const label = (size) => size.tech_size ?? `chrt ${size.chrt_id}`
   return [...byChrt.entries()]
     .map(([chrt_id, tech_size]) => ({ chrt_id, tech_size }))
-    .sort((a, b) => label(a).localeCompare(label(b), 'ru', { numeric: true }))
+    .sort((a, b) => label(a).localeCompare(label(b), 'en', { numeric: true }))
 }

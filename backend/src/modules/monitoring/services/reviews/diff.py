@@ -108,7 +108,7 @@ def diff_exclusions(
         seen: :func:`exclusions_seen` of the read.
         known: Our record of those ids; ids we hold no row for are ignored.
         baseline: The first read of this card group ever. Its flags become state
-            and nothing else, because «excluded» on a first read says nothing
+            and nothing else, because "excluded" on a first read says nothing
             about WHEN — and dating it to today would place it beside whatever
             else today brought.
 

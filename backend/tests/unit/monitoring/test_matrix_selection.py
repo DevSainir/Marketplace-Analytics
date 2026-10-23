@@ -52,7 +52,7 @@ def test_single_dominant_campaign_gets_100_percent() -> None:
     assert _cell(rows, "traffic_share", 0, "manual_search") == 100.0
     for bucket in ("uni_search", "uni_shelves", "manual_shelves"):
         assert _cell(rows, "views", 0, bucket) is None
-    # «Общая» reflects only the survivor.
+    # "Overall" reflects only the survivor.
     assert _cell(rows, "views", 0, "total") == 57777
     assert _cell(rows, "spend", 0, "total") == 35034
 
@@ -95,7 +95,7 @@ def test_trickling_campaign_day_is_cut() -> None:
 
     The pattern: a campaign that genuinely delivers on most days spends
     3-16 ₽/day for a week — a handful of impressions and no clicks. The day
-    must read «—», not present the SKU as advertised. The cut is per DAY, so
+    must read "—", not present the SKU as advertised. The cut is per DAY, so
     the same campaign's delivering days are unaffected (see the DAY2 column).
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
@@ -109,7 +109,7 @@ def test_trickling_campaign_day_is_cut() -> None:
 
     rows = _matrix(campaigns=campaigns, ad_rows=ad_rows, funnel_rows=funnel_rows, date_to=DAY2)
 
-    # DAY1: cut entirely — and its 75 views do not leak into «Общая».
+    # DAY1: cut entirely — and its 75 views do not leak into "Overall".
     assert _cell(rows, "views", 0, "manual_search") is None
     assert _cell(rows, "spend", 0, "manual_search") is None
     assert _cell(rows, "views", 0, "total") is None

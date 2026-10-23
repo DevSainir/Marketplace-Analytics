@@ -33,11 +33,11 @@ import {
 } from '@/modules/monitoring/api'
 import { buildMetricsMatrix, patchMetricsMatrix, unitsOf } from '@/modules/monitoring/metricsMatrix'
 
-/** Poll interval while waiting for a «Обновить» harvest task, in ms. */
+/** Poll interval while waiting for a "Refresh" harvest task, in ms. */
 const REFRESH_POLL_INTERVAL_MS = 600
 
 /**
- * How long to keep polling a «Обновить» harvest before calling it failed.
+ * How long to keep polling a "Refresh" harvest before calling it failed.
  *
  * This is a CEILING ON THE BACKEND'S WORST CASE, not a guess at a comfortable
  * wait, and it is why the number looks large. It must stay ABOVE the task's own
@@ -45,7 +45,7 @@ const REFRESH_POLL_INTERVAL_MS = 600
  * `backend/src/modules/monitoring/tasks/refresh.py`), so the task is killed and
  * reports failure before the poller gives up guessing.
  *
- * The worst case grew when «Обновить» stopped being a subset of the nightly
+ * The worst case grew when "Refresh" stopped being a subset of the nightly
  * pass: it now pulls the account-wide sale feed and the 22-day buyout-cohort
  * pass, and the cohort pass alone is 22 sequential rate-limited requests
  * measuring ~7 minutes. The common case is far shorter — the cohort pass is
@@ -54,14 +54,14 @@ const REFRESH_POLL_INTERVAL_MS = 600
  *
  * The old ceiling was 120s — BELOW the worst case of the day. On 2026-07-30
  * harvests that genuinely succeeded in 144-198s were all reported to the user
- * as «не завершилось за отведённое время», which is why «Обновить» appeared
+ * as "did not finish in time", which is why "Refresh" appeared
  * never to work. A ceiling under the backend's own limit turns every slow
  * success into a visible failure.
  */
 const REFRESH_POLL_CEILING_MS = 30 * 60 * 1000
 
 /**
- * Ceiling for the bulk «Обновить все SKU» harvest, which covers the whole
+ * Ceiling for the bulk "Refresh all SKUs" harvest, which covers the whole
  * catalogue in one task — and, on a workspace with no catalogue yet, discovers
  * it from the Content API first.
  *
@@ -88,23 +88,31 @@ const REFRESH_POLL_RELAX_AFTER_MS = 10 * 1000
 /**
  * WB source labels as the backend names them, in the words the table uses.
  * An unmapped label falls back to itself rather than being dropped — a source
- * we forgot to translate must still be reported.
+ * we forgot to name must still be reported.
  */
 const WB_SOURCE_LABELS = {
-  'sales-funnel': 'воронку продаж',
-  stocks: 'остатки',
-  campaigns: 'кампании',
-  'adverts-v2': 'настройки кампаний',
-  advertising: 'статистику рекламы',
-  'search-zone': 'поисковую зону',
-  prices: 'цены',
-  'card-prices': 'цены покупателя',
-  sales: 'выкупы и возвраты',
+  'sales-funnel': 'sales funnel',
+  stocks: 'stock',
+  campaigns: 'campaigns',
+  'adverts-v2': 'campaign settings',
+  advertising: 'ad stats',
+  'search-zone': 'search placement',
+  prices: 'prices',
+  'card-prices': 'customer prices',
+  sales: 'buyouts and returns',
 }
 
-/** Translate one backend WB source label for display. */
+/** Name one backend WB source label for display. */
 function sourceLabel(source) {
   return WB_SOURCE_LABELS[source] ?? source
+}
+
+/** "WB did not send: prices, stock. That data is unchanged — try again later." */
+function withheldWarning(failedSources) {
+  return (
+    `WB did not send: ${failedSources.map(sourceLabel).join(', ')}. ` +
+    'That data is unchanged — try again later.'
+  )
 }
 
 export const useMonitoringStore = defineStore('monitoring', () => {
@@ -141,14 +149,14 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const undoStack = ref([])
   const redoStack = ref([])
 
-  /** True once the table has unsaved manual edits (enables «Сохранить»). */
+  /** True once the table has unsaved manual edits (enables "Save"). */
   const matrixDirty = ref(false)
   /** A save (PUT) is in flight. */
   const matrixSaving = ref(false)
-  /** A WB re-harvest («Обновить») is in flight (enqueue + poll). */
+  /** A WB re-harvest ("Refresh") is in flight (enqueue + poll). */
   const matrixRefreshing = ref(false)
   /**
-   * How far the in-flight «Обновить» has got: `{ percent, message }`, or null
+   * How far the in-flight "Refresh" has got: `{ percent, message }`, or null
    * when nothing is running.
    *
    * A first refresh can run ~8 minutes — it includes the account-wide sale feed
@@ -162,7 +170,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    * Transient message for ANY failed user action on the detail page, not just
    * matrix edits: a rejected cell edit (422 on a read-only cell), a failed
    * save/refresh, and every optimistic toggle that had to roll back — pins,
-   * chip reorder and colour, warehouse marks, day notes, «Действия», and the
+   * chip reorder and colour, warehouse marks, day notes, "Actions", and the
    * two stock-comparison sides. One sink because they all surface in the same
    * place under the table.
    */
@@ -175,7 +183,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    */
   const actionWarning = ref(null)
 
-  /** A bulk «Обновить все SKU» harvest is in flight (enqueue + poll). */
+  /** A bulk "Refresh all SKUs" harvest is in flight (enqueue + poll). */
   const allRefreshing = ref(false)
   /** How far the in-flight bulk refresh has got; see {@link refreshProgress}. */
   const allRefreshProgress = ref(null)
@@ -221,7 +229,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   const isOutOfStock = computed(() => (currentProduct.value?.stock?.total_quantity ?? 0) === 0)
 
   // --- pinned SKUs ---------------------------------------------------------
-  // The GLOBAL pinned list («Закрепить»): shared by every account, rendered as
+  // The GLOBAL pinned list ("Pin"): shared by every account, rendered as
   // the chip row under the search bar. A toggle applies optimistically and then
   // reconciles with the server's full list (or rolls back on failure).
   const pinnedSkus = ref([])
@@ -239,7 +247,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  /** Pin an unpinned SKU («Закрепить») or unpin a pinned one («Закреплено»). */
+  /** Pin an unpinned SKU ("Pin") or unpin a pinned one ("Pinned"). */
   async function toggleSkuPin(nmId, label = null) {
     const previous = pinnedSkus.value
     const pinned = !pinnedIds.value.has(nmId)
@@ -284,7 +292,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  // --- the «Остатки по складам» ribbon ---------------------------------------
+  // --- the "Stock by warehouse" ribbon --------------------------------------
   // One size × warehouse breakdown per DAY of the page's window, which the
   // section renders as one column group per day and scrolls sideways through.
   // It follows the period chosen at the top of the page — there is no day
@@ -311,7 +319,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  // --- day notes («Комментарий» + its header) --------------------------------
+  // --- day notes ("Comment" + its title) -----------------------------------
   // Per-day notes on the CURRENT SKU: persisted on the backend
   // (monitoring.sku_day_comment), global per (nm_id, day) — shared by every
   // account. The persisted map rides on `currentProduct.comments` (keyed by ISO
@@ -356,7 +364,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     }
   }
 
-  // --- day actions («Действия»: ad campaign toggles + budgets, price change) -
+  // --- day actions ("Actions": ad campaign types + budgets, price change) ---
   // Per-day answered questions under the comments row: persisted on the backend
   // (monitoring.sku_day_action), global per (nm_id, day). The persisted map
   // rides on `currentProduct.day_actions` (keyed by ISO day, touched days
@@ -665,7 +673,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   /**
    * Poll one refresh task to completion, surfacing its staged progress.
    *
-   * Shared by «Обновить» and «Обновить все SKU», which differ only in what they
+   * Shared by "Refresh" and "Refresh all SKUs", which differ only in what they
    * redraw and which ceiling they use. It was duplicated once and the two
    * copies had already drifted on how they reported a partial outcome.
    *
@@ -696,7 +704,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
         lastStage = status.stage
       }
       if (status.ready) {
-        if (!status.successful) throw new Error('Не удалось обновить данные из Wildberries.')
+        if (!status.successful) throw new Error("Couldn't refresh the data from WB")
         return status.failed_sources ?? []
       }
       const elapsed = Date.now() - startedAt
@@ -710,7 +718,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   }
 
   /**
-   * «Обновить»: re-harvest this SKU from WB (discarding manual edits), poll the
+   * "Refresh": re-harvest this SKU from WB (discarding manual edits), poll the
    * task to completion, then re-fetch the detail so the table shows fresh data.
    *
    * The table is redrawn TWICE on a full run: once when the advertising/funnel
@@ -747,8 +755,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       // presenting stale numbers as a completed refresh.
       if (failedSources === null) {
         throw new Error(
-          'Обновление из Wildberries не завершилось за отведённое время. ' +
-            'Данные могут обновиться позже — попробуйте ещё раз.',
+          "The WB refresh didn't finish in time. The data may still land — try again.",
         )
       }
       await fetchProductData(nmId, params)
@@ -756,10 +763,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       // the funnel never arrived and the table redraws its previous numbers.
       // Saying so is the difference between a working button and one the user
       // believes is broken.
-      actionWarning.value = failedSources.length
-        ? `Wildberries не отдал: ${failedSources.map(sourceLabel).join(', ')}. ` +
-          'Эти данные остались прежними — попробуйте позже.'
-        : null
+      actionWarning.value = failedSources.length ? withheldWarning(failedSources) : null
     } catch (err) {
       actionError.value = extractErrorMessage(err)
     } finally {
@@ -769,7 +773,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   }
 
   /**
-   * «Обновить все SKU»: re-harvest the WHOLE workspace catalogue from WB (one
+   * "Refresh all SKUs": re-harvest the WHOLE workspace catalogue from WB (one
    * task over every SKU, discarding their manual edits), poll it to completion,
    * then refresh what's on screen — the SKU list always, and the open SKU's
    * detail if one is shown. Independent of {@link refreshFromWb}: it can run on
@@ -798,15 +802,11 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       })
       if (failedSources === null) {
         throw new Error(
-          'Обновление всех SKU не завершилось за отведённое время. ' +
-            'Данные могут обновиться позже — попробуйте ещё раз.',
+          "Refreshing all SKUs didn't finish in time. The data may still land — try again.",
         )
       }
       await redraw()
-      allRefreshWarning.value = failedSources.length
-        ? `Wildberries не отдал: ${failedSources.map(sourceLabel).join(', ')}. ` +
-          'Эти данные остались прежними — попробуйте позже.'
-        : null
+      allRefreshWarning.value = failedSources.length ? withheldWarning(failedSources) : null
     } catch (err) {
       allRefreshError.value = extractErrorMessage(err)
     } finally {
@@ -875,7 +875,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     redoMatrixEdit,
     saveMatrixEdits,
     refreshFromWb,
-    // bulk «Обновить все SKU»
+    // bulk "Refresh all SKUs"
     allRefreshing,
     allRefreshProgress,
     allRefreshError,

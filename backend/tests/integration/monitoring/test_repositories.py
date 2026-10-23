@@ -139,14 +139,14 @@ async def test_search_respects_its_limit(db_session: AsyncSession, catalogue: No
 async def test_a_header_carries_onto_the_new_day(db_session: AsyncSession) -> None:
     """Yesterday's running title continues onto today as a real, editable row."""
     repo = SkuDayCommentRepository(db_session)
-    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="note", header="Разгон")
+    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="note", header="Ramp-up")
 
     carried = await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
 
     assert carried == 1
     today_row = await repo.get(nm_id=1001, comment_date=TODAY)
     assert today_row is not None
-    assert today_row.header == "Разгон"
+    assert today_row.header == "Ramp-up"
 
 
 async def test_the_comment_does_not_carry(db_session: AsyncSession) -> None:
@@ -156,7 +156,7 @@ async def test_the_comment_does_not_carry(db_session: AsyncSession) -> None:
     the same observation.
     """
     repo = SkuDayCommentRepository(db_session)
-    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="yesterday's note", header="Разгон")
+    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="yesterday's note", header="Ramp-up")
 
     await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
 
@@ -188,14 +188,14 @@ async def test_the_carry_never_overwrites_a_header_written_today(
     teammate has since written. This is the ``WHERE header = ''`` in the upsert.
     """
     repo = SkuDayCommentRepository(db_session)
-    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="", header="Вчерашний")
-    await repo.set(nm_id=1001, comment_date=TODAY, body="", header="Уже написано")
+    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="", header="Yesterday's")
+    await repo.set(nm_id=1001, comment_date=TODAY, body="", header="Already written")
 
     await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
 
     today_row = await repo.get(nm_id=1001, comment_date=TODAY)
     assert today_row is not None
-    assert today_row.header == "Уже написано"
+    assert today_row.header == "Already written"
 
 
 async def test_the_carry_seeds_a_comment_only_row(db_session: AsyncSession) -> None:
@@ -204,14 +204,14 @@ async def test_the_carry_seeds_a_comment_only_row(db_session: AsyncSession) -> N
     The two fields are independent, so an existing row must not block the carry.
     """
     repo = SkuDayCommentRepository(db_session)
-    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="", header="Разгон")
+    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="", header="Ramp-up")
     await repo.set(nm_id=1001, comment_date=TODAY, body="today's note", header="")
 
     await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
 
     today_row = await repo.get(nm_id=1001, comment_date=TODAY)
     assert today_row is not None
-    assert today_row.header == "Разгон"
+    assert today_row.header == "Ramp-up"
     assert today_row.body == "today's note"
 
 
@@ -222,7 +222,7 @@ async def test_the_carry_is_idempotent(db_session: AsyncSession) -> None:
     non-idempotent carry would duplicate or resurrect titles.
     """
     repo = SkuDayCommentRepository(db_session)
-    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="", header="Разгон")
+    await repo.set(nm_id=1001, comment_date=YESTERDAY, body="", header="Ramp-up")
     first = await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
 
     second = await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
@@ -249,7 +249,7 @@ async def test_the_carry_covers_every_sku_in_one_statement(
     """
     repo = SkuDayCommentRepository(db_session)
     for nm_id in (1001, 1002, 1003):
-        await repo.set(nm_id=nm_id, comment_date=YESTERDAY, body="", header=f"Тема {nm_id}")
+        await repo.set(nm_id=nm_id, comment_date=YESTERDAY, body="", header=f"Topic {nm_id}")
 
     carried = await repo.carry_headers_to_day(source_day=YESTERDAY, target_day=TODAY)
 

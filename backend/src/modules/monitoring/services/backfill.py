@@ -19,8 +19,8 @@ cannot:
 
 The funnel lane does double duty and that is deliberate. It INSERTs days WB
 still serves (a rolling 365) and UPDATEs matured ``buyout_count``/``cancel_count``
-on days that lack them — which is «Процент выкупа», and therefore what
-«Выкупы, ₽» and «ДРР от продаж» divide by. A day whose rows carry no cohort is a
+on days that lack them — which is "Buyout rate", and therefore what
+"Buyouts, ₽" and "ACoS (sales)" divide by. A day whose rows carry no cohort is a
 blank DRR cell on the seller's screen.
 """
 
@@ -32,6 +32,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.calendar_words import day_text
 from src.core.config import settings
 from src.core.database import AsyncSessionLocal
 from src.core.exceptions import IntegrationError
@@ -174,8 +175,8 @@ async def advance_funnel(
     are split two ways: ``(day, nm)`` already stored gets its matured
     ``buyout_count``/``cancel_count`` and its money refreshed, and ``(day, nm)``
     absent gets the full row inserted. The second is the only way to obtain a day older
-    than the 7-day daily-history window; the first is what makes «Процент
-    выкупа» exist for it.
+    than the 7-day daily-history window; the first is what makes the "Buyout
+    rate" exist for it.
 
     Days needing neither are skipped without a request, so a re-run is cheap
     and a lane resumed after a restart does not re-pay for what it already did.
@@ -193,13 +194,13 @@ async def advance_funnel(
         the seller's trading history ran out.
     """
     if not tokens.analytics:
-        return LaneStep(0, 0, None, True, "Нет токена «Аналитика» — воронка пропущена.")
+        return LaneStep(0, 0, None, True, "No Analytics token — funnel skipped.")
 
     end = moscow_today() - timedelta(days=1)
     floor = end - timedelta(days=FUNNEL_DAYS - 1)
     day = date.fromisoformat(cursor) if cursor else end
     if day < floor:
-        return LaneStep(FUNNEL_DAYS, FUNNEL_DAYS, None, True, "Воронка собрана за 365 дней.")
+        return LaneStep(FUNNEL_DAYS, FUNNEL_DAYS, None, True, "Funnel collected for 365 days.")
 
     async with AsyncSessionLocal() as session:
         coverage = await _funnel_coverage(session, nm_ids=nm_ids, since=floor)
@@ -228,7 +229,8 @@ async def advance_funnel(
             except IntegrationError as exc:
                 if _is_retention_floor(exc):
                     finished = True
-                    message = f"WB отдаёт воронку только до {day + timedelta(days=1)}."
+                    oldest = day_text(day + timedelta(days=1))
+                    message = f"WB serves the funnel only from {oldest}."
                     break
                 logger.warning("[%s] funnel day %s failed (%s).", tokens.name, day, exc)
                 day -= timedelta(days=1)
@@ -248,7 +250,7 @@ async def advance_funnel(
                 empty_streak += 1
                 if empty_streak >= EMPTY_STOP:
                     finished = True
-                    message = "Дошли до начала продаж — воронка собрана."
+                    message = "Reached the first sales — funnel collected."
                     break
             else:
                 empty_streak = 0
@@ -258,14 +260,14 @@ async def advance_funnel(
 
     if not finished and day < floor:
         finished = True
-        message = "Воронка собрана за 365 дней."
-    done = (end - day).days + 1 if not finished else FUNNEL_DAYS
+        message = "Funnel collected for 365 days."
+    done = min((end - day).days + 1 if not finished else FUNNEL_DAYS, FUNNEL_DAYS)
     return LaneStep(
-        done=min(done, FUNNEL_DAYS),
+        done=done,
         total=FUNNEL_DAYS,
         cursor=None if finished else day.isoformat(),
         finished=finished,
-        message=message or f"Собираем воронку: {min(done, FUNNEL_DAYS)} из {FUNNEL_DAYS} дней.",
+        message=message or f"Collecting the funnel: {done} of {FUNNEL_DAYS} days.",
         rows=written,
     )
 
@@ -346,14 +348,14 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
         The step's outcome — one WB request's worth of work.
     """
     if not tokens.advertising:
-        return LaneStep(0, 0, None, True, "Нет токена «Продвижение» — реклама пропущена.")
+        return LaneStep(0, 0, None, True, "No Promotion token — advertising skipped.")
 
     end = moscow_today() - timedelta(days=1)
     floor = end - timedelta(days=ADV_DAYS - 1)
     total = -(-ADV_DAYS // ADV_WINDOW_DAYS)  # ceil
     hi, batch, known_ids = _parse_adv_cursor(cursor, default_end=end)
     if hi < floor:
-        return LaneStep(total, total, None, True, "Реклама собрана полностью.")
+        return LaneStep(total, total, None, True, "Advertising fully collected.")
 
     lo = max(hi - timedelta(days=ADV_WINDOW_DAYS - 1), floor)
     written = 0
@@ -387,7 +389,7 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
             target_ids = known_ids
 
         if not target_ids:
-            return LaneStep(total, total, None, True, "Рекламных кампаний нет.")
+            return LaneStep(total, total, None, True, "No campaigns.")
 
         async with AsyncSessionLocal() as session:
             coverage = await _campaign_coverage(session)
@@ -424,9 +426,9 @@ async def advance_advertising(tokens: WorkspaceTokenBundle, *, cursor: str | Non
         cursor=None if finished else _format_adv_cursor(next_hi, next_batch, target_ids),
         finished=finished,
         message=(
-            "Реклама собрана полностью."
+            "Advertising fully collected."
             if finished
-            else f"Собираем рекламу: с {lo}, окно {done} из {total}."
+            else f"Collecting advertising: from {day_text(lo)}, window {done} of {total}."
         ),
         rows=written,
     )

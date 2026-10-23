@@ -1,7 +1,7 @@
 """Unit tests for the summary listing's sale-date facts.
 
 Pins the rule that the listing reports sale-date COUNTS and exposes no
-buyout ratio: «Процент выкупа» divides by decided deliveries (buyouts +
+buyout ratio: "Buyout rate" divides by decided deliveries (buyouts +
 refusals at pickup), and a refusal never becomes a sale record, so no ratio
 built from this feed can answer it.
 """
@@ -105,14 +105,14 @@ async def test_sale_date_buyouts_and_returns_are_reported_as_counts() -> None:
 
 
 async def test_summary_exposes_no_buyout_ratio() -> None:
-    """The listing must not serve a «Процент выкупа»-shaped number.
+    """The listing must not serve a "Buyout rate"-shaped number.
 
     Regression: `buyout_conversion = buyouts / (buyouts + returns)` read 90.13%
-    for this SKU while WB's «Процент выкупа» was ~30%, because a refusal at
+    for this SKU while WB's "Buyout rate" was ~30%, because a refusal at
     pickup never becomes a sale record and so is invisible to this feed. The
     ratio was removed rather than corrected — it cannot be computed here (the
     cohort's `cancel_count` only covers 22 days, this window allows 366), and
-    «Процент выкупа» lives on the matrix. Callers wanting a return rate can
+    "Buyout rate" lives on the matrix. Callers wanting a return rate can
     divide the two counts themselves.
     """
     item = await _item(buyouts=274, returns=30)

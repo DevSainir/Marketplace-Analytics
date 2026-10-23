@@ -2,13 +2,13 @@
 /**
  * The disambiguation strip for a vendor-code search that matched several SKUs.
  *
- * Shown instead of guessing. A fragment like «M-TRX» legitimately names a whole
+ * Shown instead of guessing. A fragment like "M-TRX" legitimately names a whole
  * colour family, and silently opening one of them would look like the app
  * ignored the search — so the matches are offered as chips and the user picks.
  *
  * Dumb by contract: it renders the matches and emits `select`.
  */
-import { formatSku } from '@/core/utils/format'
+import { formatSku, plural } from '@/core/utils/format'
 
 defineProps({
   /** @type {Array<{nm_id: number, vendor_code: string, title: string}>} */
@@ -25,7 +25,7 @@ defineEmits(['select'])
     class="mt-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
   >
     <p class="text-base font-medium text-primary">
-      Найдено артикулов: {{ matches.length }} — выберите нужный:
+      {{ matches.length }} {{ plural(matches.length, ['SKU matches', 'SKUs match']) }} — pick one:
     </p>
     <div class="mt-sm flex flex-wrap gap-sm">
       <button

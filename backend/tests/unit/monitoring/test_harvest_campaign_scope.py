@@ -94,7 +94,7 @@ def test_a_foreign_active_campaign_is_still_excluded() -> None:
     """Scoping a targeted refresh to the SKU's own campaigns is unchanged.
 
     The recent set widens what a harvest asks for; it must not widen it to the
-    rest of the account's campaigns, which is what keeps «Обновить» fast.
+    rest of the account's campaigns, which is what keeps "Refresh" fast.
     """
     campaigns = [_campaign(97455941, ACTIVE), _campaign(97136532, ACTIVE)]
     adverts = [_advert(97455941, NM_ID), _advert(97136532, 1944299862)]

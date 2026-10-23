@@ -37,7 +37,7 @@ defineProps({
     >
       <!-- The count never wraps away from its dash onto a line of its own. -->
       <p class="text-muted">
-        Общее количество ассоциативных конверсий<span class="whitespace-nowrap">
+        Associated conversions, total<span class="whitespace-nowrap">
           — <span class="font-semibold text-primary">{{ tip.associated }}</span></span
         >
       </p>
@@ -60,7 +60,7 @@ defineProps({
       <!-- A two-zone campaign's associated variants are apportioned between
          the zones — WB attributes them per campaign, never per zone. -->
       <p v-if="tip.skus.length && !tip.exact" class="mt-xs text-muted">
-        Разбивка по артикулам в этой зоне показов — оценочная.
+        The per-SKU split in this placement is an estimate.
       </p>
     </div>
   </Teleport>

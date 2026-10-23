@@ -34,7 +34,7 @@ const TOTAL_AND_ORGANIC = [null, null, null, null, null, null, null, 9, 9]
 const WITH_CAMPAIGNS = [5, null, 3, null, null, 2, null, 9, 1]
 
 describe('metricDayItems', () => {
-  it('takes «Общая» as the headline value of the requested day', () => {
+  it('takes "Overall" as the headline value of the requested day', () => {
     const rows = [metricRow('orders', [ONLY_TOTAL, TOTAL_AND_ORGANIC])]
 
     const [item] = metricDayItems(rows, 1)
@@ -42,7 +42,7 @@ describe('metricDayItems', () => {
     expect(item.cell.raw).toBe(9)
   })
 
-  it('offers no breakdown when only «Общая» carries a value', () => {
+  it('offers no breakdown when only "Overall" carries a value', () => {
     const rows = [metricRow('orders', [ONLY_TOTAL])]
 
     const [item] = metricDayItems(rows, 0)
@@ -58,38 +58,38 @@ describe('metricDayItems', () => {
 
     expect(item.breakdown).toHaveLength(COLUMNS_PER_DAY)
     expect(item.breakdown.map((entry) => entry.label)).toEqual([
-      'Единая ставка · Поиск',
-      'Единая ставка · Полки',
-      'Руч. поиск · Поиск',
-      'Руч. поиск · Каталог',
-      'Руч. полки · Полки',
-      'CPC · Поиск',
-      'CPC · Полки',
-      'Общая',
-      'Органика',
+      'Unified bid · Search',
+      'Unified bid · Shelves',
+      'Manual search · Search',
+      'Manual search · Catalog',
+      'Manual shelves · Shelves',
+      'CPC · Search',
+      'CPC · Shelves',
+      'Overall',
+      'Organic',
     ])
     expect(item.breakdown.at(-1).cell.raw).toBe(9)
   })
 
-  it('breaks «ДРР от продаж» down by campaign, not by zone', () => {
+  it('breaks "ACoS (sales)" down by campaign, not by zone', () => {
     // The value is campaign-level: one merged cell per traffic group, not per
-    // leaf column — and the CPC group's value sits on its «Поиск» leg.
+    // leaf column — and the CPC group's value sits on its "Search" leg.
     const rows = [metricRow('drr_sales', [WITH_CAMPAIGNS])]
 
     const [item] = metricDayItems(rows, 0)
 
     expect(item.breakdown.map((entry) => entry.label)).toEqual([
-      'Единая ставка',
-      'Руч. поиск',
-      'Руч. полки',
+      'Unified bid',
+      'Manual search',
+      'Manual shelves',
       'CPC',
-      'Общая',
-      'Органика',
+      'Overall',
+      'Organic',
     ])
     expect(item.breakdown.find((entry) => entry.label === 'CPC').cell.raw).toBe(2)
   })
 
-  it('gives «Процент выкупа» no breakdown at all', () => {
+  it('gives "Buyout rate" no breakdown at all', () => {
     // One number for the whole day — a SKU-level cohort, not a per-zone fact.
     const rows = [metricRow('buyout_percent', [WITH_CAMPAIGNS])]
 
@@ -101,11 +101,11 @@ describe('metricDayItems', () => {
 })
 
 describe('blockDayItems', () => {
-  it('indexes «Цены»/«Остатки» rows by day, not by traffic column', () => {
+  it('indexes "Prices"/"Stock" rows by day, not by traffic column', () => {
     const rows = [
       {
         key: 'seller_price',
-        label: 'Цена продавца, KGS',
+        label: 'Seller price',
         cells: [{ raw: 2900 }, { raw: 3100 }],
       },
     ]
@@ -116,13 +116,17 @@ describe('blockDayItems', () => {
 })
 
 describe('dayLabelWithWeekday', () => {
-  it('appends the local weekday', () => {
-    expect(dayLabelWithWeekday({ iso: '2026-07-19', label: '19.07.2026' })).toBe('19.07.2026 (вс)')
+  it('leads with the weekday', () => {
+    expect(dayLabelWithWeekday({ iso: '2026-07-19', label: '19 Jul 2026' })).toBe(
+      'Sun, 19 Jul 2026',
+    )
   })
 
-  it('reads the ISO parts as a LOCAL date', () => {
-    // `new Date('2026-07-19')` parses as UTC and lands on the 18th west of
+  it('reads the weekday off the calendar date, not the browser zone', () => {
+    // `new Date('2026-07-20')` parses as UTC and lands on the 19th west of
     // Greenwich — which would label every day with the wrong weekday there.
-    expect(dayLabelWithWeekday({ iso: '2026-07-20', label: '20.07.2026' })).toBe('20.07.2026 (пн)')
+    expect(dayLabelWithWeekday({ iso: '2026-07-20', label: '20 Jul 2026' })).toBe(
+      'Mon, 20 Jul 2026',
+    )
   })
 })

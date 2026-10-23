@@ -20,8 +20,8 @@ beforeEach(() => {
   fetchSkuClusters.mockResolvedValue({ nm_id: PRODUCT.nm_id, window: PRODUCT.window, items: [] })
 })
 
-describe('the per-кабинет cluster switch', () => {
-  it('fetches nothing for a кабинет with the block switched off', async () => {
+describe('the per-workspace cluster switch', () => {
+  it('fetches nothing for a workspace with the block switched off', async () => {
     useSkuClusters(() => false)
 
     monitoring.currentProduct = PRODUCT
@@ -30,7 +30,7 @@ describe('the per-кабинет cluster switch', () => {
     expect(fetchSkuClusters).not.toHaveBeenCalled()
   })
 
-  it('loads the open SKU’s clusters for a кабинет with the block on', async () => {
+  it('loads the open SKU’s clusters for a workspace with the block on', async () => {
     useSkuClusters(() => true)
 
     monitoring.currentProduct = PRODUCT

@@ -1,8 +1,8 @@
 """Unit tests for the per-day rows under the matrix (services/analytics/).
 
 Covers the note contract — header and comment are independent fields, and the
-day's row lives while either of them does — the «Действия» day-action
-save/clear round-trip, the campaign-level «ДРР от продаж», and the operating
+day's row lives while either of them does — the "Actions" day-action
+save/clear round-trip, the campaign-level "ACoS (sales)", and the operating
 day boundary that decides which column a carried header lands on.
 
 The header CARRY itself is a single set-based statement in the repository, so
@@ -111,20 +111,20 @@ DAY = date(2026, 7, 10)
 @pytest.mark.asyncio
 async def test_editing_one_field_leaves_the_other_untouched() -> None:
     """Header and comment are independent: an omitted field is not cleared."""
-    repo = _FakeCommentRepo({DAY: _Row(body="Подняли ставку", header="Неделя акции")})
+    repo = _FakeCommentRepo({DAY: _Row(body="Raised the bid", header="Promo week")})
     service = _service(comments=repo)
 
-    result = await service.set_day_note(nm_id=NM_ID, comment_date=DAY, body=" Снизили CPM ")
+    result = await service.set_day_note(nm_id=NM_ID, comment_date=DAY, body=" Lowered CPM ")
 
     assert result.note is not None
-    assert result.note.body == "Снизили CPM"
-    assert result.note.header == "Неделя акции"  # untouched by a body-only save
-    assert repo.rows[DAY].header == "Неделя акции"
+    assert result.note.body == "Lowered CPM"
+    assert result.note.header == "Promo week"  # untouched by a body-only save
+    assert repo.rows[DAY].header == "Promo week"
 
-    await service.set_day_note(nm_id=NM_ID, comment_date=DAY, header="Новая неделя")
+    await service.set_day_note(nm_id=NM_ID, comment_date=DAY, header="New week")
 
-    assert repo.rows[DAY].body == "Снизили CPM"  # untouched by a header-only save
-    assert repo.rows[DAY].header == "Новая неделя"
+    assert repo.rows[DAY].body == "Lowered CPM"  # untouched by a header-only save
+    assert repo.rows[DAY].header == "New week"
 
 
 @pytest.mark.asyncio
@@ -132,23 +132,23 @@ async def test_a_header_only_day_is_stored() -> None:
     """A day may carry just a title — the comment is not required."""
     repo = _FakeCommentRepo()
     result = await _service(comments=repo).set_day_note(
-        nm_id=NM_ID, comment_date=DAY, header=" Распродажа "
+        nm_id=NM_ID, comment_date=DAY, header=" Sale "
     )
     assert result.note is not None
-    assert (result.note.header, result.note.body) == ("Распродажа", "")
-    assert repo.rows[DAY].header == "Распродажа"
+    assert (result.note.header, result.note.body) == ("Sale", "")
+    assert repo.rows[DAY].header == "Sale"
 
 
 @pytest.mark.asyncio
 async def test_clearing_one_field_keeps_the_row_and_both_deletes_it() -> None:
     """The row lives while either field does; emptying both removes it."""
-    repo = _FakeCommentRepo({DAY: _Row(body="Подняли ставку", header="Неделя акции")})
+    repo = _FakeCommentRepo({DAY: _Row(body="Raised the bid", header="Promo week")})
     service = _service(comments=repo)
 
     await service.set_day_note(nm_id=NM_ID, comment_date=DAY, body="")
 
     assert DAY in repo.rows  # the header still holds the row open
-    assert repo.rows[DAY].header == "Неделя акции"
+    assert repo.rows[DAY].header == "Promo week"
 
     result = await service.set_day_note(nm_id=NM_ID, comment_date=DAY, header="  ")
 
@@ -157,7 +157,7 @@ async def test_clearing_one_field_keeps_the_row_and_both_deletes_it() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Day actions («Действия»)
+# Day actions ("Actions")
 # --------------------------------------------------------------------------- #
 @pytest.mark.asyncio
 async def test_day_action_save_and_full_clear() -> None:
@@ -255,7 +255,7 @@ def test_the_two_rk_slots_cannot_hold_the_same_type() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# «ДРР от продаж» merged per campaign
+# "ACoS (sales)" merged per campaign
 # --------------------------------------------------------------------------- #
 def _cell(matrix: Any, key: str, bucket: str) -> float | None:
     row = next(r for r in matrix.rows if r.key == key)
@@ -296,7 +296,7 @@ def test_drr_sales_uses_the_campaigns_own_buyout_volume() -> None:
     assert _cell(matrix, "drr_sales", "uni_shelves") == 125.0
     # A group that never delivered stays empty.
     assert _cell(matrix, "drr_sales", "manual_search") is None
-    # «Общая» keeps its SKU-wide reading: all ad spend / the day's buyouts.
+    # "Overall" keeps its SKU-wide reading: all ad spend / the day's buyouts.
     assert _cell(matrix, "drr_sales", "total") == 50.0  # 250 / 500
 
 

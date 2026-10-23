@@ -2,33 +2,33 @@
  * Day-by-day metrics matrix for the monitoring table — a faithful replica of
  * the manager's Excel workbook.
  *
- * Every day is a section of columns (traffic type × display zone):
- *   Единая ставка (Поиск | Полки) · Руч. поиск (Поиск | Каталог) ·
- *   Руч. полки (Полки) · CPC (Поиск | Полки) · Общая · Органика
+ * Every day is a section of columns (traffic type × placement):
+ *   Unified bid (Search | Shelves) · Manual search (Search | Catalog) ·
+ *   Manual shelves (Shelves) · CPC (Search | Shelves) · Overall · Organic
  * with the date spanning the section; sections flow horizontally, the newest
  * day on the right. Metric rows mirror the workbook's order.
  *
- * «CPC» is the pay-per-click campaign group: WB bills it per click instead of
+ * "CPC" is the pay-per-click campaign group: WB bills it per click instead of
  * per 1000 views, so its bid and its CPM cannot be read against the CPM
  * columns beside it and it gets a group of its own.
  *
  * ALL values arrive precomputed from the backend (`SkuDetailResponse.matrix`,
  * built by `services/matrix.py`) — strict rule: no calculations in the
  * frontend. This module only maps backend cells onto the workbook layout and
- * applies ru-RU display formatting; `null` cells render as «—».
+ * applies en-US display formatting; `null` cells render blank.
  *
  * Money comes from three sources, and each row names its own
  * (`money: 'prices'|'orders'|'ads'`). A workspace settled in KGS is still priced in
- * RUB; the order money («Заказы», «Выкупы») is WB's own funnel sum, in KGS; the
+ * RUB; the order money ("Orders", "Buyouts") is WB's own funnel sum, in KGS; the
  * spend is in whatever each campaign bills in — RUB before WB moved the ad
  * account on 2026-08-20, KGS after. The backend states the orders' and the
  * spend's currency per day and per column (`matrix.currencies`), the prices'
  * once (`price_currency`); see {@link cellCurrency}. Every money cell
- * carries its own sign («45 679с», «4 120₽») as `unit` beside its `figure`, so
+ * carries its own sign ("KGS 45,679", "₽4,120") as `unit` beside its `figure`, so
  * the grid can let the sign give way before a digit in a ~52px leaf column —
  * a right-aligned overflow clips the LEADING glyph and would print a different
  * number (see main.css and `MatrixMetricsRows.vue`).
- * «Каталог» is a legacy WB zone kept for workbook parity; it is always empty.
+ * "Catalog" is a legacy WB zone kept for workbook parity; it is always empty.
  */
 import {
   currencySign,
@@ -37,6 +37,7 @@ import {
   formatPercent,
   withCurrency,
 } from '@/core/utils/format'
+import { formatDay } from '@/core/utils/calendarWords'
 import { campaignIdsByDay } from '@/modules/monitoring/campaignLinks'
 
 // Missing values render as BLANK cells (was an em dash — the dashes read as
@@ -71,24 +72,24 @@ function isEditable(bucket, metric) {
  * Leaf columns of one day section, left to right. `key` = backend bucket.
  *
  * `width` names the leaf's column class in the table's `<colgroup>`, where
- * MetricsTable.css shares a day's width out: `compact` leaves get what
- * «100,00%» needs and no more, `shelves` what the «Руч. полки» label needs on
- * one line, and the two `roomy` groups — «Единая ставка», «Руч. поиск», whose
- * figures («88,58%») are the tightest fit in the row — the rest. The room for
- * «Руч. полки» came from the unified «Каталог» column, removed 2026-10-05: WB
- * never reported a catalogue slice for the unified bid, so the column could only
- * ever be empty.
+ * MatrixColgroup.css shares a day's width out: `compact` leaves get what
+ * "100.00%" needs and no more, `shelves` what the "Manual shelves" label needs
+ * (it wraps onto two lines there), and the two `roomy` groups — "Unified bid",
+ * "Manual search", whose figures ("88.58%") are the tightest fit in the row —
+ * the rest. The room for "Manual shelves" came from the unified "Catalog"
+ * column, removed 2026-10-05: WB never reported a catalog slice for the unified
+ * bid, so the column could only ever be empty.
  */
 export const TRAFFIC_COLUMNS = [
-  { key: 'uni_search', zone: 'Поиск', width: 'roomy' },
-  { key: 'uni_shelves', zone: 'Полки', width: 'roomy' },
-  { key: 'manual_search', zone: 'Поиск', width: 'roomy' },
-  { key: 'manual_catalog', zone: 'Каталог', width: 'roomy' },
-  { key: 'manual_shelves', zone: 'Полки', width: 'shelves' },
-  { key: 'cpc_search', zone: 'Поиск', width: 'compact' },
-  { key: 'cpc_shelves', zone: 'Полки', width: 'compact' },
-  { key: 'total', zone: 'Общая', width: 'compact' },
-  { key: 'organic', zone: 'Органика', width: 'compact' },
+  { key: 'uni_search', zone: 'Search', width: 'roomy' },
+  { key: 'uni_shelves', zone: 'Shelves', width: 'roomy' },
+  { key: 'manual_search', zone: 'Search', width: 'roomy' },
+  { key: 'manual_catalog', zone: 'Catalog', width: 'roomy' },
+  { key: 'manual_shelves', zone: 'Shelves', width: 'shelves' },
+  { key: 'cpc_search', zone: 'Search', width: 'compact' },
+  { key: 'cpc_shelves', zone: 'Shelves', width: 'compact' },
+  { key: 'total', zone: 'Overall', width: 'compact' },
+  { key: 'organic', zone: 'Organic', width: 'compact' },
 ]
 
 /**
@@ -99,31 +100,31 @@ export const COLUMNS_PER_DAY = TRAFFIC_COLUMNS.length
 
 /**
  * The colspan a whole day's cell needs. Exported so the table's own rows
- * («Цены», the day note, «Действия») span the section without restating the
+ * ("Prices", the day note, "Actions") span the section without restating the
  * number: they got out of step with TRAFFIC_COLUMNS once already.
  */
 export const DAY_COLSPAN = COLUMNS_PER_DAY
 
 /**
- * «Тип получения трафика» header groups. `span` is how many leaves of
+ * "Traffic type" header groups. `span` is how many leaves of
  * TRAFFIC_COLUMNS the group covers — the header's colspan, and what the phone
  * list slices by. `spansZones` groups have no zone split — their header cell
  * spans the zones row too instead of repeating the same word twice. `key`
  * names the group's campaign in `campaigns.byDay` (see `campaignLinks.js`).
- * «Руч. поиск» spans two zones: WB search campaigns also deliver in the catalogue
+ * "Manual search" spans two zones: WB search campaigns also deliver in the catalog
  * (backend-split).
  */
 export const TRAFFIC_GROUPS = [
-  { key: 'uni', label: 'Единая ставка', span: 2 },
-  { key: 'manual_search', label: 'Руч. поиск', span: 2 },
-  { key: 'manual_shelves', label: 'Руч. полки', span: 1 },
+  { key: 'uni', label: 'Unified bid', span: 2 },
+  { key: 'manual_search', label: 'Manual search', span: 2 },
+  { key: 'manual_shelves', label: 'Manual shelves', span: 1 },
   { key: 'cpc', label: 'CPC', span: 2 },
-  { key: 'total', label: 'Общая', span: 1, spansZones: true },
-  { key: 'organic', label: 'Органика', span: 1, spansZones: true },
+  { key: 'total', label: 'Overall', span: 1, spansZones: true },
+  { key: 'organic', label: 'Organic', span: 1, spansZones: true },
 ]
 
 /**
- * «ДРР от продаж» renders each campaign's zones as ONE merged cell (the value
+ * "ACoS (sales)" renders each campaign's zones as ONE merged cell (the value
  * is campaign-level — the backend repeats it on every zone bucket of the
  * group, so the first bucket carries the number). `offset` addresses the
  * group's first leaf cell within a day section; `span` counts the leaves it
@@ -140,17 +141,11 @@ export const DRR_SALES_COLUMNS = [
 ]
 
 /**
- * «Процент выкупа» is ONE number for the whole day — a SKU-level lagged cohort
+ * "Buyout rate" is ONE number for the whole day — a SKU-level lagged cohort
  * window, not a per-zone fact — so its row renders as a single cell spanning
- * the day's whole section. The value lives in the «Общая» bucket (offset 7).
+ * the day's whole section. The value lives in the "Overall" bucket (offset 7).
  */
 export const DAY_SPAN_COLUMNS = [{ key: 'total', span: COLUMNS_PER_DAY, offset: 7 }]
-
-/** "2026-07-05" -> "05.07.2026" for the day-section header. */
-function dayLabel(iso) {
-  const [year, month, day] = iso.split('-')
-  return `${day}.${month}.${year}`
-}
 
 const fmtNumber = (v) => (v == null ? EMPTY : formatNumber(Math.round(v)))
 const fmtMoney = (v) => (v == null ? EMPTY : formatMoneyFigure(v))
@@ -164,29 +159,29 @@ const fmtPercent = (v) => (v == null ? EMPTY : formatPercent(v))
  *
  * `group` assigns each row to one of the four data blocks; every block gets
  * its own subtle row tint (see the `matrix-group--*` rules in main.css):
- * traffic («Доля трафика»..«Клики»), funnel («Корзины»..«Конверсия в заказ»),
- * money («Заказы»..«Стоимость корзины»), efficiency (the DRR/buyout trio).
+ * traffic ("Traffic share".."Clicks"), funnel ("Add to cart".."Order conversion"),
+ * money ("Orders".."Cost per cart"), efficiency (the ACoS/buyout trio).
  *
  * `money` names where a money row's currency comes from — `'prices'` for the
  * prices, `'orders'` for the order money, `'ads'` for spend and every cost built
  * on it — and each of its cells carries that currency's sign. The funnel's counts
- * say «шт» so that «Заказы» the count and «Заказы» the sum read apart.
+ * say "units" so that "Orders" the count and "Orders" the sum read apart.
  *
- * `emphasis` renders the row bigger and bolder («ДРР от продаж» is the
+ * `emphasis` renders the row bigger and bolder ("ACoS (sales)" is the
  * headline efficiency number).
  */
 const METRIC_DEFS = [
-  { key: 'traffic_share', label: 'Доля трафика, %', group: 'traffic', format: fmtPercent },
+  { key: 'traffic_share', label: 'Traffic share, %', group: 'traffic', format: fmtPercent },
   {
     key: 'spend',
-    label: 'Затраты',
+    label: 'Spend',
     money: 'ads',
     tone: 'positive',
     group: 'traffic',
     format: fmtMoney,
   },
-  { key: 'views', label: 'Показы', group: 'traffic', format: fmtNumber },
-  // «Общая»'s CTR is the ADVERTISING one while its «Клики» row is the funnel's,
+  { key: 'views', label: 'Impressions', group: 'traffic', format: fmtNumber },
+  // "Overall"'s CTR is the ADVERTISING one while its "Clicks" row is the funnel's,
   // so the two do not divide into it. `adClicksKey` is the backend row of its
   // real numerator; hovering the cell shows the clicks over views it divides.
   {
@@ -198,7 +193,7 @@ const METRIC_DEFS = [
   },
   { key: 'cpm', label: 'CPM', money: 'ads', group: 'traffic', format: fmtMoney },
   { key: 'cpc', label: 'CPC', money: 'ads', group: 'traffic', format: fmtMoneyTenths },
-  { key: 'clicks', label: 'Клики', group: 'traffic', format: fmtNumber },
+  { key: 'clicks', label: 'Clicks', group: 'traffic', format: fmtNumber },
   // The cell itself is the campaign's count. `skuKey` points at the backend's
   // row for the VIEWED card's share of it, which is emitted only when the two
   // differ — i.e. when associated size/colour variants converted. Hovering
@@ -206,7 +201,7 @@ const METRIC_DEFS = [
   // metric's count out of the shared per-variant rows.
   {
     key: 'carts',
-    label: 'Корзины, шт',
+    label: 'Add to cart, units',
     tone: 'carts',
     group: 'funnel',
     format: fmtNumber,
@@ -215,14 +210,14 @@ const METRIC_DEFS = [
   },
   {
     key: 'cart_conversion',
-    label: 'Конверсия в корзину, %',
+    label: 'Cart conversion, %',
     tone: 'carts',
     group: 'funnel',
     format: fmtPercent,
   },
   {
     key: 'orders',
-    label: 'Заказы, шт',
+    label: 'Orders, units',
     tone: 'warning',
     group: 'funnel',
     format: fmtNumber,
@@ -231,60 +226,64 @@ const METRIC_DEFS = [
   },
   {
     key: 'order_conversion',
-    label: 'Конверсия в заказ, %',
+    label: 'Order conversion, %',
     tone: 'warning',
     group: 'funnel',
     format: fmtPercent,
   },
-  { key: 'order_sum', label: 'Заказы', money: 'orders', group: 'money', format: fmtMoney },
-  { key: 'buyout_sum', label: 'Выкупы', money: 'orders', group: 'money', format: fmtMoney },
+  { key: 'order_sum', label: 'Orders', money: 'orders', group: 'money', format: fmtMoney },
+  { key: 'buyout_sum', label: 'Buyouts', money: 'orders', group: 'money', format: fmtMoney },
   {
     key: 'cost_per_order',
-    label: 'Стоимость заказа',
+    label: 'Cost per order',
     money: 'ads',
     group: 'money',
     format: fmtMoney,
   },
   {
     key: 'cost_per_cart',
-    label: 'Стоимость корзины',
+    label: 'Cost per cart',
     money: 'ads',
     group: 'money',
     format: fmtMoney,
   },
-  { key: 'drr_orders', label: 'ДРР от заказов, %', group: 'efficiency', format: fmtPercent },
+  { key: 'drr_orders', label: 'ACoS (orders), %', group: 'efficiency', format: fmtPercent },
   {
     key: 'drr_sales',
-    label: 'ДРР от продаж, %',
+    label: 'ACoS (sales), %',
     group: 'efficiency',
     emphasis: true,
     format: fmtPercent,
   },
-  { key: 'buyout_percent', label: 'Процент выкупа, %', group: 'efficiency', format: fmtPercent },
+  { key: 'buyout_percent', label: 'Buyout rate, %', group: 'efficiency', format: fmtPercent },
 ]
 
 /**
  * Prices & stock render as compact DAY-BOUND blocks under the metric rows
- * («Цены» / «Остатки» cards inside each day section of the same table).
- * These metrics only ever have «Общая»-bucket values, so each block row
+ * ("Prices" / "Stock" cards inside each day section of the same table).
+ * These metrics only ever have "Overall"-bucket values, so each block row
  * carries one cell per day (bucket fixed to `total`). Prices are editable
- * inputs (the «Заказы»/«Выкупы» sums and «СПП» derive from them); stock rows are
- * read-only snapshot facts.
+ * inputs (the "Orders"/"Buyouts" sums and "WB discount" derive from them); stock
+ * rows are read-only snapshot facts.
+ *
+ * The stock labels are short and count in "pcs": a card is half a day wide,
+ * and its label does not wrap. The chart, with room to spare, names the same
+ * stock "Stock in warehouses, units".
  */
 const PRICE_METRIC_DEFS = [
-  { key: 'seller_price', label: 'Цена продавца', money: 'prices', format: fmtMoney },
-  { key: 'customer_price', label: 'Цена покупателя', money: 'prices', format: fmtMoney },
-  { key: 'spp', label: 'СПП, %', tone: 'positive', format: fmtPercent },
+  { key: 'seller_price', label: 'Seller price', money: 'prices', format: fmtMoney },
+  { key: 'customer_price', label: 'Customer price', money: 'prices', format: fmtMoney },
+  { key: 'spp', label: 'WB discount, %', tone: 'positive', format: fmtPercent },
 ]
 const STOCK_METRIC_DEFS = [
-  { key: 'stock_quantity', label: 'Остатки на складах, шт', format: fmtNumber },
-  { key: 'stock_to_client', label: 'В пути к клиенту, шт', format: fmtNumber },
-  { key: 'stock_from_client', label: 'В пути от клиента, шт', format: fmtNumber },
+  { key: 'stock_quantity', label: 'In warehouses, pcs', format: fmtNumber },
+  { key: 'stock_to_client', label: 'In transit, pcs', format: fmtNumber },
+  { key: 'stock_from_client', label: 'Returning, pcs', format: fmtNumber },
 ]
-// The compact «Всего» card next to «Остатки»: stock + both «в пути» legs,
+// The compact "Total" card next to "Stock": stock + both in-transit legs,
 // COMPUTED BY THE BACKEND (`stock_total` matrix row) — mapped here like any
 // other metric, label/formatting only.
-const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Всего, шт', format: fmtNumber }]
+const STOCK_TOTAL_METRIC_DEFS = [{ key: 'stock_total', label: 'Total, pcs', format: fmtNumber }]
 
 /** Which unit each money metric is in, by backend metric key. */
 const MONEY_SOURCE = new Map(
@@ -438,7 +437,7 @@ function cellAssoc(def, raw, skuRaw, breakdown, viewedNmId) {
 }
 
 /**
- * The hover payload of the «Общая» CTR cell: the advertising clicks and views
+ * The hover payload of the "Overall" CTR cell: the advertising clicks and views
  * it divides, or null for every other cell (an ad bucket's CTR divides the
  * clicks and views printed in its own column, so it needs no explaining).
  */
@@ -472,12 +471,12 @@ function matrixLookups(matrix) {
     backendValues: new Map(matrix.rows.map((row) => [row.key, row.values])),
     bucketCount: matrix.buckets.length,
     // Column order is presentation-owned; resolve each column to its backend
-    // bucket index once (−1 = bucket unknown to this backend version -> «—»).
+    // bucket index once (−1 = bucket unknown to this backend version -> blank).
     bucketIndexByColumn: TRAFFIC_COLUMNS.map((column) => matrix.buckets.indexOf(column.key)),
   }
 }
 
-/** Build the «Общая»-only rows of one mini block (one cell per day). */
+/** Build the "Overall"-only rows of one mini block (one cell per day). */
 function buildTotalRows(defs, matrix, backendValues, currencies) {
   const totalIndex = matrix.buckets.indexOf('total')
   return defs.map((def) => {
@@ -556,7 +555,7 @@ export function buildMetricsMatrix(product, currencies = {}) {
   })
 
   return {
-    days: matrix.days.map((iso) => ({ iso, label: dayLabel(iso) })),
+    days: matrix.days.map((iso) => ({ iso, label: formatDay(iso) })),
     rows,
     priceRows: buildTotalRows(PRICE_METRIC_DEFS, matrix, backendValues, currencies),
     stockRows: buildTotalRows(STOCK_METRIC_DEFS, matrix, backendValues, currencies),
@@ -640,7 +639,7 @@ export function patchMetricsMatrix(view, product, currencies = {}) {
     }
   }
 
-  // Mini blocks: one «Общая» cell per day.
+  // Mini blocks: one "Overall" cell per day.
   const totalIndex = matrix.buckets.indexOf('total')
   for (const [defs, rows] of [
     [PRICE_METRIC_DEFS, view.priceRows],

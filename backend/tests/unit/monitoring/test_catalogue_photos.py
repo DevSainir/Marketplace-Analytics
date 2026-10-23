@@ -1,7 +1,7 @@
 """What the catalogue sync stores as a SKU's thumbnail, and what it refuses.
 
 The value this pins is rendered straight into an ``<img src>`` on three screens
-(the monitoring SKU search, «Сравнение SKU» and the per-SKU P&L), which is why
+(the monitoring SKU search, "SKU comparison" and the per-SKU P&L), which is why
 the two negative cases matter as much as the happy one: the rendition WB
 advertises but does not serve, and a host that is not WB's.
 """

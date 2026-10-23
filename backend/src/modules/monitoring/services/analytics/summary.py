@@ -53,7 +53,7 @@ class SummaryAnalytics:
     async def list_workspace_nm_ids(self, *, workspace_id: uuid.UUID) -> list[int]:
         """Return every SKU registered to the workspace.
 
-        Backs the bulk «Обновить все SKU» refresh: the route enqueues a harvest
+        Backs the bulk "Refresh all SKUs" refresh: the route enqueues a harvest
         over exactly this list.
         """
         return await self._product_cards.list_workspace_nm_ids(workspace_id)
@@ -96,7 +96,7 @@ class SummaryAnalytics:
         stock_totals = await self._stocks.latest_totals_by_sku(
             workspace_id=workspace_id, date_from=date_from, date_to=date_to
         )
-        # «Заказы, ₽» prices window-total counts against each SKU's LATEST known
+        # "Orders, ₽" prices window-total counts against each SKU's LATEST known
         # seller price; buyouts come from the sale-date records (real revenue).
         latest_prices = await self._prices.latest_by_sku(
             workspace_id=workspace_id, date_to=max(date_to, moscow_today())
@@ -132,7 +132,7 @@ class SummaryAnalytics:
             open_count = funnel.open_count if funnel else 0
             cart_count = funnel.cart_count if funnel else 0
             order_count = funnel.order_count if funnel else 0
-            # «Заказы, ₽»: window-total count x latest seller price. Buyouts are
+            # "Orders, ₽": window-total count x latest seller price. Buyouts are
             # sale-date attributed facts from the Statistics records.
             seller_price = latest_prices.get(nm_id, (None, None))[0]
             order_sum = round(order_count * seller_price, 2) if seller_price is not None else 0.0
@@ -165,9 +165,9 @@ class SummaryAnalytics:
                     ),
                     # No buyout ratio here on purpose. This feed sees returns, not
                     # refusals at pickup, so any ratio built from it answers a
-                    # different question than «Процент выкупа» — the old
+                    # different question than "Buyout rate" — the old
                     # `buyout_conversion` divided by returns and read 90% where WB
-                    # said ~30% (one card, checked 2026-07-16). «Процент выкупа»
+                    # said ~30% (one card, checked 2026-07-16). "Buyout rate"
                     # is the matrix's `buyout_percent`; see SkuSummaryItem.
                     total_ad_spend=ads.spend if ads else 0.0,
                     total_ad_clicks=ads.clicks if ads else 0,
@@ -190,8 +190,8 @@ class SummaryAnalytics:
     ) -> SkuLookupResponse:
         """Resolve a seller vendor code (or fragment) to matching SKUs.
 
-        Backs the frontend's search by seller article code («или артикулу
-        продавца»): it turns a code like ``"M-TRX01-BLK"`` (or a prefix like
+        Backs the frontend's search by seller article code ("or vendor
+        code"): it turns a code like ``"M-TRX01-BLK"`` (or a prefix like
         ``"M-TRX01"``) into the concrete ``nm_id``\\ (s) the other endpoints key on.
         Matching is case-insensitive and substring-based, so a partial code fans
         out to every colourway.
@@ -209,7 +209,7 @@ class SummaryAnalytics:
         """
         fragment = vendor_code.strip()
         if not fragment:
-            raise ValidationError("Не указан артикул продавца.")
+            raise ValidationError("Enter a vendor code.")
 
         cards = await self._product_cards.search_by_vendor_code(
             fragment, workspace_id=workspace_id, limit=_LOOKUP_LIMIT

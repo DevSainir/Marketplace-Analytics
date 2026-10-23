@@ -1,6 +1,6 @@
 <script setup>
 /**
- * The «Остатки по складам» section: the whole period as one grid.
+ * The "Stock by warehouse" section: the whole period as one grid.
  *
  * A stock number alone says nothing — what the team reads is the MOVEMENT from
  * one day to the next, so the section shows days side by side: one column group
@@ -36,14 +36,14 @@ const columns = computed(() =>
 </script>
 
 <template>
-  <section class="mt-lg" aria-label="Остатки по складам">
-    <h2 class="text-h3 font-semibold text-primary">Остатки по складам</h2>
+  <section class="mt-lg" aria-label="Stock by warehouse">
+    <h2 class="text-h3 font-semibold text-primary">Stock by warehouse</h2>
 
     <BusyRegion :busy="loading" class="mt-sm">
       <StockCompareTable
         :days="columns"
         :size-order="sizeOrder"
-        empty-message="Нет складских остатков по этому SKU за выбранный период."
+        empty-message="No stock for this SKU in the selected period"
       />
     </BusyRegion>
   </section>

@@ -18,7 +18,7 @@ test("monitoring loads and a SKU can be found by vendor code", async ({
   signedIn: page,
 }) => {
   await expect(
-    page.getByRole("heading", { name: "Мониторинг SKU" }),
+    page.getByRole("heading", { name: "SKU monitoring" }),
   ).toBeAttached();
 
   const search = page.getByRole("combobox");
@@ -41,7 +41,7 @@ test("switching workspace re-scopes every subsequent request", async ({
 }) => {
   await page.goto("/profile");
   await expect(
-    page.getByRole("heading", { name: "Кабинеты" }),
+    page.getByRole("heading", { name: "Workspaces" }),
   ).toBeVisible();
 
   const before = await page.evaluate(() =>
@@ -49,7 +49,7 @@ test("switching workspace re-scopes every subsequent request", async ({
   );
   expect(before, "no workspace was selected after login").toBeTruthy();
 
-  const otherWorkspace = page.getByRole("button", { name: /Выбрать/ }).first();
+  const otherWorkspace = page.getByRole("button", { name: /^Select/ }).first();
   if (!(await otherWorkspace.isVisible().catch(() => false))) {
     test.skip(
       true,
@@ -61,8 +61,8 @@ test("switching workspace re-scopes every subsequent request", async ({
 
   // Switching RELOADS this page; it no longer redirects to /monitoring. The
   // reload is what drops every per-workspace cache — the destination was
-  // incidental, and sending everyone to «Мониторинг» put a manager not granted it
-  // on «Раздел недоступен» for the crime of changing workspace.
+  // incidental, and sending everyone to Monitoring put a manager not granted it
+  // on "No access to this section" for the crime of changing workspace.
   await expect(page).toHaveURL(/\/profile$/);
 
   const after = await page.evaluate(() => localStorage.getItem("workspace:id"));
@@ -88,5 +88,5 @@ test("an unknown route renders the 404 page, not a blank app", async ({
   // A blank page on a mistyped URL reads as "the app is down".
   await page.goto("/no-such-page");
 
-  await expect(page.getByText(/не найдена/i)).toBeVisible();
+  await expect(page.getByText(/page not found/i)).toBeVisible();
 });

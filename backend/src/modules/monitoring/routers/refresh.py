@@ -226,7 +226,7 @@ async def get_refresh_status(
     to another tenant is indistinguishable from one that never existed.
     """
     if not await task_belongs_to_workspace(task_id, workspace_id):
-        raise NotFoundError(f"Задача обновления {task_id} не найдена.")
+        raise NotFoundError(f"Refresh task {task_id} not found.")
     result: AsyncResult[object] = AsyncResult(task_id, app=celery_app)
     ready = result.ready()
     successful = bool(result.successful()) if ready else False

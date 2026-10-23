@@ -11,8 +11,8 @@
  * parameter and everything else is shared.
  *
  * A MIXED pick is plotted as an index — rebased to 100 at the window's first
- * reported day. There is no «Значения» mode for one, because there never was an
- * honest one: «Заказы» at 500 000 beside «Затраты» at 7 000 share a unit,
+ * reported day. There is no "Values" mode for one, because there never was an
+ * honest one: "Orders" at 500,000 beside "Spend" at 7,000 share a unit,
  * therefore an axis, and the smaller of the two is a flat line at the bottom of
  * the plot. What a reader compares there is SHAPE; the real values are a hover
  * away, and the table above holds every one of them.
@@ -45,12 +45,12 @@ const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key,
  *
  * The order is not cosmetic. It is the order of the chips, of the legend, of
  * the tooltip rows and — because the columns of a day are drawn in series order
- * — of the bars themselves, which is why «Корзины», «Заказы», «Остатки» stand
+ * — of the bars themselves, which is why "Add to cart", "Orders", "Stock" stand
  * in that sequence on every day of every window. A selection is sorted back
  * into this order before it is drawn, so ticking the same three metrics in a
  * different sequence cannot produce a different chart.
  *
- * «Реклама», «Воронка» and «Общие» are where a reader LOOKS for a metric. The
+ * "Advertising", "Funnel" and "General" are where a reader LOOKS for a metric. The
  * chart uses them too, but only to group the hover.
  *
  * Money names carry no unit; the hover prints each figure with its own
@@ -64,16 +64,16 @@ const BUCKET_INDEX = new Map(TRAFFIC_COLUMNS.map((column, index) => [column.key,
  *
  * Those columns are drawn only while the window is short enough to hold them —
  * see {@link BARS_UP_TO_DAYS}. Past that they become lines like everything
- * else, because a card a year wide draws 365 columns at 1,5px each, which is a
+ * else, because a card a year wide draws 365 columns at 1.5px each, which is a
  * texture rather than a bar.
  */
 export const SKU_METRIC_GROUPS = [
   {
-    title: 'Реклама',
+    title: 'Advertising',
     items: [
-      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты', unit: 'currency' },
-      { key: 'views', metric: 'views', bucket: 'total', name: 'Показы', unit: 'number' },
-      { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Клики', unit: 'number' },
+      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Spend', unit: 'currency' },
+      { key: 'views', metric: 'views', bucket: 'total', name: 'Impressions', unit: 'number' },
+      { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Clicks', unit: 'number' },
       { key: 'ctr', metric: 'ctr', bucket: 'total', name: 'CTR, %', unit: 'percent' },
       { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM', unit: 'currency' },
       { key: 'cpc', metric: 'cpc', bucket: 'total', name: 'CPC', unit: 'currency' },
@@ -81,26 +81,26 @@ export const SKU_METRIC_GROUPS = [
         key: 'drr_orders',
         metric: 'drr_orders',
         bucket: 'total',
-        name: 'ДРР от заказов, %',
+        name: 'ACoS (orders), %',
         unit: 'percent',
       },
       {
         key: 'drr_sales',
         metric: 'drr_sales',
         bucket: 'total',
-        name: 'ДРР от продаж, %',
+        name: 'ACoS (sales), %',
         unit: 'percent',
       },
     ],
   },
   {
-    title: 'Воронка',
+    title: 'Funnel',
     items: [
       {
         key: 'carts',
         metric: 'carts',
         bucket: 'total',
-        name: 'Корзины, шт',
+        name: 'Add to cart, units',
         unit: 'number',
         type: 'bar',
       },
@@ -108,14 +108,14 @@ export const SKU_METRIC_GROUPS = [
         key: 'cart_conversion',
         metric: 'cart_conversion',
         bucket: 'total',
-        name: 'Конверсия в корзину, %',
+        name: 'Cart conversion, %',
         unit: 'percent',
       },
       {
         key: 'orders',
         metric: 'orders',
         bucket: 'total',
-        name: 'Заказы, шт',
+        name: 'Orders, units',
         unit: 'number',
         type: 'bar',
       },
@@ -123,43 +123,43 @@ export const SKU_METRIC_GROUPS = [
         key: 'order_conversion',
         metric: 'order_conversion',
         bucket: 'total',
-        name: 'Конверсия в заказ, %',
+        name: 'Order conversion, %',
         unit: 'percent',
       },
       {
         key: 'buyout_percent',
         metric: 'buyout_percent',
         bucket: 'total',
-        name: 'Процент выкупа, %',
+        name: 'Buyout rate, %',
         unit: 'percent',
       },
     ],
   },
   {
-    title: 'Общие',
+    title: 'General',
     items: [
       {
         key: 'seller_price',
         metric: 'seller_price',
         source: 'priceRows',
-        name: 'Цена продавца',
+        name: 'Seller price',
         unit: 'currency',
       },
       {
         key: 'customer_price',
         metric: 'customer_price',
         source: 'priceRows',
-        name: 'Цена покупателя',
+        name: 'Customer price',
         unit: 'currency',
       },
       {
-        // «На складах» only: the two in-transit legs answer a different
+        // In warehouses only: the two in-transit legs answer a different
         // question (goods already moving) and would overstate what a buyer can
         // actually order today.
         key: 'stock_quantity',
         metric: 'stock_quantity',
         source: 'stockRows',
-        name: 'Остатки на складах, шт',
+        name: 'Stock in warehouses, units',
         unit: 'number',
         type: 'bar',
       },
@@ -183,38 +183,38 @@ export const SKU_DEFAULT_METRICS = ['spend', 'views', 'ctr', 'carts', 'orders']
  * being summed over an account.
  *
  * Prices and SPP are per-card facts: the average price of a T-shirt and a mug
- * is a number about nothing. «Процент выкупа» is a lagged cohort ratio the
+ * is a number about nothing. "Buyout rate" is a lagged cohort ratio the
  * aggregate endpoint does not compute. CTR and CPC need the advertising
  * clicks and views of one card's campaigns, which the summed matrix does not
  * carry. Each is absent rather than approximated.
  */
 export const AGGREGATE_METRIC_GROUPS = [
   {
-    title: 'Реклама',
+    title: 'Advertising',
     items: [
-      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Затраты', unit: 'currency' },
-      { key: 'views', metric: 'views', bucket: 'total', name: 'Показы', unit: 'number' },
-      { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Клики', unit: 'number' },
-      // Where CTR sits on the per-SKU page. CTR itself cannot follow: «Клики»
+      { key: 'spend', metric: 'spend', bucket: 'total', name: 'Spend', unit: 'currency' },
+      { key: 'views', metric: 'views', bucket: 'total', name: 'Impressions', unit: 'number' },
+      { key: 'clicks', metric: 'clicks', bucket: 'total', name: 'Clicks', unit: 'number' },
+      // Where CTR sits on the per-SKU page. CTR itself cannot follow: "Clicks"
       // here is the funnel's card opens, not advertising clicks.
       { key: 'cpm', metric: 'cpm', bucket: 'total', name: 'CPM', unit: 'currency' },
       {
         key: 'drr_orders',
         metric: 'drr_orders',
         bucket: 'total',
-        name: 'ДРР от заказов, %',
+        name: 'ACoS (orders), %',
         unit: 'percent',
       },
     ],
   },
   {
-    title: 'Воронка',
+    title: 'Funnel',
     items: [
       {
         key: 'carts',
         metric: 'carts',
         bucket: 'total',
-        name: 'Корзины, шт',
+        name: 'Add to cart, units',
         unit: 'number',
         type: 'bar',
       },
@@ -222,14 +222,14 @@ export const AGGREGATE_METRIC_GROUPS = [
         key: 'cart_conversion',
         metric: 'cart_conversion',
         bucket: 'total',
-        name: 'Конверсия в корзину, %',
+        name: 'Cart conversion, %',
         unit: 'percent',
       },
       {
         key: 'orders',
         metric: 'orders',
         bucket: 'total',
-        name: 'Заказы, шт',
+        name: 'Orders, units',
         unit: 'number',
         type: 'bar',
       },
@@ -237,33 +237,33 @@ export const AGGREGATE_METRIC_GROUPS = [
         key: 'order_conversion',
         metric: 'order_conversion',
         bucket: 'total',
-        name: 'Конверсия в заказ, %',
+        name: 'Order conversion, %',
         unit: 'percent',
       },
     ],
   },
   {
-    title: 'Общие',
+    title: 'General',
     items: [
       {
         key: 'order_sum',
         metric: 'order_sum',
         bucket: 'total',
-        name: 'Заказы',
+        name: 'Orders',
         unit: 'currency',
       },
       {
         key: 'orders_organic',
         metric: 'orders',
         bucket: 'organic',
-        name: 'Заказы органика, шт',
+        name: 'Organic orders, units',
         unit: 'number',
       },
       {
         key: 'stock_total',
         metric: 'stock_total',
         source: 'stockTotalRows',
-        name: 'Остатки всего, шт',
+        name: 'Total stock, units',
         unit: 'number',
         type: 'bar',
       },
@@ -276,7 +276,7 @@ export const AGGREGATE_DEFAULT_METRICS = ['spend', 'views', 'carts', 'orders']
 
 /**
  * The catalogue as the reader sees it: each money item carries the currency its
- * figures are in, for the hover to sign them («20с», «4 120₽»). Names stay as
+ * figures are in, for the hover to sign them ("KGS 20", "₽4,120"). Names stay as
  * they are — the sign is on the figure, not on the name. One helper for the
  * chips, the legend and the hover, so the three never disagree.
  *
@@ -317,7 +317,7 @@ function readSeries(view, series, field = 'raw') {
   const rows = view[series.source ?? 'rows'] ?? []
   const row = rows.find((candidate) => candidate.key === series.metric)
   if (!row) return view.days.map(() => null)
-  // A mini-block row («Цены», «Остатки») already carries one cell per day.
+  // A mini-block row ("Prices", "Stock") already carries one cell per day.
   if (series.source) return row.cells.map((cell) => cell[field] ?? null)
 
   const column = BUCKET_INDEX.get(series.bucket)
@@ -352,7 +352,7 @@ function indexed(data) {
  * money down the right, and both rulers are drawn even when nothing is on
  * them. The alternative was tried and is worse than it sounds: rulers chosen
  * from the data meant that ticking one more metric silently re-scaled the
- * others, so «Заказы» could be a readable column one moment and a smear along
+ * others, so "Orders" could be a readable column one moment and a smear along
  * the axis the next, with the number down the side now measuring something
  * else. A scale that changes meaning when you look at a second thing is not a
  * scale.
@@ -360,7 +360,7 @@ function indexed(data) {
  * Everything else is drawn as an INDEX, rebased to 100 at the window's first
  * reported day, on a third axis that is never drawn: an index has no unit, so a
  * ruler would have nothing to say, the hover holds the real value, and keeping
- * it off the other two is what stops «100» landing on the «100 штук» gridline.
+ * it off the other two is what stops "100" landing on the "100 units" gridline.
  */
 const AXES = { count: 0, money: 1, index: 2 }
 
@@ -373,7 +373,7 @@ const AXES = { count: 0, money: 1, index: 2 }
  * funnel's own counts share an order of magnitude with each other, and they are
  * what the page is about; the advertising counters are shapes against them.
  *
- * Keyed by CATALOGUE key rather than by unit, because «Клики» and «Заказы» are
+ * Keyed by CATALOGUE key rather than by unit, because "Clicks" and "Orders" are
  * both unit counts and only one of them belongs here.
  */
 const COUNT_RULER_METRICS = new Set([

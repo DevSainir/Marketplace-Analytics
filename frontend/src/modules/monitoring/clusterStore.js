@@ -3,7 +3,7 @@
  * 2026-09-26; hidden for everyone else since 2026-09-09. See the note in
  * `MonitoringView.vue`.
  *
- * «Поиск по кластерам» Pinia store — the block at the bottom of a SKU's page.
+ * Search-cluster Pinia store — the block at the bottom of a SKU's page.
  *
  * A store of its own rather than part of the monitoring one: the block loads on
  * its own schedule (the SKU and the page's window), and a cluster request that
@@ -27,7 +27,7 @@ export const useClusterSearchStore = defineStore('monitoringClusters', () => {
   const clusters = ref([])
   const clustersLoading = ref(false)
   const clustersError = ref('')
-  /** True once a load finished, so «нет данных» never flashes before the first. */
+  /** True once a load finished, so "no data" never flashes before the first. */
   const loaded = ref(false)
 
   /** In-flight request guard: a newer SKU/window always wins. */
@@ -36,7 +36,7 @@ export const useClusterSearchStore = defineStore('monitoringClusters', () => {
   const hasClusters = computed(() => clusters.value.length > 0)
 
   /**
-   * The props «Рекламные кластеры» renders from, as one object.
+   * The props "Search clusters" renders from, as one object.
    *
    * Bundled here rather than spelled out in the view because this store already
    * owns every field: the view stays composition (`v-bind`), and the table keeps

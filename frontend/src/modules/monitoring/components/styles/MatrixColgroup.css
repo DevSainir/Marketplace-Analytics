@@ -7,12 +7,14 @@
    frozen 12rem label column, over the days per screen — the same sum main.css
    sizes the table by, so the columns add up to the table exactly.
 
-   - shelves: what «Руч. полки» needs on one line (66px of label, the cell's
-     padding and its divider), or its 12/84 share of a wide day;
-   - compact (CPC, «Общая», «Органика»): an 8/84 share of a wide day; on a
-     narrower one they hold 56px — «100,00%» with its padding and a divider —
+   - shelves: 78px, sized for the old one-line Russian label of what is now
+     "Manual shelves" (66px of label, the cell's padding and its divider), or
+     its 12/84 share of a wide day. The English label wraps onto two lines
+     here, which the group row allows (main.css);
+   - compact (CPC, "Overall", "Organic"): an 8/84 share of a wide day; on a
+     narrower one they hold 56px — "100.00%" with its padding and a divider —
      for as long as the day can afford it, and below that an equal share;
-   - roomy («Единая ставка», «Руч. поиск»): everything left, 10/84 of a wide
+   - roomy ("Unified bid", "Manual search"): everything left, 10/84 of a wide
      day and more than compact wherever there is anything to spare.
 
    On a wide screen that is the 10·10·10·10·12·8·8·8·8 split; at 1280px it

@@ -1,7 +1,7 @@
 """Renaming an FBS warehouse label takes its history with it (``c7e4a1d90b62``).
 
 The label is not decoration: ``stock_snapshot.warehouse_name`` is part of that
-table's primary key and ``warehouse_mark.warehouse_name`` is how a «Отгрузить»
+table's primary key and ``warehouse_mark.warehouse_name`` is how a "Ship"
 mark finds its warehouse. A rename that touches only the directory row leaves
 every past snapshot filed under a name nothing points at any more — the column
 appears to start from scratch and the marks silently detach.
@@ -44,7 +44,7 @@ _SEEDED_NEW_LABEL = "Vnukovo - Moscow (FBS)"
 
 #: An FBO warehouse in the same table, to prove the rename is a rename and not
 #: a broad UPDATE that catches whatever else is filed nearby.
-_UNTOUCHED_LABEL = "Коледино"
+_UNTOUCHED_LABEL = "Koledino"
 
 
 def _sync_dsn(database: str) -> str:
@@ -146,7 +146,7 @@ def _labels_in(dsn: str) -> dict[str, list[str]]:
 def test_a_renamed_warehouse_keeps_its_stock_history_and_its_marks(
     database_before_the_rename: str,
 ) -> None:
-    """Both snapshot days and the «Отгрузить» mark move to the new label.
+    """Both snapshot days and the "Ship" mark move to the new label.
 
     This is the whole reason the rename is a migration rather than a config
     edit: the label is a primary-key value, so anything left behind under the

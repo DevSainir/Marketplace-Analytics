@@ -42,10 +42,10 @@ const detailState = computed(() =>
 
 // Vendor code (the seller's article) once the backend serves it; nm ID meanwhile.
 const skuLabel = computed(
-  () => formatSku(product.value?.vendor_code) ?? `Артикул WB ${product.value?.nm_id ?? ''}`,
+  () => formatSku(product.value?.vendor_code) ?? `WB ID ${product.value?.nm_id ?? ''}`,
 )
 
-// --- global pinned SKUs («Закрепить») -------------------------------------
+// --- global pinned SKUs ("Pin") -------------------------------------------
 const isPinned = computed(() => product.value != null && store.pinnedIds.has(product.value.nm_id))
 
 function togglePin() {
@@ -53,7 +53,7 @@ function togglePin() {
   store.toggleSkuPin(product.value.nm_id, product.value.vendor_code ?? null)
 }
 
-// --- the «Остатки по складам» ribbon ---------------------------------------
+// --- the "Stock by warehouse" ribbon --------------------------------------
 // Every day group shares one row set (see the helper for why). The days
 // themselves come from the page's period, so there is nothing to pick here.
 const sharedStockSizes = computed(() => unionStockSizes(store.stockDays))
@@ -62,7 +62,7 @@ const sharedStockSizes = computed(() => unionStockSizes(store.stockDays))
 // three commits it can make and the undo/redo keys.
 const { matrix, editingLocked, onCellEdit, onCommentEdit, onActionEdit } = useMatrixEditing(store)
 
-// --- «Рекламные кластеры»: per workspace ----------------------------------
+// --- "Search clusters": per workspace -------------------------------------
 // Hidden for everyone on 2026-09-09 as a product decision, back on 2026-09-26
 // for the workspaces whose `search_clusters_enabled` is set — today one workspace,
 // turned on by migration `b5d2e8f41c93`. Everywhere else the block, its nav
@@ -80,10 +80,10 @@ const clusters = useSkuClusters(() => clustersEnabled.value)
  * markup and take no id prop, so the anchors are wrapper divs in the template.
  */
 const SECTIONS = computed(() => [
-  { id: 'sec-matrix', label: 'По дням' },
-  { id: 'sec-stock', label: 'Остатки' },
-  { id: 'sec-chart', label: 'График' },
-  ...(clustersEnabled.value ? [{ id: 'sec-clusters', label: 'Кластеры' }] : []),
+  { id: 'sec-matrix', label: 'By day' },
+  { id: 'sec-stock', label: 'Stock' },
+  { id: 'sec-chart', label: 'Chart' },
+  ...(clustersEnabled.value ? [{ id: 'sec-clusters', label: 'Clusters' }] : []),
 ])
 
 onMounted(() => store.fetchPins())
@@ -93,7 +93,7 @@ onMounted(() => store.fetchPins())
   <!-- `.app-container` is the shared canvas width + safe-area gutter (main.css). -->
   <div class="app-container py-lg">
     <div class="w-full">
-      <h1 class="sr-only">Мониторинг SKU</h1>
+      <h1 class="sr-only">SKU monitoring</h1>
       <BackfillNotice :lanes="['catalogue', 'funnel', 'advertising']" />
 
       <!-- Period selector, slightly above the search bar; the bulk WB refresh
@@ -135,7 +135,7 @@ onMounted(() => store.fetchPins())
       />
 
       <p v-if="store.skuListError && !windowTooWide" class="mt-sm text-tiny text-status-negative">
-        Не удалось загрузить список SKU: {{ store.skuListError }}
+        Couldn't load the SKU list: {{ store.skuListError }}
       </p>
 
       <SkuMatchPicker
@@ -162,8 +162,8 @@ onMounted(() => store.fetchPins())
           @toggle-pin="togglePin"
         />
 
-        <section id="sec-matrix" class="mt-lg" aria-label="Ежедневные метрики">
-          <h2 class="text-h3 font-semibold text-primary">Метрики по дням</h2>
+        <section id="sec-matrix" class="mt-lg" aria-label="Daily metrics">
+          <h2 class="text-h3 font-semibold text-primary">Metrics by day</h2>
 
           <MetricsTable
             class="mt-sm"
@@ -219,7 +219,7 @@ onMounted(() => store.fetchPins())
           <MetricsChart :view="matrix" />
         </div>
 
-        <!-- «Рекламные кластеры» — only for workspaces with the switch on;
+        <!-- "Search clusters" — only for workspaces with the switch on;
              see the block comment in <script setup>. -->
         <div v-if="clustersEnabled" id="sec-clusters">
           <SkuClusterBlock v-bind="clusters.clusterTableProps" :currency="product?.ad_currencies" />
@@ -228,11 +228,10 @@ onMounted(() => store.fetchPins())
 
       <!-- Initial state: an inviting hint until the first SKU is submitted -->
       <div v-else-if="!store.lookupMatches.length" class="mt-20 text-center phone:mt-xl">
-        <p class="text-h2 font-semibold text-primary">Введите артикул товара</p>
+        <p class="text-h2 font-semibold text-primary">Pick a SKU</p>
         <p class="mx-auto mt-sm max-w-xl text-base text-muted">
-          Начните вводить артикул продавца, артикул WB или название — либо просто кликните по строке
-          поиска и выберите SKU из списка. После этого здесь появится короткая сводка по заказам,
-          рекламе и остаткам.
+          Type a vendor code, WB ID or product name, or click the search bar and pick a SKU from the
+          list. Its orders, advertising and stock appear here.
         </p>
       </div>
     </div>

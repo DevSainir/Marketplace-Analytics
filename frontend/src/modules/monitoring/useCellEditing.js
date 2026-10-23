@@ -3,7 +3,7 @@
  *
  * A composable rather than a mixin or duplicated state because TWO components
  * edit cells of the same table — `MetricsTable` for the metric rows and
- * `MatrixDayBlocksRow` for the «Цены» block — and they must behave identically:
+ * `MatrixDayBlocksRow` for the "Prices" block — and they must behave identically:
  * same commit rules, same comma handling, same no-op suppression. The editing
  * state itself is per-component (only one cell is ever open in each), so each
  * caller gets its own instance.
@@ -13,6 +13,8 @@
  * the cursor is not the same object it was a moment ago.
  */
 import { ref } from 'vue'
+
+import { normalizeTypedNumber } from '@/core/utils/format'
 
 /**
  * @param {object} options
@@ -38,7 +40,7 @@ export function useCellEditing({ disabled, onCommit }) {
 
   function commitEdit(row, cell) {
     if (editingId.value !== cellId(row.key, cell)) return
-    const raw = draft.value.trim().replace(',', '.')
+    const raw = normalizeTypedNumber(draft.value)
     const value = Number(raw)
     editingId.value = null
     // Ignore empty/invalid input or a no-op (unchanged value).

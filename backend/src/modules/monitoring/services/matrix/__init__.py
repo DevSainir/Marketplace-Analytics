@@ -6,7 +6,7 @@ by the SKU detail endpoint:
 * ``AdvertisingStatDaily`` — full per-campaign daily totals (all zones).
 * ``AdvertisingSearchStatDaily`` — the SEARCH-zone slice of the same days
   (from WB's search-cluster stats endpoint).
-* ``SalesFunnelDaily`` — the organic funnel («Общая» / «Органика» columns).
+* ``SalesFunnelDaily`` — the organic funnel ("Overall" / "Organic" columns).
 
 Everything here is pure computation over already-fetched rows: no SQL, no I/O.
 The package is split by pipeline stage, one responsibility per module:
@@ -19,7 +19,7 @@ The package is split by pipeline stage, one responsibility per module:
   -> bucket classification, the search/shelves split, and significant-campaign
   selection.
 * :mod:`~src.modules.monitoring.services.matrix.pricing` — per-day price/stock
-  resolution and the derived ₽ values («Заказы/Выкупы, ₽», «СПП»).
+  resolution and the derived ₽ values ("Orders/Buyouts, ₽", "WB discount").
 * :mod:`~src.modules.monitoring.services.matrix.cells` — the per-cell metric
   formulas of every column family.
 * :mod:`~src.modules.monitoring.services.matrix.base_state` — stage 1: raw fact

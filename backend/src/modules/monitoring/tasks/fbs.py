@@ -4,7 +4,7 @@ FBS stock lives on a different WB surface from FBO stock, behind a different
 token category, and is addressed by barcode instead of ``chrt_id``. All three
 differences stop at this module: it hands the harvest ordinary
 :class:`WBStockRow` values, so the same ingestion, the same
-``monitoring.stock_snapshot`` grain, the same «Остатки по складам» panel and the
+``monitoring.stock_snapshot`` grain, the same "Stock by warehouse" panel and the
 same finreports balance grid pick FBS up with no knowledge that it is FBS —
 beyond the ``(FBS)`` in the warehouse label.
 
@@ -77,7 +77,7 @@ def label_for(warehouse: WBFbsWarehouse, configured: dict[int, str]) -> str:
         return configured_label[:LABEL_MAX_LENGTH]
     name = " ".join((warehouse.name or "").split())
     if not name:
-        return f"Склад {warehouse.id}{_FBS_SUFFIX}"
+        return f"Warehouse {warehouse.id}{_FBS_SUFFIX}"
     return f"{name[: LABEL_MAX_LENGTH - len(_FBS_SUFFIX)]}{_FBS_SUFFIX}"
 
 
@@ -227,14 +227,14 @@ async def fetch_fbs_stock_rows(
     filed under its own label.
 
     Returns an empty result (rather than raising) for the two ways FBS is simply
-    not in play: no «Маркетплейс» token on the workspace, and FBS harvesting
+    not in play: no "Marketplace" token on the workspace, and FBS harvesting
     switched off via ``wb_fbs_harvest_enabled``. A workspace without the token
     is the normal case — only the seller who ships FBS has one — so this must
     not read as a failure.
 
     Args:
         settings: Label overrides, the FBS switch, and transport config.
-        token: The workspace's «Маркетплейс»-scope token.
+        token: The workspace's "Marketplace"-scope token.
         nm_ids: The SKUs this harvest covers; their barcodes are the query.
         cards: Content API cards the caller already fetched, if any. They carry
             the barcodes too, and they are read FIRST because the catalogue rows

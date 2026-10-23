@@ -10,9 +10,9 @@ report cannot supply:
 * **Orders.** The settlement only sees what was bought out; orders live in the
   sales-funnel history the monitoring harvest collects.
 * **Advertising.** The settlement carries advertising only as account-level
-  «WB Продвижение» invoices with no ``nm_id``. The per-SKU spend comes from the
+  "WB Promotion" invoices with no ``nm_id``. The per-SKU spend comes from the
   Promotion API's fullstats, which monitoring already ingests day by day.
-* **Stock.** The «Баланс по товарным остаткам» table prices what is still lying
+* **Stock.** The stock balance table prices what is still lying
   in the warehouses; the settlement only ever describes goods that already
   moved. Remaining stock is a daily snapshot monitoring harvests per
   ``(day, SKU, warehouse, size)``.
@@ -26,7 +26,7 @@ live here — "which SKU is this", rather than "what did this SKU earn" — move
 through :func:`~src.modules.monitoring.repos.base.workspace_sku_select`.** Four
 of them did not until 2026-08-27, and the consequence was not a missing filter
 in the abstract: ``GET /pnl/skus`` summed EVERY tenant's orders and advertising
-spend into the «Итого» row of whichever tenant asked. A monitoring loader
+spend into the "Total" row of whichever tenant asked. A monitoring loader
 without a tenant argument is the bug, so none of them has an optional one — a
 caller that does not know whose numbers it wants must not be able to compile.
 """
@@ -86,17 +86,17 @@ async def load_orders_by_nm(
 async def load_buyouts_by_nm(
     session: AsyncSession, *, workspace_id: uuid.UUID, date_from: date, date_to: date
 ) -> dict[int, tuple[int, int]]:
-    """Return WB's «Процент выкупа» inputs per SKU: buyouts and DECIDED deliveries.
+    """Return WB's "Buyout rate" inputs per SKU: buyouts and DECIDED deliveries.
 
-    WB's own definition, the one the seller cabinet shows: the orders PLACED in
+    WB's own definition, the one the WB seller portal shows: the orders PLACED in
     the window (funnel days are order dates), and of those whose fate is known,
     how many were bought out — ``buyouts / (buyouts + refusals)``. A day whose
     ``cancel_count`` is still NULL has not been through the cohort pass, and is
-    left out of both sums: counting it as «no refusals» would invent a 100 %
+    left out of both sums: counting it as "no refusals" would invent a 100 %
     cohort. The same exclusion :mod:`.day_series` and the matrix make.
 
     The window's last ~3 weeks are still maturing (deliveries take that long to
-    be accepted or refused), exactly as they are in WB's cabinet.
+    be accepted or refused), exactly as they are in the WB seller portal.
 
     Args:
         session: An open async session (caller owns the transaction).
@@ -140,7 +140,7 @@ async def load_ad_spend_by_nm(
     ads ran — not the day the invoice was withheld from a settlement. The two
     reconcile only approximately (invoices lag the spend by up to a week), which
     is fine for a per-SKU cost attribution and wrong for an audit of the
-    account-level «Удержания» line; use the settlement itself for that.
+    account-level "Deductions" line; use the settlement itself for that.
 
     Args:
         session: An open async session (caller owns the transaction).
@@ -292,12 +292,12 @@ async def load_stock_by_warehouse(
 
 
 async def load_vendor_codes(session: AsyncSession, *, workspace_id: uuid.UUID) -> dict[int, str]:
-    """Return the workspace's catalogue vendor codes («Артикул продавца»).
+    """Return the workspace's catalogue vendor codes (the "Vendor code").
 
     The identity fallback for a SKU that holds stock but has never appeared in a
     settlement — a fresh supply, or one that never sold — and so has no name
     anywhere in the finreports tables. Without it such a row renders as a bare
-    ``nm_id`` on a table whose first column is «Артикул».
+    ``nm_id`` on a table whose first column is "SKU".
 
     Args:
         session: An open async session (caller owns the transaction).
@@ -442,7 +442,7 @@ async def load_campaign_ids_for_workspace(
     fifty ids at a time on a bucket refilling once every twenty seconds — so an
     id that cannot possibly carry the traffic being asked for is not free, it is
     a share of a fifty-slot batch and potentially a twenty-second wait. A
-    cabinet advertising four hundred SKUs while testing three of them was
+    workspace advertising four hundred SKUs while testing three of them was
     sending eight batches where one would do.
 
     Args:

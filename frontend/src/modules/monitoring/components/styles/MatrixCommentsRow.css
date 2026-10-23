@@ -40,14 +40,14 @@
   padding: 0;
 }
 
-/* One card per day, open or collapsed: the same pane the «Цены/Остатки» tiles
-   and the «Действия» answer cards wear, so the three bands under the grid read
+/* One card per day, open or collapsed: the same pane the "Prices/Stock" tiles
+   and the "Actions" answer cards wear, so the three bands under the grid read
    as one family instead of two card rows and a strip of loose text.
 
    NO background here. `skin.css` names `.day-comment-card` alongside
    `.day-block` and `.day-action-card` for the glass, and a scoped rule in this
    file carries a `[data-v-*]` attribute that would silently outrank it — which
-   is exactly how the «Цены»/«Остатки» tints once cancelled the same treatment.
+   is exactly how the "Prices"/"Stock" tints once cancelled the same treatment.
 
 */
 .day-comment-card {

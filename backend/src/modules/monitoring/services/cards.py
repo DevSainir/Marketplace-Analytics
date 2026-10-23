@@ -46,14 +46,14 @@ class WorkspaceCard(NamedTuple):
 
     Attributes:
         nm_id: WB article.
-        vendor_code: Seller article code («Артикул продавца»).
+        vendor_code: Seller article code (the "Vendor code").
         title: Card title.
         orders_7d: Ordered units over the last :data:`RANKING_DAYS` days. Zero
             for a card the funnel history has not covered — the picker ranks
             with it, it does not report it as a measured zero.
         has_ads: Whether the card served advertising in the same window. It is
             the FIRST sort key rather than a tiebreak because an A/B rotation
-            on «по показам» only advances while the card is being advertised:
+            on the impressions trigger only advances while the card is being advertised:
             a card with no advertising is one the default trigger cannot move.
     """
 
@@ -103,7 +103,7 @@ async def search_workspace_cards(
     so a pasted fragment works, the same way the A/B list's own search does.
 
     **Ordering is the answer to "which card would I actually test".** Alphabetical
-    by vendor code put whatever the seller happened to code «A-001» at the top
+    by vendor code put whatever the seller happened to code "A-001" at the top
     of a picker that opens before a single character is typed. The order is now
     advertised cards first, then last week's ordered units descending, and the
     vendor code only as a tiebreak between cards that are equally idle.

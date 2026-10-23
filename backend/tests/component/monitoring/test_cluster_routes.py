@@ -1,4 +1,4 @@
-"""Component tests for the «Поиск по кластерам» HTTP surface.
+"""Component tests for the "Cluster search" HTTP surface.
 
 The service is stubbed (its arithmetic is unit-tested): what this tier adds is
 the wiring — that the route lives under `/skus/{nm_id}` behind the ownership
@@ -44,7 +44,7 @@ class _StubClusterAnalytics:
             window=MetricWindow(start=date(2026, 8, 1), end=date(2026, 8, 13)),
             items=[
                 SkuClusterItem(
-                    cluster="носки мужские",
+                    cluster="men's socks",
                     views=1000,
                     clicks=50,
                     add_to_cart=10,
@@ -115,7 +115,7 @@ async def test_the_cluster_block_loads_for_the_pages_sku(
     )
 
     assert response.status_code == 200
-    assert response.json()["items"][0]["cluster"] == "носки мужские"
+    assert response.json()["items"][0]["cluster"] == "men's socks"
     assert clusters.calls[0][1]["nm_id"] == NM_ID
     assert clusters.calls[0][1]["date_from"] == date(2026, 8, 1)
 

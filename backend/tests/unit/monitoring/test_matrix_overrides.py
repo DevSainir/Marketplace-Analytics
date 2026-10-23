@@ -151,11 +151,11 @@ def test_display_override_overlay_and_diff_roundtrip() -> None:
 
 
 def test_buyout_percent_roundtrips_as_a_day_level_input() -> None:
-    """«Процент выкупа» persists as a ``day`` row and comes back as a fact.
+    """The "Buyout rate" persists as a ``day`` row and comes back as a fact.
 
     It is harvested, so a manager's correction has to survive a save the same
-    way an edited count does — otherwise everything derived from it («Выкупы,
-    ₽», both DRR rows) reverts on the next read.
+    way an edited count does — otherwise everything derived from it ("Buyouts,
+    ₽", both DRR rows) reverts on the next read.
     """
     fact = _fact_base()  # no cohort served for this day
     working = fact.model_copy(deep=True)
@@ -223,7 +223,7 @@ def test_restoring_an_orders_override_repairs_the_viewed_breakdown_row() -> None
 def test_an_edited_card_share_is_persisted_beside_the_campaigns_number() -> None:
     """An ad edit moves both sides, so both are diffed into overrides.
 
-    «Общая» and «Органика» are built from the card's share: persisting only the
+    "Overall" and "Organic" are built from the card's share: persisting only the
     campaign's number would reload a corrected column with the harvested share
     underneath it.
     """

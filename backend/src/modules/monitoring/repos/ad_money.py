@@ -6,7 +6,7 @@ Kyrgyz workspace settles, and is reported, in KGS. Every rouble of ad money is
 therefore converted where it is stored, at the Bank of Russia rate of its own
 day, the rate WB uses for every RUB→KGS conversion it makes itself.
 Storing the converted figure means
-every reader — the matrix, the heatmap, the P&L, «Сводка», «A/Б» — gets one
+every reader — the matrix, the heatmap, the P&L, "Summary", "A/B tests" — gets one
 currency without knowing a conversion happened.
 
 **Which workspace converts** is read off its own sales funnel: WB answers the
@@ -18,7 +18,7 @@ RUB ads stay as they are.
 WB served them (``fx_rate IS NULL``); the harvest writes every row that way,
 so a re-harvest of a rouble day is converted again rather than left raw. A day
 past the last loaded rate (or more than :data:`MAX_RATE_AGE_DAYS` after one)
-stays in roubles, and the screens show «—» for the sums it would mix.
+stays in roubles, and the screens show "—" for the sums it would mix.
 
 What was converted keeps its mark: ``fx_from = 'RUB'`` and ``fx_rate``, the
 factor the WB figure was multiplied by — ``amount / fx_rate`` is WB's number.

@@ -3,9 +3,10 @@ import { mount } from '@vue/test-utils'
 import SkuSearchSelect from '@/modules/monitoring/components/SkuSearchSelect.vue'
 
 const ITEMS = [
-  { nm_id: 111, vendor_code: 'M-TRX01-BLK', title: 'Брюки чёрные', is_out_of_stock: false },
-  { nm_id: 222, vendor_code: 'M-TRX01-BEJ', title: 'Брюки бежевые', is_out_of_stock: true },
-  { nm_id: 333, vendor_code: 'M-LNX01-BLU', title: 'Рубашка синяя', is_out_of_stock: false },
+  { nm_id: 111, vendor_code: 'M-TRX01-BLK', title: 'Black trousers', is_out_of_stock: false },
+  { nm_id: 222, vendor_code: 'M-TRX01-BEJ', title: 'Beige trousers', is_out_of_stock: true },
+  // A title in another alphabet: the match must fold its case too.
+  { nm_id: 333, vendor_code: 'M-LNX01-BLU', title: 'Ωμέγα linen shirt', is_out_of_stock: false },
 ]
 
 function optionLabels(wrapper) {
@@ -29,15 +30,15 @@ describe('SkuSearchSelect', () => {
     await input.setValue('m-trx')
     expect(optionLabels(wrapper)).toHaveLength(2)
 
-    await input.setValue('рубашка')
+    await input.setValue('ωμέγα')
     expect(optionLabels(wrapper)).toEqual([expect.stringContaining('M-LNX01-BLU')])
 
     await input.setValue('222')
     expect(optionLabels(wrapper)).toEqual([expect.stringContaining('M-TRX01-BEJ')])
 
-    await input.setValue('нет такого')
+    await input.setValue('no such sku')
     expect(wrapper.findAll('[role="option"]')).toHaveLength(0)
-    expect(wrapper.find('[role="listbox"]').text()).toContain('Ничего не совпало')
+    expect(wrapper.find('[role="listbox"]').text()).toContain('No match')
   })
 
   it('emits select with the picked item and closes the dropdown', async () => {
@@ -75,7 +76,7 @@ describe('SkuSearchSelect', () => {
     const wrapper = mount(SkuSearchSelect, { props: { items: [], loading: true } })
     await wrapper.find('input').trigger('focus')
 
-    expect(wrapper.find('[role="listbox"]').text()).toContain('Загружаем…')
+    expect(wrapper.find('[role="listbox"]').text()).toContain('Loading…')
     expect(wrapper.findAll('[role="option"]')).toHaveLength(0)
   })
 })

@@ -15,7 +15,7 @@ One responsibility per module:
 * :mod:`~src.modules.monitoring.tasks.harvest` — the SKU-window harvest core:
   fetch, flatten and persist, in one transaction. Driven by both tasks below.
 * :mod:`~src.modules.monitoring.tasks.refresh` — the interactive
-  ``monitoring.harvest_sku_window`` task («Обновить»).
+  ``monitoring.harvest_sku_window`` task ("Refresh").
 * :mod:`~src.modules.monitoring.tasks.discovery` — workspace SKU discovery:
   the nightly ``monitoring.harvest_all`` task and its single-tenant
   ``monitoring.discover_workspace`` counterpart.
@@ -29,7 +29,7 @@ One responsibility per module:
 This ``__init__`` is the package facade Celery's ``autodiscover_tasks`` imports
 (it looks for ``src.modules.monitoring.tasks``): importing it imports every
 task module, so all tasks register under their unchanged explicit
-``monitoring.*`` names, and external consumers (the routers' «Обновить»
+``monitoring.*`` names, and external consumers (the routers' "Refresh"
 endpoint) keep importing the task callables from here.
 """
 

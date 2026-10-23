@@ -1,7 +1,7 @@
-"""Unit tests for the «CPC» traffic group — pay-per-click campaigns.
+"""Unit tests for the "CPC" traffic group — pay-per-click campaigns.
 
 WB bills these campaigns per CLICK rather than per 1000 impressions, so their
-bid, their CPM and their «Доля трафика» are not readable against a CPM
+bid, their CPM and their "Traffic share" are not readable against a CPM
 campaign's. They get their own traffic-type group with the same two
 display zones, and the classification that puts them there keys off the
 campaign dimension's ``payment_type``, never its bid type.
@@ -13,11 +13,11 @@ from tests.support.matrix_rows import DAY1, _ad_row, _campaign, _cell, _matrix, 
 
 
 def test_a_cpc_campaign_lands_in_the_cpc_group_not_the_bid_type_one() -> None:
-    """A CPC campaign's zones are «CPC», never «Единая ставка».
+    """A CPC campaign's zones are "CPC", never "Unified bid".
 
     Its bid type still reads ``unified``, which before the CPC group put it in
-    the «Единая ставка» columns — mixing a per-click bid into a per-impression
-    column, where every CPM and «Доля трафика» beside it became unreadable.
+    the "Unified bid" columns — mixing a per-click bid into a per-impression
+    column, where every CPM and "Traffic share" beside it became unreadable.
     """
     campaigns = {1: _campaign(1, "unified", search=True, shelves=True, payment_type="cpc")}
     ad_rows = [_ad_row(1, DAY1, views=1000, clicks=100, spend=1200, orders=4)]
@@ -32,9 +32,9 @@ def test_a_cpc_campaign_lands_in_the_cpc_group_not_the_bid_type_one() -> None:
 
 
 def test_the_cpc_columns_carry_their_own_cost_per_click() -> None:
-    """Each CPC zone's «CPC, ₽» is that zone's own spend over its own clicks.
+    """Each CPC zone's "CPC, ₽" is that zone's own spend over its own clicks.
 
-    The whole point of the group: 900/80 in «Поиск» and 300/20 in «Полки» are
+    The whole point of the group: 900/80 in "Search" and 300/20 in "Shelves" are
     two different bids, and a blended 12 ₽ over the campaign hides which zone
     the money went to.
     """
@@ -51,11 +51,11 @@ def test_the_cpc_columns_carry_their_own_cost_per_click() -> None:
 
 
 def test_a_search_only_cpc_campaign_keeps_its_whole_day_in_the_search_zone() -> None:
-    """No catalog remainder is shed — the CPC group has no «Каталог» column.
+    """No catalog remainder is shed — the CPC group has no "Catalog" column.
 
-    «Руч. поиск» splits its fullstats-minus-normquery remainder into «Руч.
-    каталог»; doing that here would drop the leg on the floor and understate
-    «Общая», which is built by summing the buckets.
+    "Manual search" splits its fullstats-minus-normquery remainder into "Manual
+    catalog"; doing that here would drop the leg on the floor and understate
+    "Overall", which is built by summing the buckets.
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False, payment_type="cpc")}
     ad_rows = [_ad_row(1, DAY1, views=1000, clicks=100, spend=1200, orders=4)]
@@ -70,7 +70,7 @@ def test_a_search_only_cpc_campaign_keeps_its_whole_day_in_the_search_zone() -> 
 
 
 def test_a_shelves_only_cpc_campaign_lands_in_the_shelves_zone() -> None:
-    """A CPC campaign bidding only on recommendations is «CPC · Полки»."""
+    """A CPC campaign bidding only on recommendations is "CPC · Shelves"."""
     campaigns = {1: _campaign(1, "manual", search=False, shelves=True, payment_type="cpc")}
     ad_rows = [_ad_row(1, DAY1, views=1000, clicks=100, spend=1200, orders=4)]
 
@@ -116,7 +116,7 @@ def test_a_cpc_campaign_delivers_below_the_cpm_floor() -> None:
     roughly 700-1300 impressions). A pay-per-click campaign buys the same delivery
     for about a quarter of that, so the CPM floor read a real delivering day as
     noise. Example: a campaign serves 646 impressions and 74 clicks for
-    166.50 ₽ on one card, and the «CPC» column stayed blank on that card.
+    166.50 ₽ on one card, and the "CPC" column stayed blank on that card.
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False, payment_type="cpc")}
     ad_rows = [_ad_row(1, DAY1, views=1154, clicks=74, spend=166.50, orders=3)]
@@ -133,7 +133,7 @@ def test_a_cpc_campaign_that_never_delivered_is_still_cut() -> None:
 
     A paused-but-not-finished CPC campaign trickles a handful of impressions for
     0 ₽, always at 0 clicks; those must not
-    open a «CPC» column that claims the card had pay-per-click traffic.
+    open a "CPC" column that claims the card had pay-per-click traffic.
     """
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False, payment_type="cpc")}
     ad_rows = [_ad_row(1, DAY1, views=19, clicks=0, spend=0.0)]

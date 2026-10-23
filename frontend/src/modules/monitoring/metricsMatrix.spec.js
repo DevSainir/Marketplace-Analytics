@@ -12,19 +12,19 @@ import {
 describe('traffic column structure', () => {
   it('has one leaf column per workbook zone, CPC included', () => {
     expect(TRAFFIC_COLUMNS.map((c) => c.zone)).toEqual([
-      'Поиск',
-      'Полки',
-      'Поиск',
-      'Каталог',
-      'Полки',
-      'Поиск',
-      'Полки',
-      'Общая',
-      'Органика',
+      'Search',
+      'Shelves',
+      'Search',
+      'Catalog',
+      'Shelves',
+      'Search',
+      'Shelves',
+      'Overall',
+      'Organic',
     ])
   })
 
-  it('gives the CPC group its own Поиск/Полки pair', () => {
+  it('gives the CPC group its own Search/Shelves pair', () => {
     const cpc = TRAFFIC_GROUPS.find((g) => g.label === 'CPC')
     const offset = TRAFFIC_GROUPS.slice(0, TRAFFIC_GROUPS.indexOf(cpc)).reduce(
       (sum, g) => sum + g.span,
@@ -42,7 +42,7 @@ describe('traffic column structure', () => {
     expect(spanned).toBe(TRAFFIC_COLUMNS.length)
   })
 
-  it('merges «ДРР от продаж» into exactly one cell per traffic group', () => {
+  it('merges "ACoS (sales)" into exactly one cell per traffic group', () => {
     // The row's day/group dividers are drawn by an `nth-child(6n + …)` cadence
     // in MatrixMetricsRows.css, and 6 is this length — the row merges its
     // zones, so it lays out fewer cells per day than the rows above and cannot
@@ -134,7 +134,7 @@ function blockCell(rows, rowKey, d) {
 describe('buildMetricsMatrix', () => {
   it('spans the whole window with full-date section labels, 7 cells per day', () => {
     const matrix = buildMetricsMatrix(PRODUCT)
-    expect(matrix.days.map((d) => d.label)).toEqual(['01.07.2026', '02.07.2026'])
+    expect(matrix.days.map((d) => d.label)).toEqual(['1 Jul 2026', '2 Jul 2026'])
     for (const row of matrix.rows) expect(row.cells).toHaveLength(2 * COLS)
   })
 
@@ -151,15 +151,15 @@ describe('buildMetricsMatrix', () => {
     expect(cellObj(matrix, 'views', 0, 'manual_shelves').editable).toBe(true)
   })
 
-  it('makes every block cell editable (prices, СПП, and stock)', () => {
-    // Prices live in the day-bound «Цены» block (one «Общая» cell per day).
+  it('makes every block cell editable (prices, WB discount, and stock)', () => {
+    // Prices live in the day-bound "Prices" block (one "Overall" cell per day).
     const matrix = buildMetricsMatrix(PRODUCT)
     expect(blockCell(matrix.priceRows, 'seller_price', 0).editable).toBe(true)
     expect(blockCell(matrix.priceRows, 'customer_price', 0).editable).toBe(true)
     // SPP is derived but still editable (display override); its value still shows.
     expect(blockCell(matrix.priceRows, 'spp', 0).editable).toBe(true)
     expect(blockCell(matrix.priceRows, 'spp', 0).display).toBe('30.00%')
-    // Block cells address the backend «total» bucket for edits.
+    // Block cells address the backend `total` bucket for edits.
     expect(blockCell(matrix.priceRows, 'seller_price', 0)).toMatchObject({
       raw: 1000,
       day: '2026-07-01',
@@ -289,7 +289,7 @@ describe('buildMetricsMatrix', () => {
     expect(first(matrix.rows, 'spend').display).toBe('KGS 15')
     expect(first(matrix.rows, 'order_sum').unit).toBe('₽')
     expect(first(matrix.rows, 'ctr').unit).toBe('')
-    expect(matrix.rows.find((r) => r.key === 'spend').label).toBe('Затраты')
+    expect(matrix.rows.find((r) => r.key === 'spend').label).toBe('Spend')
   })
 
   it('keeps the figure and the sign apart, so a narrow cell can drop the sign and not a digit', () => {
@@ -346,10 +346,10 @@ describe('buildMetricsMatrix', () => {
 
     const label = (key) => matrix.rows.find((r) => r.key === key).label
 
-    expect(label('spend')).toBe('Затраты')
-    // The count keeps «шт», so the two «Заказы» rows still read apart.
-    expect(label('order_sum')).toBe('Заказы')
-    expect(label('orders')).toBe('Заказы, шт')
+    expect(label('spend')).toBe('Spend')
+    // The count keeps "units", so the two "Orders" rows still read apart.
+    expect(label('order_sum')).toBe('Orders')
+    expect(label('orders')).toBe('Orders, units')
   })
 })
 
@@ -546,9 +546,9 @@ describe('associative conversions', () => {
   })
 })
 
-// «Общая»'s «Клики» are the funnel's (organic included) while its CTR is the
+// "Overall"'s "Clicks" are the funnel's (organic included) while its CTR is the
 // advertising one — the hover names what the CTR really divides.
-describe('the «Общая» CTR basis', () => {
+describe('the "Overall" CTR basis', () => {
   function ctrProduct() {
     const clone = structuredClone(PRODUCT)
     clone.matrix.rows.find((r) => r.key === 'ctr').values[col('total')] = 6
@@ -556,7 +556,7 @@ describe('the «Общая» CTR basis', () => {
     return clone
   }
 
-  it('carries the advertising clicks and the column’s показы', () => {
+  it('carries the advertising clicks and the column’s impressions', () => {
     const view = buildMetricsMatrix(ctrProduct())
 
     expect(cellObj(view, 'ctr', 0, 'total').ctrBasis).toEqual({ clicks: 9, views: 150 })

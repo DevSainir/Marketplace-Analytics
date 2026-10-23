@@ -1,7 +1,7 @@
-"""Unit tests for the «Поиск»/«Каталог» split of WB search campaigns.
+"""Unit tests for the "Search"/"Catalog" split of WB search campaigns.
 
 A WB search campaign also delivers in the catalog zone: the normquery slice is
-the «Поиск» half and the remainder is «Каталог». The split is only as sound as
+the "Search" half and the remainder is "Catalog". The split is only as sound as
 its clamping — a slice reported above the campaign's own totals must not
 manufacture negative catalog numbers. The figures are sample numbers.
 """
@@ -12,11 +12,11 @@ from tests.support.matrix_rows import DAY1, _ad_row, _campaign, _cell, _matrix, 
 
 
 # --------------------------------------------------------------------------- #
-# «Руч. каталог»: WB search campaigns also deliver in the catalog zone —
-# normquery slice = «Поиск», remainder = «Каталог» (sample numbers).
+# "Manual catalog": WB search campaigns also deliver in the catalog zone —
+# normquery slice = "Search", remainder = "Catalog" (sample numbers).
 # --------------------------------------------------------------------------- #
 def test_search_campaign_splits_into_search_and_catalog() -> None:
-    """A search-only manual campaign splits into «Поиск» + «Каталог» zones."""
+    """A search-only manual campaign splits into "Search" + "Catalog" zones."""
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
     ad_rows = [
         _ad_row(
@@ -41,16 +41,16 @@ def test_search_campaign_splits_into_search_and_catalog() -> None:
     assert _cell(rows, "spend", 0, "manual_search") == 11121.31
     assert _cell(rows, "spend", 0, "manual_catalog") == 1286.4
     assert _cell(rows, "orders", 0, "manual_catalog") == 5
-    # «Доля трафика» spans all manual zones (86.62 + 13.38 = 100).
+    # "Traffic share" spans all manual zones (86.62 + 13.38 = 100).
     assert _cell(rows, "traffic_share", 0, "manual_search") == 86.62
     assert _cell(rows, "traffic_share", 0, "manual_catalog") == 13.38
-    # Zone-attributed revenue does not exist -> both legs taint to «—».
+    # Zone-attributed revenue does not exist -> both legs taint to "—".
     assert _cell(rows, "order_sum", 0, "manual_search") is None
     assert _cell(rows, "order_sum", 0, "manual_catalog") is None
 
 
 def test_search_campaign_without_slice_stays_in_search() -> None:
-    """No harvested normquery slice (legacy rows) -> the whole day is «Поиск»."""
+    """No harvested normquery slice (legacy rows) -> the whole day is "Search"."""
     campaigns = {1: _campaign(1, "manual", search=True, shelves=False)}
     ad_rows = [_ad_row(1, DAY1, views=100, clicks=10, spend=5000, orders=5, order_sum=50000)]
 

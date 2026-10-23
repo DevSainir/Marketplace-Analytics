@@ -4,7 +4,7 @@ Managers edit the daily metrics matrix like a spreadsheet. Their edits are
 resolved to **input** facts (see :mod:`services.matrix.edit`) and persisted here
 as a thin layer *over* the pristine WB fact tables — the raw harvested numbers
 are never overwritten. On read the overlay is applied before the matrix is
-derived; any WB refresh (nightly harvest or a manual «Обновить») clears a SKU's
+derived; any WB refresh (nightly harvest or a manual "Refresh") clears a SKU's
 overrides, so this layer is intentionally short-lived.
 
 One row per overridden cell: ``(nm_id, stat_date, bucket, field)``. Two kinds:
@@ -15,7 +15,7 @@ One row per overridden cell: ``(nm_id, stat_date, bucket, field)``. Two kinds:
 * **Display override** — ``bucket == "cell"`` and ``field`` is the target
   cell's ``"<bucket>:<metric>"`` (e.g. ``"total:order_sum"``). Applied AFTER
   the formulas, so any non-invertible cell (a derived rollup, the empty
-  «Каталог» zone, a tainted split) is still editable — shown verbatim.
+  "Catalog" zone, a tainted split) is still editable — shown verbatim.
 """
 
 from __future__ import annotations

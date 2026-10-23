@@ -102,7 +102,7 @@ async def test_the_grace_window_still_writes(
     This is the soft landing the product deliberately keeps: renewal is a manual
     bank transfer between two humans in two countries, so the first days after
     expiry must behave exactly like the last days before it. A guard that
-    treated «истекла» as a cliff would lock a paying customer out on the morning
+    treated "expired" as a cliff would lock a paying customer out on the morning
     their transfer is still clearing.
     """
     login_as(subscription=SubscriptionState.GRACE)

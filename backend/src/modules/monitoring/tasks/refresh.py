@@ -1,4 +1,4 @@
-"""The interactive «Обновить» path: one workspace's SKUs, on demand.
+"""The interactive "Refresh" path: one workspace's SKUs, on demand.
 
 Split from :mod:`~src.modules.monitoring.tasks.harvest`, which holds the
 harvest ENGINE — the fetch/flatten/persist machinery that both this task and
@@ -84,12 +84,12 @@ def harvest_sku_window(
     JSON-serializable (dates as ISO strings) to satisfy Celery's JSON task
     serializer.
 
-    This is the interactive «Обновить» path, and it now refreshes everything
+    This is the interactive "Refresh" path, and it now refreshes everything
     the nightly pass does — including the account-wide sale feed and the
     buyout-cohort pass. It used to skip both, on the sound reasoning that WB
     serves them account-wide only and charges its harshest limiter for them
     (a 39-second 429 backoff, measured live). The cost was real; what it bought
-    was «Выкупы, ₽» and «Процент выкупа» standing still behind a green tick
+    was "Buyouts, ₽" and "Buyout rate" standing still behind a green tick
     while the seller watched, which is worse. The cohort pass is claimed per
     workspace, so refreshing six SKUs in a row still costs one pass.
 
@@ -105,7 +105,7 @@ def harvest_sku_window(
         The persisted row counts per metric family — including ``sales_rows``
         and ``cohort_rows`` — plus ``failed_sources``: the WB sources that did
         not answer. The refresh-status endpoint serves that list to the SPA,
-        which is how «Обновить» can say "WB withheld the funnel" instead of
+        which is how "Refresh" can say "WB withheld the funnel" instead of
         silently redrawing the same numbers.
 
     Raises:

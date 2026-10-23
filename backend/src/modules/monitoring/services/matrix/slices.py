@@ -8,8 +8,8 @@ division-by-zero the same way.
 
 Both carry the campaign's numbers as their primary metrics — an advertising
 column measures an ad campaign, not the card on screen — with the viewed
-card's own share alongside in :class:`_SkuSlice`, which is what «Общая» and
-«Органика» are built from and what the carts/orders hover splits out.
+card's own share alongside in :class:`_SkuSlice`, which is what "Overall" and
+"Organic" are built from and what the carts/orders hover splits out.
 """
 
 from __future__ import annotations
@@ -23,10 +23,10 @@ class _SkuSlice:
     """The viewed card's own share of an advertising slice.
 
     An advertising column is the campaign's, but two columns are the CARD's:
-    «Общая» (its whole day) and «Органика» (that day minus what the ads
+    "Overall" (its whole day) and "Organic" (that day minus what the ads
     brought). Both would be wrong if built from a campaign's totals — a
     campaign promoting several cards would lend this one the others' spend, and
-    «Органика» would subtract orders never booked on it. So the card's own
+    "Organic" would subtract orders never booked on it. So the card's own
     slice rides along, split across zones by its own search rows.
     """
 

@@ -32,7 +32,7 @@ const periodEdge = () => ({ to: isoDaysAgo(0) })
 export const MAX_PERIOD_DAYS = MAX_WINDOW_DAYS + 1
 
 /**
- * The window a URL without one opens on: the calendar's «30 дней» ending
+ * The window a URL without one opens on: the calendar's "30 days" ending
  * today — the funnel has no current-day data yet (blank cells), but today's
  * price/stock snapshots must already show. Built by the preset itself, so the
  * page opens with that preset lit.
@@ -77,7 +77,7 @@ export function useSearchQuerySync({ route, router, store }) {
    *
    * Asked BEFORE fetching rather than discovered from the answer. The limit is
    * a property of the feature, not a mistake the seller made, and two red
-   * «не удалось загрузить» boxes — one for the SKU list, one for the card — is
+   * "Couldn't load" boxes — one for the SKU list, one for the card — is
    * not how a product states its own bounds. The page says the bound in a line
    * of ordinary text instead, and nothing is requested until the range fits.
    */
@@ -122,7 +122,7 @@ export function useSearchQuerySync({ route, router, store }) {
   }
 
   /**
-   * «Применить»: apply the drafted period. A raw nm ID in the input is treated
+   * "Apply": apply the drafted period. A raw nm ID in the input is treated
    * as a direct pick; otherwise the currently analyzed SKU (if any) is kept.
    */
   function handleApply(query) {

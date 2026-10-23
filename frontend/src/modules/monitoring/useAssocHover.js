@@ -6,7 +6,7 @@
  * size/colour variants — and names them. An always-visible breakdown would
  * clutter thousands of cells, so it is a hover.
  *
- * The «Общая» CTR cell rides the same listener: its «Клики» row is the
+ * The "Overall" CTR cell rides the same listener: its "Clicks" row is the
  * funnel's, so the hover names the advertising clicks and views the CTR
  * actually divides (`ctrTip`).
  *
@@ -70,7 +70,7 @@ export function useAssocHover(rows) {
     }
     const rect = el.getBoundingClientRect()
     const above = rect.bottom + ASSOC_TIP_MAX_HEIGHT_PX > window.innerHeight
-    // «Общая» sits at the ribbon's right edge on the newest day — keep the tip on screen.
+    // "Overall" sits at the ribbon's right edge on the newest day — keep the tip on screen.
     const x = Math.max(
       TIP_EDGE_GAP_PX,
       Math.min(rect.left, window.innerWidth - TIP_WIDTH_PX - TIP_EDGE_GAP_PX),
@@ -82,6 +82,8 @@ export function useAssocHover(rows) {
         ...place,
         clicks: formatNumber(cell.ctrBasis.clicks),
         views: formatNumber(cell.ctrBasis.views),
+        clickCount: cell.ctrBasis.clicks,
+        viewCount: cell.ctrBasis.views,
         ctr: formatPercent(cell.raw),
       }
       return

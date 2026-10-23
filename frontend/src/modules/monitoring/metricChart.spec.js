@@ -46,7 +46,7 @@ const point = (seriesIndex, seriesName, value, dataIndex = 1) => ({
   seriesName,
   value,
   marker: '',
-  axisValue: '02.07',
+  axisValue: '2 Jul',
 })
 
 describe('buildMetricChart', () => {
@@ -65,10 +65,10 @@ describe('buildMetricChart', () => {
       const chart = chartOf(['spend'], [row('spend', { total: [10, 20, 30] })])
 
       // One unit in the pick, so the numbers are the numbers.
-      expect(seriesNamed(chart, 'Затраты').data).toEqual([10, 20, 30])
+      expect(seriesNamed(chart, 'Spend').data).toEqual([10, 20, 30])
     })
 
-    it('reads CPM out of the day\u2019s «Общая» column', () => {
+    it('reads CPM out of the day\u2019s "Overall" column', () => {
       // The backend serves it there as the day's whole ad bill over the views
       // it bought; the chart is a lookup, so this is what breaks if the row
       // ever goes back to being blank.
@@ -78,11 +78,11 @@ describe('buildMetricChart', () => {
     })
 
     it('reads a mini-block metric off its one-cell-per-day row', () => {
-      // «Цены» and «Остатки» are not day × bucket grids: each row already
-      // carries a single «Общая» cell per day, so the stride must not apply.
+      // "Prices" and "Stock" are not day × bucket grids: each row already
+      // carries a single "Overall" cell per day, so the stride must not apply.
       const chart = chartOf(['customer_price'], [row('customer_price', { total: [990, 890, 890] })])
 
-      expect(seriesNamed(chart, 'Цена покупателя').data).toEqual([990, 890, 890])
+      expect(seriesNamed(chart, 'Customer price').data).toEqual([990, 890, 890])
     })
 
     it('renders a day WB served nothing as a gap, not as a zero', () => {
@@ -90,16 +90,16 @@ describe('buildMetricChart', () => {
       // across the blank would draw a trend that never happened.
       const chart = chartOf(['spend'], [row('spend', { total: [5, null, 7] })])
 
-      expect(seriesNamed(chart, 'Затраты').data[1]).toBeNull()
+      expect(seriesNamed(chart, 'Spend').data[1]).toBeNull()
       expect(chart.option.series[0].connectNulls).toBe(false)
     })
 
     it('ignores a metric the catalogue does not hold', () => {
       // The account-wide page offers a shorter list; a key from the other one
       // must drop out rather than produce a phantom empty series.
-      const chart = chartOf(['spend', 'нет-такого'], [row('spend', { total: [1, 2, 3] })])
+      const chart = chartOf(['spend', 'no-such-metric'], [row('spend', { total: [1, 2, 3] })])
 
-      expect(chart.option.series.map((entry) => entry.name)).toEqual(['Затраты'])
+      expect(chart.option.series.map((entry) => entry.name)).toEqual(['Spend'])
     })
   })
 
@@ -107,20 +107,20 @@ describe('buildMetricChart', () => {
     const counts = row('orders', { total: [10, 20, 15] })
     const money = row('spend', { total: [200, 400, 100] })
 
-    it('reads штуки down the left edge and деньги down the right', () => {
+    it('reads units down the left edge and money down the right', () => {
       const chart = chartOf(['spend', 'orders'], [money, counts])
       const axes = [chart.option.yAxis].flat()
 
       expect(axes[0].position).toBe('left')
       expect(axes[1].position).toBe('right')
       // Both drawn as they are: neither scale is an index.
-      expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
-      expect(seriesNamed(chart, 'Затраты').data).toEqual([200, 400, 100])
+      expect(seriesNamed(chart, 'Orders, units').data).toEqual([10, 20, 15])
+      expect(seriesNamed(chart, 'Spend').data).toEqual([200, 400, 100])
     })
 
     it('keeps BOTH scales even when only one of them has anything on it', () => {
       // The point of a fixed scale. A ruler that appears and disappears with
-      // the selection is what made «Заказы» a readable column one moment and a
+      // the selection is what made "Orders" a readable column one moment and a
       // smear along the axis the next.
       const chart = chartOf(['cpc'], [row('cpc', { total: [10, 12, 11] })])
       const axes = [chart.option.yAxis].flat()
@@ -132,7 +132,7 @@ describe('buildMetricChart', () => {
     })
 
     it('does not let one unit move the other one scale', () => {
-      // Ticking «Клики» must not rescale «Заказы» — both are unit counts, but the
+      // Ticking "Clicks" must not rescale "Orders" — both are unit counts, but the
       // money ruler cannot move at all, and that is the half that used to.
       const alone = chartOf(['spend'], [money])
       const withCounts = chartOf(['spend', 'orders'], [money, counts])
@@ -140,7 +140,7 @@ describe('buildMetricChart', () => {
       expect([alone.option.yAxis].flat()[1].max).toBe([withCounts.option.yAxis].flat()[1].max)
     })
 
-    it('keeps the left ruler for the FUNNEL, not for everything in штуках', () => {
+    it('keeps the left ruler for the FUNNEL, not for everything counted in units', () => {
       // Views run to five figures and clicks to four while orders run to two:
       // one ruler true for the first two draws the third along the axis, which
       // is the complaint that produced the list.
@@ -165,7 +165,7 @@ describe('buildMetricChart', () => {
       const chart = chartOf(['ctr', 'orders'], [row('ctr', { total: [2, 4, 1] }), counts])
 
       expect(seriesNamed(chart, 'CTR, %').data).toEqual([100, 200, 50])
-      expect(seriesNamed(chart, 'Заказы, шт').data).toEqual([10, 20, 15])
+      expect(seriesNamed(chart, 'Orders, units').data).toEqual([10, 20, 15])
     })
 
     it('takes the baseline from the first day that reported, not from day one', () => {
@@ -192,16 +192,16 @@ describe('buildMetricChart', () => {
     })
 
     it('keeps the index off the scales that have units', () => {
-      // The whole reason it has its own axis: an index of 100 landing on «100
-      // штук» would be a number in the wrong units on a real gridline.
+      // The whole reason it has its own axis: an index of 100 landing on "100
+      // units" would be a number in the wrong units on a real gridline.
       const chart = chartOf(['ctr', 'orders'], [row('ctr', { total: [2, 4, 1] }), counts])
 
       expect([chart.option.yAxis].flat()[0].max).toBe(20) // orders, not the index
     })
   })
 
-  describe('the ruler of заказов', () => {
-    it('covers «Заказы органика» by the same rule', () => {
+  describe('the ruler of orders', () => {
+    it('covers "Organic orders" by the same rule', () => {
       // The same count of the same thing through one traffic bucket, so it is
       // true on the same scale.
       const chart = buildMetricChart(
@@ -213,7 +213,7 @@ describe('buildMetricChart', () => {
         { metrics: ['spend', 'cpm', 'orders_organic'], groups: AGGREGATE_METRIC_GROUPS },
       )
 
-      expect(seriesNamed(chart, 'Заказы органика, шт').data).toEqual([4, 8, 6])
+      expect(seriesNamed(chart, 'Organic orders, units').data).toEqual([4, 8, 6])
     })
   })
 
@@ -271,9 +271,9 @@ describe('buildMetricChart', () => {
         forwards.option.series.map((entry) => entry.name),
       )
       expect(forwards.option.series.map((entry) => entry.name)).toEqual([
-        'Затраты',
-        'Корзины, шт',
-        'Заказы, шт',
+        'Spend',
+        'Add to cart, units',
+        'Orders, units',
       ])
     })
 
@@ -292,7 +292,7 @@ describe('buildMetricChart', () => {
         'drr_orders',
         'drr_sales',
       ])
-      // CTR cannot follow to the account-wide page — «Клики» there is the
+      // CTR cannot follow to the account-wide page — "Clicks" there is the
       // funnel's card opens, not advertising clicks — so CPM takes its place.
       expect(advertising(AGGREGATE_METRIC_GROUPS)).toEqual([
         'spend',
@@ -303,28 +303,30 @@ describe('buildMetricChart', () => {
       ])
     })
 
-    it('stands the columns of a day as корзины, заказы, остатки', () => {
+    it('stands the columns of a day as add to cart, orders, stock', () => {
       // Columns are drawn in series order, so this is what a reader sees left
       // to right inside every day.
       const chart = chartOf(['stock_quantity', 'orders', 'carts'])
 
       expect(chart.option.series.map((entry) => entry.name)).toEqual([
-        'Корзины, шт',
-        'Заказы, шт',
-        'Остатки на складах, шт',
+        'Add to cart, units',
+        'Orders, units',
+        'Stock in warehouses, units',
       ])
     })
   })
 
   describe('colour', () => {
     it('gives a metric the same hue however it was picked', () => {
-      // Colour by slot made «Заказы» blue on one reading of the page and orange
+      // Colour by slot made "Orders" blue on one reading of the page and orange
       // on the next, so the legend had to be re-read every time.
       const first = chartOf(['orders', 'spend'])
       const second = chartOf(['spend', 'ctr', 'orders'])
 
-      expect(seriesNamed(first, 'Заказы, шт').color).toBe(seriesNamed(second, 'Заказы, шт').color)
-      expect(seriesNamed(first, 'Затраты').color).toBe(seriesNamed(second, 'Затраты').color)
+      expect(seriesNamed(first, 'Orders, units').color).toBe(
+        seriesNamed(second, 'Orders, units').color,
+      )
+      expect(seriesNamed(first, 'Spend').color).toBe(seriesNamed(second, 'Spend').color)
     })
 
     it('gives every metric of a catalogue its own hue', () => {
@@ -334,24 +336,24 @@ describe('buildMetricChart', () => {
       expect(new Set(hues).size).toBe(keys.length)
     })
 
-    it('paints затраты and остатки green, корзины blue and заказы orange', () => {
+    it('paints spend and stock green, add to cart blue and orders orange', () => {
       // The four the reader asked for by name, pinned so a palette edit cannot
       // quietly swap them.
       const chart = chartOf(['spend', 'carts', 'orders', 'stock_quantity'])
       const hue = (name) => seriesNamed(chart, name).color
 
-      expect(hue('Затраты')).toBe('#1BAF7A')
-      expect(hue('Остатки на складах, шт')).toBe('#0B7A3B')
-      expect(hue('Корзины, шт')).toBe('#2A78D6')
-      expect(hue('Заказы, шт')).toBe('#EB6834')
+      expect(hue('Spend')).toBe('#1BAF7A')
+      expect(hue('Stock in warehouses, units')).toBe('#0B7A3B')
+      expect(hue('Add to cart, units')).toBe('#2A78D6')
+      expect(hue('Orders, units')).toBe('#EB6834')
     })
   })
 
   describe('what counts as hovering a metric', () => {
     it('is the dot and the line through it, not the fill under them', () => {
       // The fill belongs to its series as far as ECharts is concerned, so a
-      // cursor anywhere in the band arrived as "hovering «Затраты»" and
-      // answered with «Затраты» alone — over most of the plot.
+      // cursor anywhere in the band arrived as a hover on "Spend" and
+      // answered with "Spend" alone — over most of the plot.
       expect(isOnMark({ cursorY: 100, markY: 104 })).toBe(true)
       expect(isOnMark({ cursorY: 100, markY: 260 })).toBe(false)
     })
@@ -384,34 +386,34 @@ describe('buildMetricChart', () => {
       expect(hover).not.toContain('(100)') // not the index it plots at
     })
 
-    it('prints заказы as the count they already are', () => {
+    it('prints orders as the count they already are', () => {
       // The plotted number IS the count here — nothing to translate back.
       const chart = chartOf(['orders'], [row('orders', { total: [100, 120, 90] })])
 
-      const hover = hoverOf(chart, [point(0, 'Заказы, шт', 120)])
+      const hover = hoverOf(chart, [point(0, 'Orders, units', 120)])
 
       expect(hover).toContain('120')
     })
 
     it('splits the rows into the groups the picker uses', () => {
-      // Six unlike numbers in a flat list are read by hunting; «Реклама» and
-      // «Воронка» are where the reader already looks for a metric.
+      // Six unlike numbers in a flat list are read by hunting; "Advertising" and
+      // "Funnel" are where the reader already looks for a metric.
       const chart = chartOf(['spend', 'carts'])
 
-      const hover = hoverOf(chart, [point(0, 'Затраты', 100), point(1, 'Корзины, шт', 100)])
+      const hover = hoverOf(chart, [point(0, 'Spend', 100), point(1, 'Add to cart, units', 100)])
 
-      expect(hover).toContain('Реклама')
-      expect(hover).toContain('Воронка')
+      expect(hover).toContain('Advertising')
+      expect(hover).toContain('Funnel')
       expect(hover).toContain('dotted') // the rule between the two groups
     })
 
     it('answers a hover over the day with every metric on the plot', () => {
       const chart = chartOf(['spend', 'carts'], [], { index: null })
 
-      const hover = hoverOf(chart, [point(0, 'Затраты', 100), point(1, 'Корзины, шт', 140)])
+      const hover = hoverOf(chart, [point(0, 'Spend', 100), point(1, 'Add to cart, units', 140)])
 
-      expect(hover).toContain('Затраты')
-      expect(hover).toContain('Корзины, шт')
+      expect(hover).toContain('Spend')
+      expect(hover).toContain('Add to cart, units')
     })
 
     it('answers a hover on one line with that metric alone', () => {
@@ -420,10 +422,10 @@ describe('buildMetricChart', () => {
       const cursor = { index: 1 }
       const chart = chartOf(['spend', 'carts'], [], cursor)
 
-      const hover = hoverOf(chart, [point(0, 'Затраты', 100), point(1, 'Корзины, шт', 140)])
+      const hover = hoverOf(chart, [point(0, 'Spend', 100), point(1, 'Add to cart, units', 140)])
 
-      expect(hover).toContain('Корзины, шт')
-      expect(hover).not.toContain('Затраты')
+      expect(hover).toContain('Add to cart, units')
+      expect(hover).not.toContain('Spend')
     })
 
     it('shows both metrics where two of them cross', () => {
@@ -431,10 +433,10 @@ describe('buildMetricChart', () => {
       // to one would be a guess.
       const chart = chartOf(['spend', 'carts'], [], { index: 1 })
 
-      const hover = hoverOf(chart, [point(0, 'Затраты', 140), point(1, 'Корзины, шт', 140)])
+      const hover = hoverOf(chart, [point(0, 'Spend', 140), point(1, 'Add to cart, units', 140)])
 
-      expect(hover).toContain('Корзины, шт')
-      expect(hover).toContain('Затраты')
+      expect(hover).toContain('Add to cart, units')
+      expect(hover).toContain('Spend')
     })
   })
 
@@ -444,7 +446,7 @@ describe('buildMetricChart', () => {
     it('states spend in the hover in the unit its campaigns bill in', () => {
       const chart = chartOf(['spend'], [row('spend', { total: [10, 20, 30] })])
 
-      const hover = hoverOf(chart, [point(0, 'Затраты', 20)])
+      const hover = hoverOf(chart, [point(0, 'Spend', 20)])
 
       expect(hover).toContain('KGS 20')
     })
@@ -469,8 +471,8 @@ describe('buildMetricChart', () => {
       )
       const chart = buildMetricChart(view, { metrics: ['spend'], groups: SKU_METRIC_GROUPS })
 
-      expect(hoverOf(chart, [point(0, 'Затраты', 20, 1)])).toContain('₽20')
-      expect(hoverOf(chart, [point(0, 'Затраты', 30, 2)])).toContain('KGS 30')
+      expect(hoverOf(chart, [point(0, 'Spend', 20, 1)])).toContain('₽20')
+      expect(hoverOf(chart, [point(0, 'Spend', 30, 2)])).toContain('KGS 30')
     })
 
     it("states a price beside spend in its own unit, not the spend's", () => {
@@ -481,7 +483,7 @@ describe('buildMetricChart', () => {
         [row('spend', { total: [10, 20, 30] }), row('seller_price', { total: [100, 200, 300] })],
       )
 
-      const hover = hoverOf(chart, [point(0, 'Затраты', 20), point(1, 'Цена продавца', 200)])
+      const hover = hoverOf(chart, [point(0, 'Spend', 20), point(1, 'Seller price', 200)])
 
       expect(hover).toContain('KGS 20')
       expect(hover).toContain('₽200')
@@ -491,27 +493,27 @@ describe('buildMetricChart', () => {
       const view = matrixView([row('spend', { total: [10, 20, 30] })], {})
       const chart = buildMetricChart(view, { metrics: ['spend'], groups: SKU_METRIC_GROUPS })
 
-      const hover = hoverOf(chart, [point(0, 'Затраты', 20)])
+      const hover = hoverOf(chart, [point(0, 'Spend', 20)])
 
-      expect(chart.option.series.map((entry) => entry.name)).toEqual(['Затраты'])
+      expect(chart.option.series.map((entry) => entry.name)).toEqual(['Spend'])
       expect(hover).toContain('<b>20</b>')
     })
 
     it('hands each money item the currency of its own figures, and leaves names alone', () => {
-      // The sign goes on the figure («20с», «4 120₽»); a name is only a name.
+      // The sign goes on the figure ("KGS 20", "₽4,120"); a name is only a name.
       const items = labelledGroups(SKU_METRIC_GROUPS, { prices: 'RUB', ads: ['KGS'] }).flatMap(
         (group) => group.items,
       )
       const item = (key) => items.find((entry) => entry.key === key)
 
-      expect(item('spend')).toMatchObject({ name: 'Затраты', currency: ['KGS'] })
-      expect(item('seller_price')).toMatchObject({ name: 'Цена продавца', currency: 'RUB' })
+      expect(item('spend')).toMatchObject({ name: 'Spend', currency: ['KGS'] })
+      expect(item('seller_price')).toMatchObject({ name: 'Seller price', currency: 'RUB' })
       expect(item('ctr').currency).toBeUndefined()
     })
   })
 
   describe('marks', () => {
-    it('draws корзины, заказы and остатки as columns on a short window', () => {
+    it('draws add to cart, orders and stock as columns on a short window', () => {
       // Three separate counts, so they are never stacked: a stack would draw a
       // total in which a cart is a unit of stock.
       const chart = chartOf(['carts', 'orders', 'stock_quantity'])
@@ -565,7 +567,7 @@ describe('buildMetricChart', () => {
     })
 
     it('flags a selection whose every series is blank', () => {
-      // So the component can say «нет данных» instead of drawing empty axes.
+      // So the component can say "no data" instead of drawing empty axes.
       expect(chartOf(['spend'], [row('spend', { total: [null, null, null] })]).empty).toBe(true)
       expect(chartOf(['spend'], [row('spend', { total: [1, 2, 3] })]).empty).toBe(false)
     })
@@ -641,7 +643,7 @@ describe('buildMetricChart', () => {
   describe('the two catalogues', () => {
     it('offers only metrics an account-wide sum can honestly answer', () => {
       // Prices are per-card facts, CTR and CPC need one card's campaigns, and
-      // «Процент выкупа» is a lagged cohort the aggregate endpoint does not
+      // "Buyout rate" is a lagged cohort the aggregate endpoint does not
       // compute. Each is absent rather than approximated.
       const keys = AGGREGATE_METRIC_GROUPS.flatMap((group) => group.items.map((item) => item.key))
 
@@ -661,7 +663,7 @@ describe('buildMetricChart', () => {
       })
       const sku = buildMetricChart(view, { metrics: ['order_sum'], groups: SKU_METRIC_GROUPS })
 
-      expect(aggregate.option.series.map((entry) => entry.name)).toEqual(['Заказы'])
+      expect(aggregate.option.series.map((entry) => entry.name)).toEqual(['Orders'])
       expect(sku.option.series).toEqual([]) // the SKU catalogue has no such key
     })
   })

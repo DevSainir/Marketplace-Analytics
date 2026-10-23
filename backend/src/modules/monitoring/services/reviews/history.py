@@ -17,7 +17,7 @@ Two phases, in this order because the second needs the first's card groups:
 
    Only a COMPLETE walk may declare reviews vanished — every page read, every
    item parsed — and only as many as :func:`vanishing_is_believable` allows.
-   Anything less, and «not listed» means «not read».
+   Anything less, and "not listed" means "not read".
 
 2. **The ratings.** The storefront summary of every card group (WB's merged card) the
    workspace's reviews name, one at a time on a shared, slow bucket, each committed on its
@@ -221,7 +221,7 @@ class ReviewHistory:
                 if refused_in_a_row >= STOREFRONT_GIVE_UP_AFTER:
                     result.notes.append(f"storefront: gave up after {exc}")
                     logger.warning(
-                        "Storefront refused %d склейки in a row; stopping.", refused_in_a_row
+                        "Storefront refused %d card groups in a row; stopping.", refused_in_a_row
                     )
                     return
                 continue

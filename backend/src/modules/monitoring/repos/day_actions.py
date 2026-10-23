@@ -1,4 +1,4 @@
-"""Data access for per-day SKU action rows («Действия» under the matrix).
+"""Data access for per-day SKU action rows ("Actions" under the matrix).
 
 Sole owner of SQL for ``monitoring.sku_day_action`` and its append-only
 ``sku_day_action_history`` — services depend on this repository and never
@@ -87,9 +87,9 @@ class SkuDayActionRepository:
         Args:
             nm_id: WB SKU identifier.
             action_date: The day the actions describe.
-            first_rk_type: «Первая РК» campaign type, or ``None``.
+            first_rk_type: "First campaign" type, or ``None``.
             first_rk_budget: First campaign budget in rubles, or ``None``.
-            second_rk_type: «Вторая РК» campaign type, or ``None``.
+            second_rk_type: "Second campaign" type, or ``None``.
             second_rk_budget: Second campaign budget in rubles, or ``None``.
             price_change: ``"up"``/``"down"``, or ``None``.
             price_change_amount: Price difference in rubles, or ``None``.

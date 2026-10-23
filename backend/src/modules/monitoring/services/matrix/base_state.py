@@ -36,7 +36,7 @@ from src.modules.monitoring.services.matrix.classification import _classify, _se
 from src.modules.monitoring.services.matrix.pricing import _stock_for_day, price_for_day
 from src.modules.monitoring.services.matrix.slices import _AdSlice, _day_range, _percent
 
-#: «Процент выкупа» is WB's definition — ``buyouts / DECIDED deliveries``, where
+#: "Buyout rate" is WB's definition — ``buyouts / DECIDED deliveries``, where
 #: a decided delivery is one the buyer either bought out or refused
 #: (``buyout_count + cancel_count``) — aggregated over a lagged cohort window:
 #: recent order cohorts are still maturing (their deliveries take 1-3 weeks to
@@ -77,13 +77,13 @@ def derive_base_state(
         date_from: Inclusive window start (first day column).
         date_to: Inclusive window end (last day column).
         funnel_rows: Daily funnel rows covering the EXTENDED window
-            ``[date_from - 21, date_to]`` — the lagged «Процент выкупа» reads up
+            ``[date_from - 21, date_to]`` — the lagged "Buyout rate" reads up
             to 21 days before the first displayed day.
         ad_rows: The SKU's advertising fact rows within the window.
         search_rows: The SKU's search-zone slices within the window.
         campaigns: Campaign metadata keyed by ``campaign_id`` (may be partial).
         price_snapshots: The SKU's seller/customer price snapshots; applied
-            only to their exact snapshot days (pricing «Заказы, ₽» and «СПП»
+            only to their exact snapshot days (pricing "Orders, ₽" and "WB discount"
             there; other days stay unpriced).
         stock_daily: The SKU's per-day stock totals; applied only to their
             exact snapshot days for the read-only stock/in-transit rows.
@@ -134,7 +134,7 @@ def derive_base_state(
     }
 
     # The viewed card's own share of each campaign-day, aggregated across
-    # platforms — «Общая»/«Органика» are built from this, and the carts/orders
+    # platforms — "Overall"/"Organic" are built from this, and the carts/orders
     # hover reports the rest of the campaign as the associated share.
     for row in ad_rows:
         key = (row.campaign_id, row.stat_date)
@@ -167,7 +167,7 @@ def derive_base_state(
     # Stamp the per-variant decomposition of each campaign-day's conversions
     # (the carts/orders hover). The campaign's own counts are clamped from below
     # at the card's own: a partial totals fetch must never leave a campaign
-    # holding less than one of its parts, which would drive «Органика» negative.
+    # holding less than one of its parts, which would drive "Organic" negative.
     skus_by_key: dict[tuple[int, date], dict[int, tuple[int, int]]] = defaultdict(dict)
     for sku_total in campaign_sku_totals or []:
         skus_by_key[(sku_total.campaign_id, sku_total.stat_date)][sku_total.nm_id] = (
@@ -224,8 +224,8 @@ def derive_base_state(
     day_bases: list[MatrixDayBase] = []
     for day in days:
         # Keep only the significant campaign(s) (cut insignificant traffic). Cut
-        # campaigns are excluded from «Общая»/«Органика» too, so the unclassified
-        # remainder is empty and each bid type's «Доля трафика» sums to 100%.
+        # campaigns are excluded from "Overall"/"Organic" too, so the unclassified
+        # remainder is empty and each bid type's "Traffic share" sums to 100%.
         buckets = _select_day_buckets(day_campaigns.get(day, []), sku_labels)
 
         funnel_row = funnel_by_date.get(day)
@@ -248,7 +248,7 @@ def derive_base_state(
         elif seller_price is not None or customer_price is not None:
             # No funnel row yet (the CURRENT day — WB serves the funnel a day
             # late) but the day's prices were snapshotted at harvest: carry a
-            # price-only base so «Цены»/«СПП» render while the count cells
+            # price-only base so "Prices"/"WB discount" render while the count cells
             # stay blank and read-only.
             funnel_base = MatrixFunnelBase(
                 seller_price=seller_price,
@@ -261,7 +261,7 @@ def derive_base_state(
         else:
             funnel_base = None
 
-        # «Процент выкупа»: WB's definition — buyouts / DECIDED deliveries —
+        # "Buyout rate": WB's definition — buyouts / DECIDED deliveries —
         # over the lagged [D-21, D-7] cohort window (recent cohorts are still
         # maturing). Both inputs are stored facts from the period-aggregate
         # feed, so the window is a plain sum of counts:

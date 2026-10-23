@@ -57,7 +57,7 @@ router = APIRouter(
 # The WB re-harvest trigger surface (enqueue + poll) lives in its own module;
 # it inherits this router's prefix and access-token dependency.
 router.include_router(refresh_router)
-# «Поиск по кластерам» — the keyword search over harvested search clusters plus
+# "Cluster search" — the keyword search over harvested search clusters plus
 # the live WB-search position probe. Declared BEFORE the ``/skus/{nm_id}``
 # routes for the same reason ``/skus/lookup`` is: a static path must not be
 # shadowed by a typed path parameter.
@@ -116,7 +116,7 @@ async def list_pins(
     responses={
         200: {"description": "Order saved; the reordered pinned list is returned."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
         422: {"description": "The list is not exactly the current pinned set."},
     },
 )
@@ -143,7 +143,7 @@ async def reorder_pins(
     responses={
         200: {"description": "Pin updated; the full pinned list is returned."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
         422: {"description": "Invalid payload."},
     },
 )
@@ -154,7 +154,7 @@ async def set_pin(
     service: AnalyticsServiceDep,
     workspace_id: CurrentWorkspaceId,
 ) -> PinnedSkusResponse:
-    """Pin («Закрепить») or unpin («Закреплено» click) a SKU for everyone."""
+    """Pin or unpin a SKU for everyone (the "Pin" / "Pinned" button)."""
     return await service.set_sku_pin(workspace_id=workspace_id, nm_id=nm_id, pinned=body.pinned)
 
 
@@ -165,7 +165,7 @@ async def set_pin(
     responses={
         200: {"description": "Chip painted; the full pinned list is returned."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
         422: {"description": "Invalid payload (colour is not #rrggbb)."},
     },
 )
@@ -282,7 +282,7 @@ async def get_stock_range(
     responses={
         200: {"description": "Comment saved (or cleared); the stored note is returned."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
         422: {"description": "Invalid payload (e.g. body too long) or date."},
     },
 )
@@ -310,7 +310,7 @@ async def set_day_comment(
     responses={
         200: {"description": "Day actions saved (or cleared); the stored state is returned."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
         422: {"description": "Invalid payload (e.g. negative budget) or date."},
     },
 )
@@ -321,7 +321,7 @@ async def set_day_action(
     body: DayActionState,
     service: AnalyticsServiceDep,
 ) -> DayActionResponse:
-    """Save one day's «Действия» row on a SKU (shared by everyone).
+    """Save one day's "Actions" row on a SKU (shared by everyone).
 
     The body is the WHOLE day state (last write wins); a body with every
     answer null clears the day's row. The writer is recorded in the day's
@@ -351,7 +351,7 @@ async def preview_matrix_edit(
 
     The frontend holds the working copy; this resolves the edit into its inputs
     (setting an input, or reverse-solving one for a derived cell) and returns
-    the recomputed matrix. Nothing is persisted — «Сохранить» does that.
+    the recomputed matrix. Nothing is persisted — "Save" does that.
     """
     return service.preview_matrix_edit(body.base, body.edit, nm_id=nm_id)
 
@@ -363,7 +363,7 @@ async def preview_matrix_edit(
     responses={
         200: {"description": "Overrides saved; the refreshed detail is returned."},
         401: {"description": "Unauthorized access token."},
-        403: {"description": "Подписка истекла — доступ только для чтения."},
+        403: {"description": "Subscription expired — read-only access."},
         422: {"description": "Invalid date window."},
     },
 )

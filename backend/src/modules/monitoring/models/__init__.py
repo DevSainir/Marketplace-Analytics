@@ -6,8 +6,10 @@ regardless of the underlying file split.
 """
 
 from src.modules.monitoring.models.advertising import (
+    BALANCE_PAYMENT_TYPE,
     BONUS_PAYMENT_TYPES,
     CASH_PAYMENT_TYPES,
+    CASHBACK_PAYMENT_TYPE,
     CLUSTER_MAX_LENGTH,
     PAYMENT_TYPE_MAX_LENGTH,
     AdvertisingClusterStatDaily,
@@ -43,7 +45,9 @@ from src.modules.monitoring.models.sku_day_comment import SkuDayComment
 from src.modules.monitoring.models.stocks import StockSnapshot
 
 __all__ = [
+    "BALANCE_PAYMENT_TYPE",
     "BONUS_PAYMENT_TYPES",
+    "CASHBACK_PAYMENT_TYPE",
     "CASH_PAYMENT_TYPES",
     "CLUSTER_MAX_LENGTH",
     "LABEL_MAX_LENGTH",

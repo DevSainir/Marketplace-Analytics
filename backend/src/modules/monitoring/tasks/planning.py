@@ -81,11 +81,11 @@ def _candidate_search_pairs(
     Every campaign with the SEARCH placement needs the normquery slice:
 
     * dual-zone campaigns (every unified-bid one, plus dual-placement manual
-      ones) — the slice splits «Поиск» from «Полки»;
+      ones) — the slice splits "Search" from "Shelves";
     * search-only manual campaigns — WB's search campaigns also deliver in
       the CATALOG zone (verified against WB's data: fullstats runs ~10-13% above the
-      normquery sum day after day), so the slice splits «Поиск» from
-      «Каталог».
+      normquery sum day after day), so the slice splits "Search" from
+      "Catalog".
 
     A shelves-only campaign's fullstats already belong wholly to its one zone.
     Pairs are the search-placement campaigns among the scoped harvest set,

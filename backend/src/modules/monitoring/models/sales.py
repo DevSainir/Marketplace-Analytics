@@ -3,7 +3,7 @@
 One row per item OPERATION (``saleID``): an ``S``-prefixed id is a buyout
 (sale), an ``R``-prefixed one a return. Rows are dated by the
 SALE date — the day the customer accepted or returned the item — which is the
-attribution the manager's «Выкупы, ₽» expects (the sales-funnel ``buyoutCount``
+attribution the manager's "Buyouts, ₽" expects (the sales-funnel ``buyoutCount``
 is an order-date cohort instead and matures for weeks).
 
 Records are immutable facts upserted by ``sale_id``; the nightly harvest pulls
@@ -33,7 +33,7 @@ class SaleRecord(Base):
         sale_date: Calendar day (Moscow) the customer accepted/returned the item.
         is_return: True for a return (``R``-prefixed ``sale_id``).
         finished_price: What the customer actually paid, rubles (matches the
-            portal's «Выкупили, ₽»).
+            portal's bought-out amount).
         price_with_disc: Price after the seller's discount, rubles.
         for_pay: Amount payable to the seller, rubles.
         last_change_date: WB's change stamp driving incremental harvests.

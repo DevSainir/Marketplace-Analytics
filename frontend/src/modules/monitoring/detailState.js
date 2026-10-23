@@ -16,13 +16,12 @@ import { MAX_WINDOW_DAYS } from '@/core/utils/dates'
  */
 export function describeDetail({ windowTooWide, product, store }) {
   if (windowTooWide) {
-    const text = `Период больше ${MAX_WINDOW_DAYS} дней не показываем — выберите отрезок покороче.`
+    const text = `Periods over ${MAX_WINDOW_DAYS} days aren't shown — pick a shorter one`
     return { kind: 'empty', text }
   }
   if (product) return null
   if (store.loading) return { kind: 'loading' }
   if (store.error) return { kind: 'error', text: store.error }
-  if (store.notFound)
-    return { kind: 'empty', text: `По артикулу «${store.notFound}» ничего не найдено.` }
+  if (store.notFound) return { kind: 'empty', text: `Nothing found for "${store.notFound}"` }
   return null
 }

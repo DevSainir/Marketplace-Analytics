@@ -6,7 +6,7 @@ reviews left the count in the same moment — and nothing on record could show i
 Each rule below is one way that question gets a wrong answer if it slips: an
 event per arrival buries the real ones, a first storefront read dated as a fresh
 exclusion invents a moderation that never happened, and a walk that stopped
-short reports thousands of reviews «vanished».
+short reports thousands of reviews "vanished".
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def test_a_changed_score_is_a_rescore_with_both_values() -> None:
 
 
 def test_a_vanished_review_listed_again_is_a_return() -> None:
-    """A false «vanished» must be visible as such the day it is undone."""
+    """A false "vanished" must be visible as such the day it is undone."""
     drafts = diff_listed(
         [make_review("a", 2)], known={"a": known(2, vanished_on=date(2026, 9, 30))}
     )
@@ -116,7 +116,7 @@ def _rating(items: list[dict[str, Any]]) -> WBStorefrontRating:
 
 
 def test_only_storefront_items_carrying_the_flag_say_anything() -> None:
-    """The storefront list is partial; an item without the flag is not «included»."""
+    """The storefront list is partial; an item without the flag is not "included"."""
     rating = _rating(
         [
             {"id": "a", "excludedFromRating": {"isExcluded": True, "reasons": ["notProduct"]}},
@@ -129,7 +129,7 @@ def test_only_storefront_items_carrying_the_flag_say_anything() -> None:
 
 
 def test_a_first_read_of_a_card_records_exclusions_without_dating_them() -> None:
-    """«Excluded» on a first read says nothing about when; dating it today would lie."""
+    """An "Excluded" on a first read says nothing about when; dating it today would lie."""
     drafts, changes = diff_exclusions({"a": (True, "notProduct")}, {"a": known(1)}, baseline=True)
 
     assert drafts == []
@@ -174,7 +174,7 @@ def test_a_handful_of_missing_reviews_is_always_believed() -> None:
 
 
 def test_a_mass_disappearance_is_not_believed() -> None:
-    """Ten thousand «vanished» in a day is a walk that stopped short, not moderation."""
+    """Ten thousand "vanished" in a day is a walk that stopped short, not moderation."""
     assert not vanishing_is_believable(missing=10_000, live=150_000)
 
 
@@ -218,7 +218,7 @@ def test_a_card_with_no_counted_review_has_no_rating_rather_than_zero() -> None:
 
 
 def test_a_blank_replacement_link_means_none() -> None:
-    """WB writes «no link» as ``""`` on some rows; read as a link it fakes a replacement."""
+    """WB writes "no link" as ``""`` on some rows; read as a link it fakes a replacement."""
     review = make_review("a", 5, child="")
 
     assert review.child_feedback_id is None

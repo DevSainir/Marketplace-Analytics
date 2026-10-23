@@ -1,4 +1,4 @@
-"""«Поиск по кластерам» response DTOs — scoped to ONE SKU.
+"""Cluster search response DTOs — scoped to ONE SKU.
 
 The feature lives at the bottom of a SKU's monitoring page:
 :class:`SkuClustersResponse` is the search clusters this SKU's ads served in

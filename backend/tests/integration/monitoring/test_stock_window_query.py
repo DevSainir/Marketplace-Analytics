@@ -1,6 +1,6 @@
 """The ribbon's window query, against a real database.
 
-The «Остатки по складам» ribbon asks for a month of snapshots in ONE query and
+The "Stock by warehouse" ribbon asks for a month of snapshots in ONE query and
 splits them by day in Python, so the ordering the service relies on has to come
 out of SQL rather than out of a comparison it forgot to write: days ascending,
 and within a day the warehouse/size order every column group repeats.
@@ -26,28 +26,28 @@ async def _snapshots(session: AsyncSession) -> None:
             StockSnapshot(
                 stat_date=date(2026, 8, 12),
                 nm_id=_NM_ID,
-                warehouse_name="Тула",
+                warehouse_name="Tula",
                 chrt_id=965033858,
                 quantity=4,
             ),
             StockSnapshot(
                 stat_date=date(2026, 8, 13),
                 nm_id=_NM_ID,
-                warehouse_name="Краснодар",
+                warehouse_name="Krasnodar",
                 chrt_id=965033858,
                 quantity=15,
             ),
             StockSnapshot(
                 stat_date=date(2026, 8, 13),
                 nm_id=_NM_ID,
-                warehouse_name="Казань",
+                warehouse_name="Kazan",
                 chrt_id=965033858,
                 quantity=9,
             ),
             StockSnapshot(
                 stat_date=date(2026, 8, 14),
                 nm_id=_OTHER_SKU,
-                warehouse_name="Тула",
+                warehouse_name="Tula",
                 chrt_id=737265999,
                 quantity=99,
             ),
@@ -66,9 +66,9 @@ async def test_the_window_comes_back_day_by_day_in_order(db_session: AsyncSessio
     )
 
     assert [(row.stat_date, row.warehouse_name) for row in rows] == [
-        (date(2026, 8, 12), "Тула"),
-        (date(2026, 8, 13), "Казань"),
-        (date(2026, 8, 13), "Краснодар"),
+        (date(2026, 8, 12), "Tula"),
+        (date(2026, 8, 13), "Kazan"),
+        (date(2026, 8, 13), "Krasnodar"),
     ]
 
 

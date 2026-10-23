@@ -74,12 +74,12 @@ describe('useMatrixEditing', () => {
     const { api } = mountWith(store)
 
     api.onCellEdit({ day: '2026-07-01', bucket: 'total', metric: 'spend', value: 12 })
-    api.onCommentEdit({ day: '2026-07-01', patch: { body: 'что-то' } })
+    api.onCommentEdit({ day: '2026-07-01', patch: { body: 'a note' } })
     api.onActionEdit({ day: '2026-07-01', patch: { price_change: true } })
 
     expect(store.calls).toEqual([
       ['cell', { day: '2026-07-01', bucket: 'total', metric: 'spend', value: 12 }],
-      ['comment', '2026-07-01', { body: 'что-то' }],
+      ['comment', '2026-07-01', { body: 'a note' }],
       ['action', '2026-07-01', { price_change: true }],
     ])
   })

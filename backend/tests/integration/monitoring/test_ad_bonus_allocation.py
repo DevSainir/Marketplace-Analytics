@@ -1,7 +1,7 @@
 """How WB's advertising bonus is split back onto SKUs.
 
 WB's write-off ledger has no ``nmId`` — a charge belongs to a campaign — so the
-per-SKU «Бонусы» column is an allocation, and this is where its rules are
+per-SKU "Bonuses" column is an allocation, and this is where its rules are
 pinned. It lives in the integration tier because the rules ARE the SQL: the
 proportional split, the currency partition and the workspace semijoin are all
 expressed in the query, and a fake repository would assert none of them.
@@ -29,6 +29,7 @@ from src.modules.monitoring.models import (
 )
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -42,7 +43,7 @@ WINDOW_TO = date(2026, 9, 15)
 
 async def _workspace(session: AsyncSession, name: str) -> Workspace:
     """Persist a workspace in its own organisation."""
-    org = Organization(name=f"Орг {name}", is_primary=False)
+    org = Organization(name=f"Org {name}", is_primary=False)
     session.add(org)
     await session.flush()
     workspace = Workspace(organization_id=org.id, name=name)
@@ -88,7 +89,7 @@ async def _write_off(
     amount: str,
     *,
     campaign_id: int = CAMPAIGN,
-    payment_type: str = "Кэшбэк",
+    payment_type: str = wb.CASHBACK,
     currency: str = "KGS",
     day: date = date(2026, 9, 5),
 ) -> None:
@@ -117,7 +118,7 @@ async def test_the_bonus_splits_across_a_campaigns_skus_by_their_spend(
     db_session: AsyncSession,
 ) -> None:
     """A campaign advertises several cards; its bonus follows the money."""
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _sku(db_session, mine, ALSO_MINE)
     await _spend(db_session, MINE, "750")
@@ -128,16 +129,16 @@ async def test_the_bonus_splits_across_a_campaigns_skus_by_their_spend(
 
 
 async def test_only_the_bonus_funding_types_are_deducted(db_session: AsyncSession) -> None:
-    """«Баланс» is the seller's own money and must never lower a cost.
+    """Balance-funded spend is the seller's own money and must never lower a cost.
 
     The single most expensive way to get this wrong: subtracting real spend
     overstates profit, and nothing downstream contradicts it.
     """
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _spend(db_session, MINE, "1000")
-    await _write_off(db_session, "600", payment_type="Баланс")
-    await _write_off(db_session, "150", payment_type="Кэшбэк")
+    await _write_off(db_session, "600", payment_type=wb.BALANCE)
+    await _write_off(db_session, "150", payment_type=wb.CASHBACK)
 
     assert await _load(db_session, mine) == {MINE: Decimal("150")}
 
@@ -150,15 +151,15 @@ async def test_an_unknown_funding_label_is_treated_as_the_sellers_money(
     And it is reported, so the silent fallback is audible — the caveat is the
     only thing standing between a rename and a number nobody questions.
     """
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _spend(db_session, MINE, "1000")
-    await _write_off(db_session, "400", payment_type="Промо-баллы")
+    await _write_off(db_session, "400", payment_type="Promo points")
 
     assert await _load(db_session, mine) == {}
     assert await ad_bonus_unknown_types(
         db_session, workspace_id=mine.id, date_from=WINDOW_FROM, date_to=WINDOW_TO
-    ) == ["Промо-баллы"]
+    ) == ["Promo points"]
 
 
 async def test_a_relabelled_currency_still_reaches_the_spend_it_came_off(
@@ -172,7 +173,7 @@ async def test_a_relabelled_currency_still_reaches_the_spend_it_came_off(
     was this loader's first shape and it dropped the bonuses of every window
     spanning the relabel.
     """
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _spend(db_session, MINE, "1000")
     await _write_off(db_session, "300", currency="KGS")
@@ -186,7 +187,7 @@ async def test_a_bonus_never_exceeds_the_spend_it_belongs_to(db_session: AsyncSe
 
     Unclamped, that prints a negative advertising cost and an invented profit.
     """
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _spend(db_session, MINE, "100")
     await _write_off(db_session, "900")
@@ -198,7 +199,7 @@ async def test_a_bonus_never_crosses_from_one_campaign_to_another(
     db_session: AsyncSession,
 ) -> None:
     """A campaign's bonus reaches only the SKUs that campaign advertised."""
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _sku(db_session, mine, ALSO_MINE)
     await _spend(db_session, MINE, "1000", campaign_id=CAMPAIGN)
@@ -217,8 +218,8 @@ async def test_another_tenants_share_is_dropped_not_redistributed(
     tenant's share of the bonus as well — a wrong number built out of a tenancy
     leak, which is the pair of failures this loader family already had once.
     """
-    mine = await _workspace(db_session, "Мой")
-    theirs = await _workspace(db_session, "Чужой")
+    mine = await _workspace(db_session, "Mine")
+    theirs = await _workspace(db_session, "Theirs")
     await _sku(db_session, mine, MINE)
     await _sku(db_session, theirs, THEIRS)
     await _spend(db_session, MINE, "500")
@@ -235,7 +236,7 @@ async def test_a_bonus_for_a_campaign_with_no_spend_rows_is_dropped(
 
     Happens when the ledger is backfilled further than fullstats has been.
     """
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _write_off(db_session, "400")
 
@@ -244,7 +245,7 @@ async def test_a_bonus_for_a_campaign_with_no_spend_rows_is_dropped(
 
 async def test_the_window_bounds_the_ledger(db_session: AsyncSession) -> None:
     """A charge outside the reported window belongs to another period's report."""
-    mine = await _workspace(db_session, "Мой")
+    mine = await _workspace(db_session, "Mine")
     await _sku(db_session, mine, MINE)
     await _spend(db_session, MINE, "1000")
     await _write_off(db_session, "400", day=date(2026, 8, 20))

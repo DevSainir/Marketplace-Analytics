@@ -26,7 +26,7 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 WORKSPACE = WorkspaceTokenBundle(
     workspace_id="019f657a-a70c-780a-ac98-f010a1916615",  # type: ignore[arg-type]
-    name="Демо",
+    name="Demo",
     content="content-token",
     analytics="analytics-token",
     advertising="advertising-token",
@@ -48,7 +48,7 @@ class _RefusingContentClient:
         """Leave the client's async context."""
 
     async def fetch_all_cards(self) -> list[object]:
-        """Refuse, exactly as WB does for a token without «Контент»."""
+        """Refuse, exactly as WB does for a token without "Content"."""
         raise IntegrationError("WildBerries API error 403 on /content/v2/get/cards/list.")
 
 

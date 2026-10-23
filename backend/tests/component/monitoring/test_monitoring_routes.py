@@ -273,7 +273,7 @@ async def test_a_refresh_task_is_invisible_to_a_different_workspace(
         "src.modules.monitoring.routers.refresh.harvest_sku_window.delay",
         lambda nm_ids: type("Task", (), {"id": "task-xyz"})(),
     )
-    other = make_workspace(organization_id=organization_id, name="Другой кабинет")
+    other = make_workspace(organization_id=organization_id, name="Another workspace")
     workspace_repo.workspaces[other.id] = other
 
     mine = {**auth_headers(user.id), WORKSPACE_HEADER: str(workspace.id)}
@@ -297,8 +297,8 @@ async def test_a_partially_served_refresh_reports_which_wb_sources_failed(
 
     The harvest deliberately tolerates a partial WB outage, so ``successful``
     stays true while the funnel rows never arrive. On 2026-07-30 that combination
-    redrew the same numbers with no explanation and «Обновить» looked inert. The
-    SPA can only say "Wildberries не отдал воронку продаж" if this field carries
+    redrew the same numbers with no explanation and "Refresh" looked inert. The
+    SPA can only say "WB withheld the sales funnel" if this field carries
     it, so the field is part of the contract.
     """
     monkeypatch.setattr(
@@ -343,7 +343,7 @@ async def test_a_task_result_without_the_field_is_read_as_no_failures(
 
 
 # --------------------------------------------------------------------------- #
-# Bulk «Обновить все SKU»
+# Bulk "Refresh all SKUs"
 # --------------------------------------------------------------------------- #
 async def test_refresh_all_enqueues_a_harvest_over_every_workspace_sku(
     client: httpx.AsyncClient,

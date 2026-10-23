@@ -3,8 +3,8 @@
  * What the team DID on the day, on a phone — the `MatrixActionsRow` of the day
  * list.
  *
- * Three blocks: «Первая РК» / «Вторая РК» (a campaign type plus its budget) and
- * «Меняли цену?» (direction plus size). Every change emits a PARTIAL patch; the
+ * Three blocks: "Campaign 1" / "Campaign 2" (a campaign type plus its budget) and
+ * "Price changed?" (direction plus size). Every change emits a PARTIAL patch; the
  * store merges it into the day's stored answers and saves the whole day.
  *
  * The rules that make the form honest, all carried over from the table row
@@ -18,6 +18,8 @@
  *     a chosen campaign, a size to a chosen direction;
  *   - an amount commits on blur, rejects a negative, and skips a no-op.
  */
+import { normalizeTypedNumber } from '@/core/utils/format'
+
 const props = defineProps({
   /** @type {{iso: string, label: string}} The day on screen. */
   day: { type: Object, required: true },
@@ -30,16 +32,16 @@ const props = defineProps({
 const emit = defineEmits(['action'])
 
 const PRICE_CHANGE_OPTIONS = [
-  { value: 'up', label: 'Повысили' },
-  { value: 'down', label: 'Понизили' },
+  { value: 'up', label: 'Raised' },
+  { value: 'down', label: 'Lowered' },
 ]
 
 // The campaign types an ad campaign slot can hold. Both slots draw from this list but stay
 // distinct — a type picked in one is disabled in the other.
 const RK_TYPE_OPTIONS = [
-  { value: 'uni', label: 'Единая' },
-  { value: 'manual_search', label: 'Руч. поиск' },
-  { value: 'manual_shelves', label: 'Руч. полки' },
+  { value: 'uni', label: 'Unified bid' },
+  { value: 'manual_search', label: 'Manual search' },
+  { value: 'manual_shelves', label: 'Manual shelves' },
   { value: 'cpc', label: 'CPC' },
 ]
 
@@ -48,13 +50,13 @@ const RK_BLOCKS = [
     typeField: 'first_rk_type',
     budgetField: 'first_rk_budget',
     otherTypeField: 'second_rk_type',
-    title: 'Первая РК',
+    title: 'Campaign 1',
   },
   {
     typeField: 'second_rk_type',
     budgetField: 'second_rk_budget',
     otherTypeField: 'first_rk_type',
-    title: 'Вторая РК',
+    title: 'Campaign 2',
   },
 ]
 
@@ -71,7 +73,7 @@ function commitRkType(block, event) {
   emit('action', { day: props.day.iso, patch })
 }
 
-/** «Меняли цену?»: '' un-answers, otherwise up/down. */
+/** "Price changed?": '' un-answers, otherwise up/down. */
 function commitPriceChange(event) {
   const next = event.target.value || null
   const patch = { price_change: next }
@@ -79,9 +81,9 @@ function commitPriceChange(event) {
   emit('action', { day: props.day.iso, patch })
 }
 
-/** Commit an amount (budget / «На сколько») on blur or Enter; blank clears. */
+/** Commit an amount (budget / "By how much") on blur or Enter; blank clears. */
 function commitAmount(field, event) {
-  const raw = event.target.value.trim().replace(',', '.')
+  const raw = normalizeTypedNumber(event.target.value)
   const stored = props.action[field] ?? null
   const value = raw === '' ? null : Number(raw)
   if (raw !== '' && (Number.isNaN(value) || value < 0)) {
@@ -108,7 +110,7 @@ function priceChangeClass() {
 
 <template>
   <section class="mt-md">
-    <h3 class="mb-xs text-tiny font-medium uppercase text-muted">Действия</h3>
+    <h3 class="mb-xs text-tiny font-medium uppercase text-muted">Actions</h3>
 
     <div class="flex flex-col gap-sm">
       <div v-for="block in RK_BLOCKS" :key="block.typeField" class="day-action">
@@ -133,9 +135,7 @@ function priceChangeClass() {
           </option>
         </select>
 
-        <label class="day-action-label" :for="`${block.budgetField}-${day.iso}`">
-          Бюджет рекламы
-        </label>
+        <label class="day-action-label" :for="`${block.budgetField}-${day.iso}`"> Ad budget </label>
         <input
           :id="`${block.budgetField}-${day.iso}`"
           type="text"
@@ -143,14 +143,14 @@ function priceChangeClass() {
           class="day-action-control text-right tabular-nums"
           :value="action[block.budgetField] ?? ''"
           :disabled="saving || isLocked(block.typeField)"
-          :title="isLocked(block.typeField) ? 'Сначала выберите РК' : null"
+          :title="isLocked(block.typeField) ? 'Pick a campaign first' : null"
           @keydown.enter.prevent="$event.target.blur()"
           @blur="commitAmount(block.budgetField, $event)"
         />
       </div>
 
       <div class="day-action">
-        <label class="day-action-label" :for="`price-change-${day.iso}`">Меняли цену?</label>
+        <label class="day-action-label" :for="`price-change-${day.iso}`">Price changed?</label>
         <select
           :id="`price-change-${day.iso}`"
           class="day-action-control"
@@ -165,7 +165,7 @@ function priceChangeClass() {
           </option>
         </select>
 
-        <label class="day-action-label" :for="`price-amount-${day.iso}`">На сколько</label>
+        <label class="day-action-label" :for="`price-amount-${day.iso}`">By how much</label>
         <input
           :id="`price-amount-${day.iso}`"
           type="text"
@@ -173,7 +173,7 @@ function priceChangeClass() {
           class="day-action-control text-right tabular-nums"
           :value="action.price_change_amount ?? ''"
           :disabled="saving || isLocked('price_change')"
-          :title="isLocked('price_change') ? 'Сначала ответьте на вопрос' : null"
+          :title="isLocked('price_change') ? 'Answer the question first' : null"
           @keydown.enter.prevent="$event.target.blur()"
           @blur="commitAmount('price_change_amount', $event)"
         />

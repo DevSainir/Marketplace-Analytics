@@ -62,7 +62,7 @@
    being overwritten, and what showed was a flat teal wash (#007E76 at 8% — the
    PRE-ui-next accent) and an indigo one. Deleting them is what makes the file
    agree with the design system instead of quietly reverting it. */
-/* The «Всего» card: the same pane as its «Остатки» neighbour (it IS stock
+/* The "Total" card: the same pane as its "Stock" neighbour (it IS stock
    data), but only as wide as its number needs — the two main cards shrink
    around it. */
 .day-block--total {

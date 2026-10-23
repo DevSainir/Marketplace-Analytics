@@ -103,7 +103,7 @@ class StockRepository(BaseRepository):
     ) -> list[StockSnapshot]:
         """Return one SKU's size x warehouse rows for EVERY day in a window.
 
-        Feeds the «Остатки по складам» ribbon, which renders one column group
+        Feeds the "Stock by warehouse" ribbon, which renders one column group
         per day of the analysis window. One query for the whole window rather
         than one per day: the ribbon asks for a month at a time, and thirty
         round trips to build one screen is the shape this replaced.

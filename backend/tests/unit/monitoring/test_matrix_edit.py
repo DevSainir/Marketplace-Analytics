@@ -2,7 +2,7 @@
 
 Covers the editability contract: direct input sets, numerator reverse-solves
 (incl. the user's order_conversion→orders example), the traffic-share
-cross-bucket redistribution, the funnel-backed «Общая»/«Органика» solves, and
+cross-bucket redistribution, the funnel-backed "Overall"/"Organic" solves, and
 a verbatim display override for every non-invertible cell (all cells editable).
 """
 
@@ -79,7 +79,7 @@ def _bucket(base: MatrixBaseState, name: str) -> MatrixAdBucketBase:
 # Direct input edits
 # --------------------------------------------------------------------------- #
 def test_direct_input_set_and_dependents_recompute() -> None:
-    """Editing «Показы» sets views and recomputes CTR/CPM/traffic share."""
+    """Editing "Impressions" sets views and recomputes CTR/CPM/traffic share."""
     base = _edit("manual_search", "views", 80)
 
     assert _bucket(base, "manual_search").views == 80
@@ -99,7 +99,7 @@ def test_counts_are_non_negative_integers() -> None:
 # Reverse-solve: numerator convention
 # --------------------------------------------------------------------------- #
 def test_order_conversion_back_solves_orders() -> None:
-    """The user's example: editing «Конверсия в заказ» changes «Заказы»."""
+    """The user's example: editing "Order conversion" changes "Orders"."""
     # order_conversion = orders/add_to_cart*100; add_to_cart=10 held → orders=5.
     base = _edit("manual_search", "order_conversion", 50)
 
@@ -127,7 +127,7 @@ def test_cpc_back_solves_spend_holding_clicks() -> None:
 
 
 def test_drr_orders_back_solves_spend() -> None:
-    """«ДРР от заказов» = spend/(orders x price)*100 → solve spend.
+    """The "ACoS (orders)" = spend/(orders x price)*100 → solve spend.
 
     The denominator is the zone's DERIVED revenue — 2 orders x 500 ₽ — so 10%
     of 1 000 ₽ is 100 ₽ of spend.
@@ -138,7 +138,7 @@ def test_drr_orders_back_solves_spend() -> None:
 
 
 def test_ad_order_sum_back_solves_the_orders_count() -> None:
-    """«Заказы, ₽» in an ad zone is orders x price → solve the orders count.
+    """The "Orders, ₽" in an ad zone is orders x price → solve the orders count.
 
     Writing the stored ``order_sum`` would be invisible (the cell is derived),
     so the edit moves the number the display actually reads.
@@ -170,7 +170,7 @@ def _dual_zone_base() -> MatrixBaseState:
 
 
 def test_traffic_share_redistributes_within_bid_type() -> None:
-    """Setting a unified zone's «Доля трафика» solves it against the other zone."""
+    """Setting a unified zone's "Traffic share" solves it against the other zone."""
     # The two unified zones normalize together (uni_shelves = 70 held fixed).
     # Target 50% → uni_search views = 70.
     base = apply_edit(
@@ -188,7 +188,7 @@ def test_traffic_share_redistributes_within_bid_type() -> None:
 
 
 def test_traffic_share_unreachable_target_becomes_override() -> None:
-    """An unreachable «Доля трафика» target can't redistribute, so it is shown
+    """An unreachable "Traffic share" target can't redistribute, so it is shown
     verbatim as a display override (0/100%, or a single-bucket type)."""
     base = apply_edit(
         _dual_zone_base(),
@@ -202,10 +202,10 @@ def test_traffic_share_unreachable_target_becomes_override() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# «Общая» and «Органика»
+# "Overall" and "Organic"
 # --------------------------------------------------------------------------- #
 def test_total_cart_conversion_solves_funnel_cart_count() -> None:
-    """«Общая» add-to-cart conversion = cart/open*100 → solve cart_count."""
+    """The "Overall" add-to-cart conversion = cart/open*100 → solve cart_count."""
     base = _edit("total", "cart_conversion", 15)  # 15% of 200 opens = 30 carts
 
     assert base.days[0].funnel is not None
@@ -214,21 +214,21 @@ def test_total_cart_conversion_solves_funnel_cart_count() -> None:
 
 
 def test_total_seller_price_edit_recomputes_volumes_and_spp() -> None:
-    """Editing «Цена продавца» recomputes «Заказы, ₽», «Выкупы, ₽», «СПП»."""
+    """Editing "Seller price" recomputes "Orders, ₽", "Buyouts, ₽", "WB discount"."""
     base = _edit("total", "seller_price", 1000)
 
     assert base.days[0].funnel is not None
     assert base.days[0].funnel.seller_price == 1000.0
     # order_count 10 x 1000 = 10000.
     assert _cell(base, "order_sum", "total") == 10000.0
-    # «Выкупы, ₽» is order-date: «Заказы, ₽» 10000 x «Процент выкупа» 50% = 5000.
+    # "Buyouts, ₽" is order-date: "Orders, ₽" 10000 x "Buyout rate" 50% = 5000.
     assert _cell(base, "buyout_sum", "total") == 5000.0
     # SPP = (1000 - 350) / 1000 x 100.
     assert _cell(base, "spp", "total") == 65.0
 
 
 def test_total_customer_price_edit_recomputes_spp() -> None:
-    """Editing «Цена покупателя» recomputes «СПП» (seller held)."""
+    """Editing "Customer price" recomputes "WB discount" (seller held)."""
     base = _edit("total", "customer_price", 250)
 
     assert base.days[0].funnel is not None
@@ -237,7 +237,7 @@ def test_total_customer_price_edit_recomputes_spp() -> None:
 
 
 def test_organic_clicks_solves_open_count_holding_ads() -> None:
-    """«Органика» clicks = open - ad_clicks → solve open_count (hold ads)."""
+    """The "Organic" clicks = open - ad_clicks → solve open_count (hold ads)."""
     # ad clicks = 3 + 4 + 1 (unclassified) = 8. organic set to 300 → open = 308.
     base = _edit("organic", "clicks", 300)
 
@@ -271,7 +271,7 @@ def test_noninvertible_cell_becomes_display_override(bucket: str, metric: str) -
 
 
 def test_absent_bucket_edit_becomes_display_override() -> None:
-    """A bucket that delivered nothing that day («—») is editable via override."""
+    """A bucket that delivered nothing that day ("—") is editable via override."""
     base = _edit("uni_shelves", "views", 5)  # uni_shelves absent from the base
 
     assert _cell(base, "views", "uni_shelves") == 5.0
@@ -298,13 +298,13 @@ def test_edit_on_unknown_day_rejected() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# «Процент выкупа» and «Заказы, ₽» are inputs, not display paint
+# "Buyout rate" and "Orders, ₽" are inputs, not display paint
 # --------------------------------------------------------------------------- #
 def test_buyout_percent_is_an_input_that_moves_the_buyout_value() -> None:
     """It is harvested, not computed — so editing it recomputes what it feeds.
 
     The base has 10 orders x 500 ₽ at 50% -> 2 500 ₽ of buyouts. Doubling the
-    percent doubles that, in «Общая» AND in the ad zones, instead of painting a
+    percent doubles that, in "Overall" AND in the ad zones, instead of painting a
     number over the one cell.
     """
     base = _edit("total", "buyout_percent", 100)
@@ -317,7 +317,7 @@ def test_buyout_percent_is_an_input_that_moves_the_buyout_value() -> None:
 
 
 def test_total_order_sum_solves_the_count_and_leaves_ads_alone() -> None:
-    """«Заказы, ₽» in «Общая» solves the funnel count — not the price, not ads."""
+    """The "Orders, ₽" in "Overall" solves the funnel count — not the price, not ads."""
     base = _edit("total", "order_sum", 10000)  # 10 000 / 500 ₽
     day = base.days[0]
 
@@ -431,7 +431,7 @@ def test_a_total_below_the_associated_share_shrinks_the_breakdown() -> None:
 # DRR divides the numbers shown above it
 # --------------------------------------------------------------------------- #
 def test_total_spend_override_moves_only_the_drr_rows() -> None:
-    """«Затраты, ₽» in «Общая» is a roll-up: correcting it retargets both DRR rows.
+    """The "Spend, ₽" in "Overall" is a roll-up: correcting it retargets both DRR rows.
 
     It has no unique back-distribution across the zones, so it stays a display
     override — but the ratios that divide by it must quote the corrected
@@ -449,12 +449,12 @@ def test_total_spend_override_moves_only_the_drr_rows() -> None:
 
 
 def test_total_buyout_override_moves_only_drr_sales() -> None:
-    """A corrected «Выкупы, ₽» retargets «ДРР от продаж» and nothing else."""
+    """A corrected "Buyouts, ₽" retargets "ACoS (sales)" and nothing else."""
     base = _edit("total", "buyout_sum", 1000)
 
     assert _cell(base, "buyout_sum", "total") == 1000.0
     assert _cell(base, "drr_sales", "total") == 4.0  # 40 ₽ / 1 000 ₽
-    # «ДРР от заказов» divides by order revenue, so it stays put...
+    # "ACoS (orders)" divides by order revenue, so it stays put...
     assert _cell(base, "drr_orders", "total") == _cell(_base(), "drr_orders", "total")
     # ...and the buyout percent it was derived from is not rewritten backwards.
     assert base.days[0].lagged_buyout_percent == 50.0

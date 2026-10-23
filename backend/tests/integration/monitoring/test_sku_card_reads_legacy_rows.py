@@ -50,7 +50,7 @@ async def _seller(session: AsyncSession, organization: Organization) -> tuple[Us
     session.add(user)
     await session.flush()
     session.add(Membership(organization_id=organization.id, user_id=user.id, role=MemberRole.OWNER))
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Кабинет")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Workspace")
     session.add(workspace)
     await session.flush()
     return user, workspace
@@ -78,7 +78,7 @@ async def test_the_card_opens_over_days_harvested_before_the_money_columns(
     # Arrange
     user, workspace = await _seller(db_session, organization)
     db_session.add(
-        ProductCard(nm_id=NM_ID, workspace_id=workspace.id, vendor_code="ART-1", title="Платье")
+        ProductCard(nm_id=NM_ID, workspace_id=workspace.id, vendor_code="ART-1", title="Dress")
     )
     db_session.add_all(
         [

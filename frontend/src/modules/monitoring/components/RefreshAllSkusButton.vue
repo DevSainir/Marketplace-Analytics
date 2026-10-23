@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Обновить все SKU» — enqueue a WB re-harvest of the whole workspace catalogue.
+ * "Refresh all SKUs" — enqueue a WB re-harvest of the whole workspace catalogue.
  *
  * Dumb by contract: it reports the intent (`refresh`) and renders the in-flight
  * label plus any error/partial-outcome message the store hands back. It lives
@@ -38,7 +38,7 @@ defineEmits(['refresh'])
       class="ui-btn ui-btn--sm"
       @click="$emit('refresh')"
     >
-      {{ refreshing ? 'Обновляем…' : 'Обновить все SKU' }}
+      {{ refreshing ? 'Refreshing…' : 'Refresh all SKUs' }}
     </button>
 
     <RefreshProgress

@@ -33,6 +33,7 @@ from src.modules.heatmap.repos import SkuGroupRepository
 from src.modules.monitoring.models import ProductCard, SalesFunnelDaily, StockSnapshot
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -45,7 +46,7 @@ REPORT_ID = 900000001
 
 
 async def _workspace(session: AsyncSession, organization: Organization) -> Workspace:
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Demo")
     session.add(workspace)
     await session.flush()
     return workspace
@@ -81,7 +82,7 @@ async def _cabinet(session: AsyncSession, organization: Organization) -> Workspa
             StockSnapshot(
                 stat_date=moscow_today() - timedelta(days=1),
                 nm_id=BUSY,
-                warehouse_name="Коледино",
+                warehouse_name="Koledino",
                 chrt_id=1,
                 quantity=5,
             ),
@@ -98,14 +99,14 @@ async def _cabinet(session: AsyncSession, organization: Organization) -> Workspa
                 workspace_id=workspace.id,
                 nm_id=BUSY,
                 sa_name=f"A{BUSY}",
-                supplier_oper_name="Продажа",
+                supplier_oper_name=wb.SALE,
                 rr_dt=WEEK_TO,
                 currency_name="KGS",
                 quantity=1,
                 retail_amount=Decimal("1000"),
                 ppvz_for_pay=Decimal("900"),
             ),
-            AbTest(id=test_id, workspace_id=workspace.id, nm_id=BUSY, name="Главное фото"),
+            AbTest(id=test_id, workspace_id=workspace.id, nm_id=BUSY, name="Main photo"),
         ]
     )
     await session.flush()
@@ -184,7 +185,7 @@ async def test_every_main_page_renders_on_real_rows(
         "heatmap": 2,
         "heatmap catalogue": 2,
         "A/B list": 1,
-        "A/Б test": 1,
+        "A/B test": 1,
     }
 
 
@@ -217,7 +218,7 @@ async def test_a_broken_page_fails_the_probe_and_the_pages_after_it_still_open(
     assert report.failures[0].startswith("heatmap: ProgrammingError")
     assert "heatmap" not in report.rendered
     assert report.rendered["A/B list"] == 1
-    assert report.rendered["A/Б test"] == 1
+    assert report.rendered["A/B test"] == 1
 
 
 async def test_a_stale_settlement_rollup_skips_the_report_instead_of_rebuilding_it(

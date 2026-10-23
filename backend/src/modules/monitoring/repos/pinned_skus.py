@@ -1,4 +1,4 @@
-"""Data access for globally pinned SKUs («Закрепить» flags).
+"""Data access for globally pinned SKUs ("Pin" flags).
 
 Sole owner of SQL for ``monitoring.pinned_sku`` — services depend on this
 repository and never issue queries themselves. Presence of a row means the SKU

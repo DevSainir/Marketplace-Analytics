@@ -1,4 +1,4 @@
-"""The «Поиск по кластерам» reads, against a real database.
+"""The "Cluster search" reads, against a real database.
 
 These cannot go lower: each is a property of the SQL itself — the per-SKU
 predicate, the weighted-mean `CASE`, the composite-key upsert and the campaign
@@ -59,8 +59,8 @@ async def test_only_the_asked_for_skus_clusters_are_returned(db_session: AsyncSe
     repo = AdvertisingClusterRepository(db_session)
     await repo.upsert_many(
         [
-            _row(nm_id=MINE, cluster="носки мужские", views=100),
-            _row(nm_id=OTHER_SKU, cluster="носки мужские", views=900),
+            _row(nm_id=MINE, cluster="men's socks", views=100),
+            _row(nm_id=OTHER_SKU, cluster="men's socks", views=900),
         ]
     )
     await db_session.flush()
@@ -69,7 +69,7 @@ async def test_only_the_asked_for_skus_clusters_are_returned(db_session: AsyncSe
         nm_id=MINE, date_from=WINDOW[0], date_to=WINDOW[1], limit=50
     )
 
-    assert [(row.cluster, row.views) for row in found] == [("носки мужские", 100)]
+    assert [(row.cluster, row.views) for row in found] == [("men's socks", 100)]
 
 
 async def test_a_clusters_totals_are_summed_across_its_days_and_campaigns(
@@ -79,11 +79,11 @@ async def test_a_clusters_totals_are_summed_across_its_days_and_campaigns(
     repo = AdvertisingClusterRepository(db_session)
     await repo.upsert_many(
         [
-            _row(nm_id=MINE, cluster="носки", day=DAY_1, views=100, clicks=5, spend=25.0),
-            _row(nm_id=MINE, cluster="носки", day=DAY_2, views=200, clicks=9, spend=40.0),
+            _row(nm_id=MINE, cluster="socks", day=DAY_1, views=100, clicks=5, spend=25.0),
+            _row(nm_id=MINE, cluster="socks", day=DAY_2, views=200, clicks=9, spend=40.0),
             _row(
                 nm_id=MINE,
-                cluster="носки",
+                cluster="socks",
                 day=DAY_2,
                 campaign_id=999,
                 views=50,
@@ -110,8 +110,8 @@ async def test_clusters_are_ranked_by_impressions(db_session: AsyncSession) -> N
     repo = AdvertisingClusterRepository(db_session)
     await repo.upsert_many(
         [
-            _row(nm_id=MINE, cluster="носки короткие", views=50),
-            _row(nm_id=MINE, cluster="носки мужские", views=900),
+            _row(nm_id=MINE, cluster="short socks", views=50),
+            _row(nm_id=MINE, cluster="men's socks", views=900),
         ]
     )
     await db_session.flush()
@@ -120,7 +120,7 @@ async def test_clusters_are_ranked_by_impressions(db_session: AsyncSession) -> N
         nm_id=MINE, date_from=WINDOW[0], date_to=WINDOW[1], limit=50
     )
 
-    assert [row.cluster for row in found] == ["носки мужские", "носки короткие"]
+    assert [row.cluster for row in found] == ["men's socks", "short socks"]
 
 
 async def test_days_outside_the_window_are_excluded(db_session: AsyncSession) -> None:
@@ -128,8 +128,8 @@ async def test_days_outside_the_window_are_excluded(db_session: AsyncSession) ->
     repo = AdvertisingClusterRepository(db_session)
     await repo.upsert_many(
         [
-            _row(nm_id=MINE, cluster="носки", day=DAY_1, views=100),
-            _row(nm_id=MINE, cluster="носки", day=date(2026, 7, 1), views=5000),
+            _row(nm_id=MINE, cluster="socks", day=DAY_1, views=100),
+            _row(nm_id=MINE, cluster="socks", day=date(2026, 7, 1), views=5000),
         ]
     )
     await db_session.flush()
@@ -152,11 +152,11 @@ async def test_the_average_position_is_weighted_and_ignores_unreported_rows(
     repo = AdvertisingClusterRepository(db_session)
     await repo.upsert_many(
         [
-            _row(nm_id=MINE, cluster="носки", day=DAY_1, views=1000, avg_position=3.0),
-            _row(nm_id=MINE, cluster="носки", day=DAY_2, views=10, avg_position=40.0),
+            _row(nm_id=MINE, cluster="socks", day=DAY_1, views=1000, avg_position=3.0),
+            _row(nm_id=MINE, cluster="socks", day=DAY_2, views=10, avg_position=40.0),
             _row(
                 nm_id=MINE,
-                cluster="носки",
+                cluster="socks",
                 day=DAY_2,
                 campaign_id=999,
                 views=5000,
@@ -179,7 +179,7 @@ async def test_a_cluster_no_row_reported_a_position_for_has_none(
 ) -> None:
     """None, not 0: the denominator is empty, so there is no average to report."""
     repo = AdvertisingClusterRepository(db_session)
-    await repo.upsert_many([_row(nm_id=MINE, cluster="носки", avg_position=0.0)])
+    await repo.upsert_many([_row(nm_id=MINE, cluster="socks", avg_position=0.0)])
     await db_session.flush()
 
     (aggregate,) = await repo.aggregate_for_sku(
@@ -194,14 +194,14 @@ async def test_the_daily_trend_is_scoped_to_the_sku_too(db_session: AsyncSession
     repo = AdvertisingClusterRepository(db_session)
     await repo.upsert_many(
         [
-            _row(nm_id=MINE, cluster="носки", day=DAY_1, views=100),
-            _row(nm_id=OTHER_SKU, cluster="носки", day=DAY_1, views=900),
+            _row(nm_id=MINE, cluster="socks", day=DAY_1, views=100),
+            _row(nm_id=OTHER_SKU, cluster="socks", day=DAY_1, views=900),
         ]
     )
     await db_session.flush()
 
     series = await repo.daily_series_for_sku(
-        nm_id=MINE, clusters=["носки"], date_from=WINDOW[0], date_to=WINDOW[1]
+        nm_id=MINE, clusters=["socks"], date_from=WINDOW[0], date_to=WINDOW[1]
     )
 
     assert [(point.stat_date, point.views) for point in series] == [(DAY_1, 100)]
@@ -212,8 +212,8 @@ async def test_re_harvesting_a_day_overwrites_the_clusters_values(
 ) -> None:
     """The four-column key must make a re-harvest idempotent, not duplicate rows."""
     repo = AdvertisingClusterRepository(db_session)
-    await repo.upsert_many([_row(nm_id=MINE, cluster="носки", views=100)])
-    await repo.upsert_many([_row(nm_id=MINE, cluster="носки", views=250)])
+    await repo.upsert_many([_row(nm_id=MINE, cluster="socks", views=100)])
+    await repo.upsert_many([_row(nm_id=MINE, cluster="socks", views=250)])
     await db_session.flush()
 
     (aggregate,) = await repo.aggregate_for_sku(
@@ -230,8 +230,8 @@ async def test_the_sweep_only_clears_the_named_campaigns_window(
     repo = AdvertisingClusterRepository(db_session)
     await repo.upsert_many(
         [
-            _row(nm_id=MINE, cluster="носки", campaign_id=CAMPAIGN),
-            _row(nm_id=MINE, cluster="футболка", campaign_id=999),
+            _row(nm_id=MINE, cluster="socks", campaign_id=CAMPAIGN),
+            _row(nm_id=MINE, cluster="t-shirt", campaign_id=999),
         ]
     )
     await db_session.flush()
@@ -245,4 +245,4 @@ async def test_the_sweep_only_clears_the_named_campaigns_window(
         nm_id=MINE, date_from=WINDOW[0], date_to=WINDOW[1], limit=50
     )
     assert deleted == 1
-    assert [row.cluster for row in remaining] == ["футболка"]
+    assert [row.cluster for row in remaining] == ["t-shirt"]

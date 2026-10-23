@@ -10,7 +10,7 @@ Bank of Russia's, of the day (verified to five decimals on five dates of
 The rates are loaded once (migration ``c4e8a2f71d39``) rather than harvested:
 the RUB campaigns stopped spending on 2026-09-22, so there is no new rouble
 spend to convert. A RUB row dated past the last loaded rate stays in roubles,
-and every screen then shows «—» for the sums it would have mixed.
+and every screen then shows "—" for the sums it would have mixed.
 """
 
 from __future__ import annotations

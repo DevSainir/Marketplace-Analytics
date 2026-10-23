@@ -1,6 +1,6 @@
 <script setup>
 /**
- * The «Комментарий» row of the metrics table: one note per day.
+ * The "Comments" row of the metrics table: one note per day.
  *
  * Open by default, and collapsible from the chevron. It used to open collapsed,
  * on the reasoning that the table is read for its numbers; in use the notes are
@@ -10,7 +10,7 @@
  * whole question.
  *
  * Every day is one card, open or collapsed — the same glass pane the
- * «Цены/Остатки» and «Действия» rows use, so the three bands below the grid
+ * "Prices/Stock" and "Actions" rows use, so the three bands below the grid
  * read as one thing.
  *
  * Each day has TWO independent fields: a one-line HEADER on top and the
@@ -108,7 +108,7 @@ function commitNote(iso, field) {
           >
             <path d="m6 9 6 6 6-6" />
           </svg>
-          <span class="text-micro font-semibold uppercase tracking-wide">Комментарии</span>
+          <span class="text-micro font-semibold uppercase tracking-wide">Comments</span>
         </button>
       </td>
       <!-- Collapsed, ANY day cell (with or without a note) is a click
@@ -121,7 +121,7 @@ function commitNote(iso, field) {
         @click="commentsExpanded || (commentsExpanded = true)"
       >
         <!-- Collapsed or open, the day always gets its card: the band has to
-             line up with the «Цены/Остатки» and «Действия» rows above and
+             line up with the "Prices/Stock" and "Actions" rows above and
              below it, and a strip of loose text between two rows of panes is
              what it looked like when it did not. -->
         <div class="day-comment-card" :class="!commentsExpanded && 'day-comment-card--collapsed'">
@@ -134,8 +134,8 @@ function commitNote(iso, field) {
               maxlength="200"
               class="comment-header-input"
               :disabled="commentSavingDays.has(day.iso)"
-              :placeholder="`Заголовок за ${day.label}`"
-              :aria-label="`Заголовок за ${day.label}`"
+              :placeholder="`Title for ${day.label}`"
+              :aria-label="`Title for ${day.label}`"
               @focus="focusedNote = `${day.iso}:header`"
               @blur="commitNote(day.iso, 'header')"
               @keydown.enter.prevent="$event.target.blur()"
@@ -150,8 +150,8 @@ function commitNote(iso, field) {
               maxlength="2000"
               class="comment-input"
               :disabled="commentSavingDays.has(day.iso)"
-              :placeholder="`Заметка за ${day.label}`"
-              :aria-label="`Комментарий за ${day.label}`"
+              :placeholder="`Note for ${day.label}`"
+              :aria-label="`Comment for ${day.label}`"
               @focus="focusedNote = `${day.iso}:body`"
               @blur="commitNote(day.iso, 'body')"
               @keydown.esc.prevent="$event.target.blur()"

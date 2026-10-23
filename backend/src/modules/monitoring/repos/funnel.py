@@ -51,7 +51,7 @@ _UPDATE = (
     "order_sum",
     "currency",
 )
-#: Columns the period-aggregate cohort pass owns — the «Процент выкупа» inputs,
+#: Columns the period-aggregate cohort pass owns — the "Buyout rate" inputs,
 #: their money, and ``order_sum``/``currency`` too: the aggregate is the only
 #: surface serving a day older than 7, so it is what fills the money of a day
 #: harvested before the funnel's sums were stored.
@@ -142,7 +142,7 @@ class FunnelRepository(BaseRepository):
         are dropped. The aggregate returns the whole catalogue for any date the
         seller ever traded, so inserting blind would fabricate zero-order funnel
         days for SKUs/dates we never harvested — days the matrix currently (and
-        correctly) renders as «—».
+        correctly) renders as "—".
 
         Args:
             rows: ``{stat_date, nm_id, buyout_count, cancel_count}`` mappings.

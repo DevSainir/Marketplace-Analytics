@@ -102,7 +102,7 @@ async def advance_ad_currency(tokens: WorkspaceTokenBundle, *, cursor: str | Non
         The step — one WB request's worth of work.
     """
     if not tokens.advertising:
-        return LaneStep(0, 0, None, True, "Нет токена «Продвижение» — валюта рекламы не размечена.")
+        return LaneStep(0, 0, None, True, "No Promotion token — ad currency not labeled.")
 
     asked = _asked(cursor)
     async with AsyncSessionLocal() as session:
@@ -111,7 +111,7 @@ async def advance_ad_currency(tokens: WorkspaceTokenBundle, *, cursor: str | Non
         )
     probes = plan_currency_probes({cid: day for cid, day in missing.items() if cid not in asked})
     if not probes:
-        return LaneStep(len(asked), len(asked), None, True, "Валюта рекламы размечена.")
+        return LaneStep(len(asked), len(asked), None, True, "Ad currency labeled.")
 
     probe = probes[0]
     async with WBAdvertisingClient(settings, token=tokens.advertising) as client:
@@ -134,12 +134,13 @@ async def advance_ad_currency(tokens: WorkspaceTokenBundle, *, cursor: str | Non
 
     asked |= set(probe.campaign_ids)
     finished = len(probes) == 1
-    remaining = sum(len(later.campaign_ids) for later in probes[1:])
+    total = len(asked) + sum(len(later.campaign_ids) for later in probes[1:])
+    noun = "campaign" if total == 1 else "campaigns"
     return LaneStep(
         done=len(asked),
-        total=len(asked) + remaining,
+        total=total,
         cursor=None if finished else ",".join(str(cid) for cid in sorted(asked)),
         finished=finished,
-        message=f"Размечаем валюту рекламы: {len(asked)} из {len(asked) + remaining} кампаний.",
+        message=f"Labeling ad currency: {len(asked)} of {total} {noun}.",
         rows=labelled,
     )

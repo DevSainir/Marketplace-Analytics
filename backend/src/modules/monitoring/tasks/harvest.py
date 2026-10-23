@@ -1,7 +1,7 @@
 """The SKU-window harvest: fetch WB sources concurrently, ingest atomically.
 
 Owns the harvest core (:func:`_harvest_sku_window`) shared by the interactive
-«Обновить» task below and the nightly discovery flow
+"Refresh" task below and the nightly discovery flow
 (:mod:`~src.modules.monitoring.tasks.discovery`).
 """
 
@@ -70,7 +70,7 @@ class HarvestOutcome:
     partial WB outage — but "0 funnel rows because WB stalled the request" and
     "0 funnel rows because the SKU had no traffic" are indistinguishable from
     the counts alone. The 2026-07-30 incident hid behind exactly that: tasks
-    reported SUCCESS with ``funnel_rows: 0`` while «Обновить» users watched
+    reported SUCCESS with ``funnel_rows: 0`` while "Refresh" users watched
     unchanged numbers and concluded the button did nothing.
     """
 
@@ -92,7 +92,7 @@ async def _fetch_analytics_in_turn(
     2026-07-30 it returns HTTP 500, or holds the socket until the client's
     30-second read timeout. Issuing this pair inside one ``asyncio.gather``
     therefore guaranteed that a contended refresh burnt both its retries on
-    stalls — «Обновить» took 145-200s and persisted zero funnel rows.
+    stalls — "Refresh" took 145-200s and persisted zero funnel rows.
 
     Awaiting them in turn lets the client's rate gate space them, and keeps a
     failure of one from cancelling the other: each is captured and returned so
@@ -160,10 +160,10 @@ async def _harvest_sku_window(
 
             **Every caller passes ``True`` today**, and has since 0c0a752
             (2026-09-07) routed both the nightly pass and the interactive
-            «Обновить» through
+            "Refresh" through
             :func:`~src.modules.monitoring.tasks.full_refresh.refresh_workspace_data`,
             which hard-codes it. The cost was accepted there deliberately: the
-            alternative was a refresh that returned green while «Выкупы, ₽»
+            alternative was a refresh that returned green while "Buyouts, ₽"
             stood still. This docstring claimed the interactive path passed
             ``False`` until 2026-09-15 — it had been wrong for a week.
 
@@ -304,10 +304,10 @@ async def _harvest_sku_window(
         # No table, no series: these rows become one column of one day's price
         # snapshot and are dropped (see
         # :class:`~src.integrations.wildberries.schemas.statistics.WBOrderPrice`
-        # for why this is not the removed «Заказы» feed coming back).
+        # for why this is not the removed "Orders" feed coming back).
         #
         # Unlike the sales feed above this runs on EVERY path, single-SKU
-        # «Обновить» included, because rewriting today's price with SPP is the
+        # "Refresh" included, because rewriting today's price with SPP is the
         # button's whole point — and it is cheap enough to mean it: the window
         # is today alone rather than the harvest's, and this endpoint's bucket
         # is 10 requests a minute against the sales feed's one.
@@ -315,8 +315,8 @@ async def _harvest_sku_window(
             return await statistics_client.fetch_order_prices(changed_since=moscow_today())
 
         # WB's advertising write-off ledger — the only feed that says whether a
-        # charge came out of the seller's money («Баланс») or out of WB's bonus
-        # pool («Кэшбэк»). Without it every per-SKU DRR, ROI and profit counts
+        # charge came out of the seller's money (balance) or out of WB's bonus
+        # pool (cashback). Without it every per-SKU DRR, ROI and profit counts
         # WB's bonuses as the seller's spend, because `fullstats` reports the
         # impressions either way funded and a bonus charge never reaches the
         # settlement report (it has no invoice document).
@@ -324,7 +324,7 @@ async def _harvest_sku_window(
         # Rides the same gate as the sales feed, and for the same reason: it is
         # served ACCOUNT-WIDE with no campaign filter. That gate is open on
         # every path today (see ``include_sales`` above), so a single-SKU
-        # «Обновить» re-fetches and rewrites this window's whole ledger to
+        # "Refresh" re-fetches and rewrites this window's whole ledger to
         # refresh one card. Cheap enough to accept: a 7-day window is ONE
         # request, and the rewrite is idempotent — the ingest sweeps exactly the
         # window it fetched.
@@ -337,7 +337,7 @@ async def _harvest_sku_window(
         # from the FBO stock above, so it neither shares nor contends for the
         # analytics rate budget. It returns ordinary stock rows (see
         # :mod:`~src.modules.monitoring.tasks.fbs`), and a workspace with no
-        # «Маркетплейс» token simply gets an empty list.
+        # "Marketplace" token simply gets an empty list.
         (
             adv_res,
             search_res,
@@ -364,8 +364,8 @@ async def _harvest_sku_window(
         # alone — which since 2026-09-22 means leaving it NULL.
         order_prices = _unwrap(order_price_res, "order-prices")
         # ``None`` (source failed OR not requested) leaves the funding ledger
-        # untouched — a missed pass must read as «bonuses unknown for this
-        # window», never as «this window had no bonuses».
+        # untouched — a missed pass must read as "bonuses unknown for this
+        # window", never as "this window had no bonuses".
         write_offs = _unwrap(write_off_res, "ad-write-offs")
         # FBS rows join the FBO ones in the same table, each under its own
         # warehouse label. Any FBS warehouse we did not manage to read is spared
@@ -453,7 +453,7 @@ async def _harvest_sku_window(
             keep_warehouses=keep_warehouses,
         )
         # Fresh WB data supersedes any manual matrix edits for these SKUs — the
-        # product rule is that any refresh (nightly or a manual «Обновить»)
+        # product rule is that any refresh (nightly or a manual "Refresh")
         # clears saved overrides. Run in the same transaction as the ingest.
         cleared = await MatrixOverrideRepository(session).delete_for_skus(nm_ids)
         if cleared:

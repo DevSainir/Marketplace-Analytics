@@ -178,7 +178,7 @@ def get_analytics_service(
 
 
 def get_cluster_analytics(cluster_repo: AdvertisingClusterRepoDep) -> ClusterAnalytics:
-    """Compose the «Поиск по кластерам» service (stored advertising history)."""
+    """Compose the "Cluster search" service (stored advertising history)."""
     return ClusterAnalytics(cluster_repo=cluster_repo)
 
 
@@ -186,7 +186,7 @@ def get_cluster_analytics(cluster_repo: AdvertisingClusterRepoDep) -> ClusterAna
 #: Ingestion has no DI wiring on purpose — it runs only in Celery tasks, which
 #: compose their own session and build IngestionService directly.
 AnalyticsServiceDep = Annotated[AnalyticsService, Depends(get_analytics_service)]
-#: The keyword-search service («Поиск по кластерам»), stored + live halves.
+#: The keyword-search service ("Cluster search"), stored + live halves.
 ClusterAnalyticsDep = Annotated[ClusterAnalytics, Depends(get_cluster_analytics)]
 
 
@@ -218,7 +218,7 @@ async def require_workspace_sku(
             workspace.
     """
     if not await product_card_repo.is_in_workspace(nm_id=nm_id, workspace_id=workspace_id):
-        raise NotFoundError(f"Артикул {nm_id} не найден.")
+        raise NotFoundError(f"SKU {nm_id} not found.")
     return nm_id
 
 

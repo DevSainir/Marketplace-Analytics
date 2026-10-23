@@ -5,7 +5,7 @@ stocks.StockSnapshot`, WB exposes no price history, so a daily snapshot is
 captured on each harvest and accumulates a per-day series over time.
 
 * ``seller_price`` — the seller's DISCOUNTED price (WB ``discountedPrice``, after
-  the seller's own discount). Drives the matrix's «Заказы, ₽»/«Выкупы, ₽»
+  the seller's own discount). Drives the matrix's "Orders, ₽"/"Buyouts, ₽"
   (count x price) and is the base of the SPP ratio.
 * ``customer_price`` — the final price a shopper pays after ALL discounts incl.
   WB loyalty, or ``NULL`` when neither source could answer.

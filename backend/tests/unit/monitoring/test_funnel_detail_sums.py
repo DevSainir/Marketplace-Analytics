@@ -1,6 +1,6 @@
 """Unit tests for the per-day funnel DTOs of the SKU card.
 
-The card's «Заказы, ₽» / «Выкупы, ₽» are DERIVED (count x seller price, in
+The card's "Orders, ₽" / "Buyouts, ₽" are DERIVED (count x seller price, in
 roubles). Since 2026-09-29 the funnel row also stores WB's own sums — in the
 workspace's settlement currency and NULL until the backfill reaches the day —
 and those must never leak into the card: reading them broke every SKU card

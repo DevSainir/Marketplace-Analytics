@@ -38,14 +38,14 @@ class OrderDay(NamedTuple):
     """One funnel day, summed over every SKU the workspace owns.
 
     ``decided`` is deliveries the buyer has ANSWERED — bought out or refused —
-    which is the denominator WB's own «Процент выкупа» uses and the matrix has
+    which is the denominator WB's own "Buyout rate" uses and the matrix has
     used since it was written. Orders still in transit are in neither half, so
     the ratio does not start near zero and climb for three weeks the way
     buyouts-over-orders does. It is ``None`` where the cohort pass has never
-    refreshed the day, which is not «nothing was refused» but «we have not been
-    told yet».
+    refreshed the day, which is not "nothing was refused" but "we have not been
+    told yet".
 
-    The two money figures are what «ДРР от заказов» divides by, at whichever
+    The two money figures are what "ACoS (orders)" divides by, at whichever
     price base the reader picked, and both are in the workspace's own currency —
     the advertising they are divided into is. At the seller's price it is WB's
     own funnel sum (``orderSum``, converted by WB at the order day's Bank of
@@ -102,9 +102,9 @@ async def load_order_days(
         Days in ascending date order.
     """
     # A SKU-day whose `cancel_count` is still NULL has never been through the
-    # cohort pass: counting it as «no refusals» would invent a 100 % cohort, so
+    # cohort pass: counting it as "no refusals" would invent a 100 % cohort, so
     # its buyouts stay out of the decided sum entirely — the same exclusion the
-    # matrix makes, and the reason «Процент выкупа» there reads WB's own figure.
+    # matrix makes, and the reason "Buyout rate" there reads WB's own figure.
     decided = func.sum(SalesFunnelDaily.buyout_count + SalesFunnelDaily.cancel_count).filter(
         SalesFunnelDaily.cancel_count.is_not(None)
     )

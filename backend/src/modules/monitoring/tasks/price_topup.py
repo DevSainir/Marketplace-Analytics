@@ -70,7 +70,7 @@ async def _top_up() -> dict[str, int]:
                     totals["workspaces"] += 1
                     continue
                 if not bundle.statistics:
-                    # No «Статистика» scope stored: the same treatment any
+                    # No "Statistics" scope stored: the same treatment any
                     # missing token gets in the harvest — the source is
                     # skipped, not turned into a failure.
                     totals["workspaces"] += 1

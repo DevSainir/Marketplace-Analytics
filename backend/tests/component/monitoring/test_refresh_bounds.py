@@ -1,4 +1,4 @@
-"""«Обновить» must not be an unbounded way to spend the platform's resources.
+"""A "Refresh" must not be an unbounded way to spend the platform's resources.
 
 Register P0.4. Both enqueue routes called ``harvest_sku_window.delay`` with
 nothing in the way: every press queued another catalogue walk, so a held-down
@@ -101,7 +101,7 @@ def headers(user: Any, workspace: Workspace) -> dict[str, str]:
 async def test_a_repeated_press_reuses_the_running_task(
     client: httpx.AsyncClient, headers: dict[str, str], enqueue: _SpyEnqueue
 ) -> None:
-    """A second press of «Обновить» joins the first harvest instead of racing it.
+    """A second press of "Refresh" joins the first harvest instead of racing it.
 
     Two runs writing the same rows is waste at best; the seller wants one
     harvest and one id to poll either way.

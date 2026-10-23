@@ -1,5 +1,5 @@
 /**
- * The «Остатки» grid's arithmetic: the pivot, and the two encodings drawn on it.
+ * The "Stock" grid's arithmetic: the pivot, and the two encodings drawn on it.
  *
  * Extracted from `StockBreakdownTable.vue` when that file reached the 250-line
  * component ceiling. Pure functions over plain data, so they are testable
@@ -23,7 +23,7 @@ export function pivotWarehouses(cells) {
       // WB reports every seller warehouse, stubs included, so an empty one is a
       // column of zeros — and a column of zeros is not worth the screen space.
       .filter((w) => w.total > 0)
-      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ru'))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'en'))
   )
 }
 
@@ -61,14 +61,14 @@ export function pivotRows(cells, sizeOrder, labelOf) {
   }
   // `numeric` keeps clothing sizes in wear order (42 < 44 < 122).
   return [...byChrt.values()].sort((a, b) =>
-    labelOf(a).localeCompare(labelOf(b), 'ru', { numeric: true }),
+    labelOf(a).localeCompare(labelOf(b), 'en', { numeric: true }),
   )
 }
 
 /**
  * A size's share of the SKU's whole remaining stock, 0..1.
  *
- * Drawn as a bar under the «Всего» figure, which turns the frozen column into a
+ * Drawn as a bar under the "Total" figure, which turns the frozen column into a
  * size-distribution read at a glance: whether the stock is spread across the
  * curve or piled on the two sizes nobody buys.
  *
@@ -84,7 +84,7 @@ export function sizeShare(total, grandTotal) {
 /**
  * How many days fit one screen of the ribbon. Two, as in the daily matrix —
  * except for a seller who stocks ONE warehouse (e.g. a single WB warehouse):
- * there a day is one column, «Всего» would only repeat it, and two such days
+ * there a day is one column, "Total" would only repeat it, and two such days
  * stretched across the screen are two numbers per row with a gulf between
  * them, so the ribbon packs five.
  */
@@ -118,7 +118,7 @@ export function isSingleWarehouse(days) {
 }
 
 /**
- * The columns one day renders, left to right. Regular: «Всего», then each
+ * The columns one day renders, left to right. Regular: "Total", then each
  * warehouse the day stocked. Single-warehouse: just that warehouse — or a blank
  * column on a day that held nothing, so every day keeps its place.
  *

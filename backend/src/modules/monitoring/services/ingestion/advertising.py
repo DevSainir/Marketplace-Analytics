@@ -34,10 +34,10 @@ logger = get_logger(__name__)
 #: Settings implied by a retired campaign type, for campaigns ``adverts-v2``
 #: no longer describes. WB dropped the single-zone types in 2024 and never
 #: gave them a bid type, so without this their spend stays unclassified on
-#: both the matrix and «Реклама» — an account can still carry a few such
-#: campaigns from 2023. Each was a manual CPM campaign in one zone: 6 «в поиске»
-#: (search), 5 «в карточке товара» (product card) and 7 «на главной» (home
-#: page) — the last two both shelves. Type 4 «в каталоге» (catalogue) is left
+#: both the matrix and "Advertising" — an account can still carry a few such
+#: campaigns from 2023. Each was a manual CPM campaign in one zone: 6 in
+#: search, 5 on the product card and 7 on the home page — the last two both
+#: shelves. Type 4, in the catalog, is left
 #: out: the matrix has no placement flag for the catalogue.
 _LEGACY_SETTINGS: dict[int, dict[str, object]] = {
     6: {"placement_search": True, "placement_recommendations": False},
@@ -392,7 +392,7 @@ class AdvertisingIngestion:
 
         :meth:`ingest_search_stats` sums the clusters away to answer "how much of
         this campaign-day was the search zone". This keeps the cluster texts,
-        which is what «Поиск по кластерам» searches — the only record of which
+        which is what "Cluster search" searches — the only record of which
         search phrases the seller's ads actually appeared for.
 
         Entries WB returns without a cluster text are dropped rather than

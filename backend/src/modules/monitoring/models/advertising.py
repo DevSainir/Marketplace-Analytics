@@ -71,7 +71,7 @@ class AdvertisingSearchStatDaily(FxConverted, Base):
     """Daily SEARCH-zone slice of a campaign's advertising for one SKU.
 
     Sourced from ``POST /adv/v1/normquery/stats`` (search clusters summed per
-    day). Covers only the «Поиск» display zone; the recommendations («Полки»)
+    day). Covers only the "Search" display zone; the recommendations ("Shelves")
     slice is derived at read time as ``fullstats total - search``. There is no
     platform split on this endpoint, so the grain is one row per
     ``(date, campaign_id, nm_id)``.
@@ -119,7 +119,7 @@ class AdvertisingClusterStatDaily(FxConverted, Base):
     :class:`AdvertisingSearchStatDaily` sums over. That table answers "how much
     of this campaign's day was the search zone"; this one keeps the cluster
     labels the sum throws away, which is the only place the seller's own search
-    phrases exist in our data. It is what «Поиск по кластерам» reads.
+    phrases exist in our data. It is what "Cluster search" reads.
 
     Rows are only ever the SEARCH zone, and only clusters the seller PAID to
     appear in: a cluster absent here means the campaign served no impression for
@@ -166,10 +166,10 @@ class AdvertisingClusterStatDaily(FxConverted, Base):
 #: part of the primary key, so the column must be bounded.
 PAYMENT_TYPE_MAX_LENGTH: int = 32
 
-#: ``paymentType`` values that mean «WB paid for this, not the seller».
+#: ``paymentType`` values that mean "WB paid for this, not the seller".
 #:
-#: Checked against WB's API on 2026-09-15. «Кэшбэк» is the label WB actually
-#: uses; «Бонусы» is listed alongside it because WB's own seller portal
+#: Checked against WB's API on 2026-09-15. The cashback label is the one WB
+#: actually uses; the bonuses label is listed alongside it because WB's own seller portal
 #: names the same pool that way and a rename would otherwise go unnoticed.
 #:
 #: **The match is an allowlist, and that direction is deliberate.** An
@@ -178,12 +178,16 @@ PAYMENT_TYPE_MAX_LENGTH: int = 32
 #: The reverse default (unknown = bonus) would subtract real money and overstate
 #: profit, which is the error nobody catches. Unknown labels are surfaced in the
 #: report's ``notes`` instead of being silently absorbed.
-BONUS_PAYMENT_TYPES: frozenset[str] = frozenset({"Кэшбэк", "Бонусы"})
+#: The two labels by name, for code that writes a row rather than classifying one.
+CASHBACK_PAYMENT_TYPE: str = "Кэшбэк"
+BALANCE_PAYMENT_TYPE: str = "Баланс"
+
+BONUS_PAYMENT_TYPES: frozenset[str] = frozenset({CASHBACK_PAYMENT_TYPE, "Бонусы"})
 
 #: ``paymentType`` values that mean the seller's own money left the account.
 #: Only used to tell a *known* cash label from an unrecognised one when
 #: assembling the caveat; the arithmetic never reads this.
-CASH_PAYMENT_TYPES: frozenset[str] = frozenset({"Баланс", "Счет", "Счёт"})
+CASH_PAYMENT_TYPES: frozenset[str] = frozenset({BALANCE_PAYMENT_TYPE, "Счет", "Счёт"})
 
 
 class AdvertisingWriteOffDaily(FxConverted, Base):
@@ -196,7 +200,7 @@ class AdvertisingWriteOffDaily(FxConverted, Base):
     seller's money in every per-SKU DRR, ROI and profit figure.
 
     **``currency`` is in the primary key because WB mixes currencies inside one
-    window.** Over 2026-08..09 one account had «Баланс» rows in both RUB and
+    window.** Over 2026-08..09 one account had balance-funded rows in both RUB and
     KGS. Summing across it would add unlike units, so the grain
     keeps them apart and the reader picks the one currency it settles in.
 

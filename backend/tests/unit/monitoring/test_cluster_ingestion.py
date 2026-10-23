@@ -1,7 +1,7 @@
 """Unit tests for the per-search-cluster advertising ingestion.
 
 What these pin: the cluster TEXT survives ingestion (the zone aggregate sums it
-away, and «Поиск по кластерам» has no other source for it), and the average
+away, and "Cluster search" has no other source for it), and the average
 position is weighted by impressions instead of averaged flat.
 """
 
@@ -96,14 +96,14 @@ def _stat(
 async def test_each_cluster_keeps_its_own_row_and_text() -> None:
     """One row per cluster phrase, keyed by it — the aggregate loses the phrase."""
     repo = _CapturingClusterRepo()
-    items = [_item(_stat("носки мужские", views=300), _stat("носки короткие", views=120))]
+    items = [_item(_stat("men's socks", views=300), _stat("short socks", views=120))]
 
     count = await _ingestion(repo).ingest_search_clusters(items)
 
     assert count == 2
     assert {(row["cluster"], row["views"]) for row in repo.rows} == {
-        ("носки мужские", 300),
-        ("носки короткие", 120),
+        ("men's socks", 300),
+        ("short socks", 120),
     }
 
 
@@ -114,7 +114,7 @@ async def test_a_cluster_repeated_within_a_day_is_summed_not_overwritten() -> No
     key would otherwise silently replace the first and undercount the day.
     """
     repo = _CapturingClusterRepo()
-    items = [_item(_stat("носки", views=100, clicks=4), _stat("носки", views=50, clicks=3))]
+    items = [_item(_stat("socks", views=100, clicks=4), _stat("socks", views=50, clicks=3))]
 
     await _ingestion(repo).ingest_search_clusters(items)
 
@@ -126,11 +126,11 @@ async def test_a_cluster_repeated_within_a_day_is_summed_not_overwritten() -> No
 async def test_an_entry_without_a_cluster_text_is_dropped() -> None:
     """A blank phrase is not searchable, and the zone aggregate already counts it."""
     repo = _CapturingClusterRepo()
-    items = [_item(_stat(""), _stat("   "), _stat("носки"))]
+    items = [_item(_stat(""), _stat("   "), _stat("socks"))]
 
     await _ingestion(repo).ingest_search_clusters(items)
 
-    assert [row["cluster"] for row in repo.rows] == ["носки"]
+    assert [row["cluster"] for row in repo.rows] == ["socks"]
 
 
 async def test_average_position_is_weighted_by_impressions() -> None:
@@ -141,8 +141,8 @@ async def test_average_position_is_weighted_by_impressions() -> None:
     """
     repo = _CapturingClusterRepo()
     items = [
-        _item(_stat("носки", views=1000, avg_position=3.0), day=DAY),
-        _item(_stat("носки", views=10, avg_position=40.0), day=DAY),
+        _item(_stat("socks", views=1000, avg_position=3.0), day=DAY),
+        _item(_stat("socks", views=10, avg_position=40.0), day=DAY),
     ]
 
     await _ingestion(repo).ingest_search_clusters(items)
@@ -158,8 +158,8 @@ async def test_impressions_without_a_reported_position_do_not_dilute_the_average
     """
     repo = _CapturingClusterRepo()
     items = [
-        _item(_stat("носки", views=100, avg_position=8.0)),
-        _item(_stat("носки", views=900, avg_position=0.0)),
+        _item(_stat("socks", views=100, avg_position=8.0)),
+        _item(_stat("socks", views=900, avg_position=0.0)),
     ]
 
     await _ingestion(repo).ingest_search_clusters(items)
@@ -170,7 +170,7 @@ async def test_impressions_without_a_reported_position_do_not_dilute_the_average
 async def test_all_zero_cluster_rows_are_not_persisted() -> None:
     """A phrase that served nothing carries no signal, only noise."""
     repo = _CapturingClusterRepo()
-    items = [_item(_stat("носки", views=0, clicks=0, atbs=0, orders=0, spend=0.0))]
+    items = [_item(_stat("socks", views=0, clicks=0, atbs=0, orders=0, spend=0.0))]
 
     count = await _ingestion(repo).ingest_search_clusters(items)
 
@@ -185,7 +185,7 @@ async def test_the_window_is_swept_for_every_requested_campaign_before_insert() 
     the payload, so without the sweep it would stay in the report forever.
     """
     repo = _CapturingClusterRepo()
-    items = [_item(_stat("носки"))]
+    items = [_item(_stat("socks"))]
 
     await _ingestion(repo).ingest_search_clusters(
         items,
@@ -261,7 +261,7 @@ async def _harvest(cluster_repo: Any, search_repo: Any) -> Any:
         advertising=[],
         stocks=[],
         snapshot_date=DAY,
-        search_stats=[_item(_stat("носки мужские", views=300))],
+        search_stats=[_item(_stat("men's socks", views=300))],
     )
 
 
@@ -291,4 +291,4 @@ async def test_harvest_resumes_cluster_rows_when_the_flag_is_flipped_back(
     result = await _harvest(cluster_repo, search_repo)
 
     assert result.search_cluster_rows == 1
-    assert [row["cluster"] for row in cluster_repo.rows] == ["носки мужские"]
+    assert [row["cluster"] for row in cluster_repo.rows] == ["men's socks"]

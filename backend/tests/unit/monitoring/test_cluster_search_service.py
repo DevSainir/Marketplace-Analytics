@@ -1,4 +1,4 @@
-"""Unit tests for «Поиск по кластерам» — one SKU's advertising clusters.
+"""Unit tests for "Cluster search" — one SKU's advertising clusters.
 
 A hand-written fake stands in for the repository, so these pin the service's own
 decisions: how the derived rates fall out of the window totals, how a sparse day
@@ -51,7 +51,7 @@ def _service(*, clusters: _FakeClusterRepo | None = None) -> ClusterAnalytics:
 def _aggregate(**overrides: Any) -> ClusterAggregate:
     """A cluster aggregate with plausible defaults."""
     defaults: dict[str, Any] = {
-        "cluster": "носки мужские",
+        "cluster": "men's socks",
         "days_count": 3,
         "campaign_count": 1,
         "views": 1000,
@@ -113,7 +113,7 @@ async def test_days_wb_reported_nothing_for_are_returned_as_zeros() -> None:
         aggregates=[_aggregate()],
         series=[
             ClusterDayPoint(
-                cluster="носки мужские",
+                cluster="men's socks",
                 stat_date=date(2026, 8, 3),
                 views=400,
                 clicks=20,

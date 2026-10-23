@@ -1,4 +1,4 @@
-"""DTOs for the global pinned-SKU list («Закрепить»)."""
+"""DTOs for the global pinned-SKU list ("Pin")."""
 
 from __future__ import annotations
 
@@ -63,5 +63,5 @@ class PinReorderRequest(BaseModel):
     def _reject_duplicates(cls, value: list[int]) -> list[int]:
         """Reject a repeated ``nm_id``, which has no single position."""
         if len(set(value)) != len(value):
-            raise UserInputError("Артикулы не должны повторяться.")
+            raise UserInputError("SKUs must not repeat.")
         return value

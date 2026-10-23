@@ -66,7 +66,7 @@ function toggle(key) {
     </div>
 
     <p v-if="!modelValue.length" class="py-xl text-center text-base text-muted">
-      Выберите метрики, которые хотите сравнить на одном графике.
+      Pick the metrics to compare on one chart.
     </p>
   </div>
 </template>

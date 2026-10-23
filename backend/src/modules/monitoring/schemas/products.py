@@ -9,7 +9,7 @@ class SkuLookupItem(BaseModel):
     """A single SKU matched by a vendor-code search."""
 
     nm_id: int = Field(description="WB SKU identifier.")
-    vendor_code: str = Field(description="Seller article code (WB 'Артикул продавца').")
+    vendor_code: str = Field(description="Seller article code (WB's vendor code).")
     title: str = Field(description="Product card title.")
 
 

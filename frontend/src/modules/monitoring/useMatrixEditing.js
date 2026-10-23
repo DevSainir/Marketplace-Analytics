@@ -42,7 +42,7 @@ export function useMatrixEditing(store) {
     store.applyCellEdit(edit)
   }
 
-  // Day notes live per DAY inside the table's collapsible «Комментарии» row, so
+  // Day notes live per DAY inside the table's collapsible "Comments" row, so
   // this only forwards the commit. The patch carries just the edited field —
   // header and comment save independently.
   function onCommentEdit({ day, patch }) {

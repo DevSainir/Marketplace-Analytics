@@ -1,4 +1,4 @@
-"""«Поиск по кластерам» — the SKU's advertising clusters.
+"""Cluster search — the SKU's advertising clusters.
 
 The SPA calls this only for workspaces whose ``search_clusters_enabled`` is set
 (one workspace since 2026-09-26); the block was hidden for everyone from 2026-09-09. The

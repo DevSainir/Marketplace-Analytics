@@ -83,7 +83,7 @@ describe('fetchProductData with a numeric SKU', () => {
 })
 
 describe('the campaign links after switching SKU', () => {
-  /** A detail whose «Единая» group ran campaign `advertId` on 01.07. */
+  /** A detail whose "Unified bid" group ran campaign `advertId` on 1 Jul. */
   function detailWith(nmId, advertId) {
     return {
       ...DETAIL,
@@ -127,7 +127,7 @@ describe('the unit on the matrix', () => {
     await store.fetchProductData('953770957')
 
     const spend = store.matrixView.rows.find((row) => row.key === 'spend')
-    expect(spend.label).toBe('Затраты')
+    expect(spend.label).toBe('Spend')
     expect(spend.cells.find((cell) => cell.bucket === 'total').display).toBe('KGS 75')
   })
 
@@ -324,7 +324,7 @@ describe('race protection', () => {
     const second = store.fetchProductData('222')
     await second
 
-    resolveLookup({ count: 0, items: [] }) // stale «ничего не найдено»
+    resolveLookup({ count: 0, items: [] }) // stale "nothing found"
     await first
 
     expect(store.currentProduct.nm_id).toBe(222)
@@ -459,7 +459,7 @@ describe('refreshFromWb', () => {
       getRefreshStatus.mockResolvedValue({ ready: false, successful: false })
 
       const pending = store.refreshFromWb()
-      // Past the 30-minute ceiling. It grew from 6 when «Обновить» stopped
+      // Past the 30-minute ceiling. It grew from 6 when "Refresh" stopped
       // being a subset of the nightly pass: it now pulls the account-wide sale
       // feed and the 22-day cohort pass, whose paced requests take ~7 minutes.
       await vi.advanceTimersByTimeAsync(31 * 60_000)
@@ -469,7 +469,7 @@ describe('refreshFromWb', () => {
     }
 
     expect(fetchSkuDetail).not.toHaveBeenCalled()
-    expect(store.actionError).toMatch(/не завершилось за отведённое время/i)
+    expect(store.actionError).toMatch(/didn't finish in time/i)
     expect(store.matrixRefreshing).toBe(false)
   })
 
@@ -477,8 +477,8 @@ describe('refreshFromWb', () => {
     // THE 2026-07-30 REGRESSION. The ceiling was 200 polls x 600ms = 120s while
     // the backend legitimately takes up to ~4 minutes when a cohort pass is
     // competing for WB's rate budget. Harvests that succeeded in 144-198s were
-    // all reported as «не завершилось за отведённое время», which is why users
-    // concluded «Обновить» never works. A poll ceiling BELOW the backend's own
+    // all reported as "did not finish in time", which is why users
+    // concluded "Refresh" never works. A poll ceiling BELOW the backend's own
     // limit turns every slow success into a visible failure.
     vi.useFakeTimers()
     try {
@@ -515,12 +515,12 @@ describe('refreshFromWb', () => {
     refreshSku.mockResolvedValue({ task_id: 'task-staged' })
     let redrawsBeforeCompletion = null
     getRefreshStatus
-      .mockResolvedValueOnce({ ready: false, stage: 1, percent: 0, message: 'Собираем…' })
+      .mockResolvedValueOnce({ ready: false, stage: 1, percent: 0, message: 'Collecting…' })
       .mockResolvedValueOnce({
         ready: false,
         stage: 2,
         percent: 40,
-        message: 'Считаем проценты выкупа…',
+        message: 'Counting buyout rates…',
       })
       .mockImplementationOnce(async () => {
         // Sampled on the poll that ENDS the run: anything counted here was
@@ -552,7 +552,7 @@ describe('refreshFromWb', () => {
     refreshSku.mockResolvedValue({ task_id: 'task-progress' })
     let seen = null
     getRefreshStatus
-      .mockResolvedValueOnce({ ready: false, stage: 2, percent: 40, message: 'Считаем выкупы…' })
+      .mockResolvedValueOnce({ ready: false, stage: 2, percent: 40, message: 'Counting buyouts…' })
       .mockImplementationOnce(async () => {
         seen = { ...store.refreshProgress }
         return { ready: true, successful: true, failed_sources: [] }
@@ -567,7 +567,7 @@ describe('refreshFromWb', () => {
       vi.useRealTimers()
     }
 
-    expect(seen).toEqual({ percent: 40, message: 'Считаем выкупы…' })
+    expect(seen).toEqual({ percent: 40, message: 'Counting buyouts…' })
     // Cleared when the run ends, so a finished refresh leaves no stale bar.
     expect(store.refreshProgress).toBeNull()
   })
@@ -588,8 +588,9 @@ describe('refreshFromWb', () => {
 
     expect(fetchSkuDetail).toHaveBeenCalled()
     expect(store.actionError).toBeNull()
-    expect(store.actionWarning).toMatch(/воронку продаж/i)
-    expect(store.actionWarning).toMatch(/остатки/i)
+    expect(store.actionWarning).toBe(
+      'WB did not send: sales funnel, stock. That data is unchanged — try again later.',
+    )
   })
 
   it('clears the partial-refresh warning once WB serves everything', async () => {
@@ -653,7 +654,7 @@ describe('refreshAllFromWb', () => {
   it('surfaces the error when there is nothing to refresh (404 on enqueue)', async () => {
     // An empty workspace returns 404 from the enqueue endpoint; the message must
     // reach the button's own error slot, not the metrics table's actionError.
-    refreshAllSkus.mockRejectedValue(new Error('В воркспейсе нет ни одного SKU для обновления.'))
+    refreshAllSkus.mockRejectedValue(new Error('The workspace has no SKUs to refresh.'))
 
     await store.refreshAllFromWb()
 

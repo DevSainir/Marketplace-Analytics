@@ -1,4 +1,4 @@
-"""The global pinned-SKU chips («Закрепить»): list, pin, reorder, paint."""
+"""The global pinned-SKU chips ("Pin"): list, pin, reorder, paint."""
 
 from __future__ import annotations
 
@@ -94,9 +94,7 @@ class PinnedSkuAnalytics:
         rows = await self._pinned_skus.list_rows(workspace_id=workspace_id)
         current = {row.nm_id for row in rows}
         if set(nm_ids) != current:
-            raise ValidationError(
-                "Список закреплённых артикулов изменился — обновите страницу и повторите."
-            )
+            raise ValidationError("The pinned SKUs have changed. Reload the page and try again.")
         await self._pinned_skus.reorder(nm_ids=nm_ids)
         return await self.list_pinned_skus(workspace_id=workspace_id)
 

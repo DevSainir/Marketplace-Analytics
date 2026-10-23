@@ -41,7 +41,7 @@ from src.modules.workspaces.contract import (
 
 logger = get_logger(__name__)
 
-#: How far back the cohort pass re-reads order-date cohorts. «Процент выкупа»
+#: How far back the cohort pass re-reads order-date cohorts. "Buyout rate"
 #: for display day D averages the cohorts of ``[D-21, D-7]``, and a cohort's
 #: deliveries keep being accepted/refused for ~3 weeks, so every cohort that a
 #: current display day can still reach must be re-read until it settles.
@@ -78,7 +78,7 @@ async def _refresh_workspace_cohorts(
     and every request landed in an empty bucket.
 
     The gate is shared across processes, so this pass no longer starves an
-    interactive «Обновить» running beside it — the two queue against the same
+    interactive "Refresh" running beside it — the two queue against the same
     budget instead of racing for it.
 
     Args:
@@ -97,7 +97,7 @@ async def _refresh_workspace_cohorts(
     Raises:
         IntegrationError: When WB served no day at all. A pass that refreshed
             nothing used to log "Refreshed 0 cohort days" at INFO and exit
-            successfully, which is how «Процент выкупа» could quietly stop
+            successfully, which is how "Buyout rate" could quietly stop
             maturing; failing hands it to the task retry policy instead.
     """
     if not tokens.analytics:
@@ -132,7 +132,7 @@ async def _refresh_workspace_cohorts(
     if served == 0:
         raise IntegrationError(
             f"WB served none of the {days} cohort days for workspace '{tokens.name}'; "
-            "«Процент выкупа» would silently stop maturing."
+            "the buyout rate would silently stop maturing."
         )
     logger.info(
         "Refreshed %d cohort days for workspace '%s' (%d of %d days served).",
@@ -178,7 +178,7 @@ def refresh_buyout_cohorts(days: int = COHORT_REFRESH_DAYS) -> dict[str, int]:
     construction (one call answers for every SKU), so running it per harvested
     SKU would repeat identical work; and it costs ``days`` sequential
     rate-limited requests, which would add minutes to the interactive
-    «Обновить» refresh that ``harvest_sku_window`` serves.
+    "Refresh" press that ``harvest_sku_window`` serves.
 
     Args:
         days: How many days back from yesterday to re-read.

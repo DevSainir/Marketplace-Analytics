@@ -1,10 +1,10 @@
-"""«Обновить» must mean the same thing as the nightly pass, and survive WB.
+"""A "Refresh" must mean the same thing as the nightly pass, and survive WB.
 
 Two behaviours are pinned here, and both are decisions rather than plumbing.
 
 The first is that a refresh now includes the buyout-cohort pass at all. It used
 to run only on its own 07:00 MSK schedule, reachable from no button, so a seller
-pressing «Обновить» and watching «Процент выкупа» not move was seeing the system
+pressing "Refresh" and watching "Buyout rate" not move was seeing the system
 work as designed.
 
 The second is that the cohort pass is a SOURCE, not a precondition. It is the
@@ -32,7 +32,7 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 
 WORKSPACE = WorkspaceTokenBundle(
     workspace_id=uuid.uuid4(),
-    name="Демо",
+    name="Demo",
     content="content-token",
     analytics="analytics-token",
 )
@@ -70,7 +70,7 @@ async def test_a_refresh_pulls_the_sale_feed_and_the_cohorts(
 
     ``include_sales`` is asserted explicitly because it is the flag that used to
     be ``False`` on this path, and flipping it back would silently restore the
-    old behaviour — a green refresh with «Выкупы, ₽» standing still.
+    old behaviour — a green refresh with "Buyouts, ₽" standing still.
     """
 
     async def _cohorts(_tokens: WorkspaceTokenBundle, _days: int, _on_day: Any = None) -> int:
@@ -217,7 +217,7 @@ async def test_a_skipped_cohort_pass_still_finishes_the_bar(
 ) -> None:
     """A refresh that skips the claimed pass must not leave the bar at 40.
 
-    This is the ordinary case for every «Обновить» after the first in an hour,
+    This is the ordinary case for every "Refresh" after the first in an hour,
     so a bar stuck below full here would be what most sellers see most of the
     time.
     """

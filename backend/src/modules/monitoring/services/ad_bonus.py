@@ -1,4 +1,4 @@
-"""Who funded the advertising — the bonus side of the P&L's «Реклама».
+"""Who funded the advertising — the bonus side of the P&L's "Advertising".
 
 Split out of :mod:`.exports` (it crossed the file ceiling) because it answers a
 different question from the loaders there. Those say what a SKU earned and what
@@ -7,8 +7,8 @@ its ads cost; these say how much of that cost WB paid instead of the seller.
 The distinction matters because the two feeds disagree by construction. WB's
 ``fullstats`` reports every impression a campaign served whoever funded it, and
 the weekly settlement report never sees a bonus charge at all — a cashback
-write-off carries no invoice document, so no «Оказание услуг «WB Продвижение»»
-row is ever raised for it. On one account checked over a fortnight in September
+write-off carries no invoice document, so no "WB Promotion" services
+deduction row is ever raised for it. On one account checked over a fortnight in September
 2026, WB had funded a large share of the write-offs, and every som of it was
 being reported as the seller's own spend.
 
@@ -47,7 +47,7 @@ async def load_ad_bonus_by_nm(
 ) -> dict[int, Decimal]:
     """Return the WB-funded share of each SKU's advertising, as a POSITIVE magnitude.
 
-    WB pays part of a seller's advertising out of a bonus pool («Кэшбэк», up to
+    WB pays part of a seller's advertising out of a bonus pool (cashback, up to
     50 % of a charge). Those impressions are in ``fullstats`` like any other, and
     they never reach the settlement report at all — a bonus write-off carries no
     invoice document — so without this the seller's own DRR, ROI and profit count
@@ -189,7 +189,7 @@ async def ad_bonus_coverage(
 ) -> tuple[date | None, date | None]:
     """Return the write-off days on record for this workspace inside a window.
 
-    Answers «has the funding ledger been harvested for this period», which is
+    Answers "has the funding ledger been harvested for this period", which is
     what separates "there were no bonuses" from "we have not asked about them yet" — the
     distinction that decides whether the column prints ``0`` or nothing at all.
 

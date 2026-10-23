@@ -26,6 +26,7 @@ from src.modules.monitoring.models import (
 )
 from src.modules.organizations.models import Organization
 from src.modules.workspaces.models import Workspace
+from tests.support import wb_labels as wb
 
 pytestmark = pytest.mark.integration
 
@@ -38,7 +39,7 @@ DAY = date(2026, 9, 14)
 
 async def _workspace(session: AsyncSession, name: str, nm_id: int) -> Workspace:
     """Persist a workspace in its own organisation, owning one card."""
-    org = Organization(name=f"Орг {name}", is_primary=False)
+    org = Organization(name=f"Org {name}", is_primary=False)
     session.add(org)
     await session.flush()
     workspace = Workspace(organization_id=org.id, name=name)
@@ -83,7 +84,7 @@ def _bonus(campaign_id: int, amount: str) -> AdvertisingWriteOffDaily:
     return AdvertisingWriteOffDaily(
         stat_date=DAY,
         campaign_id=campaign_id,
-        payment_type="Кэшбэк",
+        payment_type=wb.CASHBACK,
         currency="KGS",
         amount=Decimal(amount),
         write_offs=1,
@@ -92,8 +93,8 @@ def _bonus(campaign_id: int, amount: str) -> AdvertisingWriteOffDaily:
 
 async def test_another_tenants_campaigns_never_reach_the_page(db_session: AsyncSession) -> None:
     """Spend, search slice, campaign settings and bonus are all ours alone."""
-    mine = await _workspace(db_session, "Мой", MINE)
-    await _workspace(db_session, "Чужой", THEIRS)
+    mine = await _workspace(db_session, "Mine", MINE)
+    await _workspace(db_session, "Theirs", THEIRS)
     db_session.add_all(
         [
             _spend(MY_CAMPAIGN, MINE, "100", app_type=1),
@@ -139,8 +140,8 @@ async def test_a_shared_campaigns_bonus_is_cut_to_our_share_of_its_spend(
     The ledger names a campaign, not a card, so without the scaling every som
     WB paid for the other seller's impressions would land on our page.
     """
-    mine = await _workspace(db_session, "Мой", MINE)
-    await _workspace(db_session, "Чужой", THEIRS)
+    mine = await _workspace(db_session, "Mine", MINE)
+    await _workspace(db_session, "Theirs", THEIRS)
     db_session.add_all(
         [
             _spend(MY_CAMPAIGN, MINE, "100"),
@@ -160,20 +161,20 @@ async def test_a_shared_campaigns_bonus_is_cut_to_our_share_of_its_spend(
 async def test_currencies_and_ledger_coverage_match_the_standalone_loaders(
     db_session: AsyncSession,
 ) -> None:
-    """The facts answer «which currencies» and «is the ledger there» as the old loaders did.
+    """The facts answer "which currencies" and "is the ledger there" as the old loaders did.
 
     The page used to ask `load_ad_currencies` and `ad_bonus_coverage` in two
     more passes over the same tables; the facts now carry both. A row from
-    before the campaign label existed («») falls back to the ledger's cash
+    before the campaign label existed ("") falls back to the ledger's cash
     label, never to its bonus one.
     """
-    mine = await _workspace(db_session, "Мой", MINE)
+    mine = await _workspace(db_session, "Mine", MINE)
     unlabelled = _spend(MY_CAMPAIGN, MINE, "100")
     unlabelled.currency = ""
     labelled = _spend(THEIR_CAMPAIGN, MINE, "40")
     labelled.currency = "KGS"
     cash = _bonus(MY_CAMPAIGN, "60")
-    cash.payment_type = "Баланс"
+    cash.payment_type = wb.BALANCE
     cash.currency = "RUB"
     bonus = _bonus(MY_CAMPAIGN, "10")
     bonus.currency = "BYN"

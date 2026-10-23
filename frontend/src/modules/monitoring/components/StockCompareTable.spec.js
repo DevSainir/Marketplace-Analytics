@@ -10,7 +10,7 @@ globalThis.ResizeObserver ??= class {
 }
 
 /**
- * The «Остатки по складам» ribbon: ONE table, one size column, a column group
+ * The "Stock by warehouse" ribbon: ONE table, one size column, a column group
  * per day of the period. What is pinned here is what the pivot helpers cannot
  * see — that a day carries only the warehouses it actually stocked, and that
  * the day groups stay the same width anyway.
@@ -34,7 +34,7 @@ Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true
 function dayProps(cellsPerDay) {
   return cellsPerDay.map((cells, index) => ({
     key: `2026-07-1${index}`,
-    label: `1${index}.07.2026`,
+    label: `1${index} Jul 2026`,
     cells,
   }))
 }
@@ -55,7 +55,7 @@ function rowText(wrapper, index) {
 
 describe('StockCompareTable', () => {
   it('prints one size column for the period, not one per day', () => {
-    const wrapper = mountTable([cell(1, 'S', 'Казань', 3)], [cell(1, 'S', 'Казань', 2)])
+    const wrapper = mountTable([cell(1, 'S', 'Kazan', 3)], [cell(1, 'S', 'Kazan', 2)])
 
     expect(wrapper.findAll('table')).toHaveLength(1)
     expect(wrapper.findAll('thead th.col-size')).toHaveLength(1)
@@ -64,31 +64,31 @@ describe('StockCompareTable', () => {
   it('gives the width rule one day group per day', () => {
     // `--days` is what sizes a group at half the grid: two days on screen and
     // the rest of the period a sideways scroll away.
-    const wrapper = mountTable([cell(1, 'S', 'Казань', 1)], [], [], [])
+    const wrapper = mountTable([cell(1, 'S', 'Kazan', 1)], [], [], [])
 
     expect(wrapper.find('.app-datatable').attributes('style')).toContain('--days: 4')
     expect(wrapper.findAll('thead tr')[0].findAll('th')).toHaveLength(5)
   })
 
   it('gives each day only the warehouses it stocked', () => {
-    // «Тула» holds stock on the second day only. Carrying it under the first as
+    // "Tula" holds stock on the second day only. Carrying it under the first as
     // a blank column is what a quarter-long period turns into dozens of.
     const wrapper = mountTable(
-      [cell(1, 'S', 'Казань', 3), cell(2, 'M', 'Коледино', 1)],
-      [cell(1, 'S', 'Тула', 9)],
+      [cell(1, 'S', 'Kazan', 3), cell(2, 'M', 'Koledino', 1)],
+      [cell(1, 'S', 'Tula', 9)],
     )
 
     const headers = wrapper.findAll('thead tr')[1].findAll('th')
 
-    expect(headers.map((th) => th.text())).toEqual(['Всего', 'Казань', 'Коледино', 'Всего', 'Тула'])
+    expect(headers.map((th) => th.text())).toEqual(['Total', 'Kazan', 'Koledino', 'Total', 'Tula'])
   })
 
   it('splits a day group between the warehouses of that day', () => {
     // Days hold different numbers of columns; the colgroup is what keeps both
     // groups the same width anyway (see the component).
     const wrapper = mountTable(
-      [cell(1, 'S', 'Казань', 3)],
-      [cell(1, 'S', 'Тула', 9), cell(2, 'M', 'Казань', 4)],
+      [cell(1, 'S', 'Kazan', 3)],
+      [cell(1, 'S', 'Tula', 9), cell(2, 'M', 'Kazan', 4)],
     )
 
     const widths = wrapper.findAll('colgroup col').map((col) => col.attributes('style'))
@@ -105,11 +105,11 @@ describe('StockCompareTable', () => {
 
   it('reads one size across the days', () => {
     const wrapper = mountTable(
-      [cell(1, 'S', 'Казань', 3), cell(2, 'M', 'Казань', 10), cell(2, 'M', 'Тула', 1)],
-      [cell(1, 'S', 'Казань', 2)],
+      [cell(1, 'S', 'Kazan', 3), cell(2, 'M', 'Kazan', 10), cell(2, 'M', 'Tula', 1)],
+      [cell(1, 'S', 'Kazan', 2)],
     )
 
-    // size | day 1: total, Казань, Тула | day 2: total, Казань
+    // size | day 1: total, Kazan, Tula | day 2: total, Kazan
     expect(rowText(wrapper, 0)).toEqual(['S', '3', '3', '', '2', '2'])
     // «M» sold out overnight: the row stays, and the second day shows the gap.
     expect(rowText(wrapper, 1)).toEqual(['M', '11', '10', '1', '', ''])
@@ -117,14 +117,14 @@ describe('StockCompareTable', () => {
 
   it('totals each day in its own group', () => {
     const wrapper = mountTable(
-      [cell(1, 'S', 'Казань', 3), cell(2, 'M', 'Тула', 10)],
-      [cell(1, 'S', 'Казань', 2)],
+      [cell(1, 'S', 'Kazan', 3), cell(2, 'M', 'Tula', 10)],
+      [cell(1, 'S', 'Kazan', 2)],
     )
 
-    // Each day's «Всего» is the sum of the columns beside it — no other day's
+    // Each day's "Total" is the sum of the columns beside it — no other day's
     // warehouse is hiding in it as a blank.
     expect(wrapper.findAll('tfoot td').map((td) => td.text())).toEqual([
-      'Всего',
+      'Total',
       '13',
       '10',
       '3',
@@ -137,15 +137,15 @@ describe('StockCompareTable', () => {
     // The stock comes in its own request, so at mount there is no grid to
     // measure yet. Measuring only there left `--group-w` at zero — and the
     // colgroup divides that between the day's warehouses, so every warehouse
-    // column collapsed and the grid became a row of «Всего».
+    // column collapsed and the grid became a row of "Total".
     const wrapper = mountTable()
 
     expect(wrapper.attributes('style')).not.toContain('--group-w')
 
     await wrapper.setProps({
       days: dayProps([
-        [cell(1, 'S', 'Казань', 3), cell(1, 'S', 'Тула', 1)],
-        [cell(1, 'S', 'Казань', 2)],
+        [cell(1, 'S', 'Kazan', 3), cell(1, 'S', 'Tula', 1)],
+        [cell(1, 'S', 'Kazan', 2)],
       ]),
     })
     await wrapper.vm.$nextTick()
@@ -158,7 +158,7 @@ describe('StockCompareTable', () => {
   it('gives a one-day period the whole width, not half of it', async () => {
     // Sized for two days a screen, a single day left the right half of the card
     // empty.
-    const wrapper = mountTable([cell(1, 'S', 'Казань', 3), cell(1, 'S', 'Тула', 1)])
+    const wrapper = mountTable([cell(1, 'S', 'Kazan', 3), cell(1, 'S', 'Tula', 1)])
     await wrapper.vm.$nextTick()
 
     // 1232 / 1 — the size column measures 0 in jsdom.
@@ -166,18 +166,18 @@ describe('StockCompareTable', () => {
   })
 
   describe('a seller with one warehouse', () => {
-    // Every day runs off at most one warehouse (a seller with a single WB warehouse). «Всего»
+    // Every day runs off at most one warehouse (a seller with a single WB warehouse). "Total"
     // would only repeat that column, and two one-column days across the screen
     // are two numbers with a gulf between them.
     const oneWarehouse = () =>
-      mountTable([cell(1, 'S', 'Казань', 3)], [], [cell(1, 'S', 'Казань', 2)])
+      mountTable([cell(1, 'S', 'Kazan', 3)], [], [cell(1, 'S', 'Kazan', 2)])
 
-    it('drops «Всего» and keeps an empty day as a blank column', () => {
+    it('drops "Total" and keeps an empty day as a blank column', () => {
       const wrapper = oneWarehouse()
 
       const headers = wrapper.findAll('thead tr')[1].findAll('th')
 
-      expect(headers.map((th) => th.text())).toEqual(['Казань', '', 'Казань'])
+      expect(headers.map((th) => th.text())).toEqual(['Kazan', '', 'Kazan'])
       expect(rowText(wrapper, 0)).toEqual(['S', '3', '', '2'])
     })
 
@@ -194,6 +194,6 @@ describe('StockCompareTable', () => {
     const wrapper = mountTable([], [])
 
     expect(wrapper.find('table').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Нет складских остатков')
+    expect(wrapper.text()).toContain('No stock')
   })
 })

@@ -2,10 +2,10 @@
 
 The load-bearing rules, all exercised against one realistic scenario — a
 unified campaign shown in BOTH its WB zones, a manual search campaign, and a
-noise campaign that must be cut: «Доля трафика» normalized within each bid
+noise campaign that must be cut: "Traffic share" normalized within each bid
 type, ad revenue derived from the slice's own orders, DRR against the
-campaign's own buyouts, the funnel-backed «Общая»/«Органика» columns computed
-over survivors only, and the lagged «Процент выкупа» window.
+campaign's own buyouts, the funnel-backed "Overall"/"Organic" columns computed
+over survivors only, and the lagged "Buyout rate" window.
 
 Edge cases around each rule live in the sibling ``test_matrix_*`` modules; the
 row builders live in ``tests/support/matrix_rows.py``.
@@ -29,7 +29,7 @@ def test_unified_shows_both_zones_and_manual_is_kept() -> None:
 
 
 def test_traffic_share_normalized_within_bid_type() -> None:
-    """«Доля трафика» sums to 100% within unified and within manual separately."""
+    """The "Traffic share" sums to 100% within unified and within manual separately."""
     rows = _two_campaign_rows()
 
     # Unified: 30 + 70 = 100 views -> 30% / 70%.
@@ -40,7 +40,7 @@ def test_traffic_share_normalized_within_bid_type() -> None:
 
 
 def test_ad_revenue_is_derived_from_the_slices_own_orders() -> None:
-    """An ad zone's «Заказы, ₽» = ITS orders x the day's price — not WB's figure.
+    """An ad zone's "Orders, ₽" = ITS orders x the day's price — not WB's figure.
 
     WB reports no zone-attributed revenue (and none at all for a split
     campaign), so every ad bucket derives its own, split or not. The unified
@@ -52,16 +52,16 @@ def test_ad_revenue_is_derived_from_the_slices_own_orders() -> None:
     assert _cell(rows, "order_sum", 0, "uni_search") == 50000
     assert _cell(rows, "order_sum", 0, "uni_shelves") == 50000
     assert _cell(rows, "order_sum", 0, "manual_search") == 50000
-    # «Выкупы, ₽»: that revenue x the lagged «Процент выкупа» (40%).
+    # "Buyouts, ₽": that revenue x the lagged "Buyout rate" (40%).
     assert _cell(rows, "order_sum", 0, "uni_search") == 50000
     assert _cell(rows, "buyout_sum", 0, "uni_search") == 20000
-    # «ДРР от заказов» is that zone's spend against the orders IT delivered.
+    # "ACoS (orders)" is that zone's spend against the orders IT delivered.
     assert _cell(rows, "drr_orders", 0, "manual_search") == 4.0  # 2000 / 50000
     assert _cell(rows, "drr_orders", 0, "uni_search") == 3.0  # 1500 / 50000
 
 
 def test_drr_sales_divides_campaign_spend_by_campaign_buyouts() -> None:
-    """«ДРР от продаж» is campaign spend / the campaign's OWN buyout revenue.
+    """The "ACoS (sales)" is campaign spend / the campaign's OWN buyout revenue.
 
     Never the SKU's whole-day volume: the unified campaign spent 5 000 ₽ (1 500
     search + 3 500 shelves) and delivered 2 orders, worth 2 x 50 000 x 40% =
@@ -77,7 +77,7 @@ def test_drr_sales_divides_campaign_spend_by_campaign_buyouts() -> None:
 
 
 def test_total_and_organic_use_survivors_only() -> None:
-    """«Общая»/«Органика» count only the surviving campaigns (noise excluded)."""
+    """The "Overall"/"Organic" count only the surviving campaigns (noise excluded)."""
     rows = _two_campaign_rows()
 
     # Ad roll-up = both survivors: 100 (unified) + 40 (manual) = 140 views, 7000₽
@@ -92,7 +92,7 @@ def test_total_and_organic_use_survivors_only() -> None:
 
 
 def test_total_cpm_is_the_days_bill_over_the_days_showings() -> None:
-    """«CPM» in «Общая» is a ratio of sums, like the «CTR» row beside it.
+    """The "CPM" in "Overall" is a ratio of sums, like the "CTR" row beside it.
 
     The two surviving campaigns spent 3 000 + 2 000 + 2 000 = 7 000 ₽ on
     60 + 40 + 40 = 140 impressions, so the day cost 50 000 ₽ per thousand of them.
@@ -107,7 +107,7 @@ def test_total_cpm_is_the_days_bill_over_the_days_showings() -> None:
 
 
 def test_total_ctr_carries_its_advertising_clicks_for_the_hover() -> None:
-    """«Общая»'s «Клики» are the funnel's, so the CTR's own numerator rides beside it.
+    """The "Overall"'s "Clicks" are the funnel's, so the CTR's own numerator rides beside it.
 
     The hover divides these 14 advertising clicks by the column's 140 impressions —
     the funnel's clicks would give a CTR that never happened.
@@ -120,7 +120,7 @@ def test_total_ctr_carries_its_advertising_clicks_for_the_hover() -> None:
 
 
 def test_total_cpm_is_blank_on_an_unadvertised_day() -> None:
-    """No impressions, no price per thousand of them — «—» rather than a zero."""
+    """No impressions, no price per thousand of them — "—" rather than a zero."""
     funnel_rows = [_funnel_row(DAY1, open_count=200, cart_count=20, order_count=10)]
 
     rows = _matrix(campaigns={}, ad_rows=[], funnel_rows=funnel_rows)
@@ -129,7 +129,7 @@ def test_total_cpm_is_blank_on_an_unadvertised_day() -> None:
 
 
 def test_buyout_percent_uses_lagged_window() -> None:
-    """«Процент выкупа» for day D aggregates the cohorts of [D-21, D-7].
+    """The "Buyout rate" for day D aggregates the cohorts of [D-21, D-7].
 
     The matured cohort in the window has 4 buyouts and 6 refusals -> 40% of its
     10 decided deliveries. DAY1's own cohort is OUTSIDE its lagged window (too

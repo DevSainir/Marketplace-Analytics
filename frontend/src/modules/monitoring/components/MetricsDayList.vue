@@ -8,7 +8,7 @@
  * traffic split hides behind a per-metric disclosure so the list stays a list.
  *
  * Editing works the same way it does in the table (click the value, Enter or
- * blur to commit) but only on the headline «Общая» cell: it is the number
+ * blur to commit) but only on the headline "Overall" cell: it is the number
  * anyone corrects from a phone, and 8 tap targets per metric would bury it.
  * The per-zone values stay read-only here; the desktop table is where a split
  * gets edited.
@@ -37,7 +37,7 @@ const props = defineProps({
   comments: { type: Object, default: () => ({}) },
   /** ISO days whose note save is in flight. */
   commentSavingDays: { type: Set, default: () => new Set() },
-  /** Persisted «Действия» rows, keyed by ISO day (touched days only). */
+  /** Persisted "Actions" rows, keyed by ISO day (touched days only). */
   dayActions: { type: Object, default: () => ({}) },
   /** ISO days whose action save is in flight. */
   actionSavingDays: { type: Set, default: () => new Set() },
@@ -45,7 +45,7 @@ const props = defineProps({
 
 const emit = defineEmits(['edit', 'comment', 'action'])
 
-/** Open on «сегодня», the same day the table scrolls itself to. */
+/** Open on today, the same day the table scrolls itself to. */
 const dayIndex = ref(props.days.length - 1)
 watch(
   () => props.days,
@@ -66,10 +66,10 @@ function step(delta) {
 
 const sections = computed(() => [
   { key: 'metrics', title: null, items: metricDayItems(props.rows, dayIndex.value) },
-  { key: 'prices', title: 'Цены', items: blockDayItems(props.priceRows, dayIndex.value) },
+  { key: 'prices', title: 'Prices', items: blockDayItems(props.priceRows, dayIndex.value) },
   {
     key: 'stock',
-    title: 'Остатки',
+    title: 'Stock',
     items: blockDayItems([...props.stockRows, ...props.stockTotalRows], dayIndex.value),
   },
 ])
@@ -99,9 +99,9 @@ const TONE_CLASSES = {
 }
 
 /**
- * Blank cells render as «—» here, where the table leaves them empty: a dash is
+ * Blank cells render as "—" here, where the table leaves them empty: a dash is
  * noise across a mostly-empty ribbon, but a blank row in a vertical list reads
- * as a rendering fault rather than as «нет данных».
+ * as a rendering fault rather than as "no data".
  */
 function valueText(cell) {
   return cell?.display || '—'
@@ -117,7 +117,7 @@ function valueText(cell) {
         type="button"
         class="day-step"
         :disabled="dayIndex <= 0"
-        aria-label="Предыдущий день"
+        aria-label="Previous day"
         @click="step(-1)"
       >
         ‹
@@ -129,7 +129,7 @@ function valueText(cell) {
         type="button"
         class="day-step"
         :disabled="dayIndex >= days.length - 1"
-        aria-label="Следующий день"
+        aria-label="Next day"
         @click="step(1)"
       >
         ›
@@ -137,7 +137,7 @@ function valueText(cell) {
     </div>
 
     <p v-if="!rows.length" class="mt-lg text-center text-base text-muted">
-      Нет данных за выбранный период.
+      No data for the selected period
     </p>
 
     <template v-else>
@@ -189,7 +189,7 @@ function valueText(cell) {
                 type="button"
                 class="day-disclosure"
                 :aria-expanded="expanded.has(item.key)"
-                :aria-label="`Детализация по трафику: ${item.label}`"
+                :aria-label="`Traffic breakdown: ${item.label}`"
                 @click="toggle(item.key)"
               >
                 <svg

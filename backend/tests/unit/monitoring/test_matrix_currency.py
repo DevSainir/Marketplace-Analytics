@@ -4,7 +4,7 @@ On a workspace that settles in KGS the prices are in RUB, WB's funnel order sums
 in KGS, and each campaign bills in the currency it was created in — older
 campaigns in RUB, newer ones in KGS. The order money is WB's own KGS funnel sum,
 so a KGS campaign's DRR divides som by som with no rate of ours; a RUB
-campaign's DRR, and a spend total over campaigns of both currencies, are «—»
+campaign's DRR, and a spend total over campaigns of both currencies, are "—"
 until the service converts (``CONVERSION-TODO``).
 """
 

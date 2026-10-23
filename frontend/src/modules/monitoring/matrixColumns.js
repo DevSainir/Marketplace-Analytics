@@ -3,8 +3,8 @@
  *
  * Almost every row lays out one leaf column per day x traffic column. Two do
  * not, and that exception is the whole reason this is a module rather than an
- * inline computed: «ДРР от продаж» belongs to a CAMPAIGN (all of its view
- * zones) and «Процент выкупа» to the whole DAY, so each merges cells
+ * inline computed: "ACoS (sales)" belongs to a CAMPAIGN (all of its
+ * placements) and "Buyout rate" to the whole DAY, so each merges cells
  * Excel-style over its own wider columns. `index` still addresses `row.cells`
  * in every case, pointing at the cell that carries the value.
  *
@@ -25,7 +25,7 @@ const MERGED_ROW_COLUMNS = {
   buyout_percent: DAY_SPAN_COLUMNS,
 }
 
-// «Общая»/«Органика» cells span the zones row (rowspan=2 in the type row), so
+// "Overall"/"Organic" cells span the zones row (rowspan=2 in the type row), so
 // the zones row only lists the columns that actually have a zone split.
 const ZONED_GROUP_KEYS = new Set([
   'uni_search',

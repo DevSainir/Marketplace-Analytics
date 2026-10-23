@@ -71,7 +71,7 @@ const pickerGroups = computed(() => labelledGroups(props.groups, props.view.curr
  * Tell the chart apart from the day it sits in.
  *
  * A hover anywhere in a day's column answers with every metric — that is the
- * question «what happened on the 5th». A hover that lands ON a line, a dot or a
+ * question "what happened on the 5th". A hover that lands ON a line, a dot or a
  * bar is a question about that metric, and ECharts already knows which one:
  * `mouseover` fires for the mark under the cursor. Re-showing the tooltip at
  * the same pixel is what makes the narrowed list appear on the frame the mark
@@ -126,8 +126,8 @@ const CHART_HEIGHT = '360px'
 </script>
 
 <template>
-  <section v-if="chart" class="mt-lg" aria-label="График метрик">
-    <h2 class="text-h3 font-semibold text-primary">График</h2>
+  <section v-if="chart" class="mt-lg" aria-label="Metrics chart">
+    <h2 class="text-h3 font-semibold text-primary">Chart</h2>
 
     <ChartMetricPicker v-model="metrics" :groups="pickerGroups" class="mt-sm" />
 
@@ -145,7 +145,7 @@ const CHART_HEIGHT = '360px'
       <template v-if="!chart.empty">
         <!-- Legend in HTML: on the canvas it scrolled away with the days it
              labels. -->
-        <ul class="flex flex-wrap gap-x-md gap-y-xs" aria-label="Показано на графике">
+        <ul class="flex flex-wrap gap-x-md gap-y-xs" aria-label="On the chart">
           <li
             v-for="entry in chart.legend"
             :key="entry.name"
@@ -168,7 +168,7 @@ const CHART_HEIGHT = '360px'
       </template>
 
       <p v-else-if="metrics.length" class="py-xl text-center text-base text-muted">
-        За выбранный период нет данных по этим метрикам.
+        No data for these metrics in the selected period
       </p>
     </div>
   </section>

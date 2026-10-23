@@ -33,7 +33,7 @@ class SalesFunnelDaily(Base):
         buyout_count: Buyouts / redeemed orders (``buyoutCount``).
         cancel_count: Deliveries the buyer refused (``cancelCount``). Together
             with ``buyout_count`` this is the cohort's DECIDED deliveries — the
-            denominator of «Процент выкупа». Only the period-aggregate endpoint
+            denominator of the "Buyout rate". Only the period-aggregate endpoint
             serves it, so it is refreshed by the cohort pass, not the daily
             history feed; ``None`` means "not refreshed yet" (excluded from the
             average rather than counted as zero refusals).
@@ -42,7 +42,7 @@ class SalesFunnelDaily(Base):
         order_conversion: Flattened ``conversions.cartToOrderPercent``.
         buyout_conversion: Flattened ``conversions.buyoutsPercent`` — WB's own
             whole-number cohort percent. Kept as a raw WB fact; the matrix does
-            NOT derive «Процент выкупа» from it (it is rounded to an integer and
+            NOT derive the "Buyout rate" from it (it is rounded to an integer and
             is 0 for a zero-buyout cohort, which loses that cohort's refusals).
     """
 

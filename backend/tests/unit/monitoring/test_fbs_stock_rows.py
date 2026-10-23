@@ -1,7 +1,7 @@
 """Unit tests for folding FBS stock into ordinary warehouse stock rows.
 
 FBS reaches us barcode-addressed from a separate WB surface, and everything
-downstream — the «Остатки по складам» panel, the finreports balance grid, the
+downstream — the "Stock by warehouse" panel, the finreports balance grid, the
 out-of-stock masking — reads one table keyed by ``(nm_id, warehouse, chrt_id)``.
 This mapping is the whole of the seam, so what it does with an unmatched
 barcode and where the size identity comes from are worth pinning. The seller's
@@ -37,7 +37,7 @@ _LABEL = "Moscow (Vnukovo) (FBS)"
 def test_stock_is_filed_under_the_configured_warehouse_label() -> None:
     """Rows carry the configured label, not WB's seller-authored warehouse name.
 
-    ``warehouse_name`` is a primary-key column and the join key for «Отгрузить»
+    ``warehouse_name`` is a primary-key column and the join key for "Ship"
     marks, so it must not change when someone edits the warehouse name in the
     WB portal.
     """
@@ -135,14 +135,14 @@ def test_an_unconfigured_warehouse_is_labelled_from_wbs_name() -> None:
     Its label is WB's name with the seller's stray spacing collapsed, marked
     ``(FBS)`` like every other seller warehouse.
     """
-    warehouse = _warehouse(3300771, "Тула  склад")
+    warehouse = _warehouse(3300771, "Tula  storage")
 
-    assert label_for(warehouse, {}) == "Тула склад (FBS)"
+    assert label_for(warehouse, {}) == "Tula storage (FBS)"
 
 
 def test_a_label_always_fits_the_column_it_is_filed_into() -> None:
     """``warehouse_name`` is ``String(128)``: a longer label could not be stored."""
-    warehouse = _warehouse(3300772, "Ы" * 400)
+    warehouse = _warehouse(3300772, "Ω" * 400)
 
     label = label_for(warehouse, {})
 
@@ -152,7 +152,7 @@ def test_a_label_always_fits_the_column_it_is_filed_into() -> None:
 
 def test_a_nameless_warehouse_falls_back_to_its_id() -> None:
     """Unnamed in WB — still addressable, and still distinct from its siblings."""
-    assert label_for(_warehouse(3300773, ""), {}) == "Склад 3300773 (FBS)"
+    assert label_for(_warehouse(3300773, ""), {}) == "Warehouse 3300773 (FBS)"
 
 
 class _StubMarketplace:
@@ -180,12 +180,12 @@ async def test_one_dead_warehouse_does_not_cost_us_the_others() -> None:
 
     read, unread, failures = await read_each_warehouse(
         client,  # type: ignore[arg-type]
-        [(1, "Москва (FBS)"), (2, "Заглушка (FBS)"), (3, "Тула (FBS)")],
+        [(1, "Moscow (FBS)"), (2, "Placeholder (FBS)"), (3, "Tula (FBS)")],
         ["2046161763208"],
     )
 
     assert [warehouse_id for warehouse_id, _, _ in read] == [1, 3]
-    assert unread == ["Заглушка (FBS)"]
+    assert unread == ["Placeholder (FBS)"]
     assert len(failures) == 1
     # The failure did not stop the sweep of the remaining warehouses.
     assert client.asked == [1, 2, 3]

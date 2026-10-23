@@ -32,9 +32,9 @@ defineProps({
 
 defineEmits(['toggle-pin'])
 
-/** 4.7 → «4,7»; WB rounds to one decimal and so do we. */
+/** 4.7 → "4.7"; WB rounds to one decimal and so do we. */
 function formatRating(value) {
-  return value.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 </script>
 
@@ -43,11 +43,11 @@ function formatRating(value) {
     <!-- Vendor code is the big black heading; the nm ID follows in the
        action accent; title small grey; the pin toggle at the right. -->
     <h2 class="text-h2 font-bold text-primary">{{ formatSku(product.vendor_code ?? skuLabel) }}</h2>
-    <!-- A card with no reviews yet has no rating — nothing, rather than «0». -->
+    <!-- A card with no reviews yet has no rating — nothing, rather than "0". -->
     <span
       v-if="product.feedback_rating"
       class="inline-flex items-center gap-xs text-tiny font-semibold text-primary"
-      :aria-label="`Оценка ${formatRating(product.feedback_rating)} из 5`"
+      :aria-label="`Rated ${formatRating(product.feedback_rating)} out of 5`"
     >
       {{ formatRating(product.feedback_rating) }}
       <svg class="h-3.5 w-3.5 flex-none text-status-warning" viewBox="0 0 24 24" aria-hidden="true">
@@ -57,7 +57,7 @@ function formatRating(value) {
         />
       </svg>
     </span>
-    <span class="text-tiny font-semibold text-action">Артикул WB {{ product.nm_id }}</span>
+    <span class="text-tiny font-semibold text-action">WB ID {{ product.nm_id }}</span>
     <span v-if="product.title" class="text-tiny text-muted">{{ product.title }}</span>
     <button
       type="button"
@@ -81,7 +81,7 @@ function formatRating(value) {
           d="M16 3a1 1 0 0 1 .95 1.32L15.6 8.4l3.3 3.3a1 1 0 0 1-.4 1.66l-4.75 1.58-1.04 5.2a1 1 0 0 1-1.69.51L7.3 16.93l-3.6 3.6a.75.75 0 0 1-1.06-1.06l3.6-3.6-3.72-3.72a1 1 0 0 1 .51-1.69l5.2-1.04L9.8 4.67A1 1 0 0 1 11.46 4.27l3.3 3.3 4.08-1.36A1 1 0 0 1 16 3Z"
         />
       </svg>
-      {{ isPinned ? 'Закреплено' : 'Закрепить' }}
+      {{ isPinned ? 'Pinned' : 'Pin' }}
     </button>
   </div>
 
@@ -91,8 +91,8 @@ function formatRating(value) {
   <div class="mt-xs flex flex-wrap gap-x-md gap-y-xs text-tiny">
     <a
       v-for="link in [
-        { href: storefrontCardUrl(product.nm_id), label: 'Карточка на WB' },
-        { href: sellerCardUrl(product.nm_id), label: 'В кабинете продавца' },
+        { href: storefrontCardUrl(product.nm_id), label: 'Card on WB' },
+        { href: sellerCardUrl(product.nm_id), label: 'In the WB seller portal' },
       ]"
       :key="link.label"
       :href="link.href"
@@ -112,7 +112,7 @@ function formatRating(value) {
       >
         <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
       </svg>
-      <span class="sr-only">(откроется в новой вкладке)</span>
+      <span class="sr-only">(opens in a new tab)</span>
     </a>
   </div>
 </template>

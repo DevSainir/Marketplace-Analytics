@@ -1,8 +1,8 @@
-"""DTOs for the per-day action row («Действия» under the matrix comments).
+"""DTOs for the per-day action row ("Actions" under the matrix comments).
 
-The manager records, per day: up to two advertising campaigns («Первая РК» /
-«Вторая РК»), each a campaign TYPE with its «Бюджет рекламы», and whether the
-price was moved («Меняли цену?» direction + «На сколько»). Every field is
+The manager records, per day: up to two advertising campaigns ("First campaign" /
+"Second campaign"), each a campaign TYPE with its "Ad budget", and whether the
+price was moved ("Price changed?" direction + "By how much"). Every field is
 optional — an unset answer is ``None``.
 """
 
@@ -15,10 +15,10 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.core.exceptions import UserInputError
 
-#: An ad campaign type: «Единая» / «Руч. поиск» / «Руч. полки» / «CPC».
+#: An ad campaign type: "Unified bid" / "Manual search" / "Manual shelves" / "CPC".
 RkType = Literal["uni", "manual_search", "manual_shelves", "cpc"]
 
-#: «Меняли цену?» answers: raised / lowered (no «Нет» — an unmoved price is
+#: "Price changed?" answers: raised / lowered (no "No" — an unmoved price is
 #: simply left unanswered).
 PriceChange = Literal["up", "down"]
 
@@ -32,23 +32,23 @@ class DayActionState(BaseModel):
     """
 
     first_rk_type: RkType | None = Field(
-        default=None, description="«Первая РК» campaign type, null when unset."
+        default=None, description="First campaign type, null when unset."
     )
     first_rk_budget: float | None = Field(
-        default=None, ge=0, description="First campaign «Бюджет рекламы», rubles."
+        default=None, ge=0, description="First campaign ad budget, rubles."
     )
     second_rk_type: RkType | None = Field(
-        default=None, description="«Вторая РК» campaign type, null when unset."
+        default=None, description="Second campaign type, null when unset."
     )
     second_rk_budget: float | None = Field(
-        default=None, ge=0, description="Second campaign «Бюджет рекламы», rubles."
+        default=None, ge=0, description="Second campaign ad budget, rubles."
     )
     price_change: PriceChange | None = Field(
         default=None,
-        description="«Меняли цену?» — up (повысили) / down (понизили).",
+        description="Price changed? — up (raised) / down (lowered).",
     )
     price_change_amount: float | None = Field(
-        default=None, ge=0, description="«На сколько» — the price difference, rubles."
+        default=None, ge=0, description="By how much — the price difference, rubles."
     )
 
     @model_validator(mode="after")
@@ -56,11 +56,11 @@ class DayActionState(BaseModel):
         """Reject the same campaign type in both ad campaign slots.
 
         The two dropdowns are synced on screen, so this only fires on a
-        malformed request — but a day claiming «Единая» twice is meaningless,
+        malformed request — but a day claiming "Unified bid" twice is meaningless,
         and enforcing it here keeps the store the single source of truth.
         """
         if self.first_rk_type is not None and self.first_rk_type == self.second_rk_type:
-            raise UserInputError("«Первая РК» and «Вторая РК» must be different campaign types.")
+            raise UserInputError("The first and second campaigns must be different campaign types.")
         return self
 
     def is_empty(self) -> bool:

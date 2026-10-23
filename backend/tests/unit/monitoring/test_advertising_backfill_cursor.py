@@ -1,8 +1,8 @@
 """What the advertising lane remembers between ticks, and what it re-asks WB for.
 
 The lane walks ~36 windows of history, up to eight campaign batches each, and
-every one of those ticks used to open with the same request: «list my
-campaigns». The list cannot change in a way that matters — a campaign created
+every one of those ticks used to open with the same request: "list my
+campaigns". The list cannot change in a way that matters — a campaign created
 mid-walk has no history behind it to collect — so every one of those calls after
 the first was spent rediscovering an answer the lane already had.
 
@@ -138,7 +138,7 @@ def wb(monkeypatch: pytest.MonkeyPatch) -> _FakeAdvertisingClient:
 def _tokens() -> WorkspaceTokenBundle:
     """A workspace with an advertising token and nothing else."""
     return WorkspaceTokenBundle(
-        workspace_id=uuid.uuid4(), name="Тест", advertising="an-advertising-token"
+        workspace_id=uuid.uuid4(), name="Test", advertising="an-advertising-token"
     )
 
 

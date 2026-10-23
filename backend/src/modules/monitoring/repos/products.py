@@ -110,7 +110,7 @@ class ProductCardRepository(BaseRepository):
     ) -> list[ProductCard]:
         """Return cards whose vendor code contains ``fragment`` (case-insensitive).
 
-        Resolves the seller-facing "Артикул продавца" search: a partial code like
+        Resolves the seller-facing "Vendor code" search: a partial code like
         ``"M-TRX01"`` returns every colourway card (``M-TRX01-BLK``,
         ``M-TRX01-BEJ``, ...), so the caller can pick a concrete ``nm_id``.
 
@@ -159,7 +159,7 @@ class ProductCardRepository(BaseRepository):
     async def list_workspace_nm_ids(self, workspace_id: uuid.UUID) -> list[int]:
         """Return every SKU registered to a workspace, ascending by ``nm_id``.
 
-        Backs the bulk «Обновить все SKU» refresh (enqueue a harvest over the
+        Backs the bulk "Refresh all SKUs" refresh (enqueue a harvest over the
         whole catalogue) and the fake-harvest discovery path (which re-harvests
         the SKUs already on file instead of calling the Content API).
 
@@ -276,7 +276,7 @@ class ProductSizeRepository(BaseRepository):
         """Return a ``chrt_id -> tech_size`` label map for the given ids.
 
         The label-less stock rows carry only ``chrt_id``; this resolves each to
-        its human "Размер вещи" so the detail view can show a size instead of a
+        its human size label so the detail view can show a size instead of a
         bare characteristic id. Missing ids are simply omitted (callers treat an
         absent label as ``None``, so old/unsynced rows keep working).
 

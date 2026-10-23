@@ -53,7 +53,7 @@
   /* No fill here either: `skin.css` names `.day-action-card` alongside
      `.day-block` for the glass pane, and a scoped rule in this file outranks it.
      The ink wash that used to sit here was quietly cancelling that treatment,
-     exactly as the «Цены»/«Остатки» tints did — same bug, same fix. */
+     exactly as the "Prices"/"Stock" tints did — same bug, same fix. */
 }
 .day-action-question {
   color: var(--ui-muted);
@@ -64,7 +64,7 @@
 }
 
 /* The ad campaign type / price dropdowns; the price one tints by its answer —
-   «Повысили» positive, «Понизили» negative. */
+   "Raised" positive, "Lowered" negative. */
 .day-action-select {
   width: 100%;
   padding: 2px 6px;
@@ -94,7 +94,7 @@
   color: var(--ui-faint);
 }
 
-/* «Бюджет рекламы» / «На сколько»: label left, money input right. */
+/* "Ad budget" / "By how much": label left, money input right. */
 .day-action-amount {
   display: flex;
   align-items: center;

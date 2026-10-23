@@ -1,6 +1,6 @@
 <script setup>
 /**
- * The global pinned-SKU chip row («Закрепить»).
+ * The global pinned-SKU chip row ("Pin").
  *
  * Dumb by contract: it renders the pins it is given and reports intent —
  * the view owns the store calls. Three interactions live here:
@@ -81,7 +81,7 @@ function pinLabel(item) {
       v-if="overflowing"
       type="button"
       :disabled="!canScrollLeft"
-      aria-label="Прокрутить закреплённые влево"
+      aria-label="Scroll pinned SKUs left"
       class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border-subtle disabled:hover:text-muted"
       @click="page(-1)"
     >
@@ -139,7 +139,7 @@ function pinLabel(item) {
       v-if="overflowing"
       type="button"
       :disabled="!canScrollRight"
-      aria-label="Прокрутить закреплённые вправо"
+      aria-label="Scroll pinned SKUs right"
       class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border-subtle disabled:hover:text-muted"
       @click="page(1)"
     >
@@ -160,8 +160,8 @@ function pinLabel(item) {
     <button
       type="button"
       :aria-pressed="paletteOpen"
-      aria-label="Редактировать цвета закреплённых SKU"
-      title="Редактировать цвета закреплённых SKU"
+      aria-label="Edit pinned SKU colors"
+      title="Edit pinned SKU colors"
       class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full border border-border-subtle bg-surface text-muted shadow-soft transition hover:border-action hover:text-action"
       :class="paletteOpen ? 'border-action text-action' : ''"
       @click="togglePalette"
@@ -186,9 +186,9 @@ function pinLabel(item) {
       v-if="paletteOpen && !targetItem"
       class="absolute right-0 top-full z-20 mt-xs w-52 rounded-card border border-border-subtle bg-surface px-sm py-xs shadow-card"
     >
-      <p class="text-micro font-medium text-primary">Режим раскраски</p>
+      <p class="text-micro font-medium text-primary">Paint mode</p>
       <p class="mt-0.5 text-micro leading-snug text-muted">
-        Кликните по закреплённому&nbsp;SKU, чтобы выбрать для него цвет.
+        Click a pinned&nbsp;SKU to pick its color.
       </p>
     </div>
 
@@ -200,7 +200,7 @@ function pinLabel(item) {
       :style="{ left: `${paletteLeft}px` }"
     >
       <p class="text-micro font-semibold uppercase tracking-wide text-muted">
-        Цвет для «{{ pinLabel(targetItem) }}»
+        Color for "{{ pinLabel(targetItem) }}"
       </p>
       <div class="mt-xs grid grid-cols-3 gap-xs">
         <button
@@ -223,9 +223,9 @@ function pinLabel(item) {
         :class="targetColor === null ? 'border-action text-action' : ''"
         @click="applyColor(null)"
       >
-        Убрать цвет
+        Remove color
       </button>
-      <p class="mt-xs text-tiny text-muted">Цвет виден всей команде.</p>
+      <p class="mt-xs text-tiny text-muted">The whole team sees the color.</p>
     </div>
   </div>
 </template>

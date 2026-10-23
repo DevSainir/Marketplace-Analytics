@@ -45,9 +45,9 @@ def price_funnel_details(
 ) -> tuple[list[FunnelDetailRead], float, float]:
     """Build per-day funnel DTOs with price-derived ₽ volumes + their window totals.
 
-    The stored funnel row no longer carries ₽ volumes; each day's «Заказы, ₽» /
-    «Выкупы, ₽» are ``count x carry-forward seller price`` (``0.0`` when the SKU
-    is unpriced), matching the matrix «Общая» column.
+    The stored funnel row no longer carries ₽ volumes; each day's "Orders, ₽" /
+    "Buyouts, ₽" are ``count x carry-forward seller price`` (``0.0`` when the SKU
+    is unpriced), matching the matrix "Overall" column.
 
     Args:
         funnel_rows: The SKU's daily funnel rows for the display window.

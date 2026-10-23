@@ -1,8 +1,8 @@
 """A cohort pass that WB never answered must fail, not log a quiet zero.
 
 On 2026-07-30 the 07:00 MSK pass ran for over an hour, was refused every one of
-its 22 days per workspace, and finished by logging «Refreshed 0 cohort days» at
-INFO with a green task. «Процент выкупа» is the only figure those calls feed, so
+its 22 days per workspace, and finished by logging "Refreshed 0 cohort days" at
+INFO with a green task. "Buyout rate" is the only figure those calls feed, so
 the metric stopped maturing behind a successful-looking schedule. Zero served
 days is an outage and has to be reported as one.
 """
@@ -53,7 +53,7 @@ def _tokens(*, analytics: str = "analytics-token") -> WorkspaceTokenBundle:
     """Build a token bundle with the analytics scope the pass needs."""
     return WorkspaceTokenBundle(
         workspace_id=uuid.uuid4(),
-        name="Демо",
+        name="Demo",
         analytics=analytics,
     )
 

@@ -1,4 +1,4 @@
-"""Unit tests for the «Остатки по складам» ribbon's day list.
+"""Unit tests for the "Stock by warehouse" ribbon's day list.
 
 The ribbon renders one column group per day and scrolls sideways through the
 window, so the rule that matters is which DAYS come back — a day WB never
@@ -23,7 +23,7 @@ class _Row:
         self.stat_date = stat_date
         self.chrt_id = chrt_id
         self.warehouse_name = warehouse_name
-        self.region_name = "ЦФО"
+        self.region_name = "Central"
         self.quantity = quantity
         self.in_way_to_client = 0
         self.in_way_from_client = 0
@@ -63,7 +63,7 @@ async def test_an_unreported_day_is_an_empty_column_not_a_gap() -> None:
     reader would compare two days that are not next to each other.
     """
     observed = date(2026, 7, 3)
-    service, _ = _service([_Row(observed, chrt_id=1, warehouse_name="Казань", quantity=7)])
+    service, _ = _service([_Row(observed, chrt_id=1, warehouse_name="Kazan", quantity=7)])
 
     result = await service.get_stock_range(
         nm_id=NM_ID, date_from=date(2026, 7, 1), date_to=date(2026, 7, 3)
@@ -81,8 +81,8 @@ async def test_every_day_carries_its_own_snapshot() -> None:
     """One query for the window, split back out by day — not carried over."""
     service, _ = _service(
         [
-            _Row(date(2026, 7, 1), chrt_id=1, warehouse_name="Казань", quantity=5),
-            _Row(date(2026, 7, 2), chrt_id=1, warehouse_name="Казань", quantity=2),
+            _Row(date(2026, 7, 1), chrt_id=1, warehouse_name="Kazan", quantity=5),
+            _Row(date(2026, 7, 2), chrt_id=1, warehouse_name="Kazan", quantity=2),
         ]
     )
 
@@ -91,7 +91,7 @@ async def test_every_day_carries_its_own_snapshot() -> None:
     )
 
     assert [day.stock.total_quantity for day in result.days] == [5, 2]
-    assert [cell.warehouse_name for cell in result.days[0].stock.cells] == ["Казань"]
+    assert [cell.warehouse_name for cell in result.days[0].stock.cells] == ["Kazan"]
 
 
 async def test_a_window_past_the_cap_keeps_its_newest_days() -> None:

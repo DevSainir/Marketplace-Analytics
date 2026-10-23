@@ -1,4 +1,4 @@
-"""Per-day stock breakdowns for the «Остатки по складам» ribbon."""
+"""Per-day stock breakdowns for the "Stock by warehouse" ribbon."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class StockViewAnalytics:
     ) -> StockRangeResponse:
         """Return a size x warehouse breakdown for every day of the window.
 
-        Feeds the «Остатки по складам» ribbon: one column group per day, two
+        Feeds the "Stock by warehouse" ribbon: one column group per day, two
         days on screen, scrolled sideways through the period chosen for the
         whole page. Every calendar day of the window is returned, including
         those WB never reported — an unobserved day is an EMPTY breakdown, not

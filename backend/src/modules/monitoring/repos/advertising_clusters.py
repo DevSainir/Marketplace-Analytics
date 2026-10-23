@@ -1,4 +1,4 @@
-"""Repository for :class:`AdvertisingClusterStatDaily` rows («Поиск по кластерам»).
+"""Repository for :class:`AdvertisingClusterStatDaily` rows ("Cluster search").
 
 Both reads aggregate in SQL: a SKU on a busy account can hold thousands of
 (day, campaign, cluster) rows in a month, and hydrating them to sum in Python is

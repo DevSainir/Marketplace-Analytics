@@ -3,7 +3,7 @@
 An ad column measures an ad campaign — its spend, its traffic, its
 conversions across every card and variant it delivered for. The viewed card's
 own share of it is a separate fact, and only two columns are built from that
-share: «Общая» (the card's whole day) and «Органика» (that day minus the ads).
+share: "Overall" (the card's whole day) and "Organic" (that day minus the ads).
 
 The distinction is invisible while a campaign promotes one card, which is how
 this account runs them — so these fixtures deliberately give a campaign more
@@ -76,11 +76,11 @@ def test_the_columns_money_and_efficiency_follow_that_grain() -> None:
 
 
 def test_the_cards_own_columns_keep_the_cards_own_share() -> None:
-    """«Общая» and «Органика» stay the card's — never the campaign's.
+    """The "Overall" and "Organic" stay the card's — never the campaign's.
 
-    «Общая» is this card's day: crediting it with a campaign's whole spend
+    "Overall" is this card's day: crediting it with a campaign's whole spend
     would overstate its DRR by however much the campaign spent on other cards,
-    and «Органика» (funnel minus ads) would go negative on the counts.
+    and "Organic" (funnel minus ads) would go negative on the counts.
     """
     rows = _two_card_campaign()
 

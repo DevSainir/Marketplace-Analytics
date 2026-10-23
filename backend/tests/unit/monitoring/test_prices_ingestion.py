@@ -12,6 +12,7 @@ from typing import Any
 
 from src.integrations.wildberries.schemas import WBCardProduct, WBOrderPrice, WBPriceGood
 from src.modules.monitoring.services.ingestion import IngestionService
+from tests.support import wb_labels as wb
 
 DAY = date(2026, 7, 1)
 
@@ -174,7 +175,7 @@ def _order(
     price: float,
     *,
     spp: float = 0.0,
-    region: str = "Москва",
+    region: str = wb.MOSCOW,
     day: date = DAY,
     cancelled: bool = False,
 ) -> WBOrderPrice:
@@ -209,7 +210,7 @@ async def test_orders_fill_the_customer_price_the_storefront_could_not_answer() 
         [],
         snapshot_date=DAY,
         order_prices=[_order(1, 430.0, spp=12), _order(1, 430.0, spp=12), _order(1, 470.0, spp=6)],
-        regions=("Москва", "Московская область"),
+        regions=(wb.MOSCOW, wb.MOSCOW_REGION),
     )
 
     assert count == 1
@@ -230,7 +231,7 @@ async def test_the_storefront_still_wins_when_it_answers() -> None:
         [WBCardProduct.model_validate({"id": 1, "sizes": [{"price": {"product": 35000}}]})],
         snapshot_date=DAY,
         order_prices=[_order(1, 430.0, spp=12)],
-        regions=("Москва", "Московская область"),
+        regions=(wb.MOSCOW, wb.MOSCOW_REGION),
     )
 
     assert repo.rows[0]["customer_price"] == 350.0
@@ -248,11 +249,11 @@ async def test_the_configured_region_decides_which_orders_count() -> None:
         [],
         snapshot_date=DAY,
         order_prices=[
-            _order(1, 430.0, spp=12, region="Москва"),
-            _order(1, 390.0, spp=20, region="Краснодарский край"),
-            _order(1, 390.0, spp=20, region="Краснодарский край"),
+            _order(1, 430.0, spp=12, region=wb.MOSCOW),
+            _order(1, 390.0, spp=20, region="Krasnodar Krai"),
+            _order(1, 390.0, spp=20, region="Krasnodar Krai"),
         ],
-        regions=("Москва", "Московская область"),
+        regions=(wb.MOSCOW, wb.MOSCOW_REGION),
     )
 
     assert repo.rows[0]["customer_price"] == 430.0
@@ -269,8 +270,8 @@ async def test_a_sku_selling_nowhere_comparable_still_gets_a_price() -> None:
         [],
         [],
         snapshot_date=DAY,
-        order_prices=[_order(1, 390.0, spp=20, region="Иркутская область")],
-        regions=("Москва", "Московская область"),
+        order_prices=[_order(1, 390.0, spp=20, region="Irkutsk Oblast")],
+        regions=(wb.MOSCOW, wb.MOSCOW_REGION),
     )
 
     assert repo.rows[0]["customer_price"] == 390.0
@@ -290,7 +291,7 @@ async def test_other_days_and_cancelled_lines_do_not_price_the_day() -> None:
             _order(1, 430.0, day=date(2026, 6, 30)),
             _order(1, 999.0, cancelled=True),
         ],
-        regions=("Москва", "Московская область"),
+        regions=(wb.MOSCOW, wb.MOSCOW_REGION),
     )
 
     assert count == 0
@@ -319,7 +320,7 @@ async def test_the_top_up_only_asks_about_the_skus_it_was_given() -> None:
         [_order(1, 430.0, spp=12), _order(2, 555.0, spp=9)],
         snapshot_date=DAY,
         nm_ids=[2],
-        regions=("Москва", "Московская область"),
+        regions=(wb.MOSCOW, wb.MOSCOW_REGION),
     )
 
     assert attempted == [2]
@@ -340,7 +341,7 @@ async def test_the_top_up_counts_only_rows_the_database_accepted() -> None:
         [_order(1, 430.0, spp=12)],
         snapshot_date=DAY,
         nm_ids=[1],
-        regions=("Москва",),
+        regions=(wb.MOSCOW,),
     )
 
     assert filled == 0

@@ -9,7 +9,7 @@
  *   storefront  /catalog/<nm>/detail.aspx — opened with no query at all; the
  *               `targetUrl=GP` WB appends is a click-source tag, not routing.
  *   seller      /new-goods/card?nmID=<nm>&type=EXIST_CARD — the editor the
- *               «Карточки товаров» list opens.
+ *               "Product cards" list opens.
  *   campaign    /campaigns/edit/<id>?advertID=<id>&from&nmId&to — the path
  *               carries the campaign; `from`/`to` preset its statistics window
  *               and `nmId` the card inside it, so the page opens on the same

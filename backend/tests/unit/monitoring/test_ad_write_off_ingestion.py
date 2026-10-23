@@ -21,6 +21,7 @@ from typing import Any
 
 from src.integrations.wildberries.schemas import WBAdvWriteOff
 from src.modules.monitoring.services import IngestionService
+from tests.support import wb_labels as wb
 
 WINDOW = (date(2026, 9, 1), date(2026, 9, 15))
 
@@ -74,7 +75,7 @@ def _write_off(
     when: str = "2026-09-05T18:00:00.002269+03:00",
     amount: str = "17500",
     campaign_id: int = 97455888,
-    payment_type: str = "Кэшбэк",
+    payment_type: str = wb.CASHBACK,
     upd_num: int = 0,
     currency: str = "KGS",
 ) -> WBAdvWriteOff:
@@ -111,7 +112,7 @@ async def test_cashback_rows_are_not_collapsed_by_their_zero_updnum() -> None:
 
     await _service(repo).ingest_write_offs(rows, window=WINDOW)
 
-    bucket = _by_key(repo.rows)[(date(2026, 9, 5), 97455888, "Кэшбэк", "KGS")]
+    bucket = _by_key(repo.rows)[(date(2026, 9, 5), 97455888, wb.CASHBACK, "KGS")]
     assert bucket["amount"] == Decimal("21000")
     assert bucket["write_offs"] == 3
 
@@ -120,30 +121,30 @@ async def test_currencies_are_kept_in_separate_buckets() -> None:
     """WB books RUB and KGS in one window; adding them adds unlike units."""
     repo = _CapturingWriteOffRepo()
     rows = [
-        _write_off(payment_type="Баланс", amount="1000", currency="KGS"),
-        _write_off(payment_type="Баланс", amount="1000", currency="RUB"),
+        _write_off(payment_type=wb.BALANCE, amount="1000", currency="KGS"),
+        _write_off(payment_type=wb.BALANCE, amount="1000", currency="RUB"),
     ]
 
     await _service(repo).ingest_write_offs(rows, window=WINDOW)
 
     buckets = _by_key(repo.rows)
-    assert buckets[(date(2026, 9, 5), 97455888, "Баланс", "KGS")]["amount"] == Decimal("1000")
-    assert buckets[(date(2026, 9, 5), 97455888, "Баланс", "RUB")]["amount"] == Decimal("1000")
+    assert buckets[(date(2026, 9, 5), 97455888, wb.BALANCE, "KGS")]["amount"] == Decimal("1000")
+    assert buckets[(date(2026, 9, 5), 97455888, wb.BALANCE, "RUB")]["amount"] == Decimal("1000")
 
 
 async def test_funding_sources_are_kept_apart_within_one_day() -> None:
     """The split between the seller's money and WB's is the whole point."""
     repo = _CapturingWriteOffRepo()
     rows = [
-        _write_off(payment_type="Баланс", amount="19402"),
-        _write_off(payment_type="Кэшбэк", amount="17500"),
+        _write_off(payment_type=wb.BALANCE, amount="19402"),
+        _write_off(payment_type=wb.CASHBACK, amount="17500"),
     ]
 
     await _service(repo).ingest_write_offs(rows, window=WINDOW)
 
     buckets = _by_key(repo.rows)
-    assert buckets[(date(2026, 9, 5), 97455888, "Баланс", "KGS")]["amount"] == Decimal("19402")
-    assert buckets[(date(2026, 9, 5), 97455888, "Кэшбэк", "KGS")]["amount"] == Decimal("17500")
+    assert buckets[(date(2026, 9, 5), 97455888, wb.BALANCE, "KGS")]["amount"] == Decimal("19402")
+    assert buckets[(date(2026, 9, 5), 97455888, wb.CASHBACK, "KGS")]["amount"] == Decimal("17500")
 
 
 async def test_the_charge_is_dated_by_its_moscow_day() -> None:

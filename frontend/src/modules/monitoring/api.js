@@ -85,7 +85,7 @@ export async function saveMatrix(nmId, base, params = {}) {
 
 /**
  * GET /v1/monitoring/skus/{nm_id}/stock — one size × warehouse breakdown per
- * day of the window, which is what the «Остатки по складам» ribbon scrolls
+ * day of the window, which is what the "Stock by warehouse" ribbon scrolls
  * through. Unobserved days come back as empty breakdowns, never as gaps.
  *
  * @param {number} nmId WB SKU identifier.
@@ -123,7 +123,7 @@ export async function fetchPinnedSkus(signal) {
 }
 
 /**
- * PUT /v1/monitoring/skus/{nm_id}/pin — pin («Закрепить») or unpin a SKU for
+ * PUT /v1/monitoring/skus/{nm_id}/pin — pin ("Pin") or unpin a SKU for
  * every account; returns the full updated pinned list.
  *
  * @param {number} nmId WB SKU identifier.
@@ -190,16 +190,16 @@ export async function setDayComment(nmId, iso, patch) {
 /**
  * @typedef {'uni'|'manual_search'|'manual_shelves'|'cpc'} RkType
  * @typedef {object} DayAction
- * @property {RkType|null} first_rk_type «Первая РК» campaign type (null = unset).
- * @property {number|null} first_rk_budget First campaign «Бюджет рекламы», in the workspace's currency.
- * @property {RkType|null} second_rk_type «Вторая РК» campaign type.
- * @property {number|null} second_rk_budget Second campaign «Бюджет рекламы», same currency.
- * @property {'up'|'down'|null} price_change «Меняли цену?».
- * @property {number|null} price_change_amount «На сколько», same currency.
+ * @property {RkType|null} first_rk_type "Campaign 1" campaign type (null = unset).
+ * @property {number|null} first_rk_budget First campaign "Ad budget", in the workspace's currency.
+ * @property {RkType|null} second_rk_type "Campaign 2" campaign type.
+ * @property {number|null} second_rk_budget Second campaign "Ad budget", same currency.
+ * @property {'up'|'down'|null} price_change "Price changed?".
+ * @property {number|null} price_change_amount "By how much", same currency.
  */
 
 /**
- * PUT /v1/monitoring/skus/{nm_id}/actions/{date} — save one day's «Действия»
+ * PUT /v1/monitoring/skus/{nm_id}/actions/{date} — save one day's "Actions"
  * row on a SKU (shared by every account). The WHOLE day state is sent (last
  * write wins); all-null clears the day's row.
  *
@@ -250,7 +250,7 @@ export async function getRefreshStatus(taskId) {
 
 /**
  * GET /v1/monitoring/skus/{nm_id}/clusters — the search clusters this SKU's
- * advertising served in over the window («Поиск по кластерам», stored half).
+ * advertising served in over the window (the search-cluster block, stored half).
  *
  * Harvested history, so it answers instantly and covers only phrases the seller
  * PAID to appear for.

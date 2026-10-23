@@ -12,7 +12,7 @@ const NM_ID = 953770957
 const CLUSTERS = {
   nm_id: NM_ID,
   window: { start: '2026-08-01', end: '2026-08-13' },
-  items: [{ cluster: 'носки мужские', views: 1000, clicks: 50, avg_position: 6.2 }],
+  items: [{ cluster: "men's socks", views: 1000, clicks: 50, avg_position: 6.2 }],
 }
 
 let store

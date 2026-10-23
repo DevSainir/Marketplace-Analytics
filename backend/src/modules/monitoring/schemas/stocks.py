@@ -13,7 +13,7 @@ class StockCell(BaseModel):
     chrt_id: int = Field(description="WB size characteristic id.")
     tech_size: str | None = Field(
         default=None,
-        description="Human size label (WB 'Размер вещи'); None if not yet synced.",
+        description="Human size label (WB's item size); None if not yet synced.",
     )
     warehouse_name: str
     region_name: str
@@ -28,7 +28,7 @@ class StockSizeTotal(BaseModel):
     chrt_id: int
     tech_size: str | None = Field(
         default=None,
-        description="Human size label (WB 'Размер вещи'); None if not yet synced.",
+        description="Human size label (WB's item size); None if not yet synced.",
     )
     quantity: int
 
@@ -65,7 +65,7 @@ class StockDayResponse(BaseModel):
 class StockRangeResponse(BaseModel):
     """Every day of the analysis window, oldest first.
 
-    Feeds the «Остатки по складам» ribbon, which renders one column group per
+    Feeds the "Stock by warehouse" ribbon, which renders one column group per
     day and scrolls sideways through them. EVERY calendar day of the window is
     present, including the ones WB never reported — a missing day is an empty
     breakdown rather than a gap in the list, so the ribbon's columns and the

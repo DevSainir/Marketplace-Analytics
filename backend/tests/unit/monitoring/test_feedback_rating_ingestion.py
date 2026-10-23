@@ -1,7 +1,7 @@
 """The rating read off the funnel aggregate: what WB's numbers become.
 
 ``0`` is WB's value for a card with no reviews; stored as a zero-star rating it
-would render «0 ★» on a card nobody has rated. The response can also carry more
+would render "0 ★" on a card nobody has rated. The response can also carry more
 decimals than the storefront shows, and the header prints one.
 """
 

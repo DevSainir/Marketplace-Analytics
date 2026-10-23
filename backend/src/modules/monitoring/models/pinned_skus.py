@@ -1,4 +1,4 @@
-"""Pinned SKU model — the global «Закрепить» flag on a SKU.
+"""Pinned SKU model — the global "Pin" flag on a SKU.
 
 Managers pin the SKUs the whole team is watching; pins are GLOBAL (shared by
 every account), so the row carries no user reference — the natural key is the

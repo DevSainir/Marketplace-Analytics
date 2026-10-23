@@ -1,12 +1,12 @@
 """One workspace, everything WB will tell us about it.
 
 Before this module the word "refresh" meant three different amounts of data
-depending on which button produced it. «Обновить» fetched funnel, stocks,
-advertising and prices; it skipped the sale/return feed, so «Выкупы, ₽» and
-«Процент выкупа» kept yesterday's values behind a green tick. The buyout-cohort
-pass — the thing that actually matures «Процент выкупа» — ran only on its own
+depending on which button produced it. "Refresh" fetched funnel, stocks,
+advertising and prices; it skipped the sale/return feed, so "Buyouts, ₽" and
+"Buyout rate" kept yesterday's values behind a green tick. The buyout-cohort
+pass — the thing that actually matures "Buyout rate" — ran only on its own
 07:00 MSK schedule and was reachable from no button at all. A seller pressing
-«Обновить» and watching the buyout column not move was seeing the system work
+"Refresh" and watching the buyout column not move was seeing the system work
 as designed, which is the worst kind of correct.
 
 This is now the single body behind every refresh. The interactive
@@ -40,13 +40,13 @@ from src.modules.workspaces.contract import WorkspaceTokenBundle
 logger = get_logger(__name__)
 
 #: Label the cohort pass reports under when WB withholds it. Matches the
-#: naming of the sources in ``harvest.py`` («sales-funnel», «stocks-fbs») so the
-#: SPA's «WB не отдал…» list reads as one vocabulary rather than two.
+#: naming of the sources in ``harvest.py`` ("sales-funnel", "stocks-fbs") so the
+#: SPA's "WB withheld…" list reads as one vocabulary rather than two.
 COHORT_SOURCE_LABEL = "funnel-cohorts"
 
 #: Reports how far along a refresh is: ``(stage, percent, message)``. The
-#: message is Russian and user-facing — it is rendered verbatim under the
-#: «Обновить» button, so it says what is happening rather than which function
+#: message is user-facing — it is rendered verbatim under the
+#: "Refresh" button, so it says what is happening rather than which function
 #: is running.
 ProgressReporter = Callable[[int, int, str], None]
 
@@ -62,12 +62,12 @@ TOTAL_STAGES = 2
 _HARVEST_SHARE = 40
 
 #: What the seller reads while each stage runs. Deliberately naming the DATA
-#: rather than the system: «воронка» and «проценты выкупа» are the columns they
-#: are looking at, and «этап 2 из 2» alone tells them nothing about whether the
+#: rather than the system: the funnel and the buyout rates are the columns they
+#: are looking at, and "stage 2 of 2" alone tells them nothing about whether the
 #: number they came for has arrived yet.
-MSG_HARVEST = "Собираем рекламу, воронку, остатки и цены…"
-MSG_COHORTS = "Реклама, воронка, остатки и цены собраны. Считаем проценты выкупа…"
-MSG_DONE = "Данные Wildberries обновлены."
+MSG_HARVEST = "Collecting advertising, funnel, stock and prices…"
+MSG_COHORTS = "Advertising, funnel, stock and prices collected. Calculating buyout rates…"
+MSG_DONE = "Wildberries data refreshed."
 
 
 async def refresh_workspace_data(

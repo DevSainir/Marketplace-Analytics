@@ -20,17 +20,17 @@ One responsibility per module:
 * :mod:`~src.modules.monitoring.services.analytics.pins` — the global
   pinned-SKU chips.
 * :mod:`~src.modules.monitoring.services.analytics.annotations` — per-day
-  notes and «Действия» answers.
+  notes and "Actions" answers.
 * :mod:`~src.modules.monitoring.services.analytics.stock_view` — exact-day
   stock breakdowns and warehouse marks.
-* :mod:`~src.modules.monitoring.services.analytics.clusters` — «Поиск по
-  кластерам»: the per-cluster advertising history and the live WB-search
+* :mod:`~src.modules.monitoring.services.analytics.clusters` — "Cluster
+  search": the per-cluster advertising history and the live WB-search
   position probe. It is NOT part of the :class:`AnalyticsService` facade: it is
   the module's only read path that makes an outbound HTTP call, and folding a
   live storefront probe into the facade every SKU view depends on would put that
   call one careless method away from the dashboard's hot path.
 * :mod:`~src.modules.monitoring.services.analytics.pinned_keywords` — the
-  phrases «Закрепить» keeps on a SKU and the last position stored for each. Pure
+  phrases "Pin" keeps on a SKU and the last position stored for each. Pure
   CRUD over one table and deliberately separate from ``clusters`` above: this
   half must keep answering when WB throttles the probe half.
 * :mod:`~src.modules.monitoring.services.analytics.service` — the

@@ -49,7 +49,7 @@ async function copy() {
   outcome.value = document.execCommand?.('copy') ? 'copied' : 'selected'
 }
 
-const LABEL = { '': 'Копировать', copied: 'Скопировано', selected: 'Выделено — ⌘C' }
+const LABEL = { '': 'Copy', copied: 'Copied', selected: 'Selected — ⌘C' }
 </script>
 
 <template>
@@ -62,7 +62,7 @@ const LABEL = { '': 'Копировать', copied: 'Скопировано', se
       @mouseenter="$emit('keep')"
       @mouseleave="$emit('leave')"
     >
-      <span class="text-muted">ID РК</span>
+      <span class="text-muted">Campaign ID</span>
       <span ref="idEl" class="select-all font-semibold tabular-nums">{{ tip.id }}</span>
       <button
         type="button"

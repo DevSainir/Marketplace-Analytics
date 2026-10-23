@@ -8,23 +8,24 @@ right input(s), after which :func:`build_matrix_from_base` re-derives everything
 
 Two kinds of edit:
 
-* **Input cell** (e.g. «Показы», «Затраты»): the input is set directly.
-* **Derived cell** (e.g. «CTR», «Конверсия в заказ»): its formula is inverted
+* **Input cell** (e.g. "Impressions", "Spend"): the input is set directly.
+* **Derived cell** (e.g. "CTR", "Order conversion"): its formula is inverted
   to back-solve exactly one input, holding the others fixed — the convention is
   *solve the numerator, hold the denominator* (editing ``orders/carts`` changes
-  ``orders``). Cross-column special cases: «Доля трафика» redistributes this
-  bucket's views against the other buckets; «Органика» solves the funnel input
+  ``orders``). Cross-column special cases: "Traffic share" redistributes this
+  bucket's views against the other buckets; "Organic" solves the funnel input
   holding the advertising side fixed.
 
-Cells with no unique inverse (cross-bucket roll-ups in «Общая», the «Органика»
-difference beyond its counts, the lagged «Процент выкупа», the legacy
-«Каталог» zone, and «—» cells with no value) are read-only and rejected.
+Cells with no unique inverse (cross-bucket roll-ups in "Overall", the "Organic"
+difference beyond its counts, the lagged "Buyout rate", the legacy
+"Catalog" zone, and "—" cells with no value) are read-only and rejected.
 """
 
 from __future__ import annotations
 
 from datetime import date
 
+from src.core.calendar_words import day_text
 from src.core.exceptions import ValidationError
 from src.modules.monitoring.schemas.matrix import (
     MATRIX_AD_BUCKETS,
@@ -66,10 +67,10 @@ def apply_edit(
 ) -> MatrixBaseState:
     """Return a copy of ``base`` with one cell-edit applied.
 
-    EVERY cell is editable. An **invertible input** cell (e.g. «Показы»,
-    «Конверсия в заказ») back-solves an input fact so dependent cells recompute
+    EVERY cell is editable. An **invertible input** cell (e.g. "Impressions",
+    "Order conversion") back-solves an input fact so dependent cells recompute
     (dynamic). Any other cell — a cross-bucket rollup, a derived ratio, the
-    empty «Каталог» zone — records a **display override**
+    empty "Catalog" zone — records a **display override**
     (:attr:`MatrixDayBase.cell_overrides`) shown verbatim after the formulas.
 
     Args:
@@ -123,7 +124,7 @@ def _find_day(base: MatrixBaseState, day: date) -> MatrixDayBase:
     for candidate in base.days:
         if candidate.day == day:
             return candidate
-    raise ValidationError(f"Дата {day.isoformat()} вне текущего периода.")
+    raise ValidationError(f"{day_text(day)} is outside the current period.")
 
 
 #: The carts/orders fields, whose edit also has a per-variant breakdown to keep
@@ -139,8 +140,8 @@ def _set_ad_metric(
     An advertising cell states what the campaign did, so that is what a typed
     number sets. The rest of the campaign is harvested fact the edit has no
     claim on — the other cards' spend, the other variants' conversions — so the
-    VIEWED card's own share absorbs the whole delta, which keeps «Общая» and
-    «Органика» (built from that share) in step with the correction.
+    VIEWED card's own share absorbs the whole delta, which keeps "Overall" and
+    "Organic" (built from that share) in step with the correction.
 
     The share floors at zero and caps at the new total: correcting a cell to
     less than the rest of the campaign holds leaves the card with none of it.
@@ -200,9 +201,9 @@ def _edit_ad_bucket(
     """Resolve an edit in one of the four advertising bucket columns."""
     b = day.buckets.get(bucket)
     if b is None:
-        # The cell renders «—» (this bucket delivered nothing that day).
+        # The cell renders "—" (this bucket delivered nothing that day).
         raise ValidationError(
-            f"За {day.day.isoformat()} нет рекламы в «{bucket}» — нечего изменять."
+            f"No advertising in '{bucket}' on {day_text(day.day)} — nothing to edit."
         )
     match metric:
         case "views":
@@ -220,7 +221,7 @@ def _edit_ad_bucket(
             # writing `b.order_sum` here would change nothing on screen.
             price, _currency = order_unit(day.funnel)
             if not price:
-                raise _readonly(bucket, metric)  # unpriced day → «—»
+                raise _readonly(bucket, metric)  # unpriced day → "—"
             _set_ad_metric(b, "orders", value / price, viewed_nm_id)
         # Derived: solve the numerator, hold the denominator.
         case "ctr":  # clicks / views * 100
@@ -240,12 +241,12 @@ def _edit_ad_bucket(
         case "drr_orders":  # spend / (orders x the day's order unit) * 100
             order_sum = ad_order_sum(b.orders, day.funnel)
             if not order_sum or not pairs_with_orders(b.currencies, day):
-                raise _readonly(bucket, metric)  # order revenue is «—» here
+                raise _readonly(bucket, metric)  # order revenue is "—" here
             _set_ad_metric(b, "spend", value / 100 * order_sum)
         case "traffic_share":
             _solve_traffic_share(day, bucket, value)
         case _:  # drr_sales, buyout_sum, buyout_percent, …
-            # «ДРР от продаж» is deliberately not inverted: it is ONE merged
+            # "ACoS (sales)" is deliberately not inverted: it is ONE merged
             # cell over a campaign's zones, so moving a single zone's spend
             # would not reproduce the typed number. It takes a display
             # override instead (shown verbatim, which is what typing means).
@@ -255,7 +256,7 @@ def _edit_ad_bucket(
 def _solve_traffic_share(day: MatrixDayBase, bucket: str, value: float) -> None:
     """Set a bucket's views so its share WITHIN ITS TRAFFIC TYPE equals ``value``.
 
-    «Доля трафика» is normalized per traffic type (unified / manual / CPC), so
+    "Traffic share" is normalized per traffic type (unified / manual / CPC), so
     only the other buckets OF THE SAME TYPE are the denominator.
     Holding them fixed: ``share = v / (others + v)`` ⇒
     ``v = others * f / (1 - f)`` with ``f = value / 100``; the other same-type
@@ -276,22 +277,22 @@ def _solve_traffic_share(day: MatrixDayBase, bucket: str, value: float) -> None:
         # Nothing to redistribute against (the only bucket of its type is always
         # 100%), or an unreachable 0%/100% target.
         raise ValidationError(
-            "«Доля трафика» can only be set when another campaign of the same "
+            '"Traffic share" can only be set when another campaign of the same '
             "type has views and the target is strictly between 0% and 100%."
         )
     _set_ad_metric(b, "views", others * fraction / (1 - fraction))
 
 
 def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
-    """Resolve an edit in the «Общая» column (funnel-backed cells only).
+    """Resolve an edit in the "Overall" column (funnel-backed cells only).
 
-    Prices and counts are the inputs; «Выкупы, ₽»/«СПП» derive from them.
-    «Заказы, ₽» is derived too, but invertibly — it solves the order COUNT
+    Prices and counts are the inputs; "Buyouts, ₽"/"WB discount" derive from them.
+    "Orders, ₽" is derived too, but invertibly — it solves the order COUNT
     (the price is never rewritten by another cell's edit).
     """
-    # «Процент выкупа» is a HARVESTED fact, not a formula: the cohort pass
+    # "Buyout rate" is a HARVESTED fact, not a formula: the cohort pass
     # reads it from WB's period aggregate. So it is a plain input here, and
-    # editing it recomputes «Выкупы, ₽» (in «Общая» and in every ad zone) plus
+    # editing it recomputes "Buyouts, ₽" (in "Overall" and in every ad zone) plus
     # both DRR rows. Handled before the funnel guard — a day can carry a buyout
     # percent without a funnel row of its own.
     if metric == "buyout_percent":
@@ -300,7 +301,7 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
 
     f = day.funnel
     if f is None:
-        raise ValidationError(f"За {day.day.isoformat()} нет данных воронки — нечего изменять.")
+        raise ValidationError(f"No funnel data on {day_text(day.day)} — nothing to edit.")
     # A price-only day (funnel not served yet): counts are not facts there —
     # only the prices are editable.
     counts_editable = f.has_funnel
@@ -323,10 +324,10 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
             # Solve the COUNT, never the price: a price is a snapshot of what
             # the SKU cost that day, and no other cell's edit may rewrite it.
             # The advertising zones keep their own orders — this is the
-            # SKU-wide funnel count, so «Органика» absorbs the difference.
+            # SKU-wide funnel count, so "Organic" absorbs the difference.
             price, _currency = order_unit(f)
             if not price:
-                raise _readonly("total", metric)  # unpriced day → «—»
+                raise _readonly("total", metric)  # unpriced day → "—"
             f.order_count = _count(value / price)
         case _:
             # buyout_sum/spp derive from the prices and counts (read-only);
@@ -336,14 +337,14 @@ def _edit_total(day: MatrixDayBase, metric: str, value: float) -> None:
 
 
 def _edit_organic(day: MatrixDayBase, metric: str, value: float) -> None:
-    """Resolve an edit in the «Органика» column (overall - advertising).
+    """Resolve an edit in the "Organic" column (overall - advertising).
 
     Organic = funnel - advertising. Holding the advertising side fixed, an edit
     solves the funnel input: ``funnel = organic + ad``.
     """
     f = day.funnel
     if f is None or not f.has_funnel:
-        raise ValidationError(f"За {day.day.isoformat()} нет данных воронки — нечего изменять.")
+        raise ValidationError(f"No funnel data on {day_text(day.day)} — nothing to edit.")
     day_ad = _day_ad_from_base(day)
     match metric:
         case "clicks":

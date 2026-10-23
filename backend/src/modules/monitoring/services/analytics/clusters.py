@@ -1,4 +1,4 @@
-"""«Поиск по кластерам» for one SKU — the per-cluster advertising history.
+"""Cluster search for one SKU — the per-cluster advertising history.
 
 Reads the per-cluster history harvested from ``POST /adv/v1/normquery/stats``:
 the SKU's own list of the phrases its advertising served in, and what each one

@@ -9,8 +9,8 @@ const DAY = '2026-07-20'
 function mountTable(dayActions = {}, extraProps = {}) {
   return mount(MetricsTable, {
     props: {
-      days: [{ iso: DAY, label: '20.07.2026' }],
-      rows: [{ key: 'spend', label: 'Затраты, KGS', tone: null, group: 'traffic', cells: [] }],
+      days: [{ iso: DAY, label: '20 Jul 2026' }],
+      rows: [{ key: 'spend', label: 'Spend', tone: null, group: 'traffic', cells: [] }],
       dayActions,
       ...extraProps,
     },
@@ -18,17 +18,17 @@ function mountTable(dayActions = {}, extraProps = {}) {
   })
 }
 
-/** The «Бюджет рекламы» / «На сколько» inputs of the «Действия» row, in order. */
+/** The "Ad budget" / "By how much" inputs of the "Actions" row, in order. */
 function amountInputs(wrapper) {
   return wrapper.findAll('.day-action-amount input')
 }
 
-/** The three «Действия» dropdowns: [«Первая РК», «Вторая РК», «Меняли цену?»]. */
+/** The three "Actions" dropdowns: ["Campaign 1", "Campaign 2", "Price changed?"]. */
 function selects(wrapper) {
   return wrapper.findAll('.day-action-select')
 }
 
-describe('«Действия» amount inputs', () => {
+describe('"Actions" amount inputs', () => {
   // An amount only means something once the choice above it is made — a budget
   // belongs to a chosen campaign, a size to a chosen price direction.
   it('locks every amount while its choice is unmade', () => {
@@ -38,7 +38,7 @@ describe('«Действия» amount inputs', () => {
     expect(inputs.map((i) => i.attributes('disabled'))).toEqual(['', '', ''])
   })
 
-  it('unlocks a budget only once its own РК slot has a type', () => {
+  it('unlocks a budget only once its own campaign slot has a type', () => {
     const [firstBudget, secondBudget, priceAmount] = amountInputs(
       mountTable({ [DAY]: { first_rk_type: 'uni' } }),
     )
@@ -49,7 +49,7 @@ describe('«Действия» amount inputs', () => {
     expect(priceAmount.attributes('disabled')).toBe('')
   })
 
-  it('unlocks «На сколько» once a price direction is picked', () => {
+  it('unlocks "By how much" once a price direction is picked', () => {
     const amountFor = (price_change) => amountInputs(mountTable({ [DAY]: { price_change } }))[2]
 
     expect(amountFor(null).attributes('disabled')).toBe('')
@@ -68,7 +68,7 @@ describe('«Действия» amount inputs', () => {
 
   // The input is about to lock, so a number left behind it could neither be
   // read back nor cleared.
-  it('clears a budget when its РК slot is cleared to «—»', async () => {
+  it('clears a budget when its campaign slot is cleared to "—"', async () => {
     const wrapper = mountTable({ [DAY]: { first_rk_type: 'uni', first_rk_budget: 1500 } })
     const first = selects(wrapper)[0]
 
@@ -95,7 +95,7 @@ describe('«Действия» amount inputs', () => {
   })
 })
 
-describe('«Первая РК» / «Вторая РК» synced dropdowns', () => {
+describe('"Campaign 1" / "Campaign 2" synced dropdowns', () => {
   /** Option values of a select that are rendered `disabled`. */
   function disabledOptions(select) {
     return select
@@ -107,7 +107,7 @@ describe('«Первая РК» / «Вторая РК» synced dropdowns', () =>
   it('disables in one slot the type already chosen in the other', () => {
     const [first, second] = selects(mountTable({ [DAY]: { first_rk_type: 'uni' } }))
 
-    // «Единая» is taken by the first slot, so the second cannot pick it...
+    // "Unified bid" is taken by the first slot, so the second cannot pick it...
     expect(disabledOptions(second)).toContain('uni')
     // ...while the first slot, which owns it, keeps every option pickable.
     expect(disabledOptions(first)).toEqual([])
@@ -135,8 +135,8 @@ describe('«Первая РК» / «Вторая РК» synced dropdowns', () =>
   })
 })
 
-describe('«Меняли цену?» dropdown', () => {
-  it('offers only Повысили and Понизили — no «Нет»', () => {
+describe('"Price changed?" dropdown', () => {
+  it('offers only Raised and Lowered — no "No"', () => {
     const price = selects(mountTable())[2]
 
     const values = price.findAll('option').map((o) => o.attributes('value'))
@@ -165,35 +165,35 @@ describe('table composition', () => {
     ])
   })
 
-  it('heads the CPC group with its own Поиск/Полки zone pair', () => {
-    // The «CPC» campaigns are billed per click, so they read as their own
-    // «тип получения трафика» rather than as more zones of a CPM column.
+  it('heads the CPC group with its own Search/Shelves zone pair', () => {
+    // The CPC campaigns are billed per click, so they read as their own
+    // traffic type rather than as more zones of a CPM column.
     const wrapper = mountTable()
 
     const groups = wrapper.findAll('thead tr:nth-child(2) th').map((th) => th.text())
     const zones = wrapper.findAll('thead tr:nth-child(3) th').map((th) => th.text())
 
     expect(groups).toEqual([
-      'Тип получения трафика',
-      'Единая ставка',
-      'Руч. поиск',
-      'Руч. полки',
+      'Traffic type',
+      'Unified bid',
+      'Manual search',
+      'Manual shelves',
       'CPC',
-      'Общая',
-      'Органика',
+      'Overall',
+      'Organic',
     ])
-    expect(zones.slice(-2)).toEqual(['Поиск', 'Полки'])
+    expect(zones.slice(-2)).toEqual(['Search', 'Shelves'])
   })
 
   it('keeps every day column the same width across all sections', () => {
     const days = [
-      { iso: '2026-07-19', label: '19.07.2026' },
-      { iso: DAY, label: '20.07.2026' },
+      { iso: '2026-07-19', label: '19 Jul 2026' },
+      { iso: DAY, label: '20 Jul 2026' },
     ]
     const wrapper = mount(MetricsTable, {
       props: {
         days,
-        rows: [{ key: 'spend', label: 'Затраты, KGS', tone: null, group: 'traffic', cells: [] }],
+        rows: [{ key: 'spend', label: 'Spend', tone: null, group: 'traffic', cells: [] }],
         priceRows: [{ key: 'seller_price', cells: [] }],
       },
       global: { stubs: { Teleport: true } },
@@ -209,14 +209,14 @@ describe('table composition', () => {
 
   it('sizes every leaf of every day through the colgroup', () => {
     // The table is laid out fixed, so the columns decide the widths: one for
-    // the labels, then one per leaf, «Руч. полки» on its own class.
+    // the labels, then one per leaf, "Manual shelves" on its own class.
     const wrapper = mount(MetricsTable, {
       props: {
         days: [
-          { iso: DAY, label: '20.07.2026' },
-          { iso: '2026-07-21', label: '21.07.2026' },
+          { iso: DAY, label: '20 Jul 2026' },
+          { iso: '2026-07-21', label: '21 Jul 2026' },
         ],
-        rows: [{ key: 'spend', label: 'Затраты', tone: null, group: 'traffic', cells: [] }],
+        rows: [{ key: 'spend', label: 'Spend', tone: null, group: 'traffic', cells: [] }],
       },
       global: { stubs: { Teleport: true } },
     })
@@ -234,12 +234,10 @@ describe('table composition', () => {
     // without a click first — which is itself part of what this asserts still
     // works through the component boundary.
     const input = wrapper.find('.comment-header-input')
-    await input.setValue('Новый заголовок')
+    await input.setValue('New title')
     await input.trigger('blur')
 
-    expect(wrapper.emitted('comment')?.[0]).toEqual([
-      { day: DAY, patch: { header: 'Новый заголовок' } },
-    ])
+    expect(wrapper.emitted('comment')?.[0]).toEqual([{ day: DAY, patch: { header: 'New title' } }])
   })
 
   it('opens the notes band expanded and still lets it be closed', async () => {
@@ -274,8 +272,8 @@ describe('the ribbon width', () => {
 
   it('fits two days a screen once the period has them', () => {
     const days = [
-      { iso: '2026-07-19', label: '19.07.2026' },
-      { iso: DAY, label: '20.07.2026' },
+      { iso: '2026-07-19', label: '19 Jul 2026' },
+      { iso: DAY, label: '20 Jul 2026' },
     ]
 
     expect(perScreen(mountTable({}, { days }))).toContain('--matrix-per-screen: 2')

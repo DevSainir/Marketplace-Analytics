@@ -272,7 +272,7 @@ class IngestionService:
             write_offs: Raw advertising write-offs naming who funded each charge;
                 ``None`` when the source failed or was not asked for (the
                 existing ledger is then left untouched, so a missed pass reads
-                as «bonuses unknown» rather than «no bonuses»).
+                as "bonuses unknown" rather than "no bonuses").
             keep_warehouses: Warehouses whose feeding source failed this run, so
                 the sweep leaves their rows in place (FBO and FBS reach this
                 table from different WB surfaces and fail independently).
@@ -292,7 +292,7 @@ class IngestionService:
             )
             # The same payload at its per-cluster grain (see the method's
             # docstring): the zone aggregate above sums the cluster texts away,
-            # and «Поиск по кластерам» needs them.
+            # and "Cluster search" needs them.
             #
             # The flag is a kill switch, on by default; the ingest costs no
             # extra WB request — the payload is already in hand — so it only

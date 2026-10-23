@@ -29,14 +29,14 @@ _AD_FIELDS: tuple[str, ...] = (
 #: The viewed card's share of those same fields, stored under a ``sku.`` prefix.
 #: It rides along because an edit moves both sides (see
 #: ``matrix.edit._set_ad_metric``): persisting only the campaign's would leave
-#: the reloaded «Общая»/«Органика» quoting the harvested share against a
+#: the reloaded "Overall"/"Organic" quoting the harvested share against a
 #: corrected campaign, and the hover disagreeing with its own cell.
 _AD_SKU_PREFIX = "sku."
 _AD_SKU_FIELDS: tuple[str, ...] = ("views", "clicks", "add_to_cart", "spend", "orders")
 #: Card-share fields whose override must also be mirrored onto the viewed SKU's
 #: row of the per-variant breakdown (that row IS this SKU's own count).
 _VIEWED_ROW_FIELDS: frozenset[str] = frozenset({"add_to_cart", "orders"})
-#: Editable input fields of the organic funnel (behind «Общая»). The ₽ volumes
+#: Editable input fields of the organic funnel (behind "Overall"). The ₽ volumes
 #: and SPP are derived from ``seller_price``/``customer_price`` (not stored).
 _FUNNEL_FIELDS: tuple[str, ...] = (
     "open_count",
@@ -49,9 +49,9 @@ _FUNNEL_FIELDS: tuple[str, ...] = (
 _FUNNEL_BUCKET = "funnel"
 #: The synthetic bucket name for DAY-level inputs (no bucket of their own).
 _DAY_BUCKET = "day"
-#: Editable day-level inputs. «Процент выкупа» is harvested from WB's period
+#: Editable day-level inputs. "Buyout rate" is harvested from WB's period
 #: aggregate, so it is a fact a manager may correct — and everything derived
-#: from it («Выкупы, ₽», both DRR rows) recomputes.
+#: from it ("Buyouts, ₽", both DRR rows) recomputes.
 _DAY_FIELDS: tuple[str, ...] = ("lagged_buyout_percent",)
 #: The synthetic bucket name under which DISPLAY overrides are stored; the
 #: ``field`` is then the ``"<bucket>:<metric>"`` cell key.
@@ -149,7 +149,7 @@ def _day_value_differs(working: float | None, fact: float | None) -> bool:
 
     Unlike :func:`_differs`, a ``None`` fact is a real starting point here: WB
     serves no cohort for a day whose deliveries have not matured, and typing a
-    «Процент выкупа» there is exactly the correction the manager is making.
+    "Buyout rate" there is exactly the correction the manager is making.
     """
     if working is None:
         return False

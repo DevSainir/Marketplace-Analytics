@@ -26,6 +26,7 @@ from src.modules.monitoring.models import (
     SalesFunnelDaily,
 )
 from src.modules.monitoring.repos.ad_money import convert_rouble_ad_money
+from tests.support import wb_labels as wb
 
 KGS_NM, RUB_NM, DELISTED_NM = 7001, 7002, 7003
 KGS_CABINET = uuid.UUID("019f657a-0000-7000-8000-0000000c0001")
@@ -150,7 +151,7 @@ async def test_a_rouble_cabinet_keeps_its_roubles(db_session: AsyncSession) -> N
 
 
 async def test_a_day_with_no_rate_stays_in_roubles(db_session: AsyncSession) -> None:
-    """Past the loaded rates nothing is guessed — the screens show «—» instead."""
+    """Past the loaded rates nothing is guessed — the screens show "—" instead."""
     await _seed(db_session)
     db_session.add(_ad(KGS_NM, 805, day=date(2026, 9, 1)))
     await db_session.flush()
@@ -195,7 +196,7 @@ async def test_a_rouble_bonus_merges_into_the_days_som_row(db_session: AsyncSess
             AdvertisingWriteOffDaily(
                 stat_date=SUNDAY,
                 campaign_id=807,
-                payment_type="Кэшбэк",
+                payment_type=wb.CASHBACK,
                 currency="RUB",
                 amount=Decimal("100"),
                 write_offs=1,
@@ -203,7 +204,7 @@ async def test_a_rouble_bonus_merges_into_the_days_som_row(db_session: AsyncSess
             AdvertisingWriteOffDaily(
                 stat_date=SUNDAY,
                 campaign_id=807,
-                payment_type="Кэшбэк",
+                payment_type=wb.CASHBACK,
                 currency="KGS",
                 amount=Decimal("50"),
                 write_offs=2,

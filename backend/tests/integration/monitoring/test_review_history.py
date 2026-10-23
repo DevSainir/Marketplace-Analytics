@@ -150,7 +150,7 @@ async def test_a_review_missing_from_a_complete_walk_vanished_that_day(
 async def test_a_walk_that_did_not_finish_declares_nothing_vanished(
     db_session: AsyncSession,
 ) -> None:
-    """«Not listed» only means «gone» when every page was read."""
+    """An item "not listed" only means "gone" when every page was read."""
     await run(db_session, FakeReviewList([review("a")], [review("c")]), today=DAY_1)
 
     result = await run(db_session, FakeReviewList([review("a")], fail_answered=True), today=DAY_2)

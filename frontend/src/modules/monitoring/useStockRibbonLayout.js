@@ -1,7 +1,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 /**
- * The «Остатки по складам» ribbon's viewport arithmetic: how wide one day is,
+ * The "Stock by warehouse" ribbon's viewport arithmetic: how wide one day is,
  * and which day it opens on.
  *
  * Extracted from `StockCompareTable.vue` when that file reached the 250-line
@@ -51,7 +51,7 @@ export function useStockRibbonLayout({ daysSource, perScreen = () => 2 }) {
     if (measured > 0) groupWidth.value = measured
   }
 
-  /** Start at the right edge: «сегодня» first, older days appear scrolling left. */
+  /** Start at the right edge: today first, older days appear scrolling left. */
   function scrollToNewestDay() {
     if (scroll.value) scroll.value.scrollLeft = scroll.value.scrollWidth
   }
@@ -65,7 +65,7 @@ export function useStockRibbonLayout({ daysSource, perScreen = () => 2 }) {
    * arrives in its own request AFTER the component mounts — so at mount there
    * is usually nothing to observe. Measuring only there left the width at zero
    * for the life of the page: every warehouse column divided zero between them
-   * and vanished, leaving a grid of «Всего» columns.
+   * and vanished, leaving a grid of "Total" columns.
    */
   function attach() {
     observer?.disconnect()
@@ -88,7 +88,7 @@ export function useStockRibbonLayout({ daysSource, perScreen = () => 2 }) {
   watch(scroll, () => nextTick(attach))
 
   // The days, and the measurement that decides how wide they are — the ribbon
-  // can only land on «сегодня» once the width it scrolls across is real.
+  // can only land on today once the width it scrolls across is real.
   watch([daysSource, groupWidth], () => nextTick(scrollToNewestDay))
 
   watch(perScreen, () => nextTick(measure))

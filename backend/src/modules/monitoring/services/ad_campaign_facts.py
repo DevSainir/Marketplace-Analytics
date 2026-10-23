@@ -1,4 +1,4 @@
-"""The workspace's advertising at CAMPAIGN grain — the raw facts the «Реклама» page composes.
+"""The workspace's advertising at CAMPAIGN grain — the raw facts the "Advertising" page composes.
 
 Every other ad loader in this module answers one question at one grain: spend
 per SKU, spend per day, bonus per SKU over a window. The advertising page asks

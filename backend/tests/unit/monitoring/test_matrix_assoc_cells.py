@@ -28,7 +28,7 @@ from tests.support.matrix_rows import (
 
 
 # --------------------------------------------------------------------------- #
-# Associative conversions («100(71)»): campaign-level all-variant totals
+# Associative conversions ("100(71)"): campaign-level all-variant totals
 # decorating the SKU's own carts/orders cells.
 # --------------------------------------------------------------------------- #
 def test_the_cell_is_the_campaigns_count_with_the_cards_share_beside_it() -> None:
@@ -46,7 +46,7 @@ def test_the_cell_is_the_campaigns_count_with_the_cards_share_beside_it() -> Non
     # …with the viewed card's own share behind the hover.
     assert _cell(rows, "carts_sku", 0, "manual_search") == 71
     assert _cell(rows, "orders_sku", 0, "manual_search") == 30
-    # The card-share rows never leak into «Общая»/«Органика».
+    # The card-share rows never leak into "Overall"/"Organic".
     assert _cell(rows, "carts_sku", 0, "total") is None
     assert _cell(rows, "carts_sku", 0, "organic") is None
 
@@ -117,13 +117,13 @@ def _assoc_money_rows() -> dict[str, list[float | None]]:
 
 
 def test_ad_revenue_counts_every_variant_the_campaign_sold() -> None:
-    """«Заказы, ₽» prices the campaign's 32 orders, not the card's own 22."""
+    """The "Orders, ₽" prices the campaign's 32 orders, not the card's own 22."""
     rows = _assoc_money_rows()
 
     assert _cell(rows, "orders", 0, "manual_search") == 32
     assert _cell(rows, "orders_sku", 0, "manual_search") == 22
     assert _cell(rows, "order_sum", 0, "manual_search") == 122248.0  # 32 x 3 820.25
-    # «Выкупы, ₽» rides the same count through the day's buyout percent.
+    # "Buyouts, ₽" rides the same count through the day's buyout percent.
     assert _cell(rows, "buyout_sum", 0, "manual_search") == 61124.0  # 50% of it
 
 
@@ -141,7 +141,7 @@ def test_ad_efficiency_divides_the_campaigns_counts() -> None:
 
 
 def test_organic_still_subtracts_only_the_cards_own_ad_orders() -> None:
-    """«Органика» is the funnel minus what the ads booked ON THIS CARD.
+    """The "Organic" is the funnel minus what the ads booked ON THIS CARD.
 
     The funnel counts are the card's own, so subtracting the campaign's
     all-variant total would credit this card's organic column for orders that

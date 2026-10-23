@@ -2,7 +2,7 @@
  * The stock breakdown table's full-warehouse-name tooltip.
  *
  * A warehouse column header shows only the first 8 letters — there is no room
- * for «Санкт-Петербург Уткина Заводь» above a numeric column — so hovering a
+ * for "Saint Petersburg Utkina Zavod" above a numeric column — so hovering a
  * truncated header pops the full name. Teleported and positioned `fixed`, which
  * is what an absolutely-positioned tip inside the scroll container cannot be
  * without being clipped by it; being `fixed`, it must close on ANY scroll, or

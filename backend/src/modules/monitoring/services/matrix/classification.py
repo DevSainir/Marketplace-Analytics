@@ -3,25 +3,25 @@
 Campaign classification (via the ``Campaign`` dimension's adverts-v2 fields):
 
 * ``manual`` bid + only the SHELVES placement -> the campaign's whole totals
-  go to «Руч. полки».
+  go to "Manual shelves".
 * ``manual`` bid + only the SEARCH placement -> WB's search campaigns also
   deliver in the CATALOG zone (verified against WB's data: fullstats runs ~10-13% above the
-  normquery sum), so the search slice goes to «Руч. поиск» and the remainder
-  to «Руч. каталог». Without a harvested search slice (legacy rows) the whole
-  day stays in «Руч. поиск» — misattributing ~90% of a search campaign to
+  normquery sum), so the search slice goes to "Manual search" and the remainder
+  to "Manual catalog". Without a harvested search slice (legacy rows) the whole
+  day stays in "Manual search" — misattributing ~90% of a search campaign to
   catalog would be worse than the old single-zone view.
 * ``unified`` bid (always both zones) or a dual-placement manual campaign ->
-  split: the search slice goes to the «Поиск» column, the remainder
-  (``fullstats - search``, clamped at zero) to «Полки».
+  split: the search slice goes to the "Search" column, the remainder
+  (``fullstats - search``, clamped at zero) to "Shelves".
 
 A ``cpc`` payment type overrides all of it: WB bills those campaigns per CLICK
-rather than per 1000 views, so their bids, their CPM and their «Доля
-трафика» share nothing with a CPM campaign's and belong in their own «CPC»
-group («Поиск» | «Полки»), whatever the bid type says. A dual-placement CPC
+rather than per 1000 views, so their bids, their CPM and their "Traffic
+share" share nothing with a CPM campaign's and belong in their own "CPC"
+group ("Search" | "Shelves"), whatever the bid type says. A dual-placement CPC
 campaign splits on the same normquery slice; a single-placement one keeps its
 whole day in the zone it runs in — including a search-only one, which unlike
-«Руч. поиск» does NOT shed a catalog remainder, because the CPC group has no
-«Каталог» column to put it in and dropping the leg would understate «Общая».
+"Manual search" does NOT shed a catalog remainder, because the CPC group has no
+"Catalog" column to put it in and dropping the leg would understate "Overall".
 
 Significant-campaign selection (see :func:`_select_day_buckets`): a SKU
 realistically has one — at most two — campaigns actually bringing traffic. A
@@ -31,7 +31,7 @@ which buys the same delivery for a quarter of the money); of those, only the
 leading campaign (by views) is kept, plus a second campaign when its views clear
 :data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. A surviving campaign
 keeps ALL its zones (a unified campaign's WB search/shelves split is shown even
-at 99/1). Cut campaigns are excluded from «Общая»/«Органика» too.
+at 99/1). Cut campaigns are excluded from "Overall"/"Organic" too.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def _split_sku(
 
     The campaign's zone split is driven by the campaign's search totals; the
     card's own share rides the SAME split but off its OWN normquery row, so
-    «Общая»/«Органика» stay the card's whatever the rest of the campaign did.
+    "Overall"/"Organic" stay the card's whatever the rest of the campaign did.
     Each metric is clamped at the card's own total (the two feeds are collected
     at different times) and the remainder leg takes what is left.
     """
@@ -174,7 +174,7 @@ def _classify(
     if meta.payment_type == "cpc":
         # Paid per click, so it is never comparable to the CPM columns beside
         # it: own group, same two zones. A search-only CPC campaign keeps its
-        # whole day (there is no «CPC · Каталог» column for a remainder).
+        # whole day (there is no "CPC · Catalog" column for a remainder).
         if in_search and in_shelves:
             search_slice, shelves_slice = _split_search(total, search, sku_search, viewed_nm)
             return [("cpc_search", search_slice), ("cpc_shelves", shelves_slice)]
@@ -192,9 +192,9 @@ def _classify(
         return [("uni_search" if in_search else "uni_shelves", total)]
     if in_search:
         # WB's search campaigns also deliver in the CATALOG zone: the
-        # normquery slice is «Поиск», the remainder «Каталог». Without a
+        # normquery slice is "Search", the remainder "Catalog". Without a
         # harvested slice for this campaign-day (legacy rows), keep the whole
-        # day in «Руч. поиск» — a missing slice must not shove ~90% of a
+        # day in "Manual search" — a missing slice must not shove ~90% of a
         # search campaign into catalog.
         if search is None:
             return [("manual_search", total)]
@@ -248,14 +248,14 @@ def _bucket_base(
 
 
 #: A second campaign is kept only when its views are at least this fraction of
-#: the LEADING campaign's; below it the campaign is noise and cut («—»). Chosen
+#: the LEADING campaign's; below it the campaign is noise and cut ("—"). Chosen
 #: from observed data: genuine second campaigns sat at ≥0.145 of the leader (with
 #: real spend and 100+ clicks), noise seconds at ≤0.022 — a wide empty gap, so
 #: 0.10 separates them robustly. Tunable.
 _SECONDARY_MIN_CAMPAIGN_VIEW_RATIO = 0.10
 
 #: Minimum spend for a campaign-DAY to count as delivering at all; below it
-#: the day is cut («—»). Per DAY, not per campaign: in observed data a genuine
+#: the day is cut ("—"). Per DAY, not per campaign: in observed data a genuine
 #: campaign is idle on most of its days (a large one, spending thousands of ₽ a
 #: day at its peak, still trickled a few ₽ a day for a whole week) — so "is this
 #: campaign real?" cannot answer "did it deliver on this day?".
@@ -286,7 +286,7 @@ _MIN_CAMPAIGN_DAY_SPEND = 200.0
 #: while every delivering day cost well over 150 ₽ with hundreds of views and
 #: dozens of clicks or more — an empty band above zero, so 50 ₽ separates them
 #: with room on both sides. Without it a plainly delivering CPC day read as noise
-#: and the «CPC» column stayed blank on that card.
+#: and the "CPC" column stayed blank on that card.
 #: Tunable.
 _MIN_CPC_CAMPAIGN_DAY_SPEND = 50.0
 
@@ -295,7 +295,7 @@ def _day_spend_floor(legs: list[tuple[str, _AdSlice]]) -> float:
     """The delivery floor a campaign-day must clear, by how WB bills it.
 
     Read off the legs the campaign was classified into rather than passed in
-    separately: a campaign is in the «CPC» buckets exactly when its
+    separately: a campaign is in the "CPC" buckets exactly when its
     ``payment_type`` put it there, so the classification already carries the
     answer.
     """
@@ -319,7 +319,7 @@ def _select_day_buckets(
     Survivors are ranked by views; the leader is kept, and a second is kept
     only when its views are at least
     :data:`_SECONDARY_MIN_CAMPAIGN_VIEW_RATIO` of the leader's. Everything else is
-    dropped («—»).
+    dropped ("—").
 
     A surviving campaign keeps ALL its zones: a unified campaign's WB search /
     shelves split is shown in full (even a 99/1 split), because that division is

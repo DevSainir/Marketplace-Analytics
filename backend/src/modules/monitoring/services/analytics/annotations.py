@@ -1,4 +1,4 @@
-"""Per-day SKU annotations: the «Комментарий» notes and the «Действия» answers."""
+"""Per-day SKU annotations: the "Comment" notes and the "Actions" answers."""
 
 from __future__ import annotations
 
@@ -185,6 +185,4 @@ def _refuse_a_meaningless_date(comment_date: date) -> None:
     """
     window = settings.sku_comment_max_days_from_today
     if abs((comment_date - moscow_today()).days) > window:
-        raise ValidationError(
-            f"Дата заметки выходит за допустимый диапазон (±{window} дней от сегодня)."
-        )
+        raise ValidationError(f"Note date is out of range (±{window} days from today).")

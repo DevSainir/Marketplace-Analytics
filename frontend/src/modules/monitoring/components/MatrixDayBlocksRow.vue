@@ -1,10 +1,10 @@
 <script setup>
 /**
- * The day-bound «Цены» / «Остатки» blocks under the metric rows.
+ * The day-bound "Prices" / "Stock" blocks under the metric rows.
  *
  * Per day section, one tight label+value card per family that fits inside its
  * day's width and scrolls WITH the day — same table, same scroll container, no
- * sync needed. Both are «Общая»-bucket only: neither price nor stock has a
+ * sync needed. Both are "Overall"-bucket only: neither price nor stock has a
  * per-zone meaning.
  *
  * Prices are editable (a seller price is a fact we can correct); stock is
@@ -24,11 +24,11 @@ import { useCellEditing, vFocus } from '@/modules/monitoring/useCellEditing'
 const props = defineProps({
   /** @type {Array<{iso: string, label: string}>} oldest -> newest */
   days: { type: Array, required: true },
-  /** «Цены» block rows — one «Общая» cell per day (prices editable). */
+  /** "Prices" block rows — one "Overall" cell per day (prices editable). */
   priceRows: { type: Array, default: () => [] },
-  /** «Остатки» block rows — one «Общая» cell per day (read-only). */
+  /** "Stock" block rows — one "Overall" cell per day (read-only). */
   stockRows: { type: Array, default: () => [] },
-  /** «Всего» card row — per-day total stock (stock + both «в пути» legs), read-only. */
+  /** "Total" card row — per-day total stock (stock + both in-transit legs), read-only. */
   stockTotalRows: { type: Array, default: () => [] },
   /** Disable editing while a save/refresh is in flight. */
   editingDisabled: { type: Boolean, default: false },
@@ -42,8 +42,8 @@ const { editingId, draft, cellId, startEdit, commitEdit, cancelEdit } = useCellE
 })
 
 const blocks = computed(() => [
-  { key: 'prices', title: 'Цены', titleClass: 'text-action', rows: props.priceRows },
-  { key: 'stock', title: 'Остатки', titleClass: 'text-accent-indigo', rows: props.stockRows },
+  { key: 'prices', title: 'Prices', titleClass: 'text-action', rows: props.priceRows },
+  { key: 'stock', title: 'Stock', titleClass: 'text-accent-indigo', rows: props.stockRows },
 ])
 </script>
 
@@ -55,8 +55,8 @@ const blocks = computed(() => [
     <tr>
       <td>
         <span class="text-micro font-semibold uppercase tracking-wide">
-          <span class="text-action">Цены</span><span class="text-muted">/</span
-          ><span class="text-accent-indigo">Остатки</span>
+          <span class="text-action">Prices</span><span class="text-muted">/</span
+          ><span class="text-accent-indigo">Stock</span>
         </span>
       </td>
       <td v-for="(day, dayIndex) in days" :key="day.iso" :colspan="DAY_COLSPAN">
@@ -96,10 +96,10 @@ const blocks = computed(() => [
             </div>
           </div>
 
-          <!-- Compact «Всего» card: total stock (stock + both «в пути» legs)
-               for the day. Same tint as «Остатки» — it belongs to it. -->
+          <!-- Compact "Total" card: total stock (stock + both in-transit legs)
+               for the day. Same tint as "Stock" — it belongs to it. -->
           <div v-if="stockTotalRows.length" class="day-block day-block--stock day-block--total">
-            <span class="day-block-name">Всего, шт</span>
+            <span class="day-block-name">Total, pcs</span>
             <span class="day-block-total-value tabular-nums">
               {{ stockTotalRows[0].cells[dayIndex]?.display ?? '' }}
             </span>

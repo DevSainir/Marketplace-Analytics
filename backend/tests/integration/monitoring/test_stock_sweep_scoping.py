@@ -30,7 +30,7 @@ async def _snapshot(session: AsyncSession) -> None:
             StockSnapshot(
                 stat_date=_DAY,
                 nm_id=_NM_ID,
-                warehouse_name="Краснодар",
+                warehouse_name="Krasnodar",
                 chrt_id=965033858,
                 quantity=15,
             ),

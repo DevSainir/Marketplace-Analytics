@@ -2,7 +2,7 @@
 
 These loaders are the seam the finreports P&L reads monitoring through, and
 four of them carried no tenant argument at all until 2026-08-27. The result was
-not a theoretical gap: ``GET /pnl/skus`` built its «Итого» row by summing the
+not a theoretical gap: ``GET /pnl/skus`` built its "Total" row by summing the
 returned mappings, so one seller's totals included every other seller's orders
 and advertising spend — a cross-tenant disclosure that also made the number
 wrong.
@@ -54,7 +54,7 @@ async def _workspace(session: AsyncSession, name: str) -> Workspace:
     Separate organisations rather than two workspaces in one, because that is
     the boundary that matters: these loaders are what one COMPANY's P&L reads.
     """
-    org = Organization(name=f"Орг {name}", is_primary=False)
+    org = Organization(name=f"Org {name}", is_primary=False)
     session.add(org)
     await session.flush()
     workspace = Workspace(organization_id=org.id, name=name)
@@ -122,15 +122,15 @@ async def _ad_day(session: AsyncSession, nm_id: int, day: date, spend: str) -> N
 
 async def _two_tenants(db_session: AsyncSession) -> tuple[Workspace, Workspace]:
     """Two workspaces in two organisations, each owning one SKU."""
-    mine = await _workspace(db_session, "Мой")
-    theirs = await _workspace(db_session, "Чужой")
+    mine = await _workspace(db_session, "Mine")
+    theirs = await _workspace(db_session, "Theirs")
     await _sku(db_session, mine, MINE)
     await _sku(db_session, theirs, THEIRS)
     return mine, theirs
 
 
 async def test_orders_exclude_another_tenants_skus(db_session: AsyncSession) -> None:
-    """The mapping the «Заказы» column is built from carries one seller only.
+    """The mapping the "Orders" column is built from carries one seller only.
 
     Both SKUs have funnel rows in the same window, so an unscoped query returns
     both — which is exactly what the totals row used to sum.
@@ -147,7 +147,7 @@ async def test_orders_exclude_another_tenants_skus(db_session: AsyncSession) -> 
 
 
 async def test_buyouts_exclude_another_tenants_skus(db_session: AsyncSession) -> None:
-    """The «Выкуп» column's inputs carry one seller only."""
+    """The "Buyout" column's inputs carry one seller only."""
     mine, _ = await _two_tenants(db_session)
     await _funnel(db_session, MINE, date(2026, 8, 10), orders=7, buyouts=3, cancels=4)
     await _funnel(db_session, THEIRS, date(2026, 8, 10), orders=900, buyouts=500, cancels=100)
@@ -160,7 +160,7 @@ async def test_buyouts_exclude_another_tenants_skus(db_session: AsyncSession) ->
 
 
 async def test_ad_spend_excludes_another_tenants_skus(db_session: AsyncSession) -> None:
-    """Same for «Реклама», which is money and therefore louder when wrong."""
+    """Same for "Advertising", which is money and therefore louder when wrong."""
     mine, _ = await _two_tenants(db_session)
     await _ad_day(db_session, MINE, date(2026, 8, 10), "150.00")
     await _ad_day(db_session, THEIRS, date(2026, 8, 10), "99999.00")
@@ -175,7 +175,7 @@ async def test_ad_spend_excludes_another_tenants_skus(db_session: AsyncSession) 
 async def test_funnel_coverage_reports_only_this_tenants_days(
     db_session: AsyncSession,
 ) -> None:
-    """The coverage span is shown to the seller as «заказы известны с …».
+    """The coverage span is shown to the seller as "orders known from …".
 
     Unscoped, it would report the day ANOTHER seller's history begins — a
     smaller leak than the figures, and still a fact about someone else's
@@ -246,7 +246,7 @@ async def test_a_tenant_with_no_data_gets_nothing_rather_than_everything(
     _, _ = await _two_tenants(db_session)
     await _funnel(db_session, THEIRS, date(2026, 8, 10), orders=900)
     await _ad_day(db_session, THEIRS, date(2026, 8, 10), "99999.00")
-    empty = await _workspace(db_session, "Новый")
+    empty = await _workspace(db_session, "New")
 
     orders = await load_orders_by_nm(
         db_session, workspace_id=empty.id, date_from=WINDOW_FROM, date_to=WINDOW_TO
@@ -340,7 +340,7 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # `load_vendor_codes` uses, and `test_card_photos_exclude_another_tenants_skus`
     # is what actually proves it — this count only forces somebody to look.
     #
-    # 18 since 2026-09-16: `load_order_days` and `load_ad_days` give «Сводка» its
+    # 18 since 2026-09-16: `load_order_days` and `load_ad_days` give "Summary" its
     # whole-workspace daily series. Both go through `workspace_sku_select`, because
     # neither the funnel nor the campaign statistics carries a workspace of its
     # own — a bare `nm_id` filter would sum one seller's orders into another's
@@ -364,7 +364,7 @@ def test_the_loader_signature_guard_actually_has_something_to_check() -> None:
     # label the heatmap's money — prices in the currency WB states for them,
     # advertising in the one its ledger bills in. Both through the same semijoin.
     #
-    # 26 since 2026-10-01: `load_buyouts_by_nm`, WB's «Процент выкупа» inputs for
+    # 26 since 2026-10-01: `load_buyouts_by_nm`, WB's "Buyout rate" inputs for
     # the P&L article row — the same semijoin as `load_orders_by_nm`, proven by
     # `test_buyouts_exclude_another_tenants_skus` above.
     #

@@ -1,22 +1,23 @@
 <script setup>
 /**
- * The «Действия» row of the metrics table: what the team DID on each day.
+ * The "Actions" row of the metrics table: what the team DID on each day.
  *
- * Always visible under the comments. Per day, three blocks — «Первая РК» /
- * «Вторая РК» (a campaign-type dropdown plus «Бюджет рекламы») and «Меняли
- * цену?» («Повысили»/«Понизили» plus «На сколько»). Every change emits `action`
+ * Always visible under the comments. Per day, three blocks — "Campaign 1" /
+ * "Campaign 2" (a campaign-type dropdown plus "Ad budget") and "Price
+ * changed?" ("Raised"/"Lowered" plus "By how much"). Every change emits `action`
  * with a PARTIAL patch; the store merges it into the day's stored state and
  * saves the whole day (last write wins).
  *
  * Renders a `<tbody>`: it is a section of the parent's single `<table>`, so
  * each day's cards sit in that day's column and scroll with it.
  */
+import { normalizeTypedNumber } from '@/core/utils/format'
 import { DAY_COLSPAN } from '@/modules/monitoring/metricsMatrix'
 
 const props = defineProps({
   /** @type {Array<{iso: string, label: string}>} oldest -> newest */
   days: { type: Array, required: true },
-  /** Persisted «Действия» rows, keyed by ISO day (touched days only). */
+  /** Persisted "Actions" rows, keyed by ISO day (touched days only). */
   dayActions: { type: Object, default: () => ({}) },
   /** ISO days whose action save is in flight (their controls are disabled). */
   actionSavingDays: { type: Set, default: () => new Set() },
@@ -25,16 +26,16 @@ const props = defineProps({
 const emit = defineEmits(['action'])
 
 const PRICE_CHANGE_OPTIONS = [
-  { value: 'up', label: 'Повысили' },
-  { value: 'down', label: 'Понизили' },
+  { value: 'up', label: 'Raised' },
+  { value: 'down', label: 'Lowered' },
 ]
 
 // The campaign types an ad campaign slot can hold. The two slots draw from this same
 // list but are kept distinct (a type picked in one is disabled in the other).
 const RK_TYPE_OPTIONS = [
-  { value: 'uni', label: 'Единая' },
-  { value: 'manual_search', label: 'Руч. поиск' },
-  { value: 'manual_shelves', label: 'Руч. полки' },
+  { value: 'uni', label: 'Unified bid' },
+  { value: 'manual_search', label: 'Manual search' },
+  { value: 'manual_shelves', label: 'Manual shelves' },
   { value: 'cpc', label: 'CPC' },
 ]
 
@@ -45,13 +46,13 @@ const RK_BLOCKS = [
     typeField: 'first_rk_type',
     budgetField: 'first_rk_budget',
     otherTypeField: 'second_rk_type',
-    title: 'Первая РК',
+    title: 'Campaign 1',
   },
   {
     typeField: 'second_rk_type',
     budgetField: 'second_rk_budget',
     otherTypeField: 'first_rk_type',
-    title: 'Вторая РК',
+    title: 'Campaign 2',
   },
 ]
 /** The day's stored answers (or an all-null blank). */
@@ -74,7 +75,7 @@ function commitRkType(iso, block, event) {
   emit('action', { day: iso, patch })
 }
 
-/** «Меняли цену?» select: '' un-answers, otherwise up/down. */
+/** "Price changed?" select: '' un-answers, otherwise up/down. */
 function commitPriceChange(iso, event) {
   const next = event.target.value || null
   const patch = { price_change: next }
@@ -83,9 +84,9 @@ function commitPriceChange(iso, event) {
   emit('action', { day: iso, patch })
 }
 
-/** Commit a money input (budget / «На сколько») on blur or Enter; blank clears. */
+/** Commit a money input (budget / "By how much") on blur or Enter; blank clears. */
 function commitActionAmount(iso, field, event) {
-  const raw = event.target.value.trim().replace(',', '.')
+  const raw = normalizeTypedNumber(event.target.value)
   const stored = dayAction(iso)[field] ?? null
   const value = raw === '' ? null : Number(raw)
   if (raw !== '' && (Number.isNaN(value) || value < 0)) {
@@ -127,7 +128,7 @@ function priceChangeClass(iso) {
     </tr>
     <tr>
       <td>
-        <span class="text-micro font-semibold uppercase tracking-wide text-muted"> Действия </span>
+        <span class="text-micro font-semibold uppercase tracking-wide text-muted"> Actions </span>
       </td>
       <td v-for="day in days" :key="day.iso" :colspan="DAY_COLSPAN">
         <div class="day-action-cards">
@@ -154,7 +155,7 @@ function priceChangeClass(iso) {
               class="day-action-amount"
               :class="isAmountLocked(day.iso, block.typeField) && 'day-action-amount--locked'"
             >
-              <span>Бюджет рекламы</span>
+              <span>Ad budget</span>
               <input
                 type="text"
                 inputmode="decimal"
@@ -162,7 +163,7 @@ function priceChangeClass(iso) {
                 :disabled="
                   actionSavingDays.has(day.iso) || isAmountLocked(day.iso, block.typeField)
                 "
-                :title="isAmountLocked(day.iso, block.typeField) ? 'Сначала выберите РК' : null"
+                :title="isAmountLocked(day.iso, block.typeField) ? 'Pick a campaign first' : null"
                 @keydown.enter.prevent="$event.target.blur()"
                 @blur="commitActionAmount(day.iso, block.budgetField, $event)"
               />
@@ -170,13 +171,13 @@ function priceChangeClass(iso) {
           </div>
 
           <div class="day-action-card">
-            <span class="day-action-question">Меняли цену?</span>
+            <span class="day-action-question">Price changed?</span>
             <select
               class="day-action-select"
               :class="priceChangeClass(day.iso)"
               :value="dayAction(day.iso).price_change ?? ''"
               :disabled="actionSavingDays.has(day.iso)"
-              :aria-label="`Меняли цену? (${day.label})`"
+              :aria-label="`Price changed? (${day.label})`"
               @change="commitPriceChange(day.iso, $event)"
             >
               <option value="">—</option>
@@ -192,14 +193,14 @@ function priceChangeClass(iso) {
               class="day-action-amount"
               :class="isAmountLocked(day.iso, 'price_change') && 'day-action-amount--locked'"
             >
-              <span>На сколько</span>
+              <span>By how much</span>
               <input
                 type="text"
                 inputmode="decimal"
                 :value="dayAction(day.iso).price_change_amount ?? ''"
                 :disabled="actionSavingDays.has(day.iso) || isAmountLocked(day.iso, 'price_change')"
                 :title="
-                  isAmountLocked(day.iso, 'price_change') ? 'Сначала ответьте на вопрос' : null
+                  isAmountLocked(day.iso, 'price_change') ? 'Answer the question first' : null
                 "
                 @keydown.enter.prevent="$event.target.blur()"
                 @blur="commitActionAmount(day.iso, 'price_change_amount', $event)"

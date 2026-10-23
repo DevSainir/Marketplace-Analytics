@@ -3,7 +3,7 @@
 WB's analytics endpoints are metered per endpoint with a three-token bucket per
 seller token, and an overrun is answered with HTTP 500 or a held socket rather
 than a clean 429. Fanning the funnel and the stocks call out through the same
-``asyncio.gather`` therefore made every contended «Обновить» burn its retries on
+``asyncio.gather`` therefore made every contended "Refresh" burn its retries on
 stalls: 145-200s per refresh, zero funnel rows persisted, and a UI that reported
 a timeout on a harvest that had actually succeeded (2026-07-30).
 """

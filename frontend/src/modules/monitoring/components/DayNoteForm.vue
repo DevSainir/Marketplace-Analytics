@@ -50,7 +50,7 @@ function commit(field) {
 
 <template>
   <section class="mt-md">
-    <h3 class="mb-xs text-tiny font-medium uppercase text-muted">Комментарий</h3>
+    <h3 class="mb-xs text-tiny font-medium uppercase text-muted">Comment</h3>
 
     <input
       v-model="header"
@@ -58,8 +58,8 @@ function commit(field) {
       maxlength="200"
       class="ui-input w-full font-medium"
       :disabled="saving"
-      :placeholder="`Заголовок за ${day.label}`"
-      :aria-label="`Заголовок за ${day.label}`"
+      :placeholder="`Title for ${day.label}`"
+      :aria-label="`Title for ${day.label}`"
       @focus="focused = 'header'"
       @blur="commit('header')"
       @keydown.enter.prevent="$event.target.blur()"
@@ -72,8 +72,8 @@ function commit(field) {
       maxlength="2000"
       class="ui-input mt-xs w-full h-auto py-sm"
       :disabled="saving"
-      :placeholder="`Заметка за ${day.label}`"
-      :aria-label="`Комментарий за ${day.label}`"
+      :placeholder="`Note for ${day.label}`"
+      :aria-label="`Comment for ${day.label}`"
       @focus="focused = 'body'"
       @blur="commit('body')"
       @keydown.esc.prevent="$event.target.blur()"

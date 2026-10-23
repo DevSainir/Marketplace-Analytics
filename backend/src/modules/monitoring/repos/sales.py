@@ -13,8 +13,8 @@ from src.modules.monitoring.models import SaleRecord
 from src.modules.monitoring.repos.base import BaseRepository, workspace_sku_select
 
 # Sale records feed the SUMMARY listing's window buyout/return totals. The
-# matrix's «Выкупы, ₽» is now order-date derived («Заказы, ₽» x «Процент
-# выкупа»), so the former per-day sale-date aggregation is no longer needed.
+# matrix's "Buyouts, ₽" is now order-date derived ("Orders, ₽" x "Buyout
+# rate"), so the former per-day sale-date aggregation is no longer needed.
 _CONFLICT = ("sale_id",)
 _UPDATE = (
     "srid",

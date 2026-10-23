@@ -34,10 +34,11 @@ from src.modules.monitoring.repos import (
     PriceRepository,
 )
 from src.modules.monitoring.services.ingestion.funnel import FunnelIngestion
+from tests.support import wb_labels as wb
 
 
 def _write_off(
-    day: date, campaign_id: int, currency: str, payment_type: str = "Баланс"
+    day: date, campaign_id: int, currency: str, payment_type: str = wb.BALANCE
 ) -> AdvertisingWriteOffDaily:
     return AdvertisingWriteOffDaily(
         stat_date=day,
@@ -118,7 +119,7 @@ async def test_the_ad_unit_ignores_other_campaigns_and_other_days(db_session: As
     """Only the SKU's own campaigns inside the window decide its label; a bonus row counts."""
     db_session.add_all(
         [
-            _write_off(date(2026, 9, 10), 601, "KGS", payment_type="Кэшбэк"),
+            _write_off(date(2026, 9, 10), 601, "KGS", payment_type=wb.CASHBACK),
             _write_off(date(2026, 9, 10), 699, "RUB"),  # somebody else's campaign
             _write_off(date(2026, 8, 1), 601, "RUB"),  # before the window
         ]

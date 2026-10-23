@@ -7,7 +7,7 @@ rule — so normally every cell is in one currency (``repos/ad_money.py``).
 
 What is left here is the guard for a row the conversion could not reach — a
 rouble day past the loaded rates: a figure that would add or divide two
-currencies is «—» rather than a number off by the day's exchange rate.
+currencies is "—" rather than a number off by the day's exchange rate.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from src.modules.monitoring.services.matrix.pricing import order_unit
 
 
 def card_ad_currencies(day: MatrixDayBase) -> list[str]:
-    """The currencies of the card's whole advertising day («Общая»)."""
+    """The currencies of the card's whole advertising day ("Overall")."""
     codes: set[str] = set()
     for bucket in (*day.buckets.values(), day.unclassified):
         codes.update(bucket.currencies)

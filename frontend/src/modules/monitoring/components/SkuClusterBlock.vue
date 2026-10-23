@@ -8,7 +8,7 @@ import { formatMoney, formatNumber, formatPercent } from '@/core/utils/format'
  * 2026-09-26; hidden for everyone else since 2026-09-09. See the note in
  * `MonitoringView.vue`.
  *
- * «Рекламные кластеры» — the search phrases this SKU's ADS served in.
+ * "Search clusters" — the search phrases this SKU's ADS served in.
  *
  * A window of PAID impressions per search cluster, never an organic rank — the
  * live position probe that used to sit beside this block was removed on
@@ -30,18 +30,18 @@ defineProps({
   /**
    * The SKU's ad currencies (`ad_currencies`) — a fallback only: each cluster
    * names its own campaigns' (`currencies`), and one billed in two has no
-   * «Расход» or CPC at all (the backend sends null → «—»).
+   * "Spend" or CPC at all (the backend sends null → "—").
    */
   currency: { type: [String, Array], default: '' },
 })
 </script>
 
 <template>
-  <section class="mt-xl" aria-label="Рекламные кластеры">
-    <h2 class="text-h3 font-semibold text-primary">Рекламные кластеры</h2>
+  <section class="mt-xl" aria-label="Search clusters">
+    <h2 class="text-h3 font-semibold text-primary">Search clusters</h2>
     <p class="mt-xs max-w-3xl text-tiny font-medium text-muted">
-      Поисковые кластеры, по которым показывалась реклама этого артикула за выбранный период. Данные
-      приходят из статистики кампаний и копятся вперёд — за прошлые месяцы их нет.
+      Search phrases this SKU's ads were shown for in the selected period. Collected from campaign
+      stats from the day collection began — there is no earlier history.
     </p>
 
     <DataState
@@ -57,15 +57,15 @@ defineProps({
         <table class="min-w-[44rem]">
           <thead>
             <tr>
-              <th>Кластер</th>
-              <th class="text-right">Показы</th>
-              <th class="text-right">Клики</th>
+              <th>Cluster</th>
+              <th class="text-right">Impressions</th>
+              <th class="text-right">Clicks</th>
               <th class="text-right">CTR</th>
-              <th class="text-right">Заказы</th>
-              <th class="text-right">Расход</th>
+              <th class="text-right">Orders</th>
+              <th class="text-right">Spend</th>
               <th class="text-right">CPC</th>
-              <th class="text-right">Ср. позиция</th>
-              <th class="text-right">Дней</th>
+              <th class="text-right">Avg. position</th>
+              <th class="text-right">Days</th>
             </tr>
           </thead>
           <tbody>
@@ -95,7 +95,7 @@ defineProps({
     <DataState
       v-else-if="loaded && !clustersError"
       kind="empty"
-      text="За выбранный период реклама этого артикула не показывалась в поиске."
+      text="This SKU's ads weren't shown in search in the selected period"
       class="mt-md"
     />
   </section>

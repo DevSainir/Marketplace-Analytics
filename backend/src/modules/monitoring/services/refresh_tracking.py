@@ -1,4 +1,4 @@
-"""Ownership binding for interactive «Обновить» refresh tasks.
+"""Ownership binding for interactive "Refresh" tasks.
 
 ``POST /skus/{nm_id}/refresh`` returns a Celery task id, and
 ``GET /refresh/{task_id}`` reports its state. Celery's ``AsyncResult`` knows
@@ -64,7 +64,7 @@ def _inflight_key(workspace_id: uuid.UUID, nm_ids: Sequence[int]) -> str:
 
 
 async def spend_refresh_budget(workspace_id: uuid.UUID) -> None:
-    """Charge one «Обновить» enqueue to the workspace's budget.
+    """Charge one "Refresh" enqueue to the workspace's budget.
 
     The routes had no bound at all: every press enqueued another catalogue walk,
     so a held-down button (or a loop) could pile arbitrarily many onto a worker
@@ -87,15 +87,13 @@ async def spend_refresh_budget(workspace_id: uuid.UUID) -> None:
         window_seconds=settings.refresh_enqueue_window_seconds,
     )
     if not within_budget:
-        raise RateLimitError(
-            "Слишком много обновлений подряд. Подождите несколько минут и повторите."
-        )
+        raise RateLimitError("Too many refreshes in a row. Try again in a few minutes.")
 
 
 async def task_already_running(workspace_id: uuid.UUID, nm_ids: Sequence[int]) -> str | None:
     """Return the id of an identical refresh still in flight, if there is one.
 
-    Deduplication, not throttling: two presses of «Обновить» on the same card
+    Deduplication, not throttling: two presses of "Refresh" on the same card
     want one harvest and one task id to poll, not two runs racing to write the
     same rows. The budget above bounds abuse; this keeps ordinary impatience
     from costing anything at all.
@@ -189,7 +187,7 @@ async def task_belongs_to_workspace(task_id: str, workspace_id: uuid.UUID) -> bo
 #: over ~3 weeks, so two passes minutes apart write identical rows — and each
 #: costs 22 sequential rate-limited requests (~7 min). An hour is short enough
 #: that a seller who waited out a WB outage can still force fresh cohorts, and
-#: long enough that clicking «Обновить» on six SKUs in a row costs one pass
+#: long enough that clicking "Refresh" on six SKUs in a row costs one pass
 #: rather than six.
 _COHORT_CLAIM_TTL_SECONDS = 60 * 60
 

@@ -7,7 +7,7 @@ here only — never from ``services``/``repos``/``models`` internals.
 The read DTOs and the service type are re-exported for future consumers; the
 ``load_*``/``*_coverage``/``stock_day_span`` loaders are consumed today by the
 finreports P&L, which needs per-SKU orders and advertising spend the settlement
-report does not carry, and by its «Баланс по товарным остаткам» table, which
+report does not carry, and by its stock balance table, which
 prices the stock still sitting in the warehouses. The ``*_sku_days`` loaders and
 ``load_workspace_catalog`` feed the heatmap, which paints every SKU of a workspace
 day by day. ``load_ad_campaign_facts`` and its ``AdCampaign*`` rows feed the

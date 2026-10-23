@@ -1,7 +1,7 @@
 <script setup>
 /**
  * Day-by-day metrics table (spreadsheet-like): a horizontal ribbon of day
- * sections, each one the workbook's «тип трафика × зона показов» block,
+ * sections, each one the workbook's "traffic type × placement" block,
  * newest day on the right. Auto-scrolls to the newest day whenever a
  * new matrix arrives; the metric-name column stays frozen on the left while
  * scrolling (see `.app-datatable--matrix` skin in main.css).
@@ -18,9 +18,9 @@
  * BELOW the metrics are each their own component, because each is a separate
  * editing surface with its own state and its own rules:
  *
- *   MatrixDayBlocksRow  «Цены» / «Остатки» day-bound cards
+ *   MatrixDayBlocksRow  "Prices" / "Stock" day-bound cards
  *   MatrixCommentsRow   the per-day note (header + comment)
- *   MatrixActionsRow    the per-day «Действия» answers
+ *   MatrixActionsRow    the per-day "Actions" answers
  *
  * They render `<tbody>` sections of THIS table on purpose: sharing one table
  * (and therefore one scroll container) is what keeps every row's day columns
@@ -32,7 +32,7 @@
  * cells render as plain text.
  *
  * Header (3 rows, as in the workbook):
- *   «Дата» · «Тип получения трафика» (groups) · «Зоны показов» (leaf columns).
+ *   "Date" · "Traffic type" (groups) · "Placements" (leaf columns).
  * A group that ran a campaign that day links to it in WB's advertising portal;
  * hovering shows the id, selectable and copyable (`campaignLinks.js`).
  */
@@ -58,17 +58,17 @@ const props = defineProps({
   days: { type: Array, required: true },
   /** @type {Array<{key, label, tone, cells: object[]}>} day-major cell objects */
   rows: { type: Array, required: true },
-  /** «Цены» block rows — one «Общая» cell per day (prices editable). */
+  /** "Prices" block rows — one "Overall" cell per day (prices editable). */
   priceRows: { type: Array, default: () => [] },
-  /** «Остатки» block rows — one «Общая» cell per day (read-only). */
+  /** "Stock" block rows — one "Overall" cell per day (read-only). */
   stockRows: { type: Array, default: () => [] },
-  /** «Всего» card row — per-day total stock (stock + both «в пути» legs), read-only. */
+  /** "Total" card row — per-day total stock (stock + both in-transit legs), read-only. */
   stockTotalRows: { type: Array, default: () => [] },
   /** Persisted day notes, keyed by ISO day: `{body, header}` per commented day. */
   comments: { type: Object, default: () => ({}) },
   /** ISO days whose note save is in flight (their input is disabled). */
   commentSavingDays: { type: Set, default: () => new Set() },
-  /** Persisted «Действия» rows, keyed by ISO day (touched days only). */
+  /** Persisted "Actions" rows, keyed by ISO day (touched days only). */
   dayActions: { type: Object, default: () => ({}) },
   /** ISO days whose action save is in flight (their controls are disabled). */
   actionSavingDays: { type: Set, default: () => new Set() },
@@ -89,7 +89,7 @@ const { advertFor, tip, showTip, hideTip, keepTip } = useCampaignLinks(
   () => props.days,
 )
 
-/** Start at the right edge: «сегодня» first, older days appear scrolling left. */
+/** Start at the right edge: today first, older days appear scrolling left. */
 function scrollToNewestDay() {
   if (scroll.value) scroll.value.scrollLeft = scroll.value.scrollWidth
 }
@@ -97,7 +97,7 @@ function scrollToNewestDay() {
 const { assocTip, ctrTip, assocData, onMatrixOver, hideAssocTip } = useAssocHover(() => props.rows)
 
 // The tip's own scroll dismissal lives in useAssocHover; this only has to put
-// the ribbon at «сегодня» on first paint and after every window change.
+// the ribbon at today on first paint and after every window change.
 onMounted(scrollToNewestDay)
 watch(
   () => props.days,
@@ -139,7 +139,7 @@ watch(
       :style="`--matrix-days: ${days.length}; --matrix-per-screen: ${Math.min(2, days.length) || 1}`"
     >
       <div v-if="!rows.length" class="px-md py-xl text-center text-base text-muted">
-        Нет данных за выбранный период.
+        No data for the selected period
       </div>
 
       <div
@@ -155,14 +155,14 @@ watch(
           <thead>
             <!-- Row 1: date, one label spanning each day's whole section. -->
             <tr>
-              <th>Дата</th>
+              <th>Date</th>
               <th v-for="day in days" :key="day.iso" :colspan="DAY_COLSPAN">
                 {{ day.label }}
               </th>
             </tr>
-            <!-- Row 2: «Тип получения трафика» groups («Общая»/«Органика» span row 3). -->
+            <!-- Row 2: "Traffic type" groups ("Overall"/"Organic" span row 3). -->
             <tr>
-              <th>Тип получения трафика</th>
+              <th>Traffic type</th>
               <template v-for="day in days" :key="day.iso">
                 <th
                   v-for="group in TRAFFIC_GROUPS"
@@ -184,9 +184,9 @@ watch(
                 </th>
               </template>
             </tr>
-            <!-- Row 3: «Зоны показов» — only the zoned leaf columns. -->
+            <!-- Row 3: "Placements" — only the zoned leaf columns. -->
             <tr>
-              <th>Зоны показов</th>
+              <th>Placements</th>
               <th v-for="leaf in zoneHeaderColumns" :key="leaf.id" :colspan="leaf.colspan">
                 {{ leaf.zone }}
               </th>
@@ -201,7 +201,7 @@ watch(
             @edit="emit('edit', $event)"
           />
 
-          <!-- Day-bound «Цены»/«Остатки» blocks: ONE row, each day cell holding
+          <!-- Day-bound "Prices"/"Stock" blocks: ONE row, each day cell holding
                the two tinted cards side by side, in the SAME table so they
                scroll with their day. -->
 

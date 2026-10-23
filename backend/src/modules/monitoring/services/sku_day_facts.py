@@ -19,7 +19,7 @@ semijoin, so a foreign article in the list simply matches nothing.
 
 Advertising here is the SKU's own Promotion-API rows summed as reported, every
 campaign included — what the workspace actually spent. The monitoring matrix's
-«Общая» column keeps only the campaigns its bucket attribution selected, so the
+"Overall" column keeps only the campaigns its bucket attribution selected, so the
 two can differ on a card with small side campaigns; this is the figure that
 adds up to the workspace's spend.
 """
@@ -56,7 +56,7 @@ class CatalogCard(NamedTuple):
     title: str
     #: WB CDN URL, ``""`` when the card has none.
     photo_url: str
-    #: WB's «Предмет»; ``""`` until a catalogue sync has carried it.
+    #: WB's subject (the "Category"); ``""`` until a catalogue sync has carried it.
     subject_name: str
     brand: str
 
@@ -338,7 +338,7 @@ async def load_stock_sku_days(
 
     Only ``quantity`` — what sits on the shelf. The in-transit legs are stock
     WB is moving, not stock a buyer can order today, which is what a heatmap of
-    «Остатки» is read for.
+    "Stock" is read for.
 
     Args:
         session: An open async session (caller owns the transaction).

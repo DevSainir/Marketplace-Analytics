@@ -43,9 +43,9 @@ class SkuSummaryItem(BaseModel):
     (``total_open_count`` … ``total_orders``) are ORDER-date facts from WB's
     analytics feed. The buyout/return figures are SALE-date facts from the
     Statistics ``supplier/sales`` records — real per-item money, which is what
-    makes ``total_buyout_sum`` match the manager's Excel «Выкупы, ₽».
+    makes ``total_buyout_sum`` match the manager's Excel "Buyouts, ₽".
 
-    Consequently there is deliberately **no «Процент выкупа» here**. That metric
+    Consequently there is deliberately **no "Buyout rate" here**. That metric
     is ``buyouts / (buyouts + refusals-at-pickup)`` over a LAGGED cohort window
     and lives on the SKU matrix (``buyout_percent``). It cannot be answered for
     this endpoint's arbitrary window: refusals never become sale records, and
@@ -58,7 +58,7 @@ class SkuSummaryItem(BaseModel):
 
     nm_id: int = Field(description="WB SKU identifier.")
     vendor_code: str | None = Field(
-        default=None, description="Seller article code (WB 'Артикул продавца')."
+        default=None, description="Seller article code (WB's vendor code)."
     )
     title: str | None = Field(default=None, description="Product card title.")
     photo_url: str | None = Field(
@@ -83,7 +83,7 @@ class SkuSummaryItem(BaseModel):
         description=(
             "Post-purchase returns recorded in the window (sale-date) — a buyer sending "
             "an item back AFTER buying it. NOT a refusal at pickup (WB `cancelCount`), "
-            "which never becomes a sale record and drives «Процент выкупа» instead."
+            "which never becomes a sale record and drives the buyout rate instead."
         )
     )
     total_add_to_wishlist: int = Field(description="Total add-to-favourites events.")
@@ -117,7 +117,7 @@ class SkuDetailResponse(BaseModel):
 
     nm_id: int
     vendor_code: str | None = Field(
-        default=None, description="Seller article code (WB 'Артикул продавца')."
+        default=None, description="Seller article code (WB's vendor code)."
     )
     title: str | None = Field(default=None, description="Product card title.")
     feedback_rating: float | None = Field(
@@ -133,14 +133,14 @@ class SkuDetailResponse(BaseModel):
     )
     day_actions: dict[date, DayActionState] = Field(
         default_factory=dict,
-        description="Per-day manager action rows («Действия»: РК toggles + "
+        description='Per-day manager action rows ("Actions": campaign toggles + '
         "budgets, price change), keyed by day; untouched days are absent.",
     )
     window: MetricWindow
     price_currency: str = Field(
         default="",
         description="Currency of the prices and of every sum valued at them (orders, "
-        "buyouts) — what WB's prices API states, RUB even for a кабинет settled in KGS. "
+        "buyouts) — what WB's prices API states, RUB even for a workspace settled in KGS. "
         "Empty before the first labelled snapshot.",
     )
     ad_currencies: list[str] = Field(

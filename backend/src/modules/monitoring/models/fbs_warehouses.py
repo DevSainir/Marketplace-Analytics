@@ -5,7 +5,7 @@ configured anywhere: it is whatever ``GET /api/v3/warehouses`` returns, and a
 warehouse the seller opens tomorrow is read on the next run without a deploy.
 
 What IS pinned here is the label. ``StockSnapshot.warehouse_name`` is part of
-that table's primary key (and of every «Отгрузить» mark), so the name a
+that table's primary key (and of every "Ship" mark), so the name a
 warehouse's stock is filed under has to survive the seller renaming it in the
 WB portal — their names are editable working notes (a person, a district, a
 "do not delete" reminder), not identifiers. So the label is resolved ONCE, on
@@ -15,7 +15,7 @@ Which makes ``Settings.wb_fbs_warehouse_labels`` a seeding map, not a setting:
 editing an entry renames nothing, because the label in force is the frozen copy
 here. A real rename has to move ``stock_snapshot.warehouse_name`` with it, in one
 transaction — see the ``c7e4a1d90b62`` migration for the shape of it (it also
-carried the «Отгрузить» marks, a feature since removed).
+carried the "Ship" marks, a feature since removed).
 
 Keyed by the WB warehouse id alone, with no workspace column: the ids are
 WB-global, so two workspaces can never collide on one.

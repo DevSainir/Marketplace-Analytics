@@ -17,17 +17,17 @@ describe('RefreshAllSkusButton', () => {
     const wrapper = mount(RefreshAllSkusButton, { props: { refreshing: true } })
 
     expect(wrapper.find('button').attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('Обновляем…')
+    expect(wrapper.text()).toContain('Refreshing…')
   })
 
   it('shows the error message and hides the warning when both are set', () => {
     // Error wins over warning: a failure the user must act on must not be
     // hidden behind a softer "WB withheld some data" note.
     const wrapper = mount(RefreshAllSkusButton, {
-      props: { error: 'Что-то пошло не так', warning: 'WB не отдал остатки' },
+      props: { error: 'Something went wrong', warning: 'WB did not send: stock' },
     })
 
-    expect(wrapper.find('[role="alert"]').text()).toBe('Что-то пошло не так')
+    expect(wrapper.find('[role="alert"]').text()).toBe('Something went wrong')
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
   })
 })

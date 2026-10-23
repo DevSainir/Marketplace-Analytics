@@ -199,7 +199,7 @@ class AnalyticsService:
         )
 
     # ------------------------------------------------------------------ #
-    # Pinned SKUs (global «Закрепить» chips)
+    # Pinned SKUs (global "Pin" chips)
     # ------------------------------------------------------------------ #
     async def list_pinned_skus(self, *, workspace_id: uuid.UUID) -> PinnedSkusResponse:
         """Delegate to :meth:`PinnedSkuAnalytics.list_pinned_skus`."""
@@ -224,7 +224,7 @@ class AnalyticsService:
         return await self._pins.set_sku_color(workspace_id=workspace_id, nm_id=nm_id, color=color)
 
     # ------------------------------------------------------------------ #
-    # Day annotations («Комментарий» notes + «Действия» answers)
+    # Day annotations ("Comment" notes + "Actions" answers)
     # ------------------------------------------------------------------ #
     async def set_day_note(
         self,

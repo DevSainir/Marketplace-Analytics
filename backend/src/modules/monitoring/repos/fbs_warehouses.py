@@ -37,7 +37,7 @@ class FbsWarehouseRepository(BaseRepository):
         refreshes ``last_seen_at`` and WB's current name. The label is NEVER
         rewritten — it is a primary-key value in ``stock_snapshot``, so moving
         it would orphan the warehouse's whole stock history and its
-        «Отгрузить» marks (see :class:`FbsWarehouse`).
+        "Ship" marks (see :class:`FbsWarehouse`).
 
         Args:
             warehouse_id: WB id of the seller warehouse.

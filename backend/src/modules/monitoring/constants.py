@@ -24,7 +24,7 @@ MAX_MATRIX_DAYS: int = MAX_WINDOW_DAYS + 1
 
 #: Most snapshot days one stock-range request may carry.
 #:
-#: The «Остатки по складам» ribbon serves a FULL size x warehouse breakdown per
+#: The "Stock by warehouse" ribbon serves a FULL size x warehouse breakdown per
 #: day, so its response grows with days x sizes x warehouses — a year of a
 #: catalogue SKU sitting in fifty warehouses is a few hundred thousand cells in
 #: one body. The window ceiling above bounds the days we SELECT and bounds this

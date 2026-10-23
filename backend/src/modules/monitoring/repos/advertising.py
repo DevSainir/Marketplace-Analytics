@@ -248,7 +248,7 @@ class AdvertisingRepository(BaseRepository):
 
         These ARE the matrix's advertising columns: a column measures the
         ad campaign, and the viewed SKU's own rows only decorate it (the
-        carts/orders hover) and feed the «Общая»/«Органика» columns.
+        carts/orders hover) and feed the "Overall"/"Organic" columns.
 
         Args:
             campaign_ids: Campaigns to aggregate (typically the ones that

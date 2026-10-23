@@ -7,7 +7,7 @@ lifecycle status, bid model, and display-zone placements), sourced from
 advertising fact table (:class:`AdvertisingStatDaily`) references campaigns by
 ``campaign_id``; joining this dimension lets the API filter/group by campaign
 status and classify campaigns into the monitoring matrix's traffic buckets
-(«Единая ставка» / «Руч. поиск» / «Руч. полки»).
+("Unified bid" / "Manual search" / "Manual shelves").
 """
 
 from __future__ import annotations
@@ -35,9 +35,9 @@ class Campaign(Base):
         bid_type: WB bid model — ``unified`` (unified bid) or ``manual``
             (manual bid); ``None`` until the adverts-v2 sync has run.
         placement_search: Whether the campaign shows in the search zone
-            («Поиск»); ``None`` until synced.
+            ("Search"); ``None`` until synced.
         placement_recommendations: Whether the campaign shows in the
-            recommendations zone («Полки»); ``None`` until synced.
+            recommendations zone ("Shelves"); ``None`` until synced.
         name: Human-readable campaign name from campaign settings.
         payment_type: WB payment model (``cpm`` / ``cpc``).
         synced_at: Timestamp of the last sync from WB.

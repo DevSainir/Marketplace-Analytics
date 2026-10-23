@@ -43,7 +43,7 @@ class _StubAnalyticsService:
     def __init__(self) -> None:
         """Start with no recorded calls and benign default answers."""
         self.calls: list[tuple[str, dict[str, Any]]] = []
-        #: SKUs the bulk «Обновить все SKU» refresh will enqueue over.
+        #: SKUs the bulk "Refresh all SKUs" refresh will enqueue over.
         self.workspace_nm_ids: list[int] = [NM_ID]
 
     async def list_workspace_nm_ids(self, **kwargs: Any) -> list[int]:

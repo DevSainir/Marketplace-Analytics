@@ -1,4 +1,4 @@
-"""DTOs for the per-day note («Комментарий» + its header)."""
+"""DTOs for the per-day note (the "Comment" and its header)."""
 
 from __future__ import annotations
 

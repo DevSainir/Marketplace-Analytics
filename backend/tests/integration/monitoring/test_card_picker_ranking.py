@@ -2,7 +2,7 @@
 
 This is SQL — two grouped subqueries joined to a page of cards and three sort
 keys — so a fake repository would assert nothing but its own `sorted()`. The
-window is relative to «today» in Moscow, which is the other reason it belongs
+window is relative to "today" in Moscow, which is the other reason it belongs
 here: the loader reads the clock, and a test that pinned a date would pass on
 data the loader can no longer see.
 """
@@ -34,7 +34,7 @@ ADVERTISED = 100000003
 
 async def _workspace(session: AsyncSession, name: str) -> Workspace:
     """Persist a workspace in its own organisation."""
-    org = Organization(name=f"Орг {name}", is_primary=False)
+    org = Organization(name=f"Org {name}", is_primary=False)
     session.add(org)
     await session.flush()
     workspace = Workspace(id=uuid.uuid4(), organization_id=org.id, name=name)
@@ -46,7 +46,7 @@ async def _workspace(session: AsyncSession, name: str) -> Workspace:
 async def _card(session: AsyncSession, workspace: Workspace, nm_id: int, code: str) -> None:
     """Register one catalogue card to a workspace."""
     session.add(
-        ProductCard(nm_id=nm_id, workspace_id=workspace.id, vendor_code=code, title="Платье")
+        ProductCard(nm_id=nm_id, workspace_id=workspace.id, vendor_code=code, title="Dress")
     )
     await session.flush()
 
@@ -90,15 +90,15 @@ async def test_advertised_cards_come_first_then_the_best_sellers(
 ) -> None:
     """The order is what the picker opens with, so it has to be the useful one.
 
-    Alphabetically this is exactly backwards — `А-`, `Б-`, `Я-` — which is what
-    the vendor-code ordering used to serve. A rotation on «по показам» only
+    Alphabetically this is exactly backwards — `A-`, `B-`, `Z-` — which is what
+    the vendor-code ordering used to serve. A rotation on the impressions trigger only
     advances while the card is advertised, so an unadvertised card belongs below
     every advertised one however well it sells.
     """
-    workspace = await _workspace(db_session, "Мой")
-    await _card(db_session, workspace, QUIET, "А-тихий")
-    await _card(db_session, workspace, SELLER, "Б-ходовой")
-    await _card(db_session, workspace, ADVERTISED, "Я-рекламируемый")
+    workspace = await _workspace(db_session, "Mine")
+    await _card(db_session, workspace, QUIET, "A-quiet")
+    await _card(db_session, workspace, SELLER, "B-bestseller")
+    await _card(db_session, workspace, ADVERTISED, "Z-advertised")
     await _orders(db_session, SELLER, days_ago=1, orders=90)
     await _orders(db_session, ADVERTISED, days_ago=1, orders=5)
     await _ads(db_session, ADVERTISED, days_ago=1, views=1000)
@@ -115,9 +115,9 @@ async def test_advertised_cards_come_first_then_the_best_sellers(
 
 async def test_only_the_last_week_counts_towards_the_ranking(db_session: AsyncSession) -> None:
     """A card that sold well a month ago is not a card worth testing today."""
-    workspace = await _workspace(db_session, "Мой")
-    await _card(db_session, workspace, QUIET, "А-тихий")
-    await _card(db_session, workspace, SELLER, "Б-ходовой")
+    workspace = await _workspace(db_session, "Mine")
+    await _card(db_session, workspace, QUIET, "A-quiet")
+    await _card(db_session, workspace, SELLER, "B-bestseller")
     # Just outside the window on one side, just inside on the other.
     await _orders(db_session, QUIET, days_ago=RANKING_DAYS + 1, orders=500)
     await _orders(db_session, SELLER, days_ago=RANKING_DAYS - 1, orders=3)
@@ -136,9 +136,9 @@ async def test_an_advertising_row_that_served_nothing_is_not_advertising(
     Counting it would float every card ever attached to a paused campaign above
     the ones actually selling — the opposite of what the ranking is for.
     """
-    workspace = await _workspace(db_session, "Мой")
-    await _card(db_session, workspace, QUIET, "А-тихий")
-    await _card(db_session, workspace, SELLER, "Б-ходовой")
+    workspace = await _workspace(db_session, "Mine")
+    await _card(db_session, workspace, QUIET, "A-quiet")
+    await _card(db_session, workspace, SELLER, "B-bestseller")
     await _ads(db_session, QUIET, days_ago=1, views=0)
     await _orders(db_session, SELLER, days_ago=1, orders=4)
 
@@ -156,10 +156,10 @@ async def test_another_tenants_sales_never_rank_this_tenants_cards(
     ``sales_funnel_daily`` is keyed by ``nm_id`` alone, so two workspaces holding
     the same article share its rows. The ranking must still read one tenant's.
     """
-    mine = await _workspace(db_session, "Мой")
-    theirs = await _workspace(db_session, "Чужой")
-    await _card(db_session, mine, QUIET, "А-тихий")
-    await _card(db_session, theirs, SELLER, "Б-чужой")
+    mine = await _workspace(db_session, "Mine")
+    theirs = await _workspace(db_session, "Theirs")
+    await _card(db_session, mine, QUIET, "A-quiet")
+    await _card(db_session, theirs, SELLER, "B-theirs")
     await _orders(db_session, SELLER, days_ago=1, orders=900)
     await _ads(db_session, SELLER, days_ago=1, views=9000)
 

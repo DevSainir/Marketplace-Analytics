@@ -36,8 +36,8 @@ const { editingId, draft, startEdit, commitEdit, cancelEdit } = useCellEditing({
   onCommit: (payload) => emit('edit', payload),
 })
 
-// Metric accents: «Затраты» green, «Заказы»/«Конверсия в заказ» amber,
-// «Корзины»/«Конверсия в корзину» indigo. Labels always; cells only when filled.
+// Metric accents: "Spend" green, "Orders"/"Order conversion" amber,
+// "Add to cart"/"Cart conversion" indigo. Labels always; cells only when filled.
 const TONE_CLASSES = {
   warning: 'text-status-warning',
   negative: 'text-status-negative',
@@ -52,14 +52,14 @@ function cellToneClass(row, cell) {
 
 // Each metric row belongs to one of four data blocks (traffic / funnel /
 // money / efficiency); the block reads through a subtle row tint (see the
-// `matrix-group--*` rules in main.css). «ДРР от продаж» is emphasized.
+// `matrix-group--*` rules in main.css). "ACoS (sales)" is emphasized.
 function rowClasses(row) {
   return [
     row.group && `matrix-group--${row.group}`,
     row.emphasis && 'matrix-row-emphasis',
     // A merged row lays out fewer cells per day than the skin's per-leaf
     // border cadence in main.css assumes, so each restates its own boundaries
-    // below: «ДРР от продаж» has one per traffic group, «Процент выкупа»
+    // below: "ACoS (sales)" has one per traffic group, "Buyout rate"
     // exactly one per day.
     row.key === 'drr_sales' && 'matrix-row-merged matrix-row-merged--campaign',
     row.key === 'buyout_percent' && 'matrix-row-merged matrix-row-merged--day',

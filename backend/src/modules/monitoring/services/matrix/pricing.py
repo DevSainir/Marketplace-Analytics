@@ -37,11 +37,11 @@ def order_unit(funnel: MatrixFunnelBase | None) -> tuple[float | None, str]:
 
 
 def ad_order_sum(orders: int, funnel: MatrixFunnelBase | None) -> float | None:
-    """«Заказы» an advertising slice brought = its orders x the day's order unit.
+    """The "Orders" an advertising slice brought = its orders x the day's order unit.
 
     WB exposes no zone-attributed order revenue (and none at all for a split
     campaign), so the volume is DERIVED here — the same ``count x unit`` rule
-    the «Общая» column uses, applied to the ad slice (see :func:`order_unit`).
+    the "Overall" column uses, applied to the ad slice (see :func:`order_unit`).
 
     ``orders`` is the CAMPAIGN's count, all associated size/colour variants
     included (an ad bucket carries no other kind — see :class:`_AdSlice`),
@@ -63,9 +63,9 @@ def ad_order_sum(orders: int, funnel: MatrixFunnelBase | None) -> float | None:
 def ad_buyout_sum(
     orders: int, funnel: MatrixFunnelBase | None, lagged_buyout_percent: float | None
 ) -> float | None:
-    """«Выкупы» an advertising slice brought = its «Заказы» x «Процент выкупа».
+    """The "Buyouts" an advertising slice brought = its "Orders" x "Buyout rate".
 
-    Order-date attributed, exactly like the «Общая» column's buyout value: the
+    Order-date attributed, exactly like the "Overall" column's buyout value: the
     orders a campaign delivered on day D are worth what that day's cohort
     actually bought out. ``None`` when the day is unpriced or the lagged buyout
     percent could not be computed.
@@ -80,10 +80,10 @@ def price_for_day(ordered: list[PriceSnapshot], day: date) -> tuple[float | None
     """``(seller, customer)`` price for ``day`` — actual snapshots only.
 
     A day is priced ONLY when a snapshot was captured on that exact date;
-    other days return ``(None, None)`` and render as «—». Snapshots are
+    other days return ``(None, None)`` and render as "—". Snapshots are
     deliberately NOT carried onto neighbouring days: a price shown for a day
     we never observed would be fabricated data (and it silently skews the
-    derived «Заказы/Выкупы, ₽»).
+    derived "Orders/Buyouts, ₽").
 
     Args:
         ordered: The SKU's price snapshots, ascending by date.
@@ -104,7 +104,7 @@ def price_for_day(ordered: list[PriceSnapshot], day: date) -> tuple[float | None
 def _stock_for_day(ordered: list[StockDailyTotal], day: date) -> MatrixStockBase | None:
     """Stock totals for ``day`` — actual snapshots only (same rule as prices).
 
-    ``None`` (rendered «—») unless a stock snapshot was captured on that exact
+    ``None`` (rendered "—") unless a stock snapshot was captured on that exact
     date; totals are never carried onto days we did not observe.
 
     Args:
@@ -125,7 +125,7 @@ def _stock_for_day(ordered: list[StockDailyTotal], day: date) -> MatrixStockBase
 
 
 def _funnel_order_sum(funnel: MatrixFunnelBase | None) -> float | None:
-    """«Заказы» = order_count x the day's order unit (``None`` when unpriced).
+    """Day "Orders" = order_count x the day's order unit (``None`` when unpriced).
 
     With WB's funnel sum this IS that sum — ``count x sum / count`` — and it
     still follows an edited count. ``None`` on a price-only day (no funnel row
@@ -142,10 +142,10 @@ def _funnel_order_sum(funnel: MatrixFunnelBase | None) -> float | None:
 def _buyout_sum(
     funnel: MatrixFunnelBase | None, lagged_buyout_percent: float | None
 ) -> float | None:
-    """«Выкупы» = «Заказы» x «Процент выкупа» — the order-date buyout value.
+    """Day "Buyouts" = "Orders" x "Buyout rate" — the order-date buyout value.
 
-    Attributed to the ORDER date (like «Заказы») so the row is congruent:
-    ``order_count x unit x buyout% = «Заказы» x «Процент выкупа»``.
+    Attributed to the ORDER date (like "Orders") so the row is congruent:
+    ``order_count x unit x buyout% = "Orders" x "Buyout rate"``.
     ``None`` when the day is unpriced / has no funnel row, or the lagged buyout
     percent could not be computed.
     """
@@ -156,7 +156,7 @@ def _buyout_sum(
 
 
 def _funnel_spp(funnel: MatrixFunnelBase | None) -> float | None:
-    """«СПП, %» = (seller - customer) / seller x 100 (``None`` when incomplete)."""
+    """Day "WB discount, %" = (seller - customer) / seller x 100 (``None`` when incomplete)."""
     if funnel is None or not funnel.seller_price or funnel.customer_price is None:
         return None
     return round((funnel.seller_price - funnel.customer_price) / funnel.seller_price * 100, 2)

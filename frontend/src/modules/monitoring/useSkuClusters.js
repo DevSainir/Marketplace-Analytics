@@ -1,5 +1,5 @@
 /**
- * «Рекламные кластеры» is shown per workspace: hidden for everyone on 2026-09-09,
+ * "Search clusters" is shown per workspace: hidden for everyone on 2026-09-09,
  * back since 2026-09-26 for the workspaces whose `search_clusters_enabled` is
  * set. Where it is off this composable fetches nothing — see the note in
  * `MonitoringView.vue`.

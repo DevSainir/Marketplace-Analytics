@@ -33,13 +33,13 @@ import { formatNumber } from '@/core/utils/format'
  * Which is why the widths come from a `<colgroup>` and not from the cells. Days
  * hold different numbers of columns, and a table left to itself gives every
  * COLUMN an equal share — so the day with twelve warehouses would be three
- * times the width of the day with four and «two days on screen» would mean
+ * times the width of the day with four and "two days on screen" would mean
  * whatever the data felt like. The colgroup gives every day the same measured
  * width and lets it divide that between its own warehouses. (The width has to
  * be in px: a `calc()` mixing a percentage into a `<col>` is dropped, which is
  * what `--group-w` and the observer below are for.)
  *
- * A seller with ONE warehouse gets no «Всего» (it would repeat the only
+ * A seller with ONE warehouse gets no "Total" (it would repeat the only
  * column) and five days a screen instead of two — see `DAYS_PER_SCREEN`.
  *
  * Native `<table>`, same reasoning as MetricsTable.vue: fixed column order, no
@@ -57,13 +57,13 @@ const props = defineProps({
    */
   sizeOrder: { type: Array, default: () => [] },
   /** Message when not one day of the period holds any stock. */
-  emptyMessage: { type: String, default: 'Нет складских остатков по этому SKU.' },
+  emptyMessage: { type: String, default: 'No stock for this SKU' },
 })
 
 const { hoverTip, showNameTip, hideNameTip } = useWarehouseNameTip()
 
 /**
- * Human size label (WB «Размер вещи»); falls back to the raw `chrt_id`
+ * Human size label (WB's `techSize`); falls back to the raw `chrt_id`
  * until the content catalogue is synced for that size.
  */
 function sizeLabel(row) {
@@ -72,7 +72,7 @@ function sizeLabel(row) {
 
 /**
  * Compact warehouse header: the first 8 letters (WB names like
- * «Электросталь» blow the columns up); the full name shows on hover.
+ * "Elektrostal" blow the columns up); the full name shows on hover.
  */
 function shortWarehouseName(name) {
   return name.length > 8 ? `${name.slice(0, 8)}…` : name
@@ -95,7 +95,7 @@ const hasStock = computed(() => columns.value.some((day) => day.warehouses.lengt
 
 const single = computed(() => isSingleWarehouse(columns.value))
 
-/** One column's width: «Всего» is fixed, the warehouses share the rest. */
+/** One column's width: "Total" is fixed, the warehouses share the rest. */
 function columnWidth(day, column) {
   if (column.kind === 'total') return 'var(--col-total-w)'
   if (single.value) return 'var(--group-w)'
@@ -135,7 +135,7 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({
         <thead>
           <!-- Row 1: one date spanning each day's whole group. -->
           <tr>
-            <th class="col-size" rowspan="2">Размер</th>
+            <th class="col-size" rowspan="2">Size</th>
             <th
               v-for="day in columns"
               :key="day.key"
@@ -143,10 +143,10 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({
               :colspan="dayColumns(day, single).length"
             >
               {{ day.label }}
-              <span v-if="!day.warehouses.length" class="text-muted">· нет остатков</span>
+              <span v-if="!day.warehouses.length" class="text-muted">· no stock</span>
             </th>
           </tr>
-          <!-- Row 2: that day's «Всего» (unless single), then its warehouses. -->
+          <!-- Row 2: that day's "Total" (unless single), then its warehouses. -->
           <tr>
             <template v-for="day in columns" :key="day.key">
               <th
@@ -158,7 +158,7 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({
               >
                 {{
                   column.kind === 'total'
-                    ? 'Всего'
+                    ? 'Total'
                     : column.wh
                       ? shortWarehouseName(column.wh.name)
                       : ''
@@ -200,7 +200,7 @@ const { root, scroll, groupWidth } = useStockRibbonLayout({
 
         <tfoot>
           <tr>
-            <td class="cell-size font-medium">Всего</td>
+            <td class="cell-size font-medium">Total</td>
             <template v-for="day in columns" :key="day.key">
               <td
                 v-for="(column, i) in dayColumns(day, single)"

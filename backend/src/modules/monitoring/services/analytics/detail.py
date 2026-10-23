@@ -171,7 +171,7 @@ class DetailAnalytics:
         """
         date_from, date_to = resolve_window(date_from, date_to)
         # The funnel is fetched over an EXTENDED window: the matrix's lagged
-        # «Процент выкупа» reads up to BUYOUT_LAG_START_DAYS before the first
+        # "Buyout rate" reads up to BUYOUT_LAG_START_DAYS before the first
         # displayed day. Everything else uses the requested window's slice.
         inputs = await self.fetch_matrix_inputs(
             nm_id=nm_id, date_from=date_from, date_to=date_to, campaign_id=campaign_id
@@ -186,7 +186,7 @@ class DetailAnalytics:
         )
 
         if not funnel_rows and not inputs.ad_rows and not inputs.stock_daily:
-            raise NotFoundError(f"Нет данных мониторинга по артикулу {nm_id}.")
+            raise NotFoundError(f"No monitoring data for SKU {nm_id}.")
 
         # Group + filter the per-campaign advertising view.
         advertising = build_campaign_advertising(inputs.ad_rows, inputs.campaigns)
@@ -202,7 +202,7 @@ class DetailAnalytics:
         overlay_overrides(base, overrides, nm_id=nm_id)
 
         # The raw funnel list/totals carry the same price-derived ₽ volumes
-        # (count x carry-forward seller price) the matrix «Общая» column shows.
+        # (count x carry-forward seller price) the matrix "Overall" column shows.
         funnel_details, window_order_sum, window_buyout_sum = price_funnel_details(
             funnel_rows, inputs.price_snapshots
         )
@@ -279,7 +279,7 @@ class DetailAnalytics:
             nm_id=sku, date_from=date_from, date_to=date_to
         )
         if not funnel_rows:
-            raise NotFoundError(f"Нет метрик воронки по артикулу {sku}.")
+            raise NotFoundError(f"No funnel metrics for SKU {sku}.")
 
         price_snapshots = await self._prices.list_for_sku(
             nm_id=sku, date_from=date_from, date_to=max(date_to, moscow_today())
@@ -310,7 +310,7 @@ class DetailAnalytics:
 
         Shared by the detail read and the save path so both derive an identical
         fact-base. The funnel spans ``[date_from - BUYOUT_LAG_START_DAYS, date_to]``
-        for the lagged «Процент выкупа»; price snapshots share that extended
+        for the lagged "Buyout rate"; price snapshots share that extended
         window so early display days can carry an earlier price forward.
         """
         extended_start = date_from - timedelta(days=BUYOUT_LAG_START_DAYS)
@@ -328,7 +328,7 @@ class DetailAnalytics:
         campaigns = await self._campaigns.get_by_ids({row.campaign_id for row in ad_rows})
         # The campaigns' OWN totals across every nm_id they delivered for —
         # what the advertising columns measure. The SKU's rows above stay the
-        # card's share of them («Общая»/«Органика», and the hover's split).
+        # card's share of them ("Overall"/"Organic", and the hover's split).
         campaign_ids = {row.campaign_id for row in ad_rows}
         campaign_totals = await self._advertising.campaign_day_totals(
             campaign_ids=campaign_ids,
@@ -342,7 +342,7 @@ class DetailAnalytics:
         )
         # ...and the same totals per variant, naming who they were booked on
         # (the carts/orders hover). Labelled from the catalogue so the hover can
-        # say «M-TRX01-BLK» rather than a bare nm_id.
+        # say "M-TRX01-BLK" rather than a bare nm_id.
         campaign_sku_totals = await self._advertising.campaign_day_sku_totals(
             campaign_ids=campaign_ids,
             date_from=date_from,
