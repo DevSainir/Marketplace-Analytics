@@ -54,8 +54,8 @@ def _read(**overrides: Any) -> AbTestRead:
     payload: dict[str, Any] = {
         "id": TEST_ID,
         "nm_id": NM_ID,
-        "vendor_code": "ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        "name": "Тест главного фото",
+        "vendor_code": "KID_DRESS_FLORAL",
+        "name": "Main photo test",
         "status": "draft",
         "trigger_mode": "impressions",
         "impression_budget": 10_000,
@@ -117,7 +117,7 @@ def _detail() -> AbTestDetail:
 
 #: The catalogue card every stubbed lookup resolves to. A test may only name an
 #: article its workspace owns, so the component tier has to supply one.
-CARD = WorkspaceCard(nm_id=NM_ID, vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК", title="Брюки бананы")
+CARD = WorkspaceCard(nm_id=NM_ID, vendor_code="KID_DRESS_FLORAL", title="Banana trousers")
 
 
 class _StubCatalogue:

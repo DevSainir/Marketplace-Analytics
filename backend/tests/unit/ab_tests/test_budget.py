@@ -65,10 +65,10 @@ class _FakeBudgets:
 @pytest.mark.parametrize(
     ("status", "counts"),
     [
-        pytest.param(SERVING_STATUS, True, id="идут показы — spending now"),
-        pytest.param(PAUSED_STATUS, True, id="на паузе — money still there, resumable"),
-        pytest.param(FINISHED, False, id="завершена — cannot spend whatever it reports"),
-        pytest.param(READY, False, id="готова к запуску — never served"),
+        pytest.param(SERVING_STATUS, True, id="serving — spending now"),
+        pytest.param(PAUSED_STATUS, True, id="paused — money still there, resumable"),
+        pytest.param(FINISHED, False, id="finished — cannot spend whatever it reports"),
+        pytest.param(READY, False, id="ready to start — never served"),
     ],
 )
 def test_only_campaigns_that_can_still_spend_are_asked(status: int, counts: bool) -> None:
@@ -125,7 +125,7 @@ async def test_switching_the_campaign_off_pauses_the_test() -> None:
 
 
 async def test_a_running_campaign_with_no_money_is_not_serving() -> None:
-    """«Идут показы» with a zero budget serves nothing, whatever WB calls it."""
+    """A "serving" campaign with a zero budget serves nothing, whatever WB calls it."""
     adverts = [_advert(10, NM_TROUSERS)]
     client = _FakeBudgets({10: 0})
 
@@ -175,7 +175,7 @@ async def test_a_campaign_wb_will_not_answer_for_poisons_the_whole_answer() -> N
 async def test_a_card_nobody_is_advertising_pauses_like_a_switched_off_one() -> None:
     """No campaign at all is nothing to measure, the same as a stopped one.
 
-    It used to read as UNKNOWN, and a «по времени» test on such a card dealt
+    It used to read as UNKNOWN, and a "By time" test on such a card dealt
     every photo through dead air — a table of zeros a seller took for a test
     that works without advertising.
     """

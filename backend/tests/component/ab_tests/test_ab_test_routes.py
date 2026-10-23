@@ -47,9 +47,9 @@ async def test_the_search_box_reaches_the_service(
     client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
 ) -> None:
     """``?q=`` is forwarded verbatim — one box searches every field."""
-    await client.get("/api/ab-tests", params={"q": "ЦВЕТОЧЕК"}, headers=headers)
+    await client.get("/api/ab-tests", params={"q": "FLORAL"}, headers=headers)
 
-    assert catalog.calls[0][1]["query"] == "ЦВЕТОЧЕК"
+    assert catalog.calls[0][1]["query"] == "FLORAL"
 
 
 async def test_an_unauthenticated_caller_gets_401(client: httpx.AsyncClient) -> None:
@@ -67,7 +67,7 @@ async def test_a_foreign_test_reads_as_404(
     A 403 would confirm the id exists, and a test id names a card the caller
     should not know about.
     """
-    catalog.error = NotFoundError("Тест не найден.")
+    catalog.error = NotFoundError("Test not found.")
 
     response = await client.get(f"/api/ab-tests/{TEST_ID}", headers=headers)
 
@@ -117,7 +117,7 @@ async def test_uploading_a_photo_passes_the_bytes_and_type_through(
 async def test_the_main_photo_flag_reaches_the_service(
     client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:
-    """`?main=true` is what files an upload as «Главное».
+    """`?main=true` is what files an upload as "Main photo".
 
     The flag is the whole feature at this tier: the baseline used to be
     downloaded from WB's CDN, and the only thing that now distinguishes it from
@@ -146,7 +146,7 @@ async def test_a_full_rotation_refuses_the_eleventh_photo_with_409(
     client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:
     """The ten-photo cap surfaces as a conflict, not a 500."""
-    photos.error = ConflictError("В тесте не может быть больше 10 фото.")
+    photos.error = ConflictError("A test holds at most 10 photos.")
 
     response = await client.post(
         f"/api/ab-tests/{TEST_ID}/variants",
@@ -194,7 +194,7 @@ async def test_the_live_photo_cannot_be_deleted(
     client: httpx.AsyncClient, headers: dict[str, str], photos: _StubVariants
 ) -> None:
     """Removing the installed photo would leave the card pointing at nothing."""
-    photos.error = ConflictError("Нельзя удалить фото, которое сейчас стоит на карточке.")
+    photos.error = ConflictError("The photo on the card right now can't be deleted.")
 
     response = await client.delete(
         f"/api/ab-tests/{TEST_ID}/variants/{VARIANT_ID}", headers=headers
@@ -223,7 +223,7 @@ async def test_the_image_route_serves_the_stored_original(
 async def test_starting_a_test_goes_through_the_status_route(
     client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
 ) -> None:
-    """«Запустить» is a status transition, and it reaches the service as one."""
+    """The "Start" button is a status transition, and reaches the service as one."""
     response = await client.patch(
         f"/api/ab-tests/{TEST_ID}/status", headers=headers, json={"status": "running"}
     )
@@ -236,7 +236,7 @@ async def test_starting_a_test_with_no_photos_is_a_409(
     client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
 ) -> None:
     """An empty rotation cannot start — there is nothing to install."""
-    catalog.error = ConflictError("Загрузите хотя бы одно фото, прежде чем запускать тест.")
+    catalog.error = ConflictError("Upload at least one photo before starting the test.")
 
     response = await client.patch(
         f"/api/ab-tests/{TEST_ID}/status", headers=headers, json={"status": "running"}
@@ -277,7 +277,7 @@ async def test_finishing_a_finished_test_is_a_409(
     client: httpx.AsyncClient, headers: dict[str, str], finisher: _StubFinisher
 ) -> None:
     """The domain's refusal reaches the page as a conflict, not a 500."""
-    finisher.error = ConflictError("Завершить можно только запущенный тест или тест на паузе.")
+    finisher.error = ConflictError("Only a running or paused test can be finished.")
 
     response = await client.post(
         f"/api/ab-tests/{TEST_ID}/finish",
@@ -397,7 +397,7 @@ async def test_a_lapsed_subscription_cannot_touch_the_card_either(
     response = await client.delete(f"/api/ab-tests/{TEST_ID}", headers=headers)
 
     assert response.status_code == 403
-    assert "Продлите подписку" in response.text
+    assert "Renew it" in response.text
 
 
 async def test_the_grace_window_still_installs_photos(

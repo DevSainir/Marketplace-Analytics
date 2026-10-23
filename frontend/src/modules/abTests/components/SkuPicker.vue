@@ -1,21 +1,21 @@
 <script setup>
 /**
- * Article picker for a new test — a search field that stays a search field.
+ * SKU picker for a new test — a search field that stays a search field.
  *
- * A free-text article field let a test be created against `1` — an article no
+ * A free-text SKU field let a test be created against `1` — a WB ID no
  * workspace owns, which the poller finds no advertising for and a rotation
  * would try to upload a photo to. The API refuses those now; this is the half
  * that stops them being typed in the first place, and it is why the separate
- * «Артикул продавца» field is gone: both identifiers reach the same card, and
- * the seller article is read off it.
+ * "Vendor code" field is gone: both identifiers reach the same card, and
+ * the vendor code is read off it.
  *
  * Two things it does NOT do, both of them fixes:
  *
  * * It does not swap itself for a read-only chip once a card is picked. That
- *   version needed a «сменить» button to get back, which is one control for
+ *   version needed a "change" button to get back, which is one control for
  *   something the field could already do. Typing is always allowed, and typing
- *   after a pick DROPS the pick — otherwise the box could read «АРТ-2» while
- *   the form still carried the card behind «АРТ-1».
+ *   after a pick DROPS the pick — otherwise the box could read "SKU-2" while
+ *   the form still carried the card behind "SKU-1".
  * * It does not leave the list open. The list closes on Escape and on focus
  *   leaving the whole combobox, which is what a click anywhere else does; the
  *   previous version had neither and could only be dismissed by picking. The
@@ -31,7 +31,7 @@ import { ref } from 'vue'
 import { formatSku } from '@/core/utils/format'
 
 const props = defineProps({
-  /** Catalogue options, in the order the store loaded them. */
+  /** Catalog options, in the order the store loaded them. */
   options: { type: Array, default: () => [] },
   /** The currently picked card, or null. */
   modelValue: { type: Object, default: null },
@@ -42,7 +42,7 @@ const needle = ref('')
 const open = ref(false)
 const root = ref(null)
 
-/** What the field shows for a card: the seller article, or the WB one. */
+/** What the field shows for a card: the vendor code, or the WB ID. */
 const label = (option) => formatSku(option.vendor_code) || String(option.nm_id)
 
 function pick(option) {
@@ -55,7 +55,7 @@ function pick(option) {
  * Typing re-opens the list, re-runs the search and un-picks the current card.
  *
  * Un-picking is the point: leaving the pick in place would let the field say
- * one article while the form submitted another.
+ * one SKU while the form submitted another.
  */
 function onInput(event) {
   needle.value = event.target.value
@@ -83,14 +83,14 @@ function clear() {
 
 <template>
   <div ref="root" class="relative" @focusout="onFocusOut" @keydown.esc="close">
-    <span class="text-tiny font-medium uppercase tracking-wide text-muted">Артикул</span>
+    <span class="text-tiny font-medium uppercase tracking-wide text-muted">SKU</span>
 
     <div class="relative mt-xs">
       <input
         :value="needle"
         data-testid="sku-search"
         class="ui-input w-full pr-10"
-        placeholder="Артикул WB, артикул продавца или название"
+        placeholder="WB ID, vendor code or name"
         role="combobox"
         :aria-expanded="open"
         @focus="open = true"
@@ -100,7 +100,7 @@ function clear() {
       <button
         v-if="needle"
         type="button"
-        aria-label="Очистить"
+        aria-label="Clear"
         class="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-muted transition hover:bg-hover hover:text-primary"
         data-testid="clear-sku"
         @click="clear"
@@ -173,12 +173,12 @@ function clear() {
               <span
                 v-if="option.has_ads"
                 class="flex-none rounded-full bg-action/10 px-sm py-px text-micro font-semibold text-action"
-                title="По карточке крутится реклама — режим «по показам» будет двигать ротацию"
+                title='The card is advertised — "By impressions" will move the rotation'
               >
-                реклама
+                ads
               </span>
               <span class="flex-none text-micro tabular-nums text-muted">
-                {{ option.orders_7d || 0 }} зак/нед
+                {{ option.orders_7d || 0 }} orders/wk
               </span>
             </button>
           </li>
@@ -191,7 +191,7 @@ function clear() {
       class="mt-xs text-tiny text-muted"
       data-testid="sku-empty"
     >
-      В каталоге кабинета такого артикула нет.
+      No such SKU in the workspace catalog.
     </p>
   </div>
 </template>

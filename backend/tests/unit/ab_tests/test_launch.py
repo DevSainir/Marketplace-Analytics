@@ -4,7 +4,7 @@ The start is where the first photo reaches the card, and the rule it has to keep
 is that **every** photo the rotation deals is one WB actually served. That used
 to be false on purpose: the first turn was the card's own image, captured off
 WB's CDN, so the start deliberately skipped the upload. The baseline is an
-upload now — «Главное» is a file the seller chose — and a start that still
+upload now — the "Main photo" is a file the seller chose — and a start that still
 skipped it would open the test crediting an image nobody installed.
 """
 
@@ -40,7 +40,7 @@ def _variant(position: int, *, is_original: bool = False) -> AbTestVariant:
 def _test(*variants: AbTestVariant, status: str = AbTestStatus.DRAFT.value) -> AbTest:
     """A test carrying the given rotation."""
     test = AbTest(
-        id=uuid7(), workspace_id=uuid7(), nm_id=NM_FLOWER_DRESS, name="Тест фото", status=status
+        id=uuid7(), workspace_id=uuid7(), nm_id=NM_FLOWER_DRESS, name="Photo test", status=status
     )
     test.variants = list(variants)
     return test
@@ -100,7 +100,7 @@ def _launcher() -> tuple[Launcher, _FakeTests, _FakeExposures]:
 
 
 async def test_the_rotation_opens_on_the_main_photo_and_installs_it() -> None:
-    """«Главное» goes first, and it goes up — it is not assumed to be there."""
+    """The "Main photo" goes first, and it goes up — it is not assumed to be there."""
     main = _variant(0, is_original=True)
     test = _test(main, _variant(1), _variant(2))
     launcher, tests, exposures = _launcher()
@@ -165,7 +165,7 @@ async def test_a_test_with_nothing_left_in_the_rotation_cannot_start() -> None:
     test = _test(only)
     launcher, _, _ = _launcher()
 
-    with pytest.raises(ConflictError, match="хотя бы одно фото"):
+    with pytest.raises(ConflictError, match="at least one photo"):
         await launcher.launch(test=test, installer=_FakeInstaller(), now=NOW)
 
 

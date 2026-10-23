@@ -6,8 +6,8 @@ function row(overrides = {}) {
   return {
     id: 'aaaaaaaa-0000-7000-8000-000000000001',
     nm_id: 995716075,
-    vendor_code: 'ДЕТ_ПЛАТЬЕ',
-    name: 'Тест главного фото',
+    vendor_code: 'KID_DRESS',
+    name: 'Main photo test',
     status: 'draft',
     variant_count: 2,
     started_at: null,
@@ -44,7 +44,7 @@ describe('a test can be deleted from the list', () => {
   it('disarms the first row when a second one is armed', async () => {
     // Two rows both reading "Really delete?" is an invitation to delete the
     // wrong test with the next click.
-    const wrapper = table([row(), row({ id: 'bbbb', name: 'Второй' })])
+    const wrapper = table([row(), row({ id: 'bbbb', name: 'Second' })])
     const buttons = wrapper.findAll('[data-testid="delete-test"]')
 
     await buttons[0].trigger('click')

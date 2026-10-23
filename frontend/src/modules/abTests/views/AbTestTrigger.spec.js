@@ -46,8 +46,8 @@ function detail(overrides = {}) {
   return {
     id: TEST_ID,
     nm_id: 995716075,
-    vendor_code: 'ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК',
-    name: 'Тест главного фото',
+    vendor_code: 'KID_DRESS_FLORAL',
+    name: 'Main photo test',
     status: 'running',
     trigger_mode: 'impressions',
     impression_budget: 10000,
@@ -79,7 +79,7 @@ beforeEach(() => {
   fetchTests.mockResolvedValue([])
   fetchVariantImage.mockResolvedValue(new Blob(['jpeg']))
   searchSkus.mockResolvedValue([
-    { nm_id: 995716075, vendor_code: 'ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК', title: 'Платье' },
+    { nm_id: 995716075, vendor_code: 'KID_DRESS_FLORAL', title: 'Dress' },
   ])
 })
 
@@ -108,7 +108,7 @@ describe('the creation form sends one trigger, never both', () => {
     createTest.mockResolvedValue(detail())
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
-    await wrapper.get('[data-testid="test-name"]').setValue('Тест')
+    await wrapper.get('[data-testid="test-name"]').setValue('Test')
     // The list only opens on focus, the way it does for a user.
     await wrapper.get('[data-testid="sku-search"]').trigger('focus')
     await flushPromises()
@@ -120,8 +120,8 @@ describe('the creation form sends one trigger, never both', () => {
     await flushPromises()
 
     const sent = createTest.mock.calls[0][0]
-    // The article travels as the picked card's nm_id, and no seller article is
-    // sent at all — the backend reads that off the card it resolved.
+    // The SKU travels as the picked card's nm_id, and no vendor code is sent
+    // at all — the backend reads that off the card it resolved.
     expect(sent.nm_id).toBe(995716075)
     expect(sent).not.toHaveProperty('vendor_code')
     expect(sent.trigger_mode).toBe('time')
@@ -131,7 +131,7 @@ describe('the creation form sends one trigger, never both', () => {
 })
 
 describe('the creation form can bound a turn from both sides', () => {
-  it('shows both fields in «показы и время»', async () => {
+  it('shows both fields in "Impressions or time"', async () => {
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
 
@@ -145,7 +145,7 @@ describe('the creation form can bound a turn from both sides', () => {
     createTest.mockResolvedValue(detail())
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
-    await wrapper.get('[data-testid="test-name"]').setValue('Тест')
+    await wrapper.get('[data-testid="test-name"]').setValue('Test')
     await wrapper.get('[data-testid="sku-search"]').trigger('focus')
     await flushPromises()
     await wrapper.get('[data-testid="sku-option"]').trigger('click')
@@ -170,11 +170,11 @@ describe('the detail page reports the trigger in force', () => {
     await flushPromises()
 
     // Scoped to the header: the page's empty-state help text also mentions
-    // «показы» (impressions), and asserting over the whole page would pass or
+    // impressions, and asserting over the whole page would pass or
     // fail on wording that has nothing to do with the trigger.
     const header = wrapper.get('header').text()
-    expect(header).toContain('Смена фото каждые 30 мин')
-    expect(header).not.toContain('показов')
+    expect(header).toContain('Photo changes every 30 min')
+    expect(header).not.toContain('impressions')
   })
 
   it('reads the budget in impressions mode', async () => {
@@ -183,14 +183,13 @@ describe('the detail page reports the trigger in force', () => {
     await flushPromises()
 
     const header = wrapper.get('header').text()
-    expect(header).toContain('Смена фото каждые')
-    expect(header).toContain('показов')
-    expect(header).not.toContain('мин')
+    expect(header).toContain('Photo changes every 2,000 impressions')
+    expect(header).not.toContain('min')
   })
 
-  it('names both bounds, joined by «или», in «показы и время»', async () => {
-    // «или» ("or"), never «и» ("and"): the turn ends at the FIRST of them,
-    // and «и» would read as a photo waiting for both.
+  it('names both bounds, joined by "or", in "Impressions or time"', async () => {
+    // "or", never "and": the turn ends at the FIRST of them, and "and" would
+    // read as a photo waiting for both.
     fetchTest.mockResolvedValue(
       detail({ trigger_mode: 'either', impression_budget: 1000, slot_minutes: 20 }),
     )
@@ -198,8 +197,7 @@ describe('the detail page reports the trigger in force', () => {
     await flushPromises()
 
     const header = wrapper.get('header').text()
-    expect(header).toContain('показов или')
-    expect(header).toContain('20 мин')
+    expect(header).toContain('1,000 impressions or 20 min')
   })
 
   it('offers the editor while the test can still rotate', async () => {
@@ -221,14 +219,14 @@ describe('the detail page reports the trigger in force', () => {
   })
 })
 
-describe('the article is picked, not typed', () => {
+describe('the SKU is picked, not typed', () => {
   it('cannot submit until a card is chosen', async () => {
-    // A free-text field let a test be created against article `1` — an article
+    // A free-text field let a test be created against WB ID `1` — a card
     // no workspace owns, which the poller finds no advertising for and a
     // rotation would try to upload a photo to.
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
-    await wrapper.get('[data-testid="test-name"]').setValue('Тест')
+    await wrapper.get('[data-testid="test-name"]').setValue('Test')
 
     expect(wrapper.get('[data-testid="create-test"]').attributes('disabled')).toBeDefined()
 
@@ -239,35 +237,35 @@ describe('the article is picked, not typed', () => {
     expect(wrapper.get('[data-testid="create-test"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('has no separate seller-article field to disagree with the card', async () => {
-    // Both identifiers reach the same card and the seller article is read off
+  it('has no separate vendor-code field to disagree with the card', async () => {
+    // Both identifiers reach the same card and the vendor code is read off
     // it; a second field could drift and make the test unfindable by the
-    // article it actually runs on.
+    // SKU it actually runs on.
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
 
     expect(wrapper.find('[data-testid="test-nm-id"]').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('Артикул продавца')
+    expect(wrapper.text()).not.toContain('Vendor code')
   })
 
-  it('searches the catalogue as the user types', async () => {
+  it('searches the catalog as the user types', async () => {
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
-    await wrapper.get('[data-testid="sku-search"]').setValue('ЦВЕТОЧЕК')
+    await wrapper.get('[data-testid="sku-search"]').setValue('FLORAL')
     await flushPromises()
 
-    expect(searchSkus).toHaveBeenCalledWith('ЦВЕТОЧЕК', expect.anything())
+    expect(searchSkus).toHaveBeenCalledWith('FLORAL', expect.anything())
   })
 
-  it('says so when the catalogue has no such article', async () => {
+  it('says so when the catalog has no such SKU', async () => {
     // The alternative is an empty dropdown, which reads as "still loading".
     searchSkus.mockResolvedValue([])
     const wrapper = mountView(AbTestsView)
     await wrapper.get('[data-testid="new-test"]').trigger('click')
     await wrapper.get('[data-testid="sku-search"]').trigger('focus')
-    await wrapper.get('[data-testid="sku-search"]').setValue('нет-такого')
+    await wrapper.get('[data-testid="sku-search"]').setValue('no-such-sku')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="sku-empty"]').text()).toContain('нет')
+    expect(wrapper.get('[data-testid="sku-empty"]').text()).toContain('No such SKU')
   })
 })

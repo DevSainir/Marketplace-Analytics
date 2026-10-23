@@ -49,7 +49,7 @@ def _test(
         id=uuid7(),
         workspace_id=WORKSPACE,
         nm_id=NM_FLOWER_DRESS,
-        name="Тест фото",
+        name="Photo test",
         status=status,
         active_variant_id=active.id if active else None,
         photo_conflict_at=NOW if conflict else None,
@@ -106,7 +106,7 @@ class _FakeInstaller:
 
     async def install(self, *, nm_id: int, variant: AbTestVariant) -> None:
         if self.refuse:
-            raise IntegrationError("WB отклонил фото.")
+            raise IntegrationError("WB rejected the photo.")
         self.installed.append(variant.position)
 
 

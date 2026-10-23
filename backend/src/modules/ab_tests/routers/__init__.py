@@ -6,11 +6,11 @@ rather than a 403 — a test names a card the caller should not know exists.
 
 The module is a product surface like monitoring and finreports
 (``require_ab_tests``): any organisation with a live subscription reaches it,
-and a manager only with the «A/Б-тесты» grant. It was internal-only until
+and a manager only with the "A/B tests" grant. It was internal-only until
 2026-09-24, while the rotation was being built against our own catalogue.
 
 The state-changing routes carry ``WritingAccess`` on top of that.
-Reachability and writing are separate questions: a manager granted «A/Б-тесты»
+Reachability and writing are separate questions: a manager granted "A/B tests"
 at ``read_only`` may read the results table and may not install a photo on a
 live card. Reads stay open, as everywhere else —
 the results of a rotation someone else started are still theirs to look at.
@@ -50,7 +50,7 @@ from src.modules.workspaces.contract import CurrentWorkspaceId
 router = APIRouter(
     prefix="/ab-tests",
     tags=["ab-tests"],
-    # Membership + subscription + the «A/Б-тесты» grant, like every other
+    # Membership + subscription + the "A/B tests" grant, like every other
     # product surface. Writing to the live card is WritingAccess, per route.
     dependencies=[Depends(require_ab_tests)],
 )
@@ -59,13 +59,13 @@ router = APIRouter(
 @router.get(
     "",
     response_model=list[AbTestRead],
-    summary="Список A/Б-тестов",
-    responses={401: {"description": "Не аутентифицирован"}},
+    summary="List A/B tests",
+    responses={401: {"description": "Not authenticated"}},
 )
 async def list_tests(
     service: AbTestCatalogServiceDep,
     workspace_id: CurrentWorkspaceId,
-    q: str | None = Query(default=None, description="Поиск по названию и артикулам"),
+    q: str | None = Query(default=None, description="Search by name, WB ID and vendor code"),
 ) -> list[AbTestRead]:
     """Return the workspace's tests, newest first."""
     return await service.list_tests(workspace_id=workspace_id, query=q)
@@ -75,10 +75,10 @@ async def list_tests(
     "",
     response_model=AbTestRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Создать тест",
+    summary="Create a test",
     responses={
-        401: {"description": "Не аутентифицирован"},
-        403: {"description": "Доступ только для чтения"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Read-only access"},
     },
 )
 async def create_test(
@@ -90,14 +90,14 @@ async def create_test(
 ) -> AbTestRead:
     """Create an empty draft test.
 
-    The article is resolved against the workspace's catalogue before anything is
-    written, and the seller article is read off that card rather than taken from
+    The SKU is resolved against the workspace's catalogue before anything is
+    written, and the vendor code is read off that card rather than taken from
     the body — the two could otherwise disagree.
 
     No photo comes with it. The card's live main image used to be downloaded
     from WB's CDN as the baseline; that is gone, because WB serves renditions
     rather than the seller's own file and re-installing one put the transcoding
-    loss back on the live card. The baseline is now an upload marked «Главное».
+    loss back on the live card. The baseline is now an upload marked "Main photo".
     """
     return await service.create_test(
         workspace_id=workspace_id,
@@ -109,13 +109,13 @@ async def create_test(
 @router.get(
     "/skus",
     response_model=list[SkuOption],
-    summary="Каталог для выбора артикула",
-    responses={401: {"description": "Не аутентифицирован"}},
+    summary="Catalog for picking a SKU",
+    responses={401: {"description": "Not authenticated"}},
 )
 async def search_skus(
     catalogue: SkuCatalogueDep,
     workspace_id: CurrentWorkspaceId,
-    q: str = Query(default="", description="Часть артикула WB, артикула продавца или названия"),
+    q: str = Query(default="", description="Part of the WB ID, vendor code or title"),
 ) -> list[SkuOption]:
     """Return the cards a test may be created against.
 
@@ -127,7 +127,7 @@ async def search_skus(
     opens with something in it instead of looking broken — and the order it
     opens in is advertised cards first, then last week's orders descending, so
     the top of an unfiltered list is the cards worth testing rather than
-    whichever article happens to sort first alphabetically.
+    whichever SKU happens to sort first alphabetically.
     """
     cards = await catalogue.search(workspace_id=workspace_id, needle=q)
     return [
@@ -145,8 +145,8 @@ async def search_skus(
 @router.get(
     "/{test_id}",
     response_model=AbTestDetail,
-    summary="Тест с таблицей результатов",
-    responses={404: {"description": "Тест не найден"}},
+    summary="A test with its result table",
+    responses={404: {"description": "Test not found"}},
 )
 async def get_test(
     test_id: uuid.UUID,
@@ -160,12 +160,12 @@ async def get_test(
 @router.patch(
     "/{test_id}",
     response_model=AbTestRead,
-    summary="Изменить название или триггер ротации",
+    summary="Change the name or the rotation trigger",
     responses={
-        403: {"description": "Доступ только для чтения"},
-        404: {"description": "Тест не найден"},
-        409: {"description": "Тест уже завершён"},
-        422: {"description": "Настройка не от того режима"},
+        403: {"description": "Read-only access"},
+        404: {"description": "Test not found"},
+        409: {"description": "The test is already finished"},
+        422: {"description": "A setting from the other mode"},
     },
 )
 async def update_settings(
@@ -189,12 +189,12 @@ async def update_settings(
 @router.patch(
     "/{test_id}/status",
     response_model=AbTestRead,
-    summary="Запустить, поставить на паузу или отменить",
+    summary="Start, pause or cancel",
     responses={
-        403: {"description": "Доступ только для чтения"},
-        404: {"description": "Тест не найден"},
-        409: {"description": "Переход невозможен в текущем статусе"},
-        422: {"description": "Неизвестный статус"},
+        403: {"description": "Read-only access"},
+        404: {"description": "Test not found"},
+        409: {"description": "Not possible from the current status"},
+        422: {"description": "Unknown status"},
     },
 )
 async def set_status(
@@ -222,11 +222,11 @@ async def set_status(
 @router.post(
     "/{test_id}/finish",
     response_model=AbTestDetail,
-    summary="Завершить тест, оставив на карточке выбранное фото",
+    summary="Finish the test, leaving the chosen photo on the card",
     responses={
-        403: {"description": "Доступ только для чтения"},
-        404: {"description": "Тест или фото не найдено"},
-        409: {"description": "Тест не запущен и не на паузе"},
+        403: {"description": "Read-only access"},
+        404: {"description": "Test or photo not found"},
+        409: {"description": "The test is neither running nor paused"},
     },
 )
 async def finish_test(
@@ -248,7 +248,7 @@ async def finish_test(
     and a WB upload, where the status route carries neither for a cancel; the
     bare cancel there stays for API callers that want the card left as it is.
 
-    The whole test comes back so the page re-renders «На карточке» and the
+    The whole test comes back so the page re-renders "On the card" and the
     status from one answer.
     """
     await finisher.finish(
@@ -264,10 +264,10 @@ async def finish_test(
 @router.delete(
     "/{test_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Удалить тест",
+    summary="Delete a test",
     responses={
-        403: {"description": "Доступ только для чтения"},
-        404: {"description": "Тест не найден"},
+        403: {"description": "Read-only access"},
+        404: {"description": "Test not found"},
     },
 )
 async def delete_test(
@@ -284,12 +284,12 @@ async def delete_test(
     "/{test_id}/variants",
     response_model=AbTestDetail,
     status_code=status.HTTP_201_CREATED,
-    summary="Загрузить фото в тест",
+    summary="Upload a photo to a test",
     responses={
-        403: {"description": "Доступ только для чтения"},
-        404: {"description": "Тест не найден"},
-        409: {"description": "Достигнут предел в 10 фото, или главное фото уже загружено"},
-        422: {"description": "Файл не является поддерживаемым изображением"},
+        403: {"description": "Read-only access"},
+        404: {"description": "Test not found"},
+        409: {"description": "The 10-photo limit is reached, or a main photo is already uploaded"},
+        422: {"description": "The file is not a supported image"},
     },
 )
 async def upload_variant(
@@ -298,12 +298,12 @@ async def upload_variant(
     service: AbTestCatalogServiceDep,
     photos: VariantServiceDep,
     workspace_id: CurrentWorkspaceId,
-    file: UploadFile = File(description="Изображение до 32 МБ"),
-    main: bool = Query(default=False, description="Загрузить как главное фото карточки"),
+    file: UploadFile = File(description="An image up to 32 MB"),
+    main: bool = Query(default=False, description="Upload as the card's main photo"),
 ) -> AbTestDetail:
     """Append a photo to the rotation and return the refreshed test.
 
-    ``main=true`` files it as «Главное»: position 0, first out of the gate, and
+    ``main=true`` files it as "Main photo": position 0, first out of the gate, and
     the row every other photo's result is read against. One per test — the
     seller replaces it by deleting it and uploading another, which is the same
     two steps as changing any other photo.
@@ -318,7 +318,7 @@ async def upload_variant(
         content=await read_capped(
             file,
             max_bytes=MAX_IMAGE_BYTES,
-            too_large="Изображение больше 32 МБ — WB такой файл не примет.",
+            too_large="Image over 32 MB — WB won't accept it.",
         ),
         content_type=file.content_type or "application/octet-stream",
         filename=file.filename or "",
@@ -330,11 +330,11 @@ async def upload_variant(
 @router.delete(
     "/{test_id}/variants/{variant_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Удалить фото из теста",
+    summary="Delete a photo from a test",
     responses={
-        403: {"description": "Доступ только для чтения"},
-        404: {"description": "Тест или вариант не найден"},
-        409: {"description": "Фото сейчас стоит на карточке"},
+        403: {"description": "Read-only access"},
+        404: {"description": "Test or variant not found"},
+        409: {"description": "The photo is on the card right now"},
     },
 )
 async def delete_variant(
@@ -351,11 +351,11 @@ async def delete_variant(
 @router.patch(
     "/{test_id}/variants/{variant_id}",
     response_model=AbTestDetail,
-    summary="Убрать фото из ротации или вернуть",
+    summary="Remove a photo from the rotation, or bring it back",
     responses={
-        403: {"description": "Доступ только для чтения"},
-        404: {"description": "Тест или вариант не найден"},
-        409: {"description": "Это последнее фото в ротации"},
+        403: {"description": "Read-only access"},
+        404: {"description": "Test or variant not found"},
+        409: {"description": "The last photo in the rotation"},
     },
 )
 async def set_variant_excluded(
@@ -389,11 +389,11 @@ async def set_variant_excluded(
 
 @router.get(
     "/{test_id}/variants/{variant_id}/image",
-    summary="Изображение варианта",
+    summary="A variant's image",
     response_class=Response,
     responses={
-        200: {"content": {"image/*": {}}, "description": "Файл изображения"},
-        404: {"description": "Тест, вариант или файл не найден"},
+        200: {"content": {"image/*": {}}, "description": "The image file"},
+        404: {"description": "Test, variant or file not found"},
     },
 )
 async def get_variant_image(
@@ -402,7 +402,7 @@ async def get_variant_image(
     photos: VariantServiceDep,
     workspace_id: CurrentWorkspaceId,
     size: Literal["full", "thumb"] = Query(
-        default="full", description="thumb — уменьшенная копия для списков и таймлайна"
+        default="full", description="thumb — a small copy for lists and the timeline"
     ),
 ) -> Response:
     """Stream a variant's stored image, full size or as a thumbnail.

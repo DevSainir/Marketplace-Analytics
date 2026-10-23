@@ -10,7 +10,7 @@ list comes from decides whether a test measures anything at all.
 picked up by the nightly harvest. A campaign started this morning is in neither,
 so the poller never asks WB about it, reads zeros, and credits every photo with
 nothing. Observed 2026-09-07: a running test sat at zero for half an hour while
-a campaign in status 9 («идут показы») served the card a few hundred impressions
+a campaign in status 9 ("serving") served the card a few hundred impressions
 — because that campaign had never appeared in a harvest.
 
 That is not an edge case, it is the common one. A seller starting an A/B test
@@ -26,8 +26,8 @@ about the finished ones was costing the page.
 
 **What sort of campaign it is** is decided here too, because the same listing
 carries it and because the answer is the order the page shows them in. Two
-campaigns on one card are not two of the same thing — «Единая» buys a mixed
-placement at a CPM, «CPC» buys clicks — so a photo's CTR under one is not
+campaigns on one card are not two of the same thing — "Unified" buys a mixed
+placement at a CPM, "CPC" buys clicks — so a photo's CTR under one is not
 comparable with its CTR under the other, and that is the whole reason the
 counters are now kept apart. The four kinds and their order match the
 monitoring matrix's, which the same seller reads on the same day.
@@ -69,15 +69,15 @@ KIND_ORDER: dict[str, int] = {
 
 #: What each kind is called on screen.
 KIND_LABELS: dict[str, str] = {
-    CampaignKind.UNI: "Единая",
-    CampaignKind.MANUAL_SEARCH: "Руч. поиск",
-    CampaignKind.MANUAL_SHELVES: "Руч. полки",
+    CampaignKind.UNI: "Unified",
+    CampaignKind.MANUAL_SEARCH: "Manual search",
+    CampaignKind.MANUAL_SHELVES: "Manual shelves",
     CampaignKind.CPC: "CPC",
-    CampaignKind.UNKNOWN: "Реклама",
+    CampaignKind.UNKNOWN: "Advertising",
 }
 
-#: WB campaign statuses from which a campaign can still deliver: 9 («идут
-#: показы», serving) and 11 («на паузе», paused). The same pair monitoring's
+#: WB campaign statuses from which a campaign can still deliver: 9 (serving)
+#: and 11 (paused). The same pair monitoring's
 #: harvest planner keeps (``modules.monitoring.tasks.planning._HARVESTABLE_STATUSES``) — repeated
 #: rather than imported because a module may not reach past another's contract,
 #: and both places name it in their own docstring for exactly that reason.
@@ -98,9 +98,9 @@ def classify(advert: WBAdvertV2) -> CampaignKind:
     than per 1000 impressions, so its CTR, its bids and its spend share nothing
     with a CPM campaign's whatever its placements say.
 
-    A manual campaign running in BOTH zones is «Руч. поиск»: search is the zone
+    A manual campaign running in BOTH zones is "Manual search": search is the zone
     it is bought for, and the alternative — a fifth column for something WB's
-    own cabinet calls one campaign — would break the order the seller is used
+    own seller portal calls one campaign — would break the order the seller is used
     to for a case that is rare.
 
     Args:
@@ -119,7 +119,7 @@ def classify(advert: WBAdvertV2) -> CampaignKind:
         return CampaignKind.MANUAL_SEARCH
     if placements.recommendations:
         return CampaignKind.MANUAL_SHELVES
-    # A manual campaign that names no zone at all. It is not «полки», and
+    # A manual campaign that names no zone at all. It is not "shelves", and
     # saying so would be an invention rather than a default.
     return CampaignKind.UNKNOWN
 
@@ -142,7 +142,7 @@ def display_name(*, name: str, kind: str, campaign_id: int) -> str:
     """What the picker calls one campaign.
 
     Args:
-        name: The campaign's own name in the WB cabinet, possibly empty.
+        name: The campaign's own name in the WB seller portal, possibly empty.
         kind: Its stored kind.
         campaign_id: WB campaign id, the fallback when it has no name.
 
@@ -169,8 +169,8 @@ def campaigns_for_sku(
     in a fullstats answer — at which point :func:`..services.collection.
     window_delta` has no snapshot for it, treats its whole day as one interval's
     gain, and the page grows a branch for a campaign that served nothing during
-    the test. Six or seven of those, most reading «0 показов», under every
-    figure of «Итог по тесту».
+    the test. Six or seven of those, most reading "0 impressions", under every
+    figure of "Test summary".
 
     So the rule is monitoring's — see its ``_advertising_harvest_ids``: a
     campaign is read while WB says it is **active or paused**, the two statuses

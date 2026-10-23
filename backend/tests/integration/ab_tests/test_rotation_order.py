@@ -24,7 +24,7 @@ NM_FLOWER_DRESS = 995716075
 
 async def _workspace(session: AsyncSession, organization_id: uuid.UUID) -> Workspace:
     """Persist a workspace, inside the tenant that owns it."""
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization_id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization_id, name="Demo")
     session.add(workspace)
     await session.flush()
     return workspace
@@ -44,8 +44,8 @@ async def test_photos_are_appended_at_the_end_of_the_rotation(
     test = await AbTestRepository(db_session).create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -74,7 +74,7 @@ async def test_the_cards_own_photo_leads_the_rotation_without_renumbering_it(
     db_session: AsyncSession,
     organization: Organization,
 ) -> None:
-    """«Главное» takes position 0, ahead of candidates already filed.
+    """The "Main photo" takes position 0, ahead of candidates already filed.
 
     This cannot go lower: the reason it is 0 rather than 1 is the non-deferrable
     ``uq_ab_test_variant_test_position``, which only a real database enforces —
@@ -86,8 +86,8 @@ async def test_the_cards_own_photo_leads_the_rotation_without_renumbering_it(
     test = await tests.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,

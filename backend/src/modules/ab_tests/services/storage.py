@@ -321,7 +321,7 @@ class S3MediaStore:
                 )
         except Exception as exc:
             logger.warning("ab_tests: media upload failed for %s: %s", relative, exc)
-            raise IntegrationError("Не удалось сохранить изображение в хранилище.") from exc
+            raise IntegrationError("Couldn't save the image to storage.") from exc
         return StoredImage(relative_path=relative, sha256=digest, size_bytes=len(content))
 
     async def put(self, *, relative_path: str, content: bytes, content_type: str) -> None:
@@ -350,7 +350,7 @@ class S3MediaStore:
                 )
         except Exception as exc:
             logger.warning("ab_tests: media put failed for %s: %s", relative_path, exc)
-            raise IntegrationError("Не удалось сохранить изображение в хранилище.") from exc
+            raise IntegrationError("Couldn't save the image to storage.") from exc
 
     async def read(self, relative_path: str) -> bytes:
         """Return the stored bytes of one image.
@@ -377,7 +377,7 @@ class S3MediaStore:
             if "NoSuchKey" in repr(exc) or "404" in repr(exc):
                 raise FileNotFoundError(relative_path) from exc
             logger.warning("ab_tests: media read failed for %s: %s", relative_path, exc)
-            raise IntegrationError("Не удалось прочитать изображение из хранилища.") from exc
+            raise IntegrationError("Couldn't read the image from storage.") from exc
 
     async def delete(self, relative_path: str) -> None:
         """Remove an object, tolerating one that is already gone.

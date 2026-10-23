@@ -28,15 +28,15 @@ const style = computed(() => ({ top: `${props.at.top}px`, left: `${props.at.left
 
 /** Label and value, in the order the questions are asked. */
 const rows = computed(() => [
-  { key: 'from', label: 'Установлено', value: moment(props.turn.startMs) },
+  { key: 'from', label: 'Installed', value: moment(props.turn.startMs) },
   {
     key: 'to',
-    label: props.turn.open ? 'Стоит' : 'Снято',
-    value: props.turn.open ? 'на карточке' : moment(props.turn.endMs),
+    label: props.turn.open ? 'Now' : 'Taken off',
+    value: props.turn.open ? 'on the card' : moment(props.turn.endMs),
   },
-  { key: 'for', label: 'Длительность', value: formatDuration(props.turn.durationMs) },
-  { key: 'views', label: 'Показы', value: formatNumber(props.turn.views) },
-  { key: 'clicks', label: 'Клики', value: formatNumber(props.turn.clicks) },
+  { key: 'for', label: 'Duration', value: formatDuration(props.turn.durationMs) },
+  { key: 'views', label: 'Impressions', value: formatNumber(props.turn.views) },
+  { key: 'clicks', label: 'Clicks', value: formatNumber(props.turn.clicks) },
   { key: 'ctr', label: 'CTR', value: formatPercent(props.turn.clickThrough) },
 ])
 
@@ -49,7 +49,7 @@ function moment(ms) {
 <template>
   <Teleport to="body">
     <div class="ab-tiptime" role="tooltip" :style="style">
-      <p class="ab-tiptime__title">{{ turn.label }} · круг {{ turn.round }}</p>
+      <p class="ab-tiptime__title">{{ turn.label }} · round {{ turn.round }}</p>
       <dl class="ab-tiptime__rows">
         <template v-for="row in rows" :key="row.key">
           <dt>{{ row.label }}</dt>

@@ -58,7 +58,7 @@ def _source(walk: Any) -> GuideSource:
     """
     return GuideSource(
         key=_SOURCE_KEY,
-        title="Заказы",
+        title="Orders",
         cadence=GuideCadence.DAILY,
         base_url="wb_documents_base_url",
         tokens=("statistics",),
@@ -71,7 +71,7 @@ def _source(walk: Any) -> GuideSource:
 def _tokens() -> WorkspaceTokenBundle:
     """A workspace carrying the scope the fake source asks for."""
     return WorkspaceTokenBundle(
-        workspace_id=_WORKSPACE, name="Демо", statistics="stat-token", finance="a-finance-token"
+        workspace_id=_WORKSPACE, name="Demo", statistics="stat-token", finance="a-finance-token"
     )
 
 

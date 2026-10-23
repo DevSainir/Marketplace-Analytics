@@ -80,8 +80,8 @@ def test_a_harvested_campaign_wb_has_finished_is_not_read_again() -> None:
 @pytest.mark.parametrize(
     "status",
     [
-        pytest.param(9, id="идут показы"),
-        pytest.param(11, id="на паузе"),
+        pytest.param(9, id="serving"),
+        pytest.param(11, id="paused"),
     ],
 )
 def test_a_campaign_that_can_still_deliver_is_read(status: int) -> None:
@@ -99,17 +99,17 @@ def test_a_campaign_that_can_still_deliver_is_read(status: int) -> None:
 @pytest.mark.parametrize(
     "status",
     [
-        pytest.param(7, id="завершена"),
-        pytest.param(4, id="готова к запуску"),
-        pytest.param(8, id="отклонена"),
-        pytest.param(-1, id="удаляется"),
+        pytest.param(7, id="finished"),
+        pytest.param(4, id="ready to start"),
+        pytest.param(8, id="declined"),
+        pytest.param(-1, id="being deleted"),
     ],
 )
 def test_a_campaign_that_cannot_deliver_is_left_out(status: int) -> None:
     """Every other status is past tense, or has never started.
 
     A card advertised for a month names a dozen of them, and reading each one
-    put a branch of «0 показов» under every figure of «Итог по тесту» — seven
+    put a branch of "0 impressions" under every figure of "Test summary" — seven
     branches where only two campaigns were running (seen 2026-09-19).
     """
     adverts = [_advert(97455930, NM_TROUSERS, status=status)]

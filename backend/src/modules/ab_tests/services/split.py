@@ -2,8 +2,8 @@
 
 A card is often pushed by two campaigns at once, and until the counters were
 kept apart the page could only show their sum. The sum is still the headline —
-a photo's total of impressions is what it got — but it is not a comparison: «Единая»
-and «CPC» buy different traffic at different prices, and a campaign switched on
+a photo's total of impressions is what it got — but it is not a comparison: "Unified"
+and "CPC" buy different traffic at different prices, and a campaign switched on
 halfway through lifts every photo that follows it in a way that reads exactly
 like one photo winning.
 
@@ -12,7 +12,7 @@ the projection that makes that possible. Three shapes come out of it, one per
 question the page asks:
 
 * :func:`campaign_totals` — "how much did each ad campaign bring", the branches under
-  each figure of «Итог по тесту».
+  each figure of "Test summary".
 * :func:`variant_campaign_metrics` — the result table, computed inside one
   campaign. The leader is recomputed there too: the best CTR overall is not
   necessarily the best CTR in the campaign being looked at.
@@ -82,7 +82,7 @@ def campaigns_with_traffic(
 
     Returns:
         One entry per campaign that measured at least one impression or click,
-        ordered «Единая, Руч. поиск, Руч. полки, CPC» and then by id. A campaign
+        ordered "Unified, Manual search, Manual shelves, CPC" and then by id. A campaign
         with traffic but no register row — the legacy ``0``, or one archived
         before it was ever named — is included without a kind rather than
         dropped: its traffic is on the page and has to be accounted for.
@@ -154,8 +154,8 @@ def variant_campaign_metrics(
     """Per photo, what each campaign measured for it.
 
     Everything is recomputed inside the campaign — the ratios, the gap to the
-    leader and the laps. That is the point: a photo can lead «Единая» and trail
-    «CPC», and reading it against the whole test's leader would hide exactly
+    leader and the laps. That is the point: a photo can lead "Unified" and trail
+    "CPC", and reading it against the whole test's leader would hide exactly
     that.
 
     Args:

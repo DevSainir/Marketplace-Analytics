@@ -21,13 +21,13 @@
  *   on the card all day once traffic dries up.
  */
 
-import { formatNumber } from '@/core/utils/format'
+import { formatNumber, plural } from '@/core/utils/format'
 
 /** The modes as the picker offers them, in the order it lists them. */
 export const TRIGGER_MODES = [
-  { value: 'impressions', label: 'По показам' },
-  { value: 'time', label: 'По времени' },
-  { value: 'either', label: 'Показы и время' },
+  { value: 'impressions', label: 'By impressions' },
+  { value: 'time', label: 'By time' },
+  { value: 'either', label: 'Impressions or time' },
 ]
 
 /** Does this mode read the impression budget? */
@@ -68,11 +68,13 @@ export function triggerPayload(draft) {
 export function triggerLabel(test) {
   if (!test) return ''
   const parts = []
-  if (usesBudget(test.trigger_mode)) parts.push(`${formatNumber(test.impression_budget)} показов`)
-  if (usesSlot(test.trigger_mode)) parts.push(`${formatNumber(test.slot_minutes)} мин`)
-  // «или» ("or") rather than «и» ("and"): both are set, and the FIRST one
-  // reached ends the turn. «каждые 1 000 показов и 20 минут» ("every 1,000
-  // impressions and 20 minutes") would read as a test waiting for both,
-  // which is the opposite of what the mode does.
-  return `Смена фото каждые ${parts.join(' или ')}`
+  if (usesBudget(test.trigger_mode)) {
+    const budget = test.impression_budget
+    parts.push(`${formatNumber(budget)} ${plural(Number(budget), ['impression', 'impressions'])}`)
+  }
+  if (usesSlot(test.trigger_mode)) parts.push(`${formatNumber(test.slot_minutes)} min`)
+  // "or" rather than "and": both are set, and the FIRST one reached ends the
+  // turn. "every 1,000 impressions and 20 min" would read as a test waiting
+  // for both, which is the opposite of what the mode does.
+  return `Photo changes every ${parts.join(' or ')}`
 }

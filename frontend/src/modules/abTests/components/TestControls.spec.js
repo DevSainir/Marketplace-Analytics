@@ -2,7 +2,7 @@
  * The test's own controls — which transitions a seller is offered, and in which
  * state.
  *
- * «Завершить» is the case worth pinning. It used to exist only in the API, so a
+ * "Finish" is the case worth pinning. It used to exist only in the API, so a
  * paused test could not be closed from the page at all.
  */
 import { mount } from '@vue/test-utils'
@@ -44,7 +44,7 @@ describe('starting a test the advertising paused', () => {
 
     await button.trigger('click')
     expect(wrapper.emitted('status')).toBeUndefined()
-    expect(button.text()).toBe('Реклама не идёт — всё равно запустить?')
+    expect(button.text()).toBe('No ads running — start anyway?')
 
     await button.trigger('click')
     expect(wrapper.emitted('status')).toEqual([['running']])

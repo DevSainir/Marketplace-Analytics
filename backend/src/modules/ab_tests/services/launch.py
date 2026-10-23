@@ -1,4 +1,4 @@
-"""Starting a test: what has to happen, in what order, before it is «Запущен».
+"""Starting a test: what has to happen, in what order, before it is "Running".
 
 Its own module because starting is the one operation in this module with a
 sequence rather than a body — decide which variant opens the rotation, install
@@ -53,7 +53,7 @@ class Launcher:
     ) -> None:
         """Put the first photo up and mark the test running.
 
-        The rotation opens on whichever variant sorts first — «Главное» when the
+        The rotation opens on whichever variant sorts first — "Main photo" when the
         seller marked one, since it takes position 0. It is installed like every
         other photo. That is the difference from how this worked until the
         baseline was captured off WB's CDN: back then the first turn skipped the
@@ -75,11 +75,11 @@ class Launcher:
             IntegrationError: If WB refuses the first upload.
         """
         if test.status == AbTestStatus.RUNNING.value:
-            raise ConflictError("Тест уже запущен.")
+            raise ConflictError("The test is already running.")
         if test.status in {AbTestStatus.COMPLETED.value, AbTestStatus.CANCELLED.value}:
-            raise ConflictError("Завершённый тест нельзя запустить повторно.")
+            raise ConflictError("A finished test can't be restarted.")
         if not any(not variant.is_excluded for variant in test.variants):
-            raise ConflictError("Загрузите хотя бы одно фото, прежде чем запускать тест.")
+            raise ConflictError("Upload at least one photo before starting the test.")
 
         if test.active_variant_id is None:
             first = next(v for v in test.variants if not v.is_excluded)

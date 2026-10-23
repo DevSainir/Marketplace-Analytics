@@ -33,7 +33,7 @@ function detail(variantCount) {
   return {
     id: TEST_ID,
     nm_id: 995716075,
-    name: 'Тест главного фото',
+    name: 'Main photo test',
     status: 'draft',
     variants: Array.from({ length: variantCount }, (_, index) => ({
       variant_id: `v${index}`,
@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('A/Б-tests photo object URLs', () => {
+describe('A/B tests photo object URLs', () => {
   // The image route is authenticated and the access token lives in memory, so
   // `<img src="/api/…">` is refused — the bytes come through the API client and
   // reach the tag as object URLs instead. That makes their lifetime the store's
@@ -186,16 +186,16 @@ describe('A/Б-tests photo object URLs', () => {
   })
 })
 
-describe('A/Б-tests store', () => {
+describe('A/B tests store', () => {
   it('sends the search needle to the backend rather than filtering locally', async () => {
-    // The backend matches name, both articles and status in one predicate;
+    // The backend matches name, WB ID, vendor code and status in one predicate;
     // a client-side filter would quietly disagree with it.
     fetchTests.mockResolvedValue([])
     const store = useAbTestsStore()
 
-    await store.search('  ЦВЕТОЧЕК  ')
+    await store.search('  FLORAL  ')
 
-    expect(fetchTests).toHaveBeenCalledWith({ q: 'ЦВЕТОЧЕК' }, expect.anything())
+    expect(fetchTests).toHaveBeenCalledWith({ q: 'FLORAL' }, expect.anything())
   })
 
   it('omits the parameter entirely when the box is empty', async () => {
@@ -276,14 +276,14 @@ describe('A/Б-tests store', () => {
     // part-way through must not discard the ones that already landed — the
     // rotation the user can still start is whatever did get through.
     fetchTest.mockResolvedValue(detail(2))
-    uploadVariant.mockRejectedValue({ response: { data: { detail: 'Файл пустой.' } } })
+    uploadVariant.mockRejectedValue({ response: { data: { detail: 'The file is empty.' } } })
     const store = useAbTestsStore()
     await store.loadTest(TEST_ID)
 
     const ok = await store.addPhoto(TEST_ID, new File([''], 'photo.jpg'))
 
     expect(ok).toBe(false)
-    expect(store.error).toBe('Файл пустой.')
+    expect(store.error).toBe('The file is empty.')
     expect(store.detail.variants).toHaveLength(2)
   })
 
@@ -291,7 +291,7 @@ describe('A/Б-tests store', () => {
     // Otherwise a stale banner outlives the problem it described, and the user
     // is told the upload failed while looking at the photo it produced.
     fetchTest.mockResolvedValue(detail(0))
-    uploadVariant.mockRejectedValueOnce({ response: { data: { detail: 'Файл пустой.' } } })
+    uploadVariant.mockRejectedValueOnce({ response: { data: { detail: 'The file is empty.' } } })
     const store = useAbTestsStore()
     await store.loadTest(TEST_ID)
     await store.addPhoto(TEST_ID, new File([''], 'bad.jpg'))
@@ -309,7 +309,7 @@ describe('A/Б-tests store', () => {
     // on after a failure locks the user out of retrying the very upload the
     // error message is telling them to fix.
     fetchTest.mockResolvedValue(detail(0))
-    uploadVariant.mockRejectedValue({ response: { data: { detail: 'Файл пустой.' } } })
+    uploadVariant.mockRejectedValue({ response: { data: { detail: 'The file is empty.' } } })
     const store = useAbTestsStore()
     await store.loadTest(TEST_ID)
 
@@ -322,7 +322,7 @@ describe('A/Б-tests store', () => {
     // Starting installs the first photo on the seller's live card. A rejection
     // means the card was NOT touched, so the row must stay as it was.
     fetchTests.mockResolvedValue([{ id: TEST_ID, status: 'draft' }])
-    setTestStatus.mockRejectedValue({ response: { data: { detail: 'Загрузите фото' } } })
+    setTestStatus.mockRejectedValue({ response: { data: { detail: 'Upload a photo' } } })
     const store = useAbTestsStore()
     await store.loadTests()
 
@@ -351,7 +351,7 @@ describe('A/Б-tests store', () => {
     // The chosen photo goes up before the test is closed, so a refusal means
     // neither happened.
     fetchTests.mockResolvedValue([{ id: TEST_ID, status: 'paused' }])
-    finishTest.mockRejectedValue({ response: { data: { detail: 'WB отклонил фото.' } } })
+    finishTest.mockRejectedValue({ response: { data: { detail: 'WB rejected the photo.' } } })
     const store = useAbTestsStore()
     await store.loadTests()
 
@@ -396,7 +396,7 @@ describe('A/Б-tests store', () => {
     createTest.mockResolvedValue({ id: TEST_ID })
     const store = useAbTestsStore()
 
-    await store.create({ nm_id: 1, name: 'Тест', trigger_mode: 'time', slot_minutes: 30 })
+    await store.create({ nm_id: 1, name: 'Test', trigger_mode: 'time', slot_minutes: 30 })
 
     const sent = createTest.mock.calls[0][0]
     expect(sent.slot_minutes).toBe(30)
@@ -426,7 +426,7 @@ describe('A/Б-tests store', () => {
     // nothing would leave the user believing the change landed.
     fetchTests.mockResolvedValue([{ id: TEST_ID, trigger_mode: 'impressions' }])
     updateTestSettings.mockRejectedValue({
-      response: { data: { detail: 'В режиме «по показам» время на вариант не задаётся.' } },
+      response: { data: { detail: 'A test rotating by impressions takes no time per variant.' } },
     })
     const store = useAbTestsStore()
     await store.loadTests()
@@ -434,7 +434,7 @@ describe('A/Б-tests store', () => {
     const ok = await store.updateSettings(TEST_ID, { slot_minutes: 30 })
 
     expect(ok).toBe(false)
-    expect(store.error).toContain('по показам')
+    expect(store.error).toContain('by impressions')
     expect(store.rows[0].trigger_mode).toBe('impressions')
   })
 
@@ -444,7 +444,7 @@ describe('A/Б-tests store', () => {
     const store = useAbTestsStore()
     await store.loadTests()
 
-    await store.create({ nm_id: 995716075, name: 'Новый' })
+    await store.create({ nm_id: 995716075, name: 'New' })
 
     expect(store.rows.map((row) => row.id)).toEqual([TEST_ID, 'older'])
   })

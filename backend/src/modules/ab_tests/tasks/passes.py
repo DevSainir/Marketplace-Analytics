@@ -1,9 +1,9 @@
 """One polling pass for one test: wire the runner, and run it.
 
-Separated from the sweep that calls it and from the cabinet it reads, because
+Separated from the sweep that calls it and from the workspace it reads, because
 this is the only place that knows how a :class:`~..services.runner.RotationRunner`
 is assembled — which repositories, which WB clients, and which of the reads are
-per-cabinet rather than per-test. That wiring is most of the file and none of the
+per-workspace rather than per-test. That wiring is most of the file and none of the
 sweep's business.
 """
 

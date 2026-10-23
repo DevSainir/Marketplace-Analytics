@@ -7,8 +7,8 @@ now made where the numbers arrive (see :mod:`..services.collection`), and every
 row that carries traffic carries the campaign id it came from.
 
 That leaves one thing the counters cannot say: **what the campaign was**. WB's
-``/api/advert/v2/adverts`` names it — «Единая ставка», «Руч. поиск», «Руч.
-полки» or «CPC» — and answers only for campaigns it still lists. A campaign
+``/api/advert/v2/adverts`` names it — "Unified bid", "Manual search",
+"Manual shelves" or "CPC" — and answers only for campaigns it still lists. A campaign
 archived mid-test disappears from that listing while its measurements stay on
 the page forever, so the name and the kind are copied into this table on every
 pass that sees the campaign rather than looked up when the page is rendered.
@@ -43,7 +43,7 @@ class AbTestCampaign(Base):
             taken apart retroactively — the source rows were added together
             before they were stored — so it is presented as one nameless
             campaign rather than pretended away.
-        name: The campaign's own name in the WB cabinet, as last seen.
+        name: The campaign's own name in the WB seller portal, as last seen.
         kind: One of :class:`..services.campaigns.CampaignKind` — what sort of
             campaign it is, which is what the picker sorts by.
         first_seen_at: When this test first read counters from it.

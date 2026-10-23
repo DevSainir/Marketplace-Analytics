@@ -4,15 +4,15 @@ import SkuPicker from '@/modules/abTests/components/SkuPicker.vue'
 
 const DRESS = {
   nm_id: 995716075,
-  vendor_code: 'ДЕТ_ПЛАТЬЕ',
-  title: 'Платье',
+  vendor_code: 'KID_DRESS',
+  title: 'Dress',
   orders_7d: 12,
   has_ads: true,
 }
 const SUIT = {
   nm_id: 1948347102,
-  vendor_code: 'ДЕТ_КОСТЮМ',
-  title: 'Костюм',
+  vendor_code: 'KID_SUIT',
+  title: 'Suit',
   orders_7d: 3,
   has_ads: false,
 }
@@ -30,7 +30,7 @@ describe('the option list can be dismissed', () => {
   it('closes on Escape', async () => {
     // It could previously only be dismissed by picking something: neither
     // Escape nor a click elsewhere reached it, so an open list covered the
-    // rest of the form until the user chose an article they may not have wanted.
+    // rest of the form until the user chose a SKU they may not have wanted.
     const wrapper = picker()
     await wrapper.get('[data-testid="sku-search"]').trigger('focus')
     expect(list(wrapper).exists()).toBe(true)
@@ -63,27 +63,27 @@ describe('the option list can be dismissed', () => {
 })
 
 describe('the field stays a search field after a card is picked', () => {
-  it('shows the picked article without swapping the input out', async () => {
-    // The «сменить» button existed only because the input disappeared. It is
-    // gone, so the input must survive the pick and carry the chosen article.
+  it('shows the picked SKU without swapping the input out', async () => {
+    // The "change" button existed only because the input disappeared. It is
+    // gone, so the input must survive the pick and carry the chosen SKU.
     const wrapper = picker()
     await wrapper.get('[data-testid="sku-search"]').trigger('focus')
     await wrapper.get('[data-testid="sku-option"]').trigger('click')
     await wrapper.setProps({ modelValue: DRESS })
 
-    expect(wrapper.get('[data-testid="sku-search"]').element.value).toBe('ДЕТ_ПЛАТЬЕ')
+    expect(wrapper.get('[data-testid="sku-search"]').element.value).toBe('KID_DRESS')
     expect(wrapper.get('[data-testid="picked-sku"]').text()).toContain('995716075')
   })
 
-  it('drops the picked card as soon as the article is edited', async () => {
-    // Otherwise the box could read «ДЕТ_КОСТЮМ» while the form still submitted
-    // the card behind «ДЕТ_ПЛАТЬЕ» — a test created against the wrong article.
+  it('drops the picked card as soon as the SKU is edited', async () => {
+    // Otherwise the box could read "KID_SUIT" while the form still submitted
+    // the card behind "KID_DRESS" — a test created against the wrong SKU.
     const wrapper = picker({ modelValue: DRESS })
 
-    await wrapper.get('[data-testid="sku-search"]').setValue('ДЕТ_КОС')
+    await wrapper.get('[data-testid="sku-search"]').setValue('KID_SU')
 
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual([null])
-    expect(wrapper.emitted('search').at(-1)).toEqual(['ДЕТ_КОС'])
+    expect(wrapper.emitted('search').at(-1)).toEqual(['KID_SU'])
   })
 })
 
@@ -98,11 +98,11 @@ describe('the list explains the order it arrived in', () => {
     const rows = wrapper.findAll('[data-testid="sku-option"]')
 
     expect(rows.map((row) => row.text())).toEqual([
-      expect.stringContaining('ДЕТ_ПЛАТЬЕ'),
-      expect.stringContaining('ДЕТ_КОСТЮМ'),
+      expect.stringContaining('KID_DRESS'),
+      expect.stringContaining('KID_SUIT'),
     ])
-    expect(rows[0].text()).toContain('реклама')
-    expect(rows[0].text()).toContain('12 зак/нед')
-    expect(rows[1].text()).not.toContain('реклама')
+    expect(rows[0].text()).toContain('ads')
+    expect(rows[0].text()).toContain('12 orders/wk')
+    expect(rows[1].text()).not.toContain('ads')
   })
 })

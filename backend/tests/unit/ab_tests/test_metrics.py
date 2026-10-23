@@ -1,7 +1,7 @@
 """Unit tests for variant metric arithmetic (ab_tests/services/metrics.py).
 
 The three ratios the UI shows are chained, not parallel: each one divides by the
-previous stage, so «Доля добавлений в корзину» is add-to-basket per *click*, not
+previous stage, so the add-to-cart rate is add-to-basket per *click*, not
 per impression. Getting that wrong produces a plausible number rather than an
 error, which is why the expected values below are a worked example in the
 shape of WB's own A/B result screen for a completed test.
@@ -36,7 +36,7 @@ def _window(ended: datetime, **counts: int) -> WindowCounts:
 
 
 def test_conversions_reproduce_wb_own_ab_result_screen() -> None:
-    """Our three ratios equal what WB's result screen shows for variant А.
+    """Our three ratios equal what WB's result screen shows for variant A.
 
     The example: 8.97 / 8.04 / 33.25 % against 54 249 impressions, 4 865 clicks,
     391 carts and 130 orders. Any of the three computed against the wrong
@@ -53,7 +53,7 @@ def test_conversions_reproduce_wb_own_ab_result_screen() -> None:
 
 
 def test_conversions_reproduce_the_losing_variant_too() -> None:
-    """Variant Б of the same test: 8.66 / 9.55 / 29.36 %."""
+    """Variant B of the same test: 8.66 / 9.55 / 29.36 %."""
     totals = VariantTotals(views=54_765, clicks=4_744, atbs=453, orders=133)
 
     result = conversions(totals)

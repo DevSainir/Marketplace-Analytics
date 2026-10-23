@@ -21,9 +21,9 @@ import { formatNumber, formatPercent } from '@/core/utils/format'
  * inside the noise of a few thousand impressions; past thirty, no amount of
  * further data is going to rescue the photo.
  *
- * **The same three bands colour «Результат» and «Отклонение».** They are one
+ * **The same three bands colour "Result" and "CTR gap".** They are one
  * number written two ways — a relative gap and the same gap in points — so a
- * photo that reads «still close» on one line and «hopeless» on the other is the
+ * photo that reads "still close" on one line and "hopeless" on the other is the
  * table contradicting itself. Colouring every non-leader red, which is what
  * this did first, threw the distinction away entirely.
  */
@@ -34,17 +34,17 @@ const CLEARLY_BEHIND = -30
  * The rows of the grid, in the order they are read.
  *
  * No hints: the ⓘ beside each label was removed on 2026-09-28 at the owner's
- * request, and «Побед в раундах по CTR» with them — it did not earn its row.
+ * request, and "CTR round wins" with them — it did not earn its row.
  */
 export const METRICS = [
   {
     key: 'views',
-    label: 'Показов',
+    label: 'Impressions',
     kind: 'count',
   },
   {
     key: 'clicks',
-    label: 'Кликов',
+    label: 'Clicks',
     kind: 'count',
   },
   {
@@ -54,17 +54,17 @@ export const METRICS = [
   },
   {
     key: 'ctr_result',
-    label: 'Результат',
+    label: 'Result',
     kind: 'result',
   },
   {
     key: 'ctr_gap',
-    label: 'Отклонение CTR от лучшего',
+    label: 'CTR gap to best',
     kind: 'gap',
   },
   {
     key: 'rounds_played',
-    label: 'Кругов',
+    label: 'Rounds',
     kind: 'count',
   },
 ]
@@ -73,13 +73,13 @@ export const METRICS = [
  * The figures each photo shows — for the whole test, one lap, one campaign, or
  * one lap of one campaign.
  *
- * A lap is rebuilt from «История действий» rather than fetched: every turn
+ * A lap is rebuilt from "Rotation history" rather than fetched: every turn
  * there already carries its lap, its photo and what it earned — per campaign
  * too — so filtering is arithmetic over data the page is already holding.
  *
  * A whole-test campaign view is NOT rebuilt: the backend has already computed
  * it, gap to the leader included, and that gap has to be measured against the
- * leader OF THAT CAMPAIGN. A photo can lead «Единая» and trail «CPC», which is
+ * leader OF THAT CAMPAIGN. A photo can lead "Unified" and trail "CPC", which is
  * exactly what the unsplit row cannot show.
  *
  * `rounds_played` stays a per-campaign-whole-test figure rather than a per-lap
@@ -118,7 +118,7 @@ export function buildColumns(test, round, campaignId = 0) {
     }
   })
 
-  // The leader of this lap, so «Результат» compares within what is shown rather
+  // The leader of this lap, so "Result" compares within what is shown rather
   // than against a photo whose best hour was three laps ago.
   const best = Math.max(...lap.map((v) => v.click_through ?? -1))
   return lap.map((variant) => ({
@@ -158,7 +158,7 @@ function withCampaign(variant, campaignId) {
 /**
  * What one turn earned, through one campaign or through all of them.
  *
- * @param {object} turn One «История действий» row.
+ * @param {object} turn One "Rotation history" row.
  * @param {number} campaignId The campaign, or 0 for the turn's own totals.
  * @returns {{views: number, clicks: number}|null} Null when that campaign
  *   brought nothing in this turn — which is not the same as zero, and is what
@@ -178,8 +178,8 @@ function countsOf(turn, campaignId) {
  *
  * Compared as numbers, explicitly: the backend's ratios are `Decimal` and arrive
  * as strings (`"11.24"`), and two strings compare by their first character. That
- * crowned 8,92 % over 11,24 % in a running test —
- * invisible for as long as every CTR had one digit before the comma.
+ * crowned 8.92% over 11.24% in a running test —
+ * invisible for as long as every CTR had one digit before the point.
  *
  * @param {Array<object>} columns Projected photos.
  * @returns {string|null} The leading variant id.
@@ -191,22 +191,22 @@ export function leaderOf(columns) {
     .variant_id
 }
 
-/** «Главное» for the captured photo, «Вариант N» for an upload. */
+/** "Main photo" for the baseline, "Variant N" for the rest. */
 export function variantTitle(variant) {
-  return variant.is_original ? 'Главное' : `Вариант ${variant.position}`
+  return variant.is_original ? 'Main photo' : `Variant ${variant.position}`
 }
 
-/** A count; «—» when there is none — an unknown is not a zero (see `core/utils/format`). */
+/** A count; "—" when there is none — an unknown is not a zero (see `core/utils/format`). */
 export const count = formatNumber
 
-/** A percentage as the WB seller portal writes it, «12,35%» (see `core/utils/format`). */
+/** A percentage, "12.35%" (see `core/utils/format`). */
 export const percent = formatPercent
 
 /**
  * A whole percent, with no signed zero.
  *
  * `Math.round` is applied before the sign is read, so a photo 0.3 % behind
- * shows «0%» rather than «-0%» — a minus in front of a zero says the photo is
+ * shows "0%" rather than "-0%" — a minus in front of a zero says the photo is
  * behind by an amount too small to print, which is not what a reader takes
  * from it.
  */
@@ -239,7 +239,7 @@ export function cellFor(variant, metric, { leaderId }) {
   if (metric.kind === 'count') return { text: count(value), tone: '' }
   if (metric.kind === 'percent') return { text: percent(value), tone: '' }
 
-  // «Результат» — the gap as a share of the leader's click-through. The leader
+  // "Result" — the gap as a share of the leader's click-through. The leader
   // shows a plain green zero: it is exactly zero behind itself, and the word
   // belongs on the other line.
   if (metric.kind === 'result') {
@@ -247,10 +247,10 @@ export function cellFor(variant, metric, { leaderId }) {
     return { text: wholePercent(value), tone: band(value) }
   }
 
-  // «Отклонение» — the only kind left: the same gap in points, and where the
+  // "CTR gap" — the only kind left: the same gap in points, and where the
   // leader is NAMED. One row carries the number, the other carries the verdict;
   // putting both on the same line leaves the other with nothing to say.
-  if (variant.variant_id === leaderId) return { text: 'Лучший', tone: 'best' }
+  if (variant.variant_id === leaderId) return { text: 'Best', tone: 'best' }
   if (value === null || value === undefined) return { text: '—', tone: 'muted' }
   return { text: `${percent(value)} ↓`, tone: band(variant.ctr_result) }
 }

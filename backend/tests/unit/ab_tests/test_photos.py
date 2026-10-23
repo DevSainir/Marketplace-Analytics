@@ -22,9 +22,9 @@ from src.modules.ab_tests.services.photos import (
 )
 
 # Sample vendor codes, so a reader can tell which card each case stands for.
-VENDOR_FLOWER_DRESS = "ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК"
-VENDOR_PLAIN_SUIT = "ДЕТ_КОСТЮМ_ДВОЙКА_ОДНОТОН"
-VENDOR_DENIM_SUIT = "ДЖН_КОСТЮМ_ДЖИНСА"
+VENDOR_FLOWER_DRESS = "KID_DRESS_FLORAL"
+VENDOR_PLAIN_SUIT = "KID_SUIT_TWOPIECE_PLAIN"
+VENDOR_DENIM_SUIT = "JNS_SUIT_DENIM"
 
 JPEG = b"\xff\xd8\xff\xe0" + b"0" * 2048
 

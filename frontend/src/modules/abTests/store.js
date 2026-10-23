@@ -5,10 +5,10 @@
  * rather than each view fetching for itself because the pages are coupled in
  * one direction: uploading a photo or starting a test changes the row the list
  * shows, so those writes invalidate the list instead of leaving a stale
- * «Черновик» chip behind a route change.
+ * "Draft" chip behind a route change.
  *
  * The search needle is held here too. The backend matches it against the test
- * name, both articles and the status — one box for the whole row — so the view
+ * name, the WB ID, the vendor code and the status — one box for the whole row — so the view
  * has nothing to filter client-side.
  */
 import { defineStore } from 'pinia'
@@ -30,31 +30,31 @@ import {
   uploadVariant,
 } from '@/modules/abTests/api'
 
-/** Statuses as the backend spells them, with their Russian labels. */
+/** Statuses as the backend spells them, with their labels. */
 export const STATUS_LABELS = {
-  draft: 'Черновик',
-  running: 'Запущен',
-  paused: 'На паузе',
-  completed: 'Завершён',
-  cancelled: 'Завершён',
+  draft: 'Draft',
+  running: 'Running',
+  paused: 'Paused',
+  completed: 'Finished',
+  cancelled: 'Finished',
 }
 
 /**
  * A test's status in words — with the reason, for a pause the seller did not make.
  *
  * @param {{status: string, paused_by_ads?: boolean}} test A list row or the detail.
- * @returns {string} «На паузе · нет рекламы» for the rotation's own pause, the
+ * @returns {string} "Paused · no ads" for the rotation's own pause, the
  *   plain label otherwise.
  */
 export function statusLabel(test) {
-  if (test.status === 'paused' && test.paused_by_ads) return 'На паузе · нет рекламы'
+  if (test.status === 'paused' && test.paused_by_ads) return 'Paused · no ads'
   return STATUS_LABELS[test.status] || test.status
 }
 
 /**
  * The tone a status badge (`.ui-badge`) is drawn in — one answer for the list,
  * the test page and its summary, which coloured the same status three ways.
- * «Завершён» is neutral: in the action colour it read as a link.
+ * "Finished" is neutral: in the action colour it read as a link.
  *
  * @param {{status: string}} test
  * @returns {string} A `.ui-badge` modifier, `''` for neutral.
@@ -128,13 +128,13 @@ export const useAbTestsStore = defineStore('abTests', () => {
   /**
    * How many photos the open test holds.
    *
-   * «Главное» counts. It is an upload like the rest — it used to be captured
+   * "Main photo" counts. It is an upload like the rest — it used to be captured
    * off WB's CDN, and leaving it out of this count was how the seller avoided
    * paying a slot for a photo they never chose.
    */
   const uploadedCount = computed(() => (detail.value?.variants ?? []).length)
 
-  /** Whether the open test already carries a «Главное» photo — at most one. */
+  /** Whether the open test already carries a "Main photo" — at most one. */
   const hasMainPhoto = computed(() =>
     (detail.value?.variants ?? []).some((variant) => variant.is_original),
   )
@@ -176,13 +176,13 @@ export const useAbTestsStore = defineStore('abTests', () => {
   }
 
   /**
-   * Load catalogue options for the article picker.
+   * Load catalog options for the SKU picker.
    *
-   * A test may only name an article its workspace owns — the API refuses the
+   * A test may only name a SKU its workspace owns — the API refuses the
    * rest — so the field is a picker rather than free text. Cancels the previous
    * request, because this runs on every keystroke.
    *
-   * @param {string} needle Fragment of either article, or of the title.
+   * @param {string} needle Fragment of the WB ID, the vendor code or the title.
    * @returns {Promise<void>}
    */
   async function loadSkuOptions(needle) {
@@ -293,7 +293,7 @@ export const useAbTestsStore = defineStore('abTests', () => {
    *
    * @param {string} testId Test identifier.
    * @param {File} file The picture.
-   * @param {{main?: boolean}} [options] `main: true` files it as «Главное».
+   * @param {{main?: boolean}} [options] `main: true` files it as "Main photo".
    * @returns {Promise<boolean>} Whether it was accepted.
    */
   async function addPhoto(testId, file, { main = false } = {}) {

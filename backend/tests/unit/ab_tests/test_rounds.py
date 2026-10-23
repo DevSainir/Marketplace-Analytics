@@ -1,6 +1,6 @@
 """Unit tests for the per-lap columns (services/rounds.py).
 
-«Кругов» and the gap to the leader. «Побед в раундах» used to be computed here
+"Rounds" and the gap to the leader. "Rounds won" used to be computed here
 too and was removed on 2026-09-28; its tests went with it.
 """
 

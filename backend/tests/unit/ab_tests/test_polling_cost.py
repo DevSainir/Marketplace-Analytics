@@ -1,18 +1,18 @@
 """What a polling pass costs WB (ab_tests/tasks).
 
 The number pinned here is not a performance nicety — it is the difference
-between a cabinet that works and one that silently stops.
+between a workspace that works and one that silently stops.
 
 `/adv/v3/fullstats` is paced by a token bucket of ONE token refilling every
 20 seconds, and the bucket is per **seller token**, not per test. So every test
-in a cabinet queues behind every other one. When the reads were made per test,
+in a workspace queues behind every other one. When the reads were made per test,
 a hundred tests took a hundred turns of that bucket — about half an hour for a
 pass scheduled every five minutes. Nothing errored; the passes just overlapped
 and every test's measurement window stretched to whenever the sweep next
 reached it.
 
 The fix is that a fullstats answer already carries a per-SKU breakdown of every
-campaign it was asked about, so one call serves the whole cabinet. That makes
+campaign it was asked about, so one call serves the whole workspace. That makes
 the cost of a pass grow with **campaigns in fifties**, and not with tests at
 all — which is what these tests state, so that putting the call back inside the
 per-test loop breaks something loud.
@@ -64,8 +64,8 @@ async def test_the_cost_of_a_pass_is_counted_in_campaigns_not_tests(
 ) -> None:
     """Fifty campaign ids per request, and nothing else moves the number.
 
-    A cabinet with two hundred tests over the same two campaigns costs one
-    request; a cabinet with one test over two hundred campaigns costs four.
+    A workspace with two hundred tests over the same two campaigns costs one
+    request; a workspace with one test over two hundred campaigns costs four.
     """
     client = _CountingClient()
 
@@ -122,7 +122,7 @@ def test_one_answer_serves_every_test_in_the_cabinet() -> None:
 async def test_no_more_cabinets_run_at_once_than_the_pool_can_carry() -> None:
     """The bound, not the concurrency, is what this guards.
 
-    Cabinets are independent as far as WB is concerned — the rate bucket is per
+    Workspaces are independent as far as WB is concerned — the rate bucket is per
     seller token — so running them together is free there. They are NOT
     independent as far as our database is: each holds a session while it reads
     its tokens, and an unbounded gather over five hundred of them would ask this
@@ -144,7 +144,7 @@ async def test_no_more_cabinets_run_at_once_than_the_pool_can_carry() -> None:
 
     assert peak <= 4
     # Order is the caller's, not completion order: the sweep adds up tallies
-    # positionally and would credit the wrong cabinet otherwise.
+    # positionally and would credit the wrong workspace otherwise.
     assert results == list(range(50))
 
 

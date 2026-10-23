@@ -59,7 +59,7 @@ class CampaignRepository:
 
         The name and the kind are refreshed on every pass that knows them: a
         seller renaming a campaign mid-test should see the new name, and the
-        old one names nothing they can find in the cabinet. A pass that does
+        old one names nothing they can find in the seller portal. A pass that does
         not know keeps what is stored. ``first_seen_at`` is never touched once
         written — it answers "since when has this ad campaign been taking part".
 

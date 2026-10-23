@@ -163,8 +163,8 @@ def test_a_campaign_with_no_traffic_is_not_a_column() -> None:
     refs = campaigns_with_traffic(
         windows=windows,
         registered=[
-            _registered(UNI, name="Единая по платьям", kind=CampaignKind.UNI),
-            _registered(CPC, name="CPC тест", kind=CampaignKind.CPC),
+            _registered(UNI, name="Unified, dresses", kind=CampaignKind.UNI),
+            _registered(CPC, name="CPC test", kind=CampaignKind.CPC),
         ],
     )
 
@@ -176,7 +176,7 @@ def test_a_campaign_that_showed_the_card_to_nobody_is_not_a_column() -> None:
 
     A campaign WB has since finished can still turn up in a fullstats answer
     with a rouble against it and no traffic. Its column is dashes, and seven of
-    those under every figure of «Итог по тесту» is what the split was supposed
+    those under every figure of "Test summary" is what the split was supposed
     to make readable (seen 2026-09-19).
     """
     first = _variant(1)
@@ -187,8 +187,8 @@ def test_a_campaign_that_showed_the_card_to_nobody_is_not_a_column() -> None:
     refs = campaigns_with_traffic(
         windows=windows,
         registered=[
-            _registered(UNI, name="Единая по платьям", kind=CampaignKind.UNI),
-            _registered(CPC, name="CPC тест", kind=CampaignKind.CPC),
+            _registered(UNI, name="Unified, dresses", kind=CampaignKind.UNI),
+            _registered(CPC, name="CPC test", kind=CampaignKind.CPC),
         ],
     )
 
@@ -207,7 +207,7 @@ def test_the_campaigns_are_ordered_unified_first_and_cpc_last() -> None:
         windows=windows,
         registered=[
             _registered(CPC, name="CPC", kind=CampaignKind.CPC),
-            _registered(UNI, name="Единая", kind=CampaignKind.UNI),
+            _registered(UNI, name="Unified", kind=CampaignKind.UNI),
         ],
     )
 
@@ -215,7 +215,7 @@ def test_the_campaigns_are_ordered_unified_first_and_cpc_last() -> None:
 
 
 def test_the_branches_add_up_to_the_figure_above_them() -> None:
-    """«Итог по тесту» keeps its meaning: the trunk is the sum of the branches."""
+    """The "Test summary" keeps its meaning: the trunk is the sum of the branches."""
     first, second = _variant(1), _variant(2)
     windows = [
         _window(first, campaign_id=UNI, at=5, views=4000, clicks=80),
@@ -225,7 +225,7 @@ def test_the_branches_add_up_to_the_figure_above_them() -> None:
     refs = campaigns_with_traffic(
         windows=windows,
         registered=[
-            _registered(UNI, name="Единая", kind=CampaignKind.UNI),
+            _registered(UNI, name="Unified", kind=CampaignKind.UNI),
             _registered(CPC, name="CPC", kind=CampaignKind.CPC),
         ],
     )
@@ -241,7 +241,7 @@ def test_a_photo_can_lead_one_campaign_and_trail_the_other() -> None:
     """Why the gap is recomputed inside the campaign rather than carried over."""
     first, second = _variant(1), _variant(2)
     windows = [
-        # «Единая» (unified): photo 1 converts twice as well as photo 2.
+        # Unified: photo 1 converts twice as well as photo 2.
         _window(first, campaign_id=UNI, at=5, views=1000, clicks=40),
         _window(second, campaign_id=UNI, at=10, views=1000, clicks=20),
         # CPC: the other way round.
@@ -251,7 +251,7 @@ def test_a_photo_can_lead_one_campaign_and_trail_the_other() -> None:
     refs = campaigns_with_traffic(
         windows=windows,
         registered=[
-            _registered(UNI, name="Единая", kind=CampaignKind.UNI),
+            _registered(UNI, name="Unified", kind=CampaignKind.UNI),
             _registered(CPC, name="CPC", kind=CampaignKind.CPC),
         ],
     )
@@ -293,7 +293,7 @@ def test_a_campaign_switched_off_mid_test_keeps_the_laps_it_played_and_no_more()
     refs = campaigns_with_traffic(
         windows=windows,
         registered=[
-            _registered(UNI, name="Единая", kind=CampaignKind.UNI),
+            _registered(UNI, name="Unified", kind=CampaignKind.UNI),
             _registered(CPC, name="CPC", kind=CampaignKind.CPC),
         ],
     )
@@ -316,7 +316,7 @@ def test_the_legacy_rows_are_one_unnamed_campaign_rather_than_a_pretence() -> No
     )
 
     assert [(ref.campaign_id, ref.kind) for ref in refs] == [(0, str(CampaignKind.UNKNOWN))]
-    assert refs[0].name == "Реклама"
+    assert refs[0].name == "Advertising"
 
 
 def test_a_pay_per_click_campaign_is_cpc_whatever_its_bid_type_says() -> None:
@@ -327,7 +327,7 @@ def test_a_pay_per_click_campaign_is_cpc_whatever_its_bid_type_says() -> None:
             "bid_type": "unified",
             "status": 9,
             "settings": {
-                "name": "Платья CPC",
+                "name": "Dresses CPC",
                 "payment_type": "cpc",
                 "placements": {"search": True, "recommendations": True},
             },
@@ -339,7 +339,7 @@ def test_a_pay_per_click_campaign_is_cpc_whatever_its_bid_type_says() -> None:
 
 
 def test_a_manual_campaign_is_named_by_the_zone_it_runs_in() -> None:
-    """«Руч. полки» is a shelves-only manual campaign; search wins a dual one."""
+    """A "Manual shelves" campaign is a shelves-only one; search wins a dual one."""
 
     def advert(search: bool, shelves: bool) -> WBAdvertV2:
         return WBAdvertV2.model_validate(
@@ -348,7 +348,7 @@ def test_a_manual_campaign_is_named_by_the_zone_it_runs_in() -> None:
                 "bid_type": "manual",
                 "status": 9,
                 "settings": {
-                    "name": "Ручная",
+                    "name": "Manual",
                     "payment_type": "cpm",
                     "placements": {"search": search, "recommendations": shelves},
                 },

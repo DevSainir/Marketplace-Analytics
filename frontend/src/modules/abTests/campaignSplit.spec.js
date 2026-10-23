@@ -2,13 +2,13 @@
  * Reading one test through one advertising campaign.
  *
  * The split exists because two campaigns on one card are two different
- * purchases — «Единая» buys mixed placement at a CPM, «CPC» buys clicks — and a
+ * purchases — "Unified" buys mixed placement at a CPM, "CPC" buys clicks — and a
  * campaign that starts or stops in the middle of a test moves the totals in a
  * way that reads exactly like one photo pulling ahead.
  *
  * What is worth pinning is the part that can silently lie: a campaign that was
  * switched off must not be shown as present-but-losing in the laps it never
- * ran. Zero and «not there» are different answers, and only one of them is true.
+ * ran. Zero and "not there" are different answers, and only one of them is true.
  */
 import { describe, expect, it } from 'vitest'
 

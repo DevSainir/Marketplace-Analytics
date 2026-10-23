@@ -2,7 +2,7 @@
 
 Its own module because it is the difference between a cost that grows with the
 number of tests and one that does not. A fullstats answer covers every SKU inside
-the campaigns it was asked about, so a cabinet's advertising is read ONCE and
+the campaigns it was asked about, so a workspace's advertising is read ONCE and
 every test in it takes its own slice; the same goes for the campaign listing and
 for the catalogue's photo URLs. Assembling that is a job with nothing to do with
 running a pass, which is what :mod:`.passes` does with the result.
@@ -111,7 +111,7 @@ async def prepare_cabinet(
                 len(tests),
             )
             return None
-        # Only the cards under test. A cabinet advertising four hundred SKUs
+        # Only the cards under test. A workspace advertising four hundred SKUs
         # while testing three of them was pulling in every campaign it had ever
         # run, and every fifty of those is another fullstats batch and another
         # twenty seconds of the pass.
@@ -120,7 +120,7 @@ async def prepare_cabinet(
             workspace_id=workspace_id,
             nm_ids=sorted({test.nm_id for test in tests}),
         )
-        # One query for the cabinet's catalogue thumbnails. The URL is the only
+        # One query for the workspace's catalogue thumbnails. The URL is the only
         # thing the photo witness needs, and monitoring owns the catalogue —
         # hence the contract loader rather than a join this module may not make.
         photos = await load_card_photos(session, workspace_id=workspace_id)

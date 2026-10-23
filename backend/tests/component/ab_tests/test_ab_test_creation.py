@@ -26,14 +26,14 @@ async def test_a_single_bound_mode_refuses_the_other_bound(
     by_impressions = await client.post(
         "/api/ab-tests",
         headers=headers,
-        json={"nm_id": NM_ID, "name": "Тест", "trigger_mode": "impressions", "slot_minutes": 30},
+        json={"nm_id": NM_ID, "name": "Test", "trigger_mode": "impressions", "slot_minutes": 30},
     )
     by_time = await client.post(
         "/api/ab-tests",
         headers=headers,
         json={
             "nm_id": NM_ID,
-            "name": "Тест",
+            "name": "Test",
             "trigger_mode": "time",
             "impression_budget": 5000,
         },
@@ -52,7 +52,7 @@ async def test_each_trigger_is_accepted_on_its_own(
         headers=headers,
         json={
             "nm_id": NM_ID,
-            "name": "Тест",
+            "name": "Test",
             "trigger_mode": "impressions",
             "impression_budget": 2000,
         },
@@ -60,7 +60,7 @@ async def test_each_trigger_is_accepted_on_its_own(
     timed = await client.post(
         "/api/ab-tests",
         headers=headers,
-        json={"nm_id": NM_ID, "name": "Тест", "trigger_mode": "time", "slot_minutes": 30},
+        json={"nm_id": NM_ID, "name": "Test", "trigger_mode": "time", "slot_minutes": 30},
     )
 
     assert (impressions.status_code, timed.status_code) == (201, 201)
@@ -72,7 +72,7 @@ async def test_each_trigger_is_accepted_on_its_own(
 async def test_both_bounds_are_accepted_together_in_either_mode(
     client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
 ) -> None:
-    """«Показы и время» takes both, because the rotation reads both.
+    """The "Impressions or time" mode takes both, because the rotation reads both.
 
     The turn ends at whichever arrives first — 1 000 impressions on a card the
     advertising is pushing, twenty minutes on one it is not.
@@ -82,7 +82,7 @@ async def test_both_bounds_are_accepted_together_in_either_mode(
         headers=headers,
         json={
             "nm_id": NM_ID,
-            "name": "Тест",
+            "name": "Test",
             "trigger_mode": "either",
             "impression_budget": 1000,
             "slot_minutes": 20,
@@ -99,7 +99,7 @@ async def test_creating_a_test_validates_the_article(
 ) -> None:
     """A non-positive nmID is rejected before any work is done."""
     response = await client.post(
-        "/api/ab-tests", headers=headers, json={"nm_id": 0, "name": "Тест"}
+        "/api/ab-tests", headers=headers, json={"nm_id": 0, "name": "Test"}
     )
 
     assert response.status_code == 422
@@ -136,7 +136,7 @@ async def test_a_settings_patch_needs_no_wb_token(
     renaming a test.
     """
     response = await client.patch(
-        f"/api/ab-tests/{TEST_ID}", headers=headers, json={"name": "Новое название"}
+        f"/api/ab-tests/{TEST_ID}", headers=headers, json={"name": "New name"}
     )
 
     assert response.status_code == 200
@@ -147,7 +147,7 @@ async def test_a_finished_test_refuses_a_settings_change(
     client: httpx.AsyncClient, headers: dict[str, str], catalog: _StubCatalog
 ) -> None:
     """A completed test's settings are the record of how its results were made."""
-    catalog.error = ConflictError("Настройки завершённого теста менять нельзя.")
+    catalog.error = ConflictError("A finished test's settings can't be changed.")
 
     response = await client.patch(
         f"/api/ab-tests/{TEST_ID}", headers=headers, json={"impression_budget": 2000}
@@ -166,7 +166,7 @@ async def test_the_patch_rejects_a_setting_from_the_other_mode(
     is worth a route test rather than only a unit one.
     """
     catalog.error = DomainValidationError(
-        "В режиме «по показам» время на вариант не задаётся — уберите slot_minutes."
+        "A test rotating by impressions takes no time per variant — remove slot_minutes."
     )
 
     response = await client.patch(
@@ -192,7 +192,7 @@ async def test_an_unknown_article_reaches_the_service_as_no_card(
     """
     catalogue.card = None
 
-    await client.post("/api/ab-tests", headers=headers, json={"nm_id": 1, "name": "Тест"})
+    await client.post("/api/ab-tests", headers=headers, json={"nm_id": 1, "name": "Test"})
 
     assert catalogue.resolved == [1]
     card = next(call[1]["card"] for call in catalog.calls if call[0] == "create_test")
@@ -213,7 +213,7 @@ async def test_the_seller_article_comes_from_the_card_not_the_body(
     response = await client.post(
         "/api/ab-tests",
         headers=headers,
-        json={"nm_id": NM_ID, "name": "Тест", "vendor_code": "ПОДДЕЛКА"},
+        json={"nm_id": NM_ID, "name": "Test", "vendor_code": "FAKE"},
     )
 
     assert response.status_code == 201
@@ -231,7 +231,7 @@ async def test_the_picker_lists_the_workspaces_catalogue(
     """
     blank = await client.get("/api/ab-tests/skus", headers=headers)
     by_nm = await client.get("/api/ab-tests/skus", params={"q": str(NM_ID)[:5]}, headers=headers)
-    by_vendor = await client.get("/api/ab-tests/skus", params={"q": "ПЛАТЬЕ"}, headers=headers)
+    by_vendor = await client.get("/api/ab-tests/skus", params={"q": "DRESS"}, headers=headers)
 
     assert blank.status_code == 200
     assert blank.json()[0]["nm_id"] == NM_ID

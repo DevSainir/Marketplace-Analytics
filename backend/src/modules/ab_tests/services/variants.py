@@ -9,8 +9,6 @@ photo of somebody else's test reads as absent rather than forbidden — the same
 rule the rest of the module follows.
 """
 
-# ruff: noqa: RUF001 — user-facing error messages are written in
-# Russian, and the confusable-character check fires on ordinary Cyrillic.
 from __future__ import annotations
 
 import uuid
@@ -89,13 +87,13 @@ class VariantCatalogService:
             workspace_id=workspace_id, test_id=test_id, variant_id=variant_id
         )
         if variant is None:
-            raise NotFoundError("Вариант не найден.")
+            raise NotFoundError("Variant not found.")
         try:
             if thumbnail:
                 return await self._thumbnail(variant.image_path), THUMBNAIL_CONTENT_TYPE
             return await self._media.read(variant.image_path), variant.content_type
         except FileNotFoundError as exc:  # pragma: no cover - disk-level failure
-            raise NotFoundError("Файл изображения отсутствует в хранилище.") from exc
+            raise NotFoundError("The image file is missing from storage.") from exc
 
     async def _warm_thumbnail(self, image_path: str, content: bytes) -> None:
         """Derive and cache the small copy of an image just uploaded.
@@ -170,7 +168,7 @@ class VariantCatalogService:
     ) -> AbTestVariant:
         """Store an uploaded photo and put it in the rotation.
 
-        ``as_main`` files it as «Главное» — position 0, first out of the gate,
+        ``as_main`` files it as "Main photo" — position 0, first out of the gate,
         the row every other photo is read against. It is an upload like any
         other, and that is the change: the baseline used to be pulled off WB's
         CDN, which meant comparing against a rendition of the seller's file
@@ -183,7 +181,7 @@ class VariantCatalogService:
             content: Raw image bytes.
             content_type: MIME type declared by the browser.
             filename: The user's own file name.
-            as_main: File it as the test's «Главное» photo.
+            as_main: File it as the test's "Main photo".
 
         Returns:
             The new variant.
@@ -192,16 +190,16 @@ class VariantCatalogService:
             NotFoundError: If the test does not exist in this workspace.
             ValidationError: If the file is not an image WB would accept.
             ConflictError: If the test already carries the maximum photos, or
-                already has a «Главное» one.
+                already has a "Main photo".
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
         validate_image(content=content, content_type=content_type)
 
         if await self._variants.count_for_test(test_id=test.id) >= MAX_VARIANTS_PER_TEST:
-            raise ConflictError(f"В тесте не может быть больше {MAX_VARIANTS_PER_TEST} фото.")
+            raise ConflictError(f"A test holds at most {MAX_VARIANTS_PER_TEST} photos.")
 
         if as_main and any(variant.is_original for variant in test.variants):
-            raise ConflictError("Главное фото уже загружено. Удалите его, чтобы загрузить другое.")
+            raise ConflictError("Main photo already uploaded. Delete it to upload another.")
 
         stored = await self._media.save(content=content, content_type=content_type, test_id=test.id)
         # Derive the small copy NOW, while the seller is already waiting on an
@@ -228,7 +226,7 @@ class VariantCatalogService:
         The stored file stays on disk when the variant was ever live: its bytes
         are the evidence behind the metrics already attributed to it.
 
-        «Главное» may be deleted like any other photo — it is an upload, and
+        The "Main photo" may be deleted like any other photo — it is an upload, and
         deleting it is how it is replaced. It was refused while it was captured
         from WB, when deleting it meant losing a baseline the seller could not
         put back.
@@ -244,11 +242,11 @@ class VariantCatalogService:
         """
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
         if test.active_variant_id == variant_id:
-            raise ConflictError("Нельзя удалить фото, которое сейчас стоит на карточке.")
+            raise ConflictError("The photo on the card right now can't be deleted.")
 
         variant = await self._variants.get(test_id=test_id, variant_id=variant_id)
         if variant is None:
-            raise NotFoundError("Вариант не найден.")
+            raise NotFoundError("Variant not found.")
 
         never_measured = await self._stats.impressions_for_variant(variant_id=variant_id) == 0
         path = variant.image_path
@@ -269,7 +267,7 @@ class VariantCatalogService:
         Nothing is deleted: the row, the image and every window already credited
         to it stay, so the result table goes on showing what it did. Excluding
         the photo that is currently up takes it off the card on the next pass
-        rather than at the end of its slot — «убрать» has to mean now.
+        rather than at the end of its slot — "Remove from rotation" has to mean now.
 
         The last photo still in the rotation cannot be excluded: a rotation with
         nothing to deal would hold forever with whatever is on the card, which
@@ -291,12 +289,12 @@ class VariantCatalogService:
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
         variant = await self._variants.get(test_id=test_id, variant_id=variant_id)
         if variant is None:
-            raise NotFoundError("Вариант не найден.")
+            raise NotFoundError("Variant not found.")
 
         remaining = [v for v in test.variants if not v.is_excluded and v.id != variant_id]
         if excluded and not remaining:
             raise ConflictError(
-                "Это последнее фото в ротации — убрав его, тесту нечего будет показывать."
+                "Last photo in the rotation — without it the test has nothing to show."
             )
 
         return await self._variants.set_excluded(
@@ -307,7 +305,7 @@ class VariantCatalogService:
         """Load a test or raise the 404 the router turns into a response."""
         test = await self._tests.get(workspace_id=workspace_id, test_id=test_id)
         if test is None:
-            raise NotFoundError("Тест не найден.")
+            raise NotFoundError("Test not found.")
         return test
 
 

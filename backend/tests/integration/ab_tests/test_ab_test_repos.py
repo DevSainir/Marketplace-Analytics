@@ -33,7 +33,7 @@ NM_PLAIN_SUIT = 1948347102
 
 
 async def _workspace(
-    session: AsyncSession, organization_id: uuid.UUID, name: str = "Демо"
+    session: AsyncSession, organization_id: uuid.UUID, name: str = "Demo"
 ) -> Workspace:
     """Persist a workspace, inside the tenant that owns it."""
     workspace = Workspace(id=uuid.uuid4(), organization_id=organization_id, name=name)
@@ -48,8 +48,8 @@ async def _seed(session: AsyncSession, workspace: Workspace) -> AbTestRepository
     await repo.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест главного фото",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Main photo test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -57,8 +57,8 @@ async def _seed(session: AsyncSession, workspace: Workspace) -> AbTestRepository
     await repo.create(
         workspace_id=workspace.id,
         nm_id=NM_PLAIN_SUIT,
-        vendor_code="ДЕТ_КОСТЮМ_ДВОЙКА_ОДНОТОН",
-        name="Костюм: фон против модели",
+        vendor_code="KID_SUIT_TWOPIECE_PLAIN",
+        name="Suit: plain backdrop vs model",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -66,8 +66,8 @@ async def _seed(session: AsyncSession, workspace: Workspace) -> AbTestRepository
     paused = await repo.create(
         workspace_id=workspace.id,
         nm_id=953770957,
-        vendor_code="ДЖН_КОСТЮМ_ДЖИНСА",
-        name="Джинса, крупный план",
+        vendor_code="JNS_SUIT_DENIM",
+        name="Fabric close-up",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=25_000,
         slot_minutes=60,
@@ -89,25 +89,25 @@ async def test_search_matches_the_test_name(
     workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 
-    found = await repo.search(workspace_id=workspace.id, query="главного")
+    found = await repo.search(workspace_id=workspace.id, query="main")
 
-    assert [test.name for test in found] == ["Тест главного фото"]
+    assert [test.name for test in found] == ["Main photo test"]
 
 
 @pytest.mark.integration
 async def test_search_matches_the_sellers_article(
     db_session: AsyncSession, organization: Organization
 ) -> None:
-    """The seller's article code («Артикул продавца») is searchable.
+    """The vendor code is searchable.
 
     It is what the team actually types.
     """
     workspace = await _workspace(db_session, organization.id)
     repo = await _seed(db_session, workspace)
 
-    found = await repo.search(workspace_id=workspace.id, query="ДЖИНСА")
+    found = await repo.search(workspace_id=workspace.id, query="DENIM")
 
-    assert [test.vendor_code for test in found] == ["ДЖН_КОСТЮМ_ДЖИНСА"]
+    assert [test.vendor_code for test in found] == ["JNS_SUIT_DENIM"]
 
 
 @pytest.mark.integration
@@ -162,11 +162,11 @@ async def test_search_never_crosses_workspaces(
     Tenancy is in the predicate, not in a later filter — a test rewrites a live
     card, so a leak here changes someone else's storefront.
     """
-    mine = await _workspace(db_session, organization.id, "Демо")
-    theirs = await _workspace(db_session, organization.id, "Марат")
+    mine = await _workspace(db_session, organization.id, "Demo")
+    theirs = await _workspace(db_session, organization.id, "Marat")
     await _seed(db_session, theirs)
 
-    assert await AbTestRepository(db_session).search(workspace_id=mine.id, query="ЦВЕТОЧЕК") == []
+    assert await AbTestRepository(db_session).search(workspace_id=mine.id, query="FLORAL") == []
 
 
 # --------------------------------------------------------------------------- #
@@ -189,8 +189,8 @@ async def test_an_exposure_is_closed_when_the_next_photo_goes_up(
     test = await AbTestRepository(db_session).create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -238,8 +238,8 @@ async def test_deleting_a_test_takes_its_photos_and_days_with_it(
     test = await tests.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -284,8 +284,8 @@ async def test_a_running_test_can_be_deleted_with_its_photo_still_on_the_card(
     test = await tests.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Запущенный",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Running",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -311,19 +311,19 @@ async def test_a_running_test_can_be_deleted_with_its_photo_still_on_the_card(
 async def test_a_stopped_test_records_when_and_a_resumed_one_forgets(
     db_session: AsyncSession, organization: Organization
 ) -> None:
-    """«Остановлен» has to survive a pause and vanish on a resume.
+    """The "Stopped" time has to survive a pause and vanish on a resume.
 
     ``finished_at`` answers this only for a test that ended, and the case the
     page actually asks about is the paused one. A ``stopped_at`` left behind by
-    a resume would go on answering «стоит с 14:05» for a test that is running.
+    a resume would go on answering "up since 14:05" for a test that is running.
     """
     workspace = await _workspace(db_session, organization.id)
     repo = AbTestRepository(db_session)
     test = await repo.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест главного фото",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Main photo test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -347,8 +347,8 @@ async def test_the_rotations_own_pause_records_when_it_happened(
     test = await repo.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест главного фото",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Main photo test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -376,8 +376,8 @@ async def test_a_hand_made_pause_is_never_lifted_by_the_advertising(
     test = await repo.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест главного фото",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Main photo test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -405,13 +405,13 @@ async def test_a_variant_is_only_reachable_from_its_own_workspace(
     there, which no fake repository can show.
     """
     mine = await _workspace(db_session, organization.id)
-    theirs = await _workspace(db_session, organization.id, name="Чужое")
+    theirs = await _workspace(db_session, organization.id, name="Foreign")
     repo = AbTestRepository(db_session)
     test = await repo.create(
         workspace_id=mine.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,

@@ -68,7 +68,7 @@ async def test_a_spent_budget_pauses_at_the_swap_rather_than_ending_the_test() -
 
 
 async def test_a_time_slot_ending_with_no_advertising_pauses_instead_of_swapping() -> None:
-    """«По времени» is not a way round the advertising.
+    """The "By time" mode is not a way round the advertising.
 
     The clock would move the photo whatever the traffic, so this mode is the one
     that could deal photos through dead air — every turn recorded as zero. It

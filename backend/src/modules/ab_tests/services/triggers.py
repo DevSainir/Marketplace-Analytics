@@ -78,11 +78,11 @@ def resolve(
 
     if effective is TriggerMode.IMPRESSIONS and slot_minutes is not None:
         raise ValidationError(
-            "В режиме «по показам» время на вариант не задаётся — уберите slot_minutes."
+            "A test rotating by impressions takes no time per variant — remove slot_minutes."
         )
     if effective is TriggerMode.TIME and impression_budget is not None:
         raise ValidationError(
-            "В режиме «по времени» бюджет показов не задаётся — уберите impression_budget."
+            "A test rotating by time takes no impression budget — remove impression_budget."
         )
     # EITHER reads both, so both are accepted; there is nothing to refuse.
 

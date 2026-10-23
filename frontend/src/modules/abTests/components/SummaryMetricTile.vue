@@ -1,6 +1,6 @@
 <script setup>
 /**
- * One figure of «Итог по тесту», and — when more than one campaign paid for it
+ * One figure of "Test summary", and — when more than one campaign paid for it
  * — what each of them contributed.
  *
  * The tile is a tree rather than a row of extra numbers, because the branches
@@ -18,7 +18,7 @@ import { computed } from 'vue'
 import InfoHint from '@/core/components/InfoHint.vue'
 
 const props = defineProps({
-  /** The metric's label, e.g. «Показов». */
+  /** The metric's label, e.g. "Impressions". */
   label: { type: String, required: true },
   /** The whole-test figure, already formatted. */
   value: { type: String, required: true },
@@ -62,7 +62,7 @@ const span = computed(() => `${50 / props.branches.length}%`)
     <div v-if="split" class="ab-tile__tree mt-sm" data-testid="tile-branches">
       <div class="ab-tile__fork" :style="{ left: span, right: span }"></div>
       <div class="ab-tile__branches">
-        <!-- Keyed by campaign id, not by the label: two «Единая» campaigns on
+        <!-- Keyed by campaign id, not by the label: two "Unified" campaigns on
              one card are two branches with the same name. -->
         <div
           v-for="branch in branches"

@@ -27,7 +27,7 @@ import VariantResultsTable from '@/modules/abTests/components/VariantResultsTabl
 const route = useRoute()
 const router = useRouter()
 const store = useAbTestsStore()
-/** The spend in «Итог по тесту» is in the workspace's settlement currency. */
+/** The spend in "Test summary" is in the workspace's settlement currency. */
 const settlement = useCurrencyStore()
 
 const test = computed(() => store.detail)
@@ -74,18 +74,18 @@ watch(
 onUnmounted(() => clearInterval(refreshing))
 
 /**
- * Which lap the tables show; 0 is «Все».
+ * Which lap the tables show; 0 is "All".
  *
  * A filter rather than a separate screen because the question it answers —
- * «was that photo always ahead, or only in one lap» — is asked while looking at
+ * "was that photo always ahead, or only in one lap" — is asked while looking at
  * the totals, and having to navigate away to check breaks the comparison.
  */
 const round = ref(0)
 
 /**
- * Which campaign the comparison is read through; 0 is «Все».
+ * Which campaign the comparison is read through; 0 is "All".
  *
- * «История действий» below deliberately ignores it: the log is the record of
+ * "Rotation history" below deliberately ignores it: the log is the record of
  * what the rotation did, and the rotation did it once whoever was paying for
  * the traffic. Splitting it would produce two rows per install that differ only
  * in their counts.
@@ -97,7 +97,7 @@ const campaigns = computed(() => test.value?.campaigns ?? [])
 const roundOptions = computed(() => roundsIn(test.value?.history, campaign.value))
 
 // A campaign that ran for four of the test's ten laps offers four; if the lap
-// on screen is not one of them, the filter falls back to «Все» rather than
+// on screen is not one of them, the filter falls back to "All" rather than
 // showing an empty table.
 watch(roundOptions, (available) => {
   if (round.value && !available.includes(round.value)) round.value = 0
@@ -133,7 +133,7 @@ async function onFiles(event) {
 
 /**
  * Upload the baseline. Single-file, unlike `onFiles`: a test has exactly one
- * «Главное», and a second would come back as a conflict nobody asked for.
+ * "Main photo", and a second would come back as a conflict nobody asked for.
  *
  * @param {Event} event The file input's change event.
  * @returns {Promise<void>}
@@ -212,7 +212,7 @@ async function onMainFile(event) {
       <BlockFilters
         v-model:campaign="campaign"
         v-model:round="round"
-        title="Тестирование"
+        title="Results"
         title-class="text-h3 font-semibold text-primary"
         :campaigns="campaigns"
         :vendor-code="test.vendor_code ?? ''"
@@ -231,7 +231,7 @@ async function onMainFile(event) {
 
       <!-- Deliberately a lot of air: the grid is what the page is for and
            the log is a separate question about it, so the gap has to read
-           as «different section» rather than «next row». -->
+           as "different section" rather than "next row". -->
       <div class="mt-[4rem] phone:mt-[2.5rem]">
         <RotationHistory :test="test" :image-urls="store.imageUrls" :round="round" />
       </div>
@@ -240,8 +240,8 @@ async function onMainFile(event) {
     <DataState
       v-else-if="test"
       kind="empty"
-      :text="`Загрузите до ${MAX_VARIANTS} вариантов главного фото — они будут сменять друг друга по мере набора показов, и здесь появится их сравнение.`"
-      hint="Начните с «Главного»: это то фото, которое сейчас стоит на карточке, и именно с ним сравниваются остальные."
+      :text="`Upload up to ${MAX_VARIANTS} variants of the main photo — they take turns on the card as impressions come in, and their comparison appears here.`"
+      hint="Start with the main photo: the one on the card now. Every other variant is compared with it."
     />
   </div>
 </template>

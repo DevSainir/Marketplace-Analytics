@@ -37,7 +37,7 @@ def _test(status: AbTestStatus) -> AbTest:
         workspace_id=uuid7(),
         nm_id=NM_FLOWER_DRESS,
         vendor_code="DRESS-01",
-        name="Тест фото",
+        name="Photo test",
         status=status.value,
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=DEFAULT_IMPRESSION_BUDGET,
@@ -151,9 +151,9 @@ async def test_only_a_running_test_can_be_paused(current: AbTestStatus) -> None:
 @pytest.mark.parametrize(
     ("current", "reason"),
     [
-        pytest.param(AbTestStatus.DRAFT, "черновик можно удалить", id="draft"),
-        pytest.param(AbTestStatus.COMPLETED, "уже завершён", id="completed"),
-        pytest.param(AbTestStatus.CANCELLED, "уже завершён", id="cancelled"),
+        pytest.param(AbTestStatus.DRAFT, "delete the draft", id="draft"),
+        pytest.param(AbTestStatus.COMPLETED, "already finished", id="completed"),
+        pytest.param(AbTestStatus.CANCELLED, "already finished", id="cancelled"),
     ],
 )
 async def test_only_a_started_unfinished_test_can_be_cancelled(
@@ -181,7 +181,7 @@ async def test_a_cancelled_test_cannot_be_revived_through_a_pause() -> None:
     test = _test(AbTestStatus.CANCELLED)
     service, _, _, _ = _service(test)
 
-    with pytest.raises(ConflictError, match="уже завершён"):
+    with pytest.raises(ConflictError, match="already finished"):
         await service.set_status(
             workspace_id=test.workspace_id,
             test_id=test.id,
@@ -217,7 +217,7 @@ async def test_a_running_test_can_be_paused() -> None:
     ],
 )
 async def test_a_running_or_paused_test_can_be_cancelled(current: AbTestStatus) -> None:
-    """«Завершить» works from both states the page offers it in."""
+    """The "Finish" button works from both states the page offers it in."""
     test = _test(current)
     service, tests, exposures, _ = _service(test)
 

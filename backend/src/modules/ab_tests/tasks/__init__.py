@@ -1,7 +1,7 @@
 """Celery entrypoint for the rotation poller, and the sweep it runs.
 
 Three modules, split when the file passed the repo's 500-line ceiling: what a
-cabinet shares for one pass is in :mod:`.cabinet`, wiring and running one test's
+workspace shares for one pass is in :mod:`.cabinet`, wiring and running one test's
 pass is in :mod:`.passes`, and what stays here is the sweep — which tests to
 poll, in what order, how many at once, and which of them to wake up again.
 
@@ -18,15 +18,15 @@ takes its own slice of it.
 
 This used to be a call per test, and the cost was wall-clock rather than
 failure. The bucket is one token per 20 seconds PER SELLER TOKEN, and the sweep
-is sequential, so a hundred tests in one cabinet did not error — they took a
+is sequential, so a hundred tests in one workspace did not error — they took a
 hundred turns of the bucket, about half an hour, for a pass scheduled every
 five minutes. Passes then overlap and every test's window stretches to whenever
 the sweep next reaches it.
 
 What actually bounds a pass is therefore the number of **50-id batches** it
 sends, not the number of tests. The first batch on each token is free — the
-bucket starts full and every cabinet has its own — and each further batch costs
-20 seconds of the pass's five minutes. A cabinet whose campaigns fit in one
+bucket starts full and every workspace has its own — and each further batch costs
+20 seconds of the pass's five minutes. A workspace whose campaigns fit in one
 batch costs no waiting at all, however many tests it holds.
 
 **Why a fixed interval rather than one adapted to traffic.** Adapting the
@@ -75,7 +75,7 @@ async def _gather_bounded[T, R](
 ) -> list[R]:
     """Run ``run`` over ``items`` concurrently, at most ``limit`` at a time.
 
-    The bound is the point, not the concurrency. Cabinets are independent as far
+    The bound is the point, not the concurrency. Workspaces are independent as far
     as WB is concerned, but they are not independent as far as our database is:
     each one holds a session while it reads its tokens, and an unbounded
     ``gather`` over five hundred of them would ask this process's pool — ten
@@ -183,7 +183,7 @@ async def _poll_all() -> dict[str, int]:
 
     # Grouped by workspace because that is the unit the advertising reads are
     # priced in: WB's bucket is per seller token, so a hundred tests in one
-    # cabinet share one allowance while a hundred cabinets do not compete.
+    # workspace share one allowance while a hundred workspaces do not compete.
     by_workspace: dict[uuid.UUID, list[AbTest]] = defaultdict(list)
     for test in tests:
         by_workspace[test.workspace_id].append(test)
@@ -196,7 +196,7 @@ async def _poll_all() -> dict[str, int]:
     async def _sweep_cabinet(
         workspace_id: uuid.UUID, workspace_tests: list[AbTest]
     ) -> dict[str, int]:
-        """Poll one cabinet's tests, reporting what happened to them.
+        """Poll one workspace's tests, reporting what happened to them.
 
         Returns its own counters rather than mutating shared ones: the caller
         runs these concurrently, and a dict updated from several coroutines is
@@ -215,10 +215,10 @@ async def _poll_all() -> dict[str, int]:
             return tally
         adverts_by_workspace[workspace_id] = cabinet.adverts
 
-        # Tests WITHIN a cabinet stay sequential. They share one rate
+        # Tests WITHIN a workspace stay sequential. They share one rate
         # bucket and one transaction-per-test discipline, so running them
         # concurrently would win nothing and would put several of this
-        # cabinet's sessions in flight at once.
+        # workspace's sessions in flight at once.
         for test in workspace_tests:
             try:
                 action = await poll_one(test, cabinet=cabinet, now=now, days=days)
@@ -236,8 +236,8 @@ async def _poll_all() -> dict[str, int]:
         return tally
 
     # Concurrently, because the rate buckets are independent — one per seller
-    # token — so a cabinet's twenty-second wait for a token is twenty seconds
-    # during which every other cabinet can be working. A sequential loop turned
+    # token — so a workspace's twenty-second wait for a token is twenty seconds
+    # during which every other workspace can be working. A sequential loop turned
     # independent waits into a queue nothing asked for.
     tallies = await _gather_bounded(
         list(by_workspace.items()),

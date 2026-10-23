@@ -110,7 +110,7 @@ def _shrink(content: bytes) -> bytes:
         with Image.open(io.BytesIO(content)) as source:
             width, height = source.size
             if width * height > _MAX_PIXELS:
-                raise ValidationError("Изображение слишком большое для обработки.")
+                raise ValidationError("Image too large to process.")
             # Ask the JPEG decoder for a smaller picture in the first place.
             # libjpeg can scale by halves while decoding, so a 12-megapixel
             # photo is never fully expanded: measured 3.9 s -> 0.4 s on the
@@ -142,7 +142,7 @@ def _shrink(content: bytes) -> bytes:
     except ValidationError:
         raise
     except Exception as exc:
-        raise ValidationError("Не удалось обработать изображение.") from exc
+        raise ValidationError("Couldn't process the image.") from exc
 
 
 async def derive(content: bytes) -> bytes:

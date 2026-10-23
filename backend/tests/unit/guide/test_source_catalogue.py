@@ -41,7 +41,7 @@ def test_every_source_names_tokens_the_bundle_actually_carries() -> None:
     """A token field the bundle does not have resolves to "" and skips forever.
 
     ``token_for`` uses ``getattr(..., "")``, so a misspelt field is not an
-    error — it is a source that records "нет токена" every run and nobody
+    error — it is a source that records "no token" every run and nobody
     notices.
     """
     bundle_fields = set(WorkspaceTokenBundle.model_fields)

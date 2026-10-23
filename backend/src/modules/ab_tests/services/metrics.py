@@ -1,6 +1,6 @@
 """Variant totals and the three funnel ratios the result table shows.
 
-Ratios are derived here, never stored, for the reason «Процент выкупа» is
+Ratios are derived here, never stored, for the reason "Buyout rate" is
 derived in the monitoring module: a percentage cannot be re-aggregated. Averaging
 a variant's daily CTRs weights a 100-impression day the same as a 10 000-one and
 answers a question nobody asked, so totals are summed first and divided once.
@@ -8,9 +8,9 @@ answers a question nobody asked, so totals are summed first and divided once.
 The three ratios are **chained**, each dividing by the previous stage — the same
 definition WB's own A/B result screen uses:
 
-    «Доля переходов в карточку» (click-through)  = clicks / views
-    «Доля добавлений в корзину» (add-to-cart)    = atbs   / clicks
-    «Доля оформлений заказов»   (order rate)     = orders / atbs
+    click-through (share of views that click into the card) = clicks / views
+    add-to-cart   (share of clicks that add to the cart)    = atbs   / clicks
+    order rate    (share of carts that become orders)       = orders / atbs
 """
 
 from __future__ import annotations

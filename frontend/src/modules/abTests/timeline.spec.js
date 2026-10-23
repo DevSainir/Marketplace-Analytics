@@ -49,7 +49,7 @@ describe('buildTimeline', () => {
 
   it('cuts an unfinished turn off where the line ends', () => {
     // A pause leaves the photo on the card, so its exposure is never closed.
-    // Measured to «сейчас» instead of to the stop, a test paused on Friday draws
+    // Measured to "now" instead of to the stop, a test paused on Friday draws
     // a segment that eats the whole track by Monday.
     const { segments, live, endMs } = buildTimeline(
       [turn({ activated_at: '2026-09-08T11:30:00Z', deactivated_at: null })],
@@ -106,14 +106,14 @@ describe('buildTimeline', () => {
     expect(buildTimeline(rows, { endsAt: NOW, round: 0 }).segments).toHaveLength(2)
   })
 
-  it('names the baseline «Главное» and numbers the rest', () => {
+  it('names the baseline "Main photo" and numbers the rest', () => {
     const { segments } = buildTimeline(
       [turn({ is_original: true, position: 0 }), turn({ position: 3 })],
       { endsAt: NOW },
     )
 
-    expect(segments.map((s) => s.label)).toContain('Главное')
-    expect(segments.map((s) => s.label)).toContain('Вариант 3')
+    expect(segments.map((s) => s.label)).toContain('Main photo')
+    expect(segments.map((s) => s.label)).toContain('Variant 3')
   })
 
   it('is empty rather than broken for a test that has never installed anything', () => {

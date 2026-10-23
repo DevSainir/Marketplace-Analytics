@@ -35,10 +35,10 @@ from src.core.ids import uuid7
 
 _SCHEMA: str = "ab_tests"
 
-#: WB refuses a card with no images, and the cabinet's own tool caps a gallery
+#: WB refuses a card with no images, and the seller portal's own tool caps a gallery
 #: well below this; ten is the product limit the upload endpoint enforces.
 #:
-#: It bounds every photo in the test, the one marked «Главное» included. That
+#: It bounds every photo in the test, the one marked "Main photo" included. That
 #: one used to be captured off the card rather than chosen, so charging it to
 #: the seller's allowance would have cost them a slot they never spent; now it
 #: is an upload like any other and counts like one.
@@ -219,7 +219,7 @@ class AbTestVariant(Base):
     """One candidate main photo inside a test.
 
     Two kinds of row, distinguished by ``is_original``: the photos the user
-    uploaded as candidates, and the one they uploaded as «Главное» — the
+    uploaded as candidates, and the one they uploaded as "Main photo" — the
     baseline the others are read against. Both are uploads. The baseline used to
     be pulled off the card from WB's CDN, and it was dropped: WB serves
     renditions rather than the seller's own file, so every comparison was
@@ -238,7 +238,7 @@ class AbTestVariant(Base):
             reserved for the card's own photo** — see ``is_original`` — so that
             enrolling it needs no renumbering of rows a running test is already
             attributing traffic to.
-        is_original: True for the photo the seller marked as «Главное». It
+        is_original: True for the photo the seller marked as "Main photo". It
             sorts first, opens the rotation and is installed like every other
             variant — nothing about it is assumed to be on the card already.
             At most one per test.

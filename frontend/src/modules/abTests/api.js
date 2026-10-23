@@ -13,7 +13,7 @@ import apiClient from '@/core/api/axios'
  * GET /ab-tests — the workspace's tests, newest first.
  *
  * @param {{q?: string}} [params] Free-text needle matched against the test
- *   name, both articles and the status.
+ *   name, the WB ID, the vendor code and the status.
  * @param {AbortSignal} [signal] Cancels the request when a newer fetch starts.
  * @returns {Promise<Array<object>>} List rows.
  */
@@ -35,13 +35,13 @@ export async function fetchTest(testId, signal) {
 }
 
 /**
- * GET /ab-tests/skus — the workspace's catalogue, for the article picker.
+ * GET /ab-tests/skus — the workspace's catalog, for the SKU picker.
  *
- * Matches either article or the title, so typing a seller code or a WB number
+ * Matches the WB ID, the vendor code or the title, so typing either identifier
  * reaches the same card. A blank query returns the first page rather than
  * nothing, so the picker opens with content.
  *
- * @param {string} [q] Fragment of either article, or of the title.
+ * @param {string} [q] Fragment of either identifier, or of the title.
  * @param {AbortSignal} [signal] Cancels the request when a newer one starts.
  * @returns {Promise<Array<{nm_id: number, vendor_code: string, title: string}>>}
  */
@@ -124,7 +124,7 @@ export async function deleteTest(testId) {
 /**
  * POST /ab-tests/{id}/variants — upload one photo into the rotation.
  *
- * `main` files it as «Главное»: position 0, first out of the gate, the row
+ * `main` files it as "Main photo": position 0, first out of the gate, the row
  * every other photo is read against. One per test. It used to be captured off
  * WB's CDN instead of uploaded, which meant comparing against a rendition of
  * the seller's file rather than the file itself.

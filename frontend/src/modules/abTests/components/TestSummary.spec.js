@@ -1,12 +1,12 @@
 /**
- * The «Итог по тесту» panel.
+ * The "Test summary" panel.
  *
  * The panel's value is that its figures can be checked against the table under
  * it, so what is worth pinning is everything that would make it disagree with
  * that table or with itself: a CTR averaged instead of divided, and a duration
  * that quietly becomes wall-clock time.
  *
- * «Длительность» is the summed length of the measured intervals — NOT the time
+ * "Duration" is the summed length of the measured intervals — NOT the time
  * since the start. The two used to sit side by side, and dropping the wall
  * clock is what makes it possible to read this one as the wrong thing: nine
  * hours of data over a fourteen-hour test must keep saying nine.
@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
 
 import TestSummary from '@/modules/abTests/components/TestSummary.vue'
 
-/** `toLocaleString('ru-RU')` groups with U+00A0; normalise rather than paste it. */
+/** Collapse any U+00A0 a formatter puts in, so the assertions read as plain text. */
 const plain = (text) => text.replace(/\u00a0/g, ' ')
 
 const VARIANT_MAIN = '00000000-0000-7000-8000-00000000000a'
@@ -69,7 +69,7 @@ describe('TestSummary', () => {
     expect(plain(unknown.get('[data-testid="summary-spend"]').text())).toBe('3,050')
   })
 
-  it('renders an unmeasured CTR as «—» rather than as 0 %', () => {
+  it('renders an unmeasured CTR as "—" rather than as 0%', () => {
     const wrapper = mount(TestSummary, {
       props: { test: test({}, { views: 0, clicks: 0, click_through: null }) },
     })
@@ -81,9 +81,9 @@ describe('TestSummary', () => {
     const wrapper = mount(TestSummary, { props: { test: test() } })
 
     const text = plain(wrapper.text())
-    expect(text).toContain('Длительность')
-    expect(text).toContain('9 ч 0 мин')
-    expect(text).not.toContain('10 ч 0 мин')
+    expect(text).toContain('Duration')
+    expect(text).toContain('9 h 0 min')
+    expect(text).not.toContain('10 h 0 min')
   })
 
   it('says when the rotation stopped, pause included', () => {
@@ -92,14 +92,14 @@ describe('TestSummary', () => {
     })
 
     // A paused test has no finish, so the stop is the only clock that answers
-    // "how long has it been standing". Asserted as "not «—»" rather than against a
+    // "how long has it been standing". Asserted as "not —" rather than against a
     // rendered time: the panel formats in the reader's own zone, and CI's is
     // not the developer's.
-    expect(plain(wrapper.text())).toContain('Остановлен')
+    expect(plain(wrapper.text())).toContain('Stopped')
     expect(wrapper.get('[data-testid="fact-stopped"]').text()).not.toBe('—')
   })
 
-  it('leaves «Остановлен» empty while the test is running', () => {
+  it('leaves "Stopped" empty while the test is running', () => {
     const wrapper = mount(TestSummary, { props: { test: test() } })
 
     expect(wrapper.get('[data-testid="fact-stopped"]').text()).toBe('—')
@@ -118,10 +118,10 @@ describe('TestSummary', () => {
     })
 
     // The one stop the rotation will not undo by itself, so the reason has to
-    // be on the screen: «На паузе» alone reads as "broken".
+    // be on the screen: "Paused" alone reads as "broken".
     const text = plain(wrapper.get('[data-testid="summary-photo-conflict"]').text())
-    expect(text).toContain('поменяли вручную')
-    expect(text).toContain('ни одному варианту не зачтён')
+    expect(text).toContain('changed by hand')
+    expect(text).toContain('counts for no variant')
   })
 
   it('explains a stop caused by the advertising, and that it resumes by itself', () => {
@@ -131,13 +131,13 @@ describe('TestSummary', () => {
       },
     })
 
-    // Without the sentence a seller presses «Запустить», the next pass pauses
+    // Without the sentence a seller presses "Start", the next pass pauses
     // it again, and the page reads as a test that pauses on its own.
     const text = plain(wrapper.get('[data-testid="summary-paused-by-ads"]').text())
-    expect(text).toContain('не идёт реклама')
-    expect(text).toContain('кампании нет вовсе')
-    expect(text).toContain('продолжится сам')
-    expect(wrapper.get('[data-testid="summary-status"]').text()).toBe('На паузе · нет рекламы')
+    expect(text).toContain('no ads are running')
+    expect(text).toContain('or missing')
+    expect(text).toContain('resumes on its own')
+    expect(wrapper.get('[data-testid="summary-status"]').text()).toBe('Paused · no ads')
   })
 
   it('does not blame the advertising for a pause the seller made', () => {
@@ -155,17 +155,17 @@ describe('TestSummary', () => {
   it('names a stopped test’s status beside the heading', () => {
     const wrapper = mount(TestSummary, { props: { test: test({ status: 'paused' }) } })
 
-    expect(wrapper.get('[data-testid="summary-status"]').text()).toBe('На паузе')
+    expect(wrapper.get('[data-testid="summary-status"]').text()).toBe('Paused')
   })
 
   it('says how much of the test has actually run, and what is up now', () => {
     const wrapper = mount(TestSummary, { props: { test: test() } })
 
     const text = plain(wrapper.text())
-    expect(text).toContain('6 фото из 8')
-    expect(text).toContain('кругов пройдено 4')
-    expect(text).toContain('Сейчас на карточке')
-    expect(wrapper.get('[data-testid="summary-live-photo"]').text()).toContain('Главное')
+    expect(text).toContain('Impressions on 6 of 8 photos')
+    expect(text).toContain('4 rounds completed')
+    expect(text).toContain('On the card now')
+    expect(wrapper.get('[data-testid="summary-live-photo"]').text()).toContain('Main photo')
   })
 })
 
@@ -173,7 +173,7 @@ describe('the per-campaign fork', () => {
   const CAMPAIGNS = [
     {
       campaign_id: 97455930,
-      name: 'Единая ставка',
+      name: 'Unified bid',
       kind: 'uni',
       views: 9000,
       clicks: 300,
@@ -182,7 +182,7 @@ describe('the per-campaign fork', () => {
     },
     {
       campaign_id: 97730900,
-      name: 'CPC — поиск',
+      name: 'CPC — search',
       kind: 'cpc',
       views: 3345,
       clicks: 156,
@@ -204,14 +204,14 @@ describe('the per-campaign fork', () => {
 
   it('names each branch by its KIND, not by what the seller called the campaign', () => {
     // Under a figure four branches wide there is room for about eight
-    // characters, and a seller's own «M-BLK-2 автоворонка сент» arrived as
-    // «M-B…» on every branch. What the fork is for is «Единая against CPC».
+    // characters, and a seller's own "M-BLK-2 auto funnel Sep" arrived as
+    // "M-B…" on every branch. What the fork is for is "Unified against CPC".
     const wrapper = mount(TestSummary, { props: { test: test({ campaigns: CAMPAIGNS }) } })
 
     const views = plain(wrapper.findAll('[data-testid="tile-branches"]')[0].text())
-    expect(views).toContain('Единая')
+    expect(views).toContain('Unified')
     expect(views).toContain('CPC')
-    expect(views).not.toContain('Единая ставка')
+    expect(views).not.toContain('Unified bid')
   })
 
   it('keeps the campaign own name a hover away', () => {
@@ -222,7 +222,7 @@ describe('the per-campaign fork', () => {
       .findAll('.ab-tile__branch-name')
       .map((node) => node.attributes('title'))
 
-    expect(names).toEqual(['Единая ставка', 'CPC — поиск'])
+    expect(names).toEqual(['Unified bid', 'CPC — search'])
   })
 
   it('stays the plain figure it always was while only one campaign is running', () => {

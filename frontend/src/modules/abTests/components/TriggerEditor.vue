@@ -33,7 +33,7 @@ watch(
   { immediate: true },
 )
 
-/** True in «показы и время», where the two bounds share one line. */
+/** True in "Impressions or time", where the two bounds share one line. */
 const bothBounds = computed(
   () => usesBudget(draft.value.trigger_mode) && usesSlot(draft.value.trigger_mode),
 )
@@ -50,7 +50,7 @@ function save() {
   >
     <label class="block">
       <span class="block text-tiny font-medium uppercase tracking-wide text-muted"
-        >Что меняет фото</span
+        >What changes the photo</span
       >
       <select v-model="draft.trigger_mode" data-testid="edit-trigger-mode" class="ui-select mt-xs">
         <option v-for="mode in TRIGGER_MODES" :key="mode.value" :value="mode.value">
@@ -64,7 +64,7 @@ function save() {
     <div class="flex items-end gap-sm">
       <label v-if="usesBudget(draft.trigger_mode)" class="block">
         <span class="block text-tiny font-medium uppercase tracking-wide text-muted">
-          Показов на вариант
+          Impressions per variant
         </span>
         <input
           v-model="draft.impression_budget"
@@ -76,7 +76,7 @@ function save() {
       </label>
       <label v-if="usesSlot(draft.trigger_mode)" class="block">
         <span class="block text-tiny font-medium uppercase tracking-wide text-muted">
-          Минут на вариант
+          Minutes per variant
         </span>
         <input
           v-model="draft.slot_minutes"
@@ -87,7 +87,7 @@ function save() {
         />
       </label>
     </div>
-    <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
+    <button type="button" class="ui-btn" @click="emit('cancel')">Cancel</button>
     <button
       type="button"
       class="ui-btn ui-btn--primary"
@@ -95,10 +95,10 @@ function save() {
       data-testid="save-trigger"
       @click="save"
     >
-      {{ saving ? 'Сохраняем…' : 'Сохранить' }}
+      {{ saving ? 'Saving…' : 'Save' }}
     </button>
     <p class="w-full text-tiny text-muted">
-      Новый триггер читается ближайшим проходом (в течение 5 минут).
+      The next pass picks up the new trigger (within 5 min).
     </p>
   </div>
 </template>

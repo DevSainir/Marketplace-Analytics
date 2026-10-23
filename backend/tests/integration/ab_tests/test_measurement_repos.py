@@ -37,7 +37,7 @@ OTHER_CAMPAIGN = 97730900
 
 
 async def _workspace(
-    session: AsyncSession, organization_id: uuid.UUID, name: str = "Демо"
+    session: AsyncSession, organization_id: uuid.UUID, name: str = "Demo"
 ) -> Workspace:
     """Persist a workspace, inside the tenant that owns it."""
     workspace = Workspace(id=uuid.uuid4(), organization_id=organization_id, name=name)
@@ -63,8 +63,8 @@ async def test_an_interval_is_recorded_once_even_if_the_pass_is_retried(
     test = await tests.create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -116,8 +116,8 @@ async def test_impressions_accumulate_across_a_variants_intervals(
     test = await AbTestRepository(db_session).create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -159,8 +159,8 @@ async def test_two_campaigns_share_one_interval_without_overwriting_each_other(
     test = await AbTestRepository(db_session).create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,
@@ -214,8 +214,8 @@ async def test_the_snapshot_round_trips_and_is_overwritten_each_poll(
     test = await AbTestRepository(db_session).create(
         workspace_id=workspace.id,
         nm_id=NM_FLOWER_DRESS,
-        vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК",
-        name="Тест",
+        vendor_code="KID_DRESS_FLORAL",
+        name="Test",
         trigger_mode=TriggerMode.IMPRESSIONS.value,
         impression_budget=10_000,
         slot_minutes=60,

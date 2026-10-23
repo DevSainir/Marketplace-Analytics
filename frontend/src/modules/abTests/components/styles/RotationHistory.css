@@ -1,5 +1,5 @@
 /*
- * «История действий» — the log of turns.
+ * "Rotation history" — the log of turns.
  *
  * Its own stylesheet, imported with `<style scoped src>`, for the same reason
  * the result grid has one: the component is close to the 250-line ceiling.
@@ -20,8 +20,8 @@
   border-collapse: collapse;
   font-size: 12px;
   /* Fixed layout so the seven figure columns share the leftover width equally
-     instead of each being sized by whatever happens to be in it — «Вариант» is
-     three times the width of «Круг» under auto layout, and the eye reads that
+     instead of each being sized by whatever happens to be in it — "Impressions" is
+     several times the width of "CTR" under auto layout, and the eye reads that
      as a hierarchy the columns do not have. */
   table-layout: fixed;
 }

@@ -12,27 +12,27 @@ WB, not from a second query, not from a stored counter: the identical
 :class:`~..models.stats.VariantStatWindow` list that
 :func:`..services.results.build_rows` walks. That is the property that makes the
 block checkable rather than decorative — the total of impressions is the sum of the
-table's «Показов» line, to the impression, always, and a reader who adds the
+table's "Impressions" line, to the impression, always, and a reader who adds the
 columns up and gets the same number has verified the page rather than trusted
 it.
 
 Two clocks, and they are deliberately not the same number:
 
-* **«Измерено»** (measured) — the length of the union of the intervals that carry the
+** **"Measured"** — the length of the union of the intervals that carry the
   counts. This is the exposure the CTR is divided over; it is what "over so much
   time" honestly means. A union, not a sum: every interval is stored once
   per advertising campaign, so with two campaigns serving the same hour that
-  hour has two rows, and summing them reported a 20-hour test as «1 д 17 ч».
-* **«Прошло»** (elapsed) — wall clock from the first install to the finish (or to now).
+  hour has two rows, and summing them reported a 20-hour test as "1d 17h".
+** **"Elapsed"** — wall clock from the first install to the finish (or to now).
 
 They differ by every stretch the test was not accruing: a hand pause, a campaign
 that stopped serving, a poll that read nothing. The gap is reported rather than
-hidden, because a test that ran «14 часов» while measuring four of them is a
+hidden, because a test that ran "14 hours" while measuring four of them is a
 test whose numbers are thin for a reason the seller can act on — switch the
 advertising back on — and averaging the difference away would present the same
 1 200 impressions as if they were a day's worth.
 
-The wall clock itself is NOT computed here: it ends at «сейчас» for a live test,
+The wall clock itself is NOT computed here: it ends at "now" for a live test,
 and a duration frozen at the last poll would be wrong on the screen within
 seconds. The client ticks it from ``started_at``/``finished_at``, the same way
 the rotation countdown ticks — see ``TestSummary.vue``.
@@ -60,7 +60,7 @@ def build_summary(
 
     Args:
         variants: Its photos, in rotation order — the same sequence the result
-            table is built from, so «варианта из» counts what is on screen.
+            table is built from, so "N of M photos" counts what is on screen.
         windows: Every recorded polling interval of the test, any order.
         rounds_completed: Laps the rotation has served, as the detail computes
             it. Passed in rather than re-derived so the block and the round

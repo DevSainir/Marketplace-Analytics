@@ -7,11 +7,10 @@ without a request (see :mod:`.runner`), and the two meet at
 
 Starting a test is its own sequence and lives in :mod:`.launch`; it runs
 **synchronously** inside the request because it is a couple of WB calls, and
-doing it in the background would leave the user looking at a «Запущен» test
+doing it in the background would leave the user looking at a "Running" test
 whose card still shows the old image, with the failure buried in a worker log.
 """
 
-# Russian, and the confusable-character check fires on ordinary Cyrillic.
 from __future__ import annotations
 
 import uuid
@@ -165,7 +164,7 @@ class AbTestCatalogService:
         serves **renditions**, not the seller's own file, so the baseline was a
         re-transcoded copy — and re-installing it put that loss back on the live
         card. The seller now uploads the baseline themselves and marks it
-        «Главное»; see :meth:`.variants.VariantCatalogService.add_variant`.
+        "Main photo"; see :meth:`.variants.VariantCatalogService.add_variant`.
 
         Args:
             workspace_id: Owning workspace.
@@ -188,13 +187,13 @@ class AbTestCatalogService:
         # a media upload at somebody else's card, or at nothing. The body was
         # trusted until 2026-09-05, when a test was created against article `1`.
         if card is None:
-            raise ValidationError(f"Артикул {payload.nm_id} не найден в каталоге кабинета.")
+            raise ValidationError(f"WB ID {payload.nm_id} is not in this workspace's catalog.")
 
         cap = settings.max_ab_tests_per_workspace
         if await self._tests.count_for_workspace(workspace_id) >= cap:
             raise ValidationError(
-                f"Достигнут лимит А/Б-тестов ({cap} на кабинет). "
-                "Удалите завершённые тесты, чтобы создать новый."
+                f"A/B test limit reached ({cap} per workspace). "
+                "Delete finished tests to create a new one."
             )
         test = await self._tests.create(
             workspace_id=workspace_id,
@@ -247,7 +246,7 @@ class AbTestCatalogService:
         test = await self._require(workspace_id=workspace_id, test_id=test_id)
 
         if test.status in {AbTestStatus.COMPLETED.value, AbTestStatus.CANCELLED.value}:
-            raise ConflictError("Настройки завершённого теста менять нельзя.")
+            raise ConflictError("A finished test's settings can't be changed.")
 
         resolved = resolve_trigger(
             mode=payload.trigger_mode,
@@ -310,10 +309,10 @@ class AbTestCatalogService:
         try:
             target = AbTestStatus(status)
         except ValueError as exc:
-            raise ValidationError(f"Неизвестный статус: {status}.") from exc
+            raise ValidationError(f"Unknown status: {status}.") from exc
 
         if target not in _USER_SETTABLE:
-            raise ValidationError(f"Статус {status} выставляется автоматически.")
+            raise ValidationError(f"Status {status} is set automatically.")
 
         _refuse_impossible_stop(current=test.status, target=target)
 
@@ -350,7 +349,7 @@ class AbTestCatalogService:
             NotFoundError: If the test does not exist in this workspace.
         """
         if not await self._tests.delete(workspace_id=workspace_id, test_id=test_id):
-            raise NotFoundError("Тест не найден.")
+            raise NotFoundError("Test not found.")
 
     # --------------------------------------------------------------- private
 
@@ -390,7 +389,7 @@ class AbTestCatalogService:
         """Load a test or raise the 404 the router turns into a response."""
         test = await self._tests.get(workspace_id=workspace_id, test_id=test_id)
         if test is None:
-            raise NotFoundError("Тест не найден.")
+            raise NotFoundError("Test not found.")
         return test
 
 
@@ -409,7 +408,7 @@ def _refuse_impossible_stop(*, current: str, target: AbTestStatus) -> None:
     if allowed is None or current in allowed:
         return
     if current in {AbTestStatus.COMPLETED.value, AbTestStatus.CANCELLED.value}:
-        raise ConflictError("Тест уже завершён.")
+        raise ConflictError("The test is already finished.")
     if target is AbTestStatus.PAUSED:
-        raise ConflictError("Приостановить можно только запущенный тест.")
-    raise ConflictError("Тест ещё не запущен — черновик можно удалить.")
+        raise ConflictError("Only a running test can be paused.")
+    raise ConflictError("The test hasn't started — delete the draft instead.")

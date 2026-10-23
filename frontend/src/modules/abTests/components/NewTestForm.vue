@@ -1,6 +1,6 @@
 <script setup>
 /**
- * The «Новый тест» panel — name, article, and the trigger that will move it.
+ * The "New test" panel — name, SKU, and the trigger that will move it.
  *
  * Its own component rather than markup inside the list view: the view was over
  * the 250-line ceiling with it inline. Which settings a mode sends is
@@ -13,7 +13,7 @@ import SkuPicker from '@/modules/abTests/components/SkuPicker.vue'
 import { TRIGGER_MODES, triggerPayload, usesBudget, usesSlot } from '@/modules/abTests/trigger'
 
 defineProps({
-  /** Catalogue options for the article picker, as the store loaded them. */
+  /** Catalog options for the SKU picker, as the store loaded them. */
   options: { type: Array, default: () => [] },
   /** True while the create request is in flight. */
   saving: { type: Boolean, default: false },
@@ -27,7 +27,7 @@ const pickedSku = ref(null)
 
 const ready = computed(() => !!form.value.name.trim() && !!pickedSku.value)
 
-/** True in «показы и время», where the two bounds share one row of the grid. */
+/** True in "Impressions or time", where the two bounds share one row of the grid. */
 const bothBounds = computed(
   () => usesBudget(form.value.trigger_mode) && usesSlot(form.value.trigger_mode),
 )
@@ -55,18 +55,18 @@ defineExpose({ reset })
 <template>
   <section
     class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
-    aria-label="Новый A/Б-тест"
+    aria-label="New A/B test"
   >
-    <h2 class="text-h3 font-semibold text-primary">Новый тест</h2>
+    <h2 class="text-h3 font-semibold text-primary">New test</h2>
 
     <div class="mt-md grid gap-md sm:grid-cols-2">
       <label class="block">
-        <span class="text-tiny font-medium uppercase tracking-wide text-muted">Название</span>
+        <span class="text-tiny font-medium uppercase tracking-wide text-muted">Name</span>
         <input
           v-model="form.name"
           data-testid="test-name"
           class="ui-input mt-xs w-full"
-          placeholder="Тест главного фото"
+          placeholder="Main photo test"
         />
       </label>
 
@@ -74,7 +74,7 @@ defineExpose({ reset })
 
       <label class="block">
         <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-          Что меняет фото
+          What changes the photo
         </span>
         <select
           v-model="form.trigger_mode"
@@ -94,7 +94,7 @@ defineExpose({ reset })
       <div class="grid gap-sm" :class="bothBounds ? 'grid-cols-2' : 'grid-cols-1'">
         <label v-if="usesBudget(form.trigger_mode)" class="block">
           <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-            Показов на вариант
+            Impressions per variant
           </span>
           <input
             v-model="form.impression_budget"
@@ -105,7 +105,7 @@ defineExpose({ reset })
         </label>
         <label v-if="usesSlot(form.trigger_mode)" class="block">
           <span class="text-tiny font-medium uppercase tracking-wide text-muted">
-            Минут на вариант
+            Minutes per variant
           </span>
           <input
             v-model="form.slot_minutes"
@@ -118,7 +118,7 @@ defineExpose({ reset })
     </div>
 
     <div class="mt-lg flex flex-wrap items-center justify-end gap-sm">
-      <button type="button" class="ui-btn" @click="emit('cancel')">Отмена</button>
+      <button type="button" class="ui-btn" @click="emit('cancel')">Cancel</button>
       <button
         type="button"
         class="ui-btn ui-btn--primary"
@@ -126,7 +126,7 @@ defineExpose({ reset })
         data-testid="create-test"
         @click="submit"
       >
-        {{ saving ? 'Создаём…' : 'Создать' }}
+        {{ saving ? 'Creating…' : 'Create' }}
       </button>
     </div>
   </section>

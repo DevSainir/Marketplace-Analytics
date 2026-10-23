@@ -20,7 +20,7 @@
  *   minimums would make every turn the same width whatever it did.
  * * **The line ends where the rotation did.** The last exposure of a stopped
  *   test has no `deactivated_at` — a pause leaves the photo on the card — so
- *   measuring it to «сейчас» drew a segment that grew all weekend and squeezed
+ *   measuring it to "now" drew a segment that grew all weekend and squeezed
  *   every real turn into the left edge. The caller passes `endsAt`, which is
  *   the stop for a stopped test and the clock only for a live one.
  */
@@ -130,7 +130,7 @@ function toTurn(row, endsAt, campaignId = 0) {
   return {
     key: `${row.variant_id}-${row.activated_at}`,
     variantId: row.variant_id,
-    label: row.is_original ? 'Главное' : `Вариант ${row.position}`,
+    label: row.is_original ? 'Main photo' : `Variant ${row.position}`,
     round: row.round_number,
     startMs,
     endMs,
@@ -177,7 +177,7 @@ const ROOMY_TURNS = 14
  * How wide the line is drawn, and how big its thumbnails may be.
  *
  * `100%` while the turns fit — the line is a proportion of the block, which is
- * what makes «Все круги» readable at a glance. Once there are more turns than
+ * what makes "All rounds" readable at a glance. Once there are more turns than
  * the block can label it becomes a fixed width and the block scrolls instead:
  * compressing a hundred turns into 1200px produces a row of hairlines and a
  * pile of overlapping thumbnails, and neither can be read or hovered.
@@ -194,26 +194,26 @@ export function trackSize(turns) {
 }
 
 /**
- * «08.09» and «12:05 МСК», as two parts.
+ * "8 Sep" and "12:05 MSK", as two parts.
  *
  * Moscow, spelled out, because WB operates in Moscow time and the seller reads
- * these next to figures from the WB seller portal — the same rule «История действий»
+ * these next to figures from the WB seller portal — the same rule "Rotation history"
  * follows. Two parts because the ends of the track are where the block is
  * narrowest: one such stamp on one line is the width of two thumbnails.
  *
  * @param {number|null} ms Epoch milliseconds.
- * @returns {{date: string, time: string}} The two parts, or «—» and «».
+ * @returns {{date: string, time: string}} The two parts, or "—" and "".
  */
 export function formatStamp(ms) {
   if (ms === null || ms === undefined) return { date: '—', time: '' }
   return {
-    date: formatMoscow(ms, { day: '2-digit', month: '2-digit' }),
+    date: formatMoscow(ms, { day: 'numeric', month: 'short' }),
     time: formatMoscow(ms, { hour: '2-digit', minute: '2-digit' }),
   }
 }
 
 /**
- * `Хч Ym`, or minutes alone under an hour — a lap may run for days.
+ * "X d Y h" or "X h Y min", or minutes alone under an hour — a lap may run for days.
  *
  * @param {number} ms A span in milliseconds.
  * @returns {string} The span in words.
@@ -222,7 +222,7 @@ export function formatDuration(ms) {
   const minutes = Math.round(Math.max(0, ms ?? 0) / 60_000)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
-  if (days) return `${days} д ${hours % 24} ч`
-  if (hours) return `${hours} ч ${minutes % 60} мин`
-  return `${minutes} мин`
+  if (days) return `${days} d ${hours % 24} h`
+  if (hours) return `${hours} h ${minutes % 60} min`
+  return `${minutes} min`
 }

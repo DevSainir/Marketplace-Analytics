@@ -7,7 +7,7 @@
  * gap is shown in, and what an excluded photo looks like. Each of those is a
  * claim, and each can be wrong while every number in the table is right.
  *
- * The exclusion cases matter most. «Убрано» has to keep the numbers that were
+ * The exclusion cases matter most. "Removed" has to keep the numbers that were
  * the reason for excluding it, and it must not quietly become the leader of a
  * comparison it is no longer part of.
  */
@@ -71,31 +71,31 @@ function row(wrapper, label) {
 }
 
 describe('what the table says about a photo', () => {
-  it('shows no ⓘ hints and no «Побед» row', () => {
+  it('shows no ⓘ hints and no "Round wins" row', () => {
     const wrapper = build([variant(MAIN)])
 
     expect(wrapper.find('[data-testid="hint"]').exists()).toBe(false)
     expect(wrapper.findAll('tbody th').map((th) => th.text())).toEqual([
-      'Показов',
-      'Кликов',
+      'Impressions',
+      'Clicks',
       'CTR',
-      'Результат',
-      'Отклонение CTR от лучшего',
-      'Кругов',
+      'Result',
+      'CTR gap to best',
+      'Rounds',
     ])
   })
 
   it('names the leader on the points line and zeroes it on the relative one', () => {
-    // Two lines, two jobs: «Результат» carries the number and «Отклонение»
-    // carries the verdict. Putting «Лучший» on both would leave one of them
+    // Two lines, two jobs: "Result" carries the number and "CTR gap"
+    // carries the verdict. Putting "Best" on both would leave one of them
     // with nothing of its own to say.
     const wrapper = build([
       variant(MAIN, { is_original: true, click_through: 3.34, ctr_result: 0, ctr_gap: 0 }),
       variant(ONE, { click_through: 2.09, ctr_result: -37, ctr_gap: 1.25 }),
     ])
 
-    expect(row(wrapper, 'Результат')).toEqual(['0%', '-37%'])
-    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '1.25% ↓'])
+    expect(row(wrapper, 'Result')).toEqual(['0%', '-37%'])
+    expect(row(wrapper, 'CTR gap')).toEqual(['Best', '1.25% ↓'])
   })
 
   it('crowns the highest CTR as the wire sends it, two digits against one', () => {
@@ -108,14 +108,14 @@ describe('what the table says about a photo', () => {
       variant(TWO, { click_through: '8.92', ctr_result: '-20.64', ctr_gap: '2.32' }),
     ])
 
-    expect(row(wrapper, 'Отклонение')).toEqual(['Лучший', '4.33% ↓', '2.32% ↓'])
+    expect(row(wrapper, 'CTR gap')).toEqual(['Best', '4.33% ↓', '2.32% ↓'])
   })
 
-  it('calls the captured photo «Главное» instead of «Вариант 0»', () => {
+  it('calls the baseline "Main photo" instead of "Variant 0"', () => {
     const wrapper = build([variant(MAIN, { is_original: true, position: 0 })])
 
-    expect(wrapper.text()).toContain('Главное')
-    expect(wrapper.text()).not.toContain('Вариант 0')
+    expect(wrapper.text()).toContain('Main photo')
+    expect(wrapper.text()).not.toContain('Variant 0')
   })
 
   it.each([
@@ -141,7 +141,7 @@ describe('an excluded photo', () => {
     ])
 
     expect(wrapper.findAll('[data-testid="variant-column"]')).toHaveLength(2)
-    expect(row(wrapper, 'Показов')).toEqual(['10,000', '8,000'].map((s) => s.replace(' ', ' ')))
+    expect(row(wrapper, 'Impressions')).toEqual(['10,000', '8,000'])
     expect(wrapper.findAll('[data-testid="variant-column"]')[1].classes()).toContain('is-excluded')
   })
 
@@ -151,7 +151,7 @@ describe('an excluded photo', () => {
       variant(ONE, { is_excluded: true, click_through: 9 }),
     ])
 
-    expect(row(wrapper, 'Отклонение')[0]).toBe('Лучший')
+    expect(row(wrapper, 'CTR gap')[0]).toBe('Best')
   })
 
   it('offers to come back, without needing a hover to find the control', () => {
@@ -160,7 +160,7 @@ describe('an excluded photo', () => {
 
     // `v-show` hides by setting `display: none`; no style attribute at all
     // means the control is drawn without the mouse having to find it first.
-    expect(button.attributes('title')).toBe('Вернуть в ротацию')
+    expect(button.attributes('title')).toBe('Return to rotation')
     expect(button.attributes('style') ?? '').not.toContain('display: none')
   })
 
@@ -191,9 +191,9 @@ describe('filtering to one lap', () => {
       },
     })
 
-    expect(row(wrapper, 'Показов')).toEqual(['1,000', '1,000'].map((s) => s.replace(' ', ' ')))
+    expect(row(wrapper, 'Impressions')).toEqual(['1,000', '1,000'])
     expect(row(wrapper, 'CTR')).toEqual(['5.00%', '1.00%'])
-    expect(row(wrapper, 'Результат')).toEqual(['0%', '-80%'])
+    expect(row(wrapper, 'Result')).toEqual(['0%', '-80%'])
   })
 
   it('leaves the whole-test columns alone', () => {
@@ -209,9 +209,9 @@ describe('filtering to one lap', () => {
       },
     })
 
-    // «Кругов» is a property of the test, not of a lap: "laps in this lap" is
+    // "Rounds" is a property of the test, not of a lap: "laps in this lap" is
     // always one.
-    expect(row(wrapper, 'Кругов')).toEqual(['5'])
+    expect(row(wrapper, 'Rounds')).toEqual(['5'])
   })
 })
 

@@ -27,7 +27,7 @@ since midnight.
 and keeps going; when the advertising stops — switched off or out of money — the
 test PAUSES and waits, and the sweep starts it again when a campaign serves. A
 finished test is the seller's decision and only theirs, because every reason the
-rotation could have for stopping is one they can undo in the WB cabinet.
+rotation could have for stopping is one they can undo in the WB seller portal.
 
 The advertising is read **only when a swap is due**: at most once per slot rather
 than once per pass, which keeps the check off a shallow rate bucket and gives the
@@ -380,7 +380,7 @@ class RotationRunner:
 
         Publication is same-second (measured 2026-09-10), so a main photo whose
         timestamp is not the one we witnessed at install was written by somebody
-        who is not this rotation — in practice the seller, in the WB cabinet.
+        who is not this rotation — in practice the seller, in the WB seller portal.
         From that moment the card's traffic belongs to a picture that is not in
         the comparison, and the honest thing to do with it is nothing.
 

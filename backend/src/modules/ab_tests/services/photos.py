@@ -42,13 +42,13 @@ def validate_image(*, content: bytes, content_type: str) -> None:
             format WB accepts.
     """
     if not content:
-        raise ValidationError("Файл пустой.")
+        raise ValidationError("The file is empty.")
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise ValidationError(
-            f"Формат {content_type} не поддерживается. Допустимы: JPG, PNG, WebP, BMP, GIF."
+            f"Format {content_type} isn't supported. Allowed: JPG, PNG, WebP, BMP, GIF."
         )
     if len(content) > MAX_IMAGE_BYTES:
-        raise ValidationError("Изображение больше 32 МБ — WB такой файл не примет.")
+        raise ValidationError("Image over 32 MB — WB won't accept it.")
 
 
 class _MediaReader(Protocol):

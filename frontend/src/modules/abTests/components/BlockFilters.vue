@@ -2,7 +2,7 @@
 /**
  * The heading of a block, with the two filters that narrow what it shows.
  *
- * Shared by «Ход теста» and «Тестирование» because the pair has to behave
+ * Shared by "Test progress" and "Results" because the pair has to behave
  * identically in both: the same campaigns in the same order, the same laps, and
  * the campaign on the LEFT — it is the coarser cut, and reading right to left
  * ("the third lap … of the unified bid") is how the sentence comes out backwards.
@@ -19,16 +19,16 @@ defineProps({
   titleClass: { type: String, default: 'text-base font-semibold text-primary' },
   /** The campaigns that brought traffic, in the page's order. */
   campaigns: { type: Array, default: () => [] },
-  /** The selected campaign id; 0 is «Все». */
+  /** The selected campaign id; 0 is "All". */
   campaign: { type: Number, default: 0 },
-  /** The tested article's code, for the campaign labels. */
+  /** The tested SKU's vendor code, for the campaign labels. */
   vendorCode: { type: String, default: '' },
   /** The laps on offer, newest first. */
   rounds: { type: Array, default: () => [] },
   /** The selected lap; 0 is all of them. */
   round: { type: Number, default: 0 },
-  /** What «all laps» is called here — the timeline says «Все круги». */
-  allRoundsLabel: { type: String, default: 'Все' },
+  /** What "all laps" is called here — the timeline says "All rounds". */
+  allRoundsLabel: { type: String, default: 'All' },
   /** `data-testid` of the campaign select. */
   campaignTestid: { type: String, default: 'campaign-filter' },
   /** `data-testid` of the lap select. */
@@ -52,7 +52,7 @@ defineEmits(['update:campaign', 'update:round'])
       />
 
       <label v-if="rounds.length" class="flex items-center gap-sm text-tiny text-muted">
-        <span>Круг</span>
+        <span>Round</span>
         <select
           class="ui-select"
           :value="round"

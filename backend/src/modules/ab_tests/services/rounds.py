@@ -2,14 +2,14 @@
 
 Two columns come out of here:
 
-* **«Кругов»** — laps this photo was dealt in. What keeps a photo that has run
+** **"Rounds"** — laps this photo was dealt in. What keeps a photo that has run
   once from reading the same as one that has run fifteen times.
-* **«Отклонение CTR от лучшего»** / **«Результат»** — the gap to the leader in
-  percentage points, and the same gap relative to the leader. «-51 %» means
+** **"CTR gap to best"** / **"Result"** — the gap to the leader in
+  percentage points, and the same gap relative to the leader. "-51%" means
   half the click-through, which is the sentence a seller can act on; 1.25 pp is
   what the numbers literally differ by.
 
-There used to be a third, «Побед в раундах» — laps in which the photo had the
+There used to be a third, "Rounds won" — laps in which the photo had the
 best CTR. It was removed on 2026-09-28 at the owner's request: it did not earn
 its row.
 
@@ -82,7 +82,7 @@ def standings(
         played_from_windows: Count a lap as played only where the photo has a
             window in it, rather than wherever it had a turn. False for the
             whole test, where a turn with no traffic still happened; True when
-            the windows have been filtered to ONE campaign, where «кругов» has
+            the windows have been filtered to ONE campaign, where "rounds" has
             to mean "laps of this ad campaign" — a campaign switched off on lap four did
             not play laps five to ten, and saying it did would put a zero in
             every one of them.

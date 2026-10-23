@@ -4,8 +4,8 @@ The rotation is the whole product: a photo stays on the card until its turn is
 over, then the next one goes up. What ends a turn is a bound on the audience, a
 bound on the clock, or both at once — and most of this file is about which of
 them each mode reads. A test configured by impressions must ignore the clock
-entirely and one configured by time must ignore the counter, while «показы и
-время» ends the turn at whichever arrives first.
+entirely and one configured by time must ignore the counter, while "Impressions
+or time" ends the turn at whichever arrives first.
 """
 
 from __future__ import annotations
@@ -357,7 +357,7 @@ def test_an_active_variant_missing_from_the_list_moves_on_immediately() -> None:
 
 
 def test_excluding_the_live_photo_takes_it_off_without_finishing_its_slot() -> None:
-    """«Убрать» during a photo's own turn has to mean now, not in 18 minutes."""
+    """Removing a photo from rotation during its own turn means now, not in 18 minutes."""
     assert decide(_state(active=VARIANTS[0], impressions=0)).action is RotationAction.HOLD
 
     excluded = decide(_state(active=VARIANTS[0], impressions=0, excluded=True))

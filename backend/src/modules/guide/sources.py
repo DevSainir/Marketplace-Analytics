@@ -15,7 +15,7 @@ What is deliberately NOT here: KIZ codes (fiscal receipt numbers), advertising
 top-ups and write-offs (the second duplicates ``fullstats.spend``), balances
 (WB serves no history, so there is nothing to capture), the deleted-card bin,
 buyer chat, and the FBS orders feed (``supplier/orders`` already carries FBS
-orders — measured: a share of its rows came from «Склад продавца»). Each was
+orders — measured: a share of its rows came from the seller's own warehouse). Each was
 considered and rejected; re-proposing one should come with a use for it.
 
 **FBS supplies (`marketplace /api/v3/supplies`) were built and then removed**,
@@ -73,7 +73,7 @@ class GuideSource:
         key: Stored in ``guide_record.source``. Never rename one — it is the
             join between the rows already captured and the code that captured
             them.
-        title: Russian label, for logs and for whoever reads this later.
+        title: Human-readable label, for logs and for whoever reads this later.
         cadence: Which scheduled task walks it.
         base_url: Attribute on :class:`~src.core.config.Settings` naming the WB
             host. An attribute rather than a literal so a host move stays a
@@ -122,83 +122,84 @@ GUIDE_SOURCES: tuple[GuideSource, ...] = (
     # ---- daily: the window closes faster than a month -------------------
     GuideSource(
         key="claims",
-        title="Заявки покупателей на возврат",
+        title="Buyer return claims",
         cadence=GuideCadence.DAILY,
         base_url="wb_returns_base_url",
         tokens=("returns",),
         fetch=fetch_claims,
         why=(
-            "Единственный источник причины возврата словами покупателя. "
-            "Возврат в sale_record — это деньги, goods-return — логистика; "
-            "почему товар не подошёл, не говорит ни тот, ни другой."
+            "The only source of a return's reason in the buyer's own words. "
+            "A return in sale_record is money, goods-return is logistics; "
+            "neither says why the item did not suit."
         ),
         retention=(
-            "14 дней. Измерено на трёх аккаунтах 2026-09-12: у всех самая "
-            "старая заявка от 2026-08-29. Самое короткое окно из всего, что "
-            "отдаёт WB."
+            "14 days. Measured on three accounts on 2026-09-12: on all of them the "
+            "oldest claim is from 2026-08-29. The shortest window of anything "
+            "WB serves."
         ),
     ),
     GuideSource(
         key="orders",
-        title="Лента заказов",
+        title="Order feed",
         cadence=GuideCadence.DAILY,
         base_url="wb_statistics_base_url",
         tokens=("statistics",),
         fetch=fetch_orders,
         why=(
-            "Отменённые заказы не доходят до отчёта реализации: в нём только "
-            "выкупы, а отмен нет вообще. Отмены — это спрос, который мы сейчас "
-            "просто не видим. Плюс регион и срок «заказ → выкуп» поштучно."
+            "Canceled orders never reach the settlement report: it holds only "
+            "buyouts and no cancellations at all. Cancellations are demand we "
+            "simply do not see today. Plus the region and the order-to-buyout "
+            "time, unit by unit."
         ),
         retention=(
-            "188 дней по дате заказа (flag=1: 2026-03-08 отдаёт, 2026-03-07 "
-            "пусто), 181 день по курсору lastChangeDate. Один ответ обрезан на "
-            "80 000 строках, поэтому обход страничный."
+            "188 days by order date (flag=1: 2026-03-08 is served, 2026-03-07 "
+            "is empty), 181 days by the lastChangeDate cursor. One answer is cut "
+            "off at 80,000 rows, so the walk is paged."
         ),
     ),
     # ---- monthly: WB serves the whole history -----------------------------
     GuideSource(
         key="region_sale",
-        title="Продажи по регионам",
+        title="Sales by region",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_analytics_base_url",
         tokens=("analytics",),
         fetch=fetch_region_sale,
         why=(
-            "Город и себестоимость продажи в разрезе географии. Лента заказов "
-            "даёт регион, но только на 188 дней назад; здесь история с начала "
-            "продаж — единственный способ посмотреть географию глубже."
+            "City and cost of sale broken down by geography. The order feed "
+            "gives the region, but only 188 days back; this is the history since "
+            "the first sale — the only way to look at geography further back."
         ),
-        retention="Обрыва нет: отдал 2024-01 при замере. Окно запроса 31 день.",
+        retention="No cut-off: served 2024-01 when measured. Request window 31 days.",
     ),
     GuideSource(
         key="goods_return",
-        title="Возвраты товаров",
+        title="Product returns",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_analytics_base_url",
         tokens=("analytics",),
         fetch=fetch_goods_return,
         why=(
-            "Логистика возврата: куда едет, в каком статусе, когда завершён. "
-            "Не то же, что возврат в sale_record (деньги) и не то же, что "
-            "заявка покупателя (претензия)."
+            "Return logistics: where it is going, in what status, when it finished. "
+            "Not the same as a return in sale_record (money), nor the same as "
+            "a buyer claim (a complaint)."
         ),
-        retention="Обрыва нет: отдал 2024-01. Окно запроса 31 день.",
+        retention="No cut-off: served 2024-01. Request window 31 days.",
     ),
     GuideSource(
         key="acceptance",
-        title="Платная приёмка",
+        title="Paid acceptance",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_analytics_base_url",
         tokens=("analytics",),
         fetch=fetch_acceptance_report,
         why=(
-            "В отчёте реализации приёмка есть только суммой. Сколько стоила "
-            "приёмка конкретной поставки, говорит только этот отчёт."
+            "The settlement report carries acceptance only as a total. What "
+            "accepting one particular supply cost, only this report says."
         ),
         retention=(
-            "Обрыва нет: отдал 400 дней назад. Окно 31 день, отчёт асинхронный "
-            "(создать → опросить → скачать), пустое окно отвечает 204."
+            "No cut-off: served 400 days back. Window 31 days, the report is async "
+            "(create → poll → download), an empty window answers 204."
         ),
     ),
     # Answered reviews verbatim, text included. The daily rating and review-state
@@ -206,69 +207,70 @@ GUIDE_SOURCES: tuple[GuideSource, ...] = (
     # structured record in `monitoring` — see monitoring/models/reviews.py.
     GuideSource(
         key="feedbacks",
-        title="Отзывы",
+        title="Reviews",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_feedbacks_base_url",
         tokens=("feedbacks",),
         fetch=fetch_feedbacks,
         why=(
-            "Динамика рейтинга и текст претензий по SKU. Ни один другой "
-            "источник не говорит, почему воронка просела после смены партии."
+            "Rating over time and the text of complaints per SKU. No other "
+            "source says why the funnel sagged after a change of batch."
         ),
         retention=(
-            "С начала аккаунта: первые отзывы приходят через считанные дни "
-            "после первого отчёта реализации. Обрыва нет."
+            "Since the account began: the first reviews arrive within days of "
+            "the first settlement report. No cut-off."
         ),
     ),
     GuideSource(
         key="questions",
-        title="Вопросы покупателей",
+        title="Buyer questions",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_feedbacks_base_url",
         tokens=("feedbacks",),
         fetch=fetch_questions,
         why=(
-            "Чего не хватает в карточке: о чём спрашивают, того в описании "
-            "нет. Слабее отзывов, но берётся тем же токеном и тем же обходом."
+            "What the product card is missing: what buyers ask about is not in "
+            "the description. Weaker than reviews, but fetched with the same token "
+            "and the same walk."
         ),
-        retention="С начала аккаунта, как и отзывы.",
+        retention="Since the account began, like reviews.",
     ),
     GuideSource(
         key="documents",
-        title="Документы: УПД, акты, отчёты",
+        title="Documents: universal transfer documents, acts, reports",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_documents_base_url",
         tokens=("documents",),
         fetch=fetch_documents,
-        why="Опись подписанных оригиналов: какие вообще документы WB выставил — здесь.",
-        retention="С начала аккаунта: отдал 2023-10-30. Страница 50 штук.",
+        why="An inventory of signed originals: which documents WB has issued at all is here.",
+        retention="Since the account began: served 2023-10-30. Page of 50.",
     ),
     GuideSource(
         key="tariffs_pallet",
-        title="Тарифы паллет",
+        title="Pallet tariffs",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_common_base_url",
         tokens=_ANY_TOKEN,
         fetch=fetch_tariffs_pallet,
         why=(
-            "Паллетные тарифы по складам. Если склад когда-нибудь поедет "
-            "паллетами, понадобится история тарифа, а WB отдаёт её только "
-            "за ~70 дней."
+            "Pallet tariffs by warehouse. If stock ever ships by the pallet, "
+            "the tariff history will be needed, and WB serves only "
+            "~70 days of it."
         ),
         retention=(
-            "~70 дней: 2026-07-04 отдаёт 12 складов, 2026-06-29 пусто. "
-            "Месячный проход берёт всё окно с запасом."
+            "~70 days: 2026-07-04 serves 12 warehouses, 2026-06-29 is empty. "
+            "A monthly pass takes the whole window with room to spare."
         ),
     ),
     GuideSource(
         key="tariffs_return",
-        title="Тарифы возврата",
+        title="Return tariffs",
         cadence=GuideCadence.MONTHLY,
         base_url="wb_common_base_url",
         tokens=_ANY_TOKEN,
         fetch=fetch_tariffs_return,
-        why="Цена обратной логистики по складам — вторая половина стоимости возврата.",
-        retention="~70 дней, та же граница, что у паллет: 2026-07-04 есть, 2026-06-29 нет.",
+        why="Reverse logistics price by warehouse — the second half of what a return costs.",
+        retention="~70 days, the same limit as pallets: 2026-07-04 is there, 2026-06-29 is not.",
     ),
 )
 

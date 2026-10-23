@@ -160,7 +160,7 @@ class VariantStatWindow(Base):
     away, and why a test can turn over several times a day.
 
     Counts are stored, ratios are not: CTR and the two conversions are derived
-    on read from summed counts, the same discipline «Процент выкупа» follows in
+    on read from summed counts, the same discipline "Buyout rate" follows in
     the monitoring module. A stored percentage cannot be re-aggregated across
     windows without lying.
 

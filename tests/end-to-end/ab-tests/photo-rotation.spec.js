@@ -37,10 +37,10 @@ const JPEG = Buffer.from(
 test("a test is created, takes photos, and shows them as columns of the result table", async ({
   signedIn: page,
 }) => {
-  const name = `E2E ротация ${Date.now()}`;
+  const name = `E2E rotation ${Date.now()}`;
 
   await page.goto("/ab-tests");
-  await expect(page.getByRole("heading", { name: "A/Б-тесты" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A/B tests" })).toBeVisible();
 
   await page.getByTestId("new-test").click();
   await page.getByTestId("test-name").fill(name);
@@ -56,7 +56,7 @@ test("a test is created, takes photos, and shows them as columns of the result t
 
   // A single-bound mode sends only the bound it reads: the API refuses a body
   // carrying the other one, so a form that rendered both fields here would 422
-  // on every submit. («Показы и время» is the mode that shows both, and the
+  // on every submit. ("Impressions or time" is the mode that shows both, and the
   // one the unit tier covers.)
   await page.getByTestId("trigger-mode").selectOption("time");
   await expect(page.getByTestId("slot-minutes")).toBeVisible();
@@ -72,7 +72,7 @@ test("a test is created, takes photos, and shows them as columns of the result t
   });
 
   // The detail page reports the trigger that is actually in force, not both.
-  await expect(page.getByText("Смена фото каждые 30 мин")).toBeVisible();
+  await expect(page.getByText("Photo changes every 30 min")).toBeVisible();
 
   await page.getByTestId("upload").setInputFiles([
     { name: "variant-1.jpg", mimeType: "image/jpeg", buffer: JPEG },
@@ -80,7 +80,7 @@ test("a test is created, takes photos, and shows them as columns of the result t
   ]);
 
   // Photos are COLUMNS and metrics are rows. Every row of the table is a
-  // comparison across photos, and a comparison reads along a line — «Показов»
+  // comparison across photos, and a comparison reads along a line — "Impressions"
   // as a row puts the numbers side by side instead of ten rows apart. The width
   // that costs is paid for with one horizontal scroll inside the card.
   //
@@ -133,7 +133,7 @@ test("a test is created, takes photos, and shows them as columns of the result t
   await expect(page.getByTestId("test-link")).toContainText(name);
 });
 
-test("the A/Б-tests page is behind the auth guard", async ({ page }) => {
+test("the A/B tests page is behind the auth guard", async ({ page }) => {
   // A test names a card and rewrites its main photo; an unauthenticated reader
   // must not reach either the list or the images.
   await page.goto("/ab-tests");

@@ -32,9 +32,9 @@
 /*
  * Shrink-to-fit rather than a guessed width.
  *
- * `width: 1%` with `white-space: nowrap` is the table-layout idiom for «as
- * narrow as the content allows»: the browser cannot honour 1 %, so it falls
- * back to the widest unbreakable cell — «Отклонение CTR от лучшего» — and every
+ * `width: 1%` with `white-space: nowrap` is the table-layout idiom for "as
+ * narrow as the content allows": the browser cannot honour 1%, so it falls
+ * back to the widest unbreakable cell — "CTR gap to best" — and every
  * pixel it does not take goes to the photos, which are the thing being
  * compared. A fixed 220px was 40px of empty gutter on every row.
  */
@@ -201,7 +201,7 @@
   color: var(--ui-muted);
 }
 
-/* The leader is named rather than coloured: «Лучший» is a word, and a word in
+/* The leader is named rather than coloured: "Best" is a word, and a word in
    green next to nine coloured numbers reads as one more measurement. */
 .ab-grid__value--best {
   font-weight: 600;
@@ -219,7 +219,7 @@
   filter: grayscale(1);
 }
 
-/* The «Главное» pill, the one column marked rather than merely named. */
+/* The "Main photo" pill, the one column marked rather than merely named. */
 .ab-badge {
   display: inline-block;
   padding: 1px 8px;

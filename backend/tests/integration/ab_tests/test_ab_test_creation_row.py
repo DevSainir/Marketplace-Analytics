@@ -44,9 +44,7 @@ JPEG = b"\xff\xd8\xff\xe0" + b"0" * 1024
 
 
 #: The catalogue card the article resolves to. Creating a test needs one.
-_CARD = WorkspaceCard(
-    nm_id=NM_FLOWER_DRESS, vendor_code="ДЕТ_ПЛАТЬЕ_ЦВЕТОЧЕК", title="Платье в цветочек"
-)
+_CARD = WorkspaceCard(nm_id=NM_FLOWER_DRESS, vendor_code="KID_DRESS_FLORAL", title="Floral dress")
 
 
 def _service(session: AsyncSession, tmp_path: Path) -> AbTestCatalogService:
@@ -82,13 +80,13 @@ async def test_creating_a_test_returns_a_row_with_no_variants(
     projection raised ``MissingGreenlet`` and the route answered 500, which the
     SPA showed as a creation that silently did nothing.
     """
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Demo")
     db_session.add(workspace)
     await db_session.flush()
 
     row = await _service(db_session, tmp_path).create_test(
         workspace_id=workspace.id,
-        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Main photo test"),
         card=_CARD,
     )
 
@@ -107,14 +105,14 @@ async def test_the_new_test_is_listed_immediately_after_creation(
     Creating and listing build the row through one helper; if only the listing
     path were exercised the create path could keep raising unnoticed.
     """
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Demo")
     db_session.add(workspace)
     await db_session.flush()
     service = _service(db_session, tmp_path)
 
     created = await service.create_test(
         workspace_id=workspace.id,
-        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Main photo test"),
         card=_CARD,
     )
     listed = await service.list_tests(workspace_id=workspace.id, query=None)
@@ -135,7 +133,7 @@ async def test_an_article_outside_the_catalogue_cannot_start_a_test(
     The refusal has to happen before the row exists, because a test that cannot
     rotate is worse than no test — it looks like it is running.
     """
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Demo")
     db_session.add(workspace)
     await db_session.flush()
     service = _service(db_session, tmp_path)
@@ -143,7 +141,7 @@ async def test_an_article_outside_the_catalogue_cannot_start_a_test(
     with pytest.raises(ValidationError, match="1"):
         await service.create_test(
             workspace_id=workspace.id,
-            payload=AbTestCreate(nm_id=1, name="Тест"),
+            payload=AbTestCreate(nm_id=1, name="Test"),
             card=None,
         )
 
@@ -154,19 +152,19 @@ async def test_an_article_outside_the_catalogue_cannot_start_a_test(
 async def test_the_main_photo_is_an_upload_at_the_head_of_the_rotation(
     db_session: AsyncSession, organization: Organization, tmp_path: Path
 ) -> None:
-    """«Главное» is uploaded, sorts first, and is a row like any other.
+    """The "Main photo" is uploaded, sorts first, and is a row like any other.
 
     It used to be downloaded from WB's CDN when the test was created. What that
     captured was a rendition rather than the seller's file, so every comparison
     was against a re-transcoded image — and each time the baseline came round
     again the rotation put that lossy copy back on the live card.
     """
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Demo")
     db_session.add(workspace)
     await db_session.flush()
     created = await _service(db_session, tmp_path).create_test(
         workspace_id=workspace.id,
-        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Main photo test"),
         card=_CARD,
     )
 
@@ -197,18 +195,18 @@ async def test_the_main_photo_is_an_upload_at_the_head_of_the_rotation(
 async def test_a_test_takes_only_one_main_photo(
     db_session: AsyncSession, organization: Organization, tmp_path: Path
 ) -> None:
-    """A second «Главное» is refused rather than filed at a taken position.
+    """A second "Main photo" is refused rather than filed at a taken position.
 
     Position 0 is unique per test, so the second insert would fail on the
-    constraint — a 500 where the honest answer is «удалите текущее и загрузите
-    другое».
+    constraint — a 500 where the honest answer is "delete the current one and
+    upload another".
     """
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Demo")
     db_session.add(workspace)
     await db_session.flush()
     created = await _service(db_session, tmp_path).create_test(
         workspace_id=workspace.id,
-        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Main photo test"),
         card=_CARD,
     )
     photos = _photos(db_session, tmp_path)
@@ -221,7 +219,7 @@ async def test_a_test_takes_only_one_main_photo(
         as_main=True,
     )
 
-    with pytest.raises(ConflictError, match="Главное фото"):
+    with pytest.raises(ConflictError, match="Main photo"):
         await photos.add_variant(
             workspace_id=workspace.id,
             test_id=created.id,
@@ -241,7 +239,7 @@ async def test_an_upload_is_in_the_detail_the_same_request_returns(
     Both halves read the test through the same repository, and `selectinload`
     will not overwrite a collection it has already populated for an instance the
     session is still holding. The upload therefore answered with the new photo
-    missing — and the duplicate-«Главное» check, which reads the same list, let
+    missing — and the duplicate-"Main photo" check, which reads the same list, let
     a second baseline through to the unique constraint.
 
     The reference kept below is the point of the test. Before this was fixed the
@@ -251,13 +249,13 @@ async def test_an_upload_is_in_the_detail_the_same_request_returns(
     a logged exception, whose traceback pins the frame that holds the test —
     made them fail. Holding it here on purpose makes the outcome deterministic.
     """
-    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Демо")
+    workspace = Workspace(id=uuid.uuid4(), organization_id=organization.id, name="Demo")
     db_session.add(workspace)
     await db_session.flush()
     service = _service(db_session, tmp_path)
     created = await service.create_test(
         workspace_id=workspace.id,
-        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Тест главного фото"),
+        payload=AbTestCreate(nm_id=NM_FLOWER_DRESS, name="Main photo test"),
         card=_CARD,
     )
 

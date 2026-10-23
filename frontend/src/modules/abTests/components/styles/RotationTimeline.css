@@ -44,7 +44,7 @@
    the block: they name where the LINE starts and ends, and floated up above the
    pictures they read as a heading for the whole panel.
 
-   Stacked rather than «10.09, 05:59 МСК» on one line: the ends of the track are
+   Stacked rather than "10 Sep, 05:59 MSK" on one line: the ends of the track are
    where the block is narrowest, and one such stamp is the width of two
    thumbnails. */
 .ab-timeline__end {
@@ -88,7 +88,7 @@
   border-radius: 0 999px 999px 0;
 }
 
-/* «Bolder» on hover is vertical: growing the width would move every segment
+/* "Bolder" on hover is vertical: growing the width would move every segment
    to its right and make the line squirm under the cursor. */
 .ab-timeline__segment:hover,
 .ab-timeline__segment:focus-visible {

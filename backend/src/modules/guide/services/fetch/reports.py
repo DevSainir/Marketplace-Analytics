@@ -112,7 +112,7 @@ async def _walk_report(
 async def fetch_region_sale(
     client: WBReferenceClient, window: CaptureWindow
 ) -> AsyncIterator[CaptureBatch]:
-    """Walk «Продажи по регионам», 31 days at a time.
+    """Walk the "Sales by region" report, 31 days at a time.
 
     WB gives these rows no identity and no date of their own — the report is an
     aggregate over whatever window was asked for — so the key is that window
@@ -133,7 +133,7 @@ async def fetch_region_sale(
 async def fetch_goods_return(
     client: WBReferenceClient, window: CaptureWindow
 ) -> AsyncIterator[CaptureBatch]:
-    """Walk «Возвраты товаров», 31 days at a time."""
+    """Walk the "Product returns" report, 31 days at a time."""
     async for batch in _walk_report(
         client,
         window,
@@ -148,7 +148,7 @@ async def fetch_goods_return(
 async def fetch_acceptance_report(
     client: WBReferenceClient, window: CaptureWindow
 ) -> AsyncIterator[CaptureBatch]:
-    """Walk «Платная приёмка», 31 days at a time through the async report flow.
+    """Walk the "Paid acceptance" report, 31 days at a time through the async report flow.
 
     An empty window answers ``204`` — decoded as ``None`` — which is not an
     error and not a reason to stop: a seller simply shipped nothing that month.

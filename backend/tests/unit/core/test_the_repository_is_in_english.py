@@ -65,14 +65,6 @@ _WB_LABELS: dict[str, str] = {
 _IN_TRANSLATION: dict[str, tuple[str, ...]] = {
     # Regenerated from the backend's OpenAPI text once every module is done.
     "api types": ("frontend/src/core/api/schema.d.ts",),
-    # Asserts on messages of several modules at once.
-    "cross-module": ("backend/tests/unit/core/test_tenant_resource_bounds.py",),
-    "ab_tests": (
-        "backend/src/modules/ab_tests/*",
-        "backend/tests/*/ab_tests/*",
-        "frontend/src/modules/abTests/*",
-    ),
-    "guide": ("backend/src/modules/guide/*", "backend/tests/*/guide/*"),
     "operations": (
         "backend/docker/*",
         "backend/scripts/*",

@@ -110,7 +110,7 @@ async def _capture_one(
                 rows=0,
                 cursor=None,
                 captured_through=None,
-                message="нет токена нужной категории",
+                message="no token of the required scope",
             )
             await session.commit()
         return "skipped", 0, "no token"

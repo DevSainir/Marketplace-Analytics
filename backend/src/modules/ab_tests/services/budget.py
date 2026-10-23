@@ -18,9 +18,9 @@ decision and nothing else's:
 * **UNKNOWN** — WB could not be asked. Change nothing.
 
 **A card nobody advertises pauses too, and that is a correction.** It used to
-read as UNKNOWN, on the grounds that «no campaign» is neither «switched off» nor
-«out of money». But the rule the pause enforces is not about why the ads
-stopped — it is that without them there is nothing to measure. A «по времени»
+read as UNKNOWN, on the grounds that "no campaign" is neither "switched off" nor
+"out of money". But the rule the pause enforces is not about why the ads
+stopped — it is that without them there is nothing to measure. A "By time"
 test on such a card dealt photo after photo and recorded every turn as zero,
 which is the table of zeros this module exists to prevent. Seen on 2026-09-30,
 where a seller took a rotation that moved to be one that worked without
@@ -56,10 +56,10 @@ from src.integrations.wildberries.schemas import WBAdvertV2
 
 logger = get_logger(__name__)
 
-#: WB status for «идут показы» — the campaign is actually serving right now.
+#: WB status for "serving" — the campaign is actually serving right now.
 SERVING_STATUS: int = 9
 
-#: WB status for «на паузе» — switched off, but the money is still in it.
+#: WB status for "paused" — switched off, but the money is still in it.
 PAUSED_STATUS: int = 11
 
 #: Statuses whose campaigns can still spend. A finished campaign (7) cannot, and

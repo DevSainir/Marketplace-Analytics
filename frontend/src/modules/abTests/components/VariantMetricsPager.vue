@@ -2,7 +2,7 @@
 /**
  * The result grid on a narrow screen: one photo at a time, metrics as a list.
  *
- * A grid of photos × metrics has no «record» to fold into a card, so the
+ * A grid of photos × metrics has no "record" to fold into a card, so the
  * phone-layout skill's answer for a matrix applies — **page the repeating
  * axis**. The photos are that axis: pick one, read its six figures down the
  * screen, step to the next with the pager. The alternative was tried on the
@@ -13,7 +13,7 @@
  * It renders the SAME projection the table does — see `variantColumns.js` — so
  * there is one grid with two renderings and never two sources of truth.
  *
- * The «Результат» figure keeps comparing against the whole set rather than
+ * The "Result" figure keeps comparing against the whole set rather than
  * against the photo shown next to it. Paging changes what is on screen, not
  * what the number means.
  *
@@ -73,7 +73,7 @@ function tone(metric) {
     data-testid="variant-pager"
   >
     <header class="flex items-center gap-md border-b border-border-subtle p-md">
-      <button type="button" class="ab-pager__step" aria-label="Предыдущее фото" @click="step(-1)">
+      <button type="button" class="ab-pager__step" aria-label="Previous photo" @click="step(-1)">
         ‹
       </button>
 
@@ -90,14 +90,14 @@ function tone(metric) {
 
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-sm">
-          <span v-if="current.is_original" class="ab-badge">Главное</span>
+          <span v-if="current.is_original" class="ab-badge">Main photo</span>
           <span v-else class="text-base font-semibold text-primary">
             {{ variantTitle(current) }}
           </span>
         </div>
-        <div class="mt-px text-micro text-muted">Фото {{ index + 1 }} из {{ columns.length }}</div>
+        <div class="mt-px text-micro text-muted">Photo {{ index + 1 }} of {{ columns.length }}</div>
         <div v-if="current.is_active" class="text-micro font-semibold text-status-positive">
-          Сейчас на карточке
+          On the card now
         </div>
 
         <button
@@ -112,11 +112,11 @@ function tone(metric) {
           data-testid="toggle-exclusion"
           @click="$emit('exclude', current.variant_id, !current.is_excluded)"
         >
-          {{ current.is_excluded ? 'Вернуть в ротацию' : 'Убрать из ротации' }}
+          {{ current.is_excluded ? 'Return to rotation' : 'Remove from rotation' }}
         </button>
       </div>
 
-      <button type="button" class="ab-pager__step" aria-label="Следующее фото" @click="step(1)">
+      <button type="button" class="ab-pager__step" aria-label="Next photo" @click="step(1)">
         ›
       </button>
     </header>

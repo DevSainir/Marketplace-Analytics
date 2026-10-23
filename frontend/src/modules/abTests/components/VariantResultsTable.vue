@@ -6,21 +6,21 @@
  * and the reversal is deliberate. Photos-as-rows was chosen because a rotation
  * runs up to ten of them and ten rows fit a page where ten columns do not. What
  * that missed is what the table is *for*: every row here is a comparison across
- * photos, and a comparison reads along a line. «Показов» as a row puts ten
+ * photos, and a comparison reads along a line. "Impressions" as a row puts ten
  * numbers side by side; as a column it puts them ten rows apart with seven
  * other figures in between. The width is paid for with one horizontal scroll,
  * which is the cheaper of the two costs.
  *
  * Three of the rows are derived rather than counted:
  *
- * * **Результат** — click-through relative to the leader. «-51 %» means «half
- *   as many clicks», which is a sentence to act on.
- * * **Отклонение от лучшего** — the same gap in percentage points, which is
+ * * **Result** — click-through relative to the leader. "-51%" means "half
+ *   as many clicks", which is a sentence to act on.
+ * * **CTR gap to best** — the same gap in percentage points, which is
  *   what the numbers literally differ by.
- * * **Кругов** — how many laps it actually played, so a photo that has run
+ * * **Rounds** — how many laps it actually played, so a photo that has run
  *   once is not read like one that has run fifteen.
  *
- * «Побед в раундах» and the ⓘ hints on every label were removed on 2026-09-28
+ * "Round wins" and the ⓘ hints on every label were removed on 2026-09-28
  * at the owner's request.
  *
  * Excluding a photo happens here because here is where the seller is looking
@@ -119,8 +119,8 @@ function tone(variant, metric) {
                   class="ab-grid__cross"
                   :class="variant.is_excluded ? 'is-restore' : ''"
                   :disabled="saving"
-                  :title="variant.is_excluded ? 'Вернуть в ротацию' : 'Убрать из ротации'"
-                  :aria-label="variant.is_excluded ? 'Вернуть в ротацию' : 'Убрать из ротации'"
+                  :title="variant.is_excluded ? 'Return to rotation' : 'Remove from rotation'"
+                  :aria-label="variant.is_excluded ? 'Return to rotation' : 'Remove from rotation'"
                   data-testid="toggle-exclusion"
                   @click="$emit('exclude', variant.variant_id, !variant.is_excluded)"
                 >
@@ -129,11 +129,11 @@ function tone(variant, metric) {
               </div>
 
               <div class="ab-grid__caption">
-                <span v-if="variant.is_original" class="ab-badge">Главное</span>
+                <span v-if="variant.is_original" class="ab-badge">Main photo</span>
                 <span v-else>{{ variantTitle(variant) }}</span>
               </div>
-              <div v-if="variant.is_active" class="ab-grid__standing is-live">На карточке</div>
-              <div v-else-if="variant.is_excluded" class="ab-grid__standing">Убрано</div>
+              <div v-if="variant.is_active" class="ab-grid__standing is-live">On the card</div>
+              <div v-else-if="variant.is_excluded" class="ab-grid__standing">Removed</div>
             </th>
           </tr>
         </thead>

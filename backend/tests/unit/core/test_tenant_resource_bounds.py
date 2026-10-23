@@ -95,7 +95,7 @@ async def test_a_batch_that_would_cross_the_bound_is_refused(settings_override: 
             workspace_id=uuid.uuid4(), items=_items([10, 11, 12])
         )
 
-    assert "лимит себестоимостей" in excinfo.value.message
+    assert "Cost price limit reached" in excinfo.value.message
     assert repo.upserted == [], "nothing may be written once the batch is refused"
 
 
@@ -198,7 +198,7 @@ async def test_a_note_far_outside_the_window_is_refused(
             nm_id=1, comment_date=moscow_today() + timedelta(days=offset), body="x"
         )
 
-    assert "диапазон" in excinfo.value.message
+    assert "out of range" in excinfo.value.message
     assert repo.written == []
 
 
@@ -267,5 +267,5 @@ async def test_a_workspace_at_its_test_bound_cannot_create_another(
             card=_CARD,
         )
 
-    assert "лимит А/Б-тестов" in excinfo.value.message
+    assert "A/B test limit" in excinfo.value.message
     assert repo.created == 0

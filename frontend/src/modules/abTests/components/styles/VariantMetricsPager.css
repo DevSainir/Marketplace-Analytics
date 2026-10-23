@@ -107,7 +107,7 @@
   color: var(--ui-text);
 }
 
-/* The «Главное» pill, matching the table's. */
+/* The "Main photo" pill, matching the table's. */
 .ab-badge {
   display: inline-block;
   padding: 1px 8px;

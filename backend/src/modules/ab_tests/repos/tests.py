@@ -189,7 +189,7 @@ class AbTestRepository:
         the staleness disappeared. It became visible the moment an unrelated
         change (a logged exception, whose traceback pins the frame that holds
         the test) kept that instance alive — an upload then answered with the
-        photo missing, and the duplicate-«Главное» check read an empty list and
+        photo missing, and the duplicate-"Main photo" check read an empty list and
         let a second one through to the unique constraint.
 
         Every caller here re-reads in order to act on current state, and every
@@ -222,7 +222,7 @@ class AbTestRepository:
 
         ``query`` matches any of the fields the list shows — the test's name,
         the WB article and the seller's article — so the one search box in the
-        header behaves the way the cabinet's does. The nm is matched as text
+        header behaves the way the seller portal's does. The nm is matched as text
         because users paste partial articles.
 
         Args:

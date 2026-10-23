@@ -87,9 +87,7 @@ async def get_installer(
     bundle = await load_workspace_token_bundle(session, workspace_id=workspace_id)
     token = (bundle.content or bundle.analytics) if bundle else ""
     if not token:
-        raise ValidationError(
-            "Для А/Б-тестов нужен токен с доступом к «Контенту» — укажите токен в настройках."
-        )
+        raise ValidationError("A/B tests need a WB token with Content access. Add one in settings.")
     return VariantInstaller(
         content_client=WBContentClient(settings, token=token), media_store=media_store
     )

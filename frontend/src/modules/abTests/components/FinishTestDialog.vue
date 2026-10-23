@@ -1,16 +1,16 @@
 <script setup>
 /**
- * «Какое изображение оставить на карточке?» — the question a finish asks.
+ * "Which photo stays on the card?" — the question a finish asks.
  *
  * A test ends with whatever the rotation dealt last on the live card, which is
  * rarely the photo the seller wants to keep: the table above has just told them
  * which one earned the clicks. So finishing is a choice, made here, with every
- * photo of the test on offer — «Главное» and excluded ones included — each with
+ * photo of the test on offer — "Main photo" and excluded ones included — each with
  * its picture, its name and its CTR.
  *
  * The photo with the best CTR is picked when the dialog opens, because that is
  * the answer the test was run to find; the one on the card now is marked, so
- * «leave it as it is» is one click away too.
+ * "leave it as it is" is one click away too.
  *
  * Modal over a dimmed page, like the profile drawer: the page behind is locked,
  * Escape and the backdrop close it — except mid-write, when closing would hide
@@ -67,18 +67,14 @@ function close() {
 <template>
   <UiDialog
     :open="open"
-    title="Какое изображение оставить на карточке?"
-    subtitle="Выбранное фото встанет главным на карточку WB, и тест завершится."
+    title="Which photo stays on the card?"
+    subtitle="The chosen photo becomes the main one on the WB card, and the test finishes."
     :busy="saving"
     size="lg"
     data-testid="finish-dialog"
     @close="close"
   >
-    <div
-      class="ab-finish__body"
-      role="radiogroup"
-      aria-label="Изображение, которое останется на карточке"
-    >
+    <div class="ab-finish__body" role="radiogroup" aria-label="The photo that stays on the card">
       <button
         v-for="variant in variants"
         :key="variant.variant_id"
@@ -106,17 +102,17 @@ function close() {
         </span>
         <span class="mt-xs flex flex-wrap justify-center gap-xs">
           <span v-if="variant.variant_id === leaderId" class="ab-finish__tag is-best">
-            Лучший CTR
+            Best CTR
           </span>
-          <span v-if="variant.is_active" class="ab-finish__tag">На карточке</span>
-          <span v-if="variant.is_excluded" class="ab-finish__tag">Убрано</span>
+          <span v-if="variant.is_active" class="ab-finish__tag">On the card</span>
+          <span v-if="variant.is_excluded" class="ab-finish__tag">Removed</span>
         </span>
       </button>
     </div>
 
     <template #footer>
       <p v-if="tried && error" class="mr-auto text-tiny text-status-negative">{{ error }}</p>
-      <button type="button" class="ui-btn" :disabled="saving" @click="close">Отмена</button>
+      <button type="button" class="ui-btn" :disabled="saving" @click="close">Cancel</button>
       <button
         type="button"
         class="ui-btn ui-btn--primary"
@@ -124,7 +120,7 @@ function close() {
         data-testid="finish-confirm"
         @click="confirm"
       >
-        {{ saving ? 'Завершаем…' : 'Завершить тест' }}
+        {{ saving ? 'Finishing…' : 'Finish test' }}
       </button>
     </template>
   </UiDialog>

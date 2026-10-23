@@ -1,5 +1,5 @@
 /**
- * The finish dialog — «Какое изображение оставить на карточке?».
+ * The finish dialog — "Which photo stays on the card?".
  *
  * What is pinned is the choice: every photo is offered, the best CTR is picked
  * to begin with, the one on the card is marked, and what goes back to the view
@@ -64,15 +64,15 @@ afterEach(() => {
 })
 
 describe('the finish dialog', () => {
-  it('offers every photo, «Главное» and excluded ones included, with its CTR', () => {
+  it('offers every photo, "Main photo" and excluded ones included, with its CTR', () => {
     build()
 
     const texts = options().map((el) => el.textContent.replace(/\s+/g, ' ').trim())
     expect(texts).toHaveLength(4)
-    expect(texts[0]).toContain('Главное')
+    expect(texts[0]).toContain('Main photo')
     expect(texts[0]).toContain('CTR 6.91%')
-    expect(texts[2]).toContain('На карточке')
-    expect(texts[3]).toContain('Убрано')
+    expect(texts[2]).toContain('On the card')
+    expect(texts[3]).toContain('Removed')
     expect(texts[3]).toContain('CTR —')
   })
 
@@ -81,8 +81,8 @@ describe('the finish dialog', () => {
 
     const chosen = options().filter((el) => el.getAttribute('aria-checked') === 'true')
     expect(chosen).toHaveLength(1)
-    expect(chosen[0].textContent).toContain('Вариант 1')
-    expect(chosen[0].textContent).toContain('Лучший CTR')
+    expect(chosen[0].textContent).toContain('Variant 1')
+    expect(chosen[0].textContent).toContain('Best CTR')
   })
 
   it('hands back the photo the seller picked', async () => {
@@ -106,12 +106,12 @@ describe('the finish dialog', () => {
   })
 
   it('shows its own failure, not an error left over from the page', async () => {
-    build({ error: 'Старая ошибка загрузки' })
-    expect(document.body.textContent).not.toContain('Старая ошибка загрузки')
+    build({ error: 'Old upload error' })
+    expect(document.body.textContent).not.toContain('Old upload error')
 
     click('[data-testid="finish-confirm"]')
-    await wrapper.setProps({ error: 'WB отклонил фото.' })
+    await wrapper.setProps({ error: 'WB rejected the photo.' })
 
-    expect(document.body.textContent).toContain('WB отклонил фото.')
+    expect(document.body.textContent).toContain('WB rejected the photo.')
   })
 })

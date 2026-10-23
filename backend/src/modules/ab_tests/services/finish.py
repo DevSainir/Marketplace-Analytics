@@ -1,4 +1,4 @@
-"""Finishing a test: which photo the card keeps, and only then «Завершён».
+"""Finishing a test: which photo the card keeps, and only then "Finished".
 
 The mirror of :mod:`.launch`. A test ends with *some* photo on the live card —
 whichever the rotation last dealt — and that is rarely the one the seller wants
@@ -59,7 +59,7 @@ class Finisher:
     """Takes a running or paused test to ``CANCELLED``, leaving a chosen photo up.
 
     ``CANCELLED`` is the status because it is the only way a test ends now (see
-    :class:`~..models.AbTestStatus`); the page calls it «Завершён».
+    :class:`~..models.AbTestStatus`); the page calls it "Finished".
     """
 
     def __init__(
@@ -115,12 +115,12 @@ class Finisher:
         """
         test = await self._tests.get(workspace_id=workspace_id, test_id=test_id)
         if test is None:
-            raise NotFoundError("Тест не найден.")
+            raise NotFoundError("Test not found.")
         if test.status not in FINISHABLE_STATUSES:
-            raise ConflictError("Завершить можно только запущенный тест или тест на паузе.")
+            raise ConflictError("Only a running or paused test can be finished.")
         keep = next((v for v in test.variants if v.id == keep_variant_id), None)
         if keep is None:
-            raise NotFoundError("Фото не найдено.")
+            raise NotFoundError("Photo not found.")
 
         already_up = test.active_variant_id == keep.id and test.photo_conflict_at is None
         if not already_up:

@@ -4,7 +4,7 @@
  *
  * This block used to be a status panel — the live photo and a bar counting its
  * slot down. All of that answered "what is happening right now", which is one
- * line of text and now sits in «Итог по тесту». What no screen answered was
+ * line of text and now sits in "Test summary". What no screen answered was
  * "what has already happened": to see that photo 3 stood nine minutes while its
  * neighbours stood an hour you had to read a column of the log and subtract.
  *
@@ -13,7 +13,7 @@
  * two of them. The arithmetic is in `@/modules/abTests/timeline`, including why
  * a very short turn is drawn wider than its share.
  *
- * One line is one lap, and the picker opens on «Все круги», where the laps run
+ * One line is one lap, and the picker opens on "All rounds", where the laps run
  * end to end on one track — the view that answers whether a photo led every lap
  * or only one.
  *
@@ -61,10 +61,10 @@ const now = ref(Date.now())
 const ticking = setInterval(() => (now.value = Date.now()), 60_000)
 onUnmounted(() => clearInterval(ticking))
 
-/** Which lap the line shows; 0 is «Все круги». */
+/** Which lap the line shows; 0 is "All rounds". */
 const round = ref(0)
 
-/** Which campaign the line shows; 0 is «Все». */
+/** Which campaign the line shows; 0 is "All". */
 const campaign = ref(0)
 
 /** The campaigns that brought traffic — the picker exists only past one. */
@@ -73,7 +73,7 @@ const campaigns = computed(() => props.test.campaigns ?? [])
 const rounds = computed(() => roundsIn(props.test.history, campaign.value))
 
 // A lap the chosen campaign never ran would leave the line empty and the
-// picker pointing at nothing, so the filter falls back to «Все круги» rather
+// picker pointing at nothing, so the filter falls back to "All rounds" rather
 // than showing a blank block.
 watch(rounds, (available) => {
   if (round.value && !available.includes(round.value)) round.value = 0
@@ -83,13 +83,13 @@ watch(rounds, (available) => {
  * Where the line stops.
  *
  * A pause leaves the photo on the card, so its exposure is never closed — and
- * measuring it to «сейчас» drew a striped segment that grew for as long as the
+ * measuring it to "now" drew a striped segment that grew for as long as the
  * test stood, squeezing every turn that actually happened into the left edge.
  * The rotation stopped when the test did, and that is where the line ends.
  *
  * The last fallback is for a test paused before `stopped_at` existed: the end
  * of the last turn that did close is the latest moment the rotation is known to
- * have moved, which is a bounded guess where «сейчас» is an unbounded one.
+ * have moved, which is a bounded guess where "now" is an unbounded one.
  */
 const endsAt = computed(() => {
   if (props.test.status === 'running') return now.value
@@ -109,7 +109,7 @@ const line = computed(() =>
   }),
 )
 
-/** Only a running test's line ends at «сейчас»; every other one ends at a time. */
+/** Only a running test's line ends at "now"; every other one ends at a time. */
 const live = computed(() => props.test.status === 'running' && line.value.live)
 
 // The markers alternate, so each row is half of them. Split here rather than
@@ -159,18 +159,18 @@ onUnmounted(close)
 <template>
   <section
     class="mb-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card phone:p-md"
-    aria-label="Ход теста"
+    aria-label="Test progress"
     data-testid="rotation-timeline"
   >
     <BlockFilters
       v-model:campaign="campaign"
       v-model:round="round"
       class="mb-lg"
-      title="Ход теста"
+      title="Test progress"
       :campaigns="campaigns"
       :vendor-code="test.vendor_code ?? ''"
       :rounds="rounds"
-      all-rounds-label="Все круги"
+      all-rounds-label="All rounds"
       campaign-testid="timeline-campaign"
       round-testid="timeline-round"
     />
@@ -185,7 +185,7 @@ onUnmounted(close)
           </span>
           <span class="ab-timeline__end ab-timeline__end--right" data-testid="timeline-end">
             <template v-if="live">
-              <span>сейчас</span>
+              <span>now</span>
             </template>
             <template v-else>
               <span>{{ formatStamp(line.endMs).date }}</span>
@@ -226,12 +226,10 @@ onUnmounted(close)
          on it, and centred on 5600px of track it was only readable if you
          happened to stop panning in the middle. -->
     <p v-if="line.segments.length" class="ab-timeline__total" data-testid="timeline-total">
-      Всего {{ formatDuration(line.totalMs) }}
+      Total {{ formatDuration(line.totalMs) }}
     </p>
 
-    <p v-else class="text-tiny text-muted">
-      Пока ни одной установки. Первая появится, когда тест запустится.
-    </p>
+    <p v-else class="text-tiny text-muted">No turns yet. The first appears once the test starts.</p>
   </section>
 
   <TimelineTip v-if="hovered" :turn="hovered" :at="tipAt" />

@@ -133,7 +133,7 @@ def test_an_empty_edit_changes_nothing() -> None:
 
 
 def test_both_bounds_are_accepted_in_either_mode() -> None:
-    """«Показы и время» is the mode that reads both, so it takes both.
+    """The "Impressions or time" mode reads both, so it takes both.
 
     The refusal in the single-bound modes is about a field that would be
     silently ignored. Here neither is ignored: whichever is reached first ends

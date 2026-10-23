@@ -44,7 +44,7 @@ class VariantRepository:
     ) -> AbTestVariant:
         """Append an uploaded photo to the end of a test's rotation.
 
-        Candidates are numbered from 1. The «Главное» photo takes position 0 and
+        Candidates are numbered from 1. The "Main photo" takes position 0 and
         is written by :meth:`add_original`.
 
         Args:
@@ -82,7 +82,7 @@ class VariantRepository:
         content_type: str,
         original_filename: str,
     ) -> AbTestVariant:
-        """Put the «Главное» photo at the head of a test's rotation.
+        """Put the "Main photo" at the head of a test's rotation.
 
         Written at **position 0**, which is why this is a separate method rather
         than an argument to :meth:`add`. Inserting at position 1 would mean
@@ -93,7 +93,7 @@ class VariantRepository:
         nothing a running test is already attributing traffic to.
 
         Uniqueness of the baseline rests on that same constraint: a second
-        «Главное» would be a second row at position 0. The service refuses it
+        "Main photo" would be a second row at position 0. The service refuses it
         first, with a message; this is the floor under that check.
 
         Args:
@@ -173,7 +173,7 @@ class VariantRepository:
     async def count_for_test(self, *, test_id: uuid.UUID) -> int:
         """Return how many photos a test holds.
 
-        «Главное» counts. It is an upload like the rest now — it used to be
+        The "Main photo" counts. It is an upload like the rest now — it used to be
         captured off WB's CDN, and excluding it from the cap was how the seller
         avoided paying a slot for a photo they never chose.
 
@@ -358,7 +358,7 @@ class ExposureRepository:
 
         Returns:
             Exposure rows, most recent installation first — the order the
-            «История действий» table reads in.
+            "Rotation history" table reads in.
         """
         stmt = (
             select(VariantExposure)

@@ -2,8 +2,8 @@
 
 The block's whole claim is that it is the result table's column sums, so the
 tests here are mostly about the identity between the two rather than about
-arithmetic that :mod:`test_metrics` already covers: if «Показов всего» can ever
-differ from the sum of the «Показов» row, the number is worse than absent,
+arithmetic that :mod:`test_metrics` already covers: if "Total impressions" can ever
+differ from the sum of the "Impressions" row, the number is worse than absent,
 because it looks checkable and is not.
 """
 
@@ -170,7 +170,7 @@ def test_an_hour_served_by_two_campaigns_is_measured_once() -> None:
     """Two campaigns over the same windows measure the windows, not twice them.
 
     Each interval is stored once per campaign. Summing the rows reported a
-    20-hour test with two campaigns as «1 д 17 ч»; the time a photo was on the
+    20-hour test with two campaigns as "1d 17h"; the time a photo was on the
     card does not grow with the number of campaigns showing it.
     """
     (only,) = _variants(1)
@@ -212,7 +212,7 @@ def test_a_test_with_nothing_measured_reports_no_ratios() -> None:
 
 
 def test_only_photos_that_earned_impressions_count_as_measured() -> None:
-    """«2 фото из 5» counts photos with traffic, not photos that were live.
+    """The "2 of 5 photos" count is photos with traffic, not photos that were live.
 
     A photo installed into dead air has windows and no views; counting it would
     tell the seller five photos have been compared when four of them have

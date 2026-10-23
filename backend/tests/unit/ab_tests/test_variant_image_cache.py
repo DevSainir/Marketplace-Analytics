@@ -72,7 +72,7 @@ class _FakeTests:
     async def get(self, *, workspace_id: uuid.UUID, test_id: uuid.UUID) -> AbTest | None:
         if workspace_id != WORKSPACE_ID or test_id != TEST_ID:
             return None
-        test = AbTest(id=TEST_ID, workspace_id=WORKSPACE_ID, nm_id=995716075, name="Тест")
+        test = AbTest(id=TEST_ID, workspace_id=WORKSPACE_ID, nm_id=995716075, name="Test")
         test.variants = []
         return test
 

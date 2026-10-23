@@ -8,15 +8,16 @@
  * as three sections, two of which are one line long. Side by side with the ends
  * pushed apart they read as the caption they are.
  *
- * «Длительность» is the summed length of the measured intervals, NOT wall clock
+ * "Duration" is the summed length of the measured intervals, NOT wall clock
  * since the start. The two used to sit together and dropping the wall clock is
  * what makes it possible to misread this one: nine hours of data inside a
  * fourteen-hour test has to keep saying nine. The difference is idle time, and
- * «Остановлен» says that outright, with a date on it.
+ * "Stopped" says that outright, with a date on it.
  */
 import { computed } from 'vue'
 
 import InfoHint from '@/core/components/InfoHint.vue'
+import { plural } from '@/core/utils/format'
 import { formatMoscow } from '@/core/utils/moscow'
 
 const props = defineProps({
@@ -32,22 +33,22 @@ const measuredMs = computed(() => Number(props.summary.measured_minutes ?? 0) * 
 
 /** When it started, when it stopped, and how much of that was measured. */
 const facts = computed(() => [
-  { key: 'started', label: 'Запущен', value: moment(props.test.started_at) },
+  { key: 'started', label: 'Started', value: moment(props.test.started_at) },
   {
     key: 'stopped',
-    label: 'Остановлен',
+    label: 'Stopped',
     value: moment(props.test.stopped_at),
-    hint: 'Когда ротация прекратилась — пауза считается наравне с завершением.',
+    hint: 'When the rotation stopped — a pause counts the same as a finish.',
   },
   {
     key: 'measured',
-    label: 'Длительность',
+    label: 'Duration',
     value: duration(measuredMs.value),
-    hint: 'Сумма длительностей отрезков. Паузы и часы без работающей рекламы в неё не входят.',
+    hint: 'The measured intervals added up. Pauses and hours with no ads running are left out.',
   },
 ])
 
-/** «3 фото из 8 успели набрать показы» — how much of the test has run at all. */
+/** "Impressions on 3 of 8 photos" — how much of the test has run at all. */
 const coverage = computed(() => ({
   measured: Number(props.summary.variants_measured ?? 0),
   total: Number(props.summary.variants_total ?? 0),
@@ -60,26 +61,26 @@ const active = computed(() =>
   ),
 )
 
-/** «Главное» for the baseline, «Вариант N» for a candidate. */
+/** "Main photo" for the baseline, "Variant N" for a candidate. */
 const activeLabel = computed(() => {
   if (!active.value) return ''
-  return active.value.is_original ? 'Главное' : `Вариант ${active.value.position}`
+  return active.value.is_original ? 'Main photo' : `Variant ${active.value.position}`
 })
 
-/** «14 окт., 10:47 МСК». */
+/** "14 Oct, 10:47 MSK". */
 function moment(value) {
   return formatMoscow(value, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-/** `Хч Ym`, or minutes alone under an hour — a test may run for days. */
+/** "X d Y h" or "X h Y min", or minutes alone under an hour — a test may run for days. */
 function duration(ms) {
   if (ms === null || ms === undefined) return '—'
   const minutes = Math.floor(ms / 60_000)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
-  if (days) return `${days} д ${hours % 24} ч`
-  if (hours) return `${hours} ч ${minutes % 60} мин`
-  return `${minutes} мин`
+  if (days) return `${days} d ${hours % 24} h`
+  if (hours) return `${hours} h ${minutes % 60} min`
+  return `${minutes} min`
 }
 </script>
 
@@ -96,7 +97,7 @@ function duration(ms) {
       />
       <div v-else class="ab-summary__photo ab-summary__photo--empty"></div>
       <div class="min-w-0">
-        <p class="text-base font-semibold text-primary">Сейчас на карточке</p>
+        <p class="text-base font-semibold text-primary">On the card now</p>
         <p class="text-tiny font-semibold text-action">{{ activeLabel }}</p>
       </div>
     </div>
@@ -115,8 +116,9 @@ function duration(ms) {
     </dl>
 
     <p class="text-tiny text-muted">
-      Показы набрали {{ coverage.measured }} фото из {{ coverage.total }}; кругов пройдено
-      {{ coverage.rounds }}.
+      Impressions on {{ coverage.measured }} of {{ coverage.total }}
+      {{ plural(coverage.total, ['photo', 'photos']) }}; {{ coverage.rounds }}
+      {{ plural(coverage.rounds, ['round', 'rounds']) }} completed.
     </p>
   </div>
 </template>

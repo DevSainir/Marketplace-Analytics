@@ -31,9 +31,9 @@ function openForm() {
   if (creating.value) store.loadSkuOptions('')
 }
 
-/** The list has been asked for once — before that, «no tests» would be a guess. */
+/** The list has been asked for once — before that, "no tests" would be a guess. */
 const listed = ref(false)
-/** That first ask failed: an empty table under it would read as «no tests». */
+/** That first ask failed: an empty table under it would read as "no tests". */
 const listFailed = ref(false)
 
 onMounted(async () => {
@@ -52,10 +52,10 @@ async function submit(payload) {
 
 <template>
   <div class="app-container py-lg">
-    <PageHeader title="A/Б-тесты">
+    <PageHeader title="A/B tests">
       <p class="mt-xs max-w-3xl text-base text-muted">
-        Фото меняется автоматически — либо когда вариант наберёт свои <b>рекламные показы</b>, либо
-        через заданное <b>время</b>. А/Б-тесты работают только со включённой рекламой.
+        The photo changes on its own — when a variant reaches its <b>ad impressions</b> or after a
+        set <b>time</b>. A/B tests need advertising turned on.
       </p>
       <template #actions>
         <button
@@ -64,7 +64,7 @@ async function submit(payload) {
           data-testid="new-test"
           @click="openForm"
         >
-          {{ creating ? 'Свернуть' : '+ Новый тест' }}
+          {{ creating ? 'Close' : '+ New test' }}
         </button>
       </template>
     </PageHeader>
@@ -83,13 +83,13 @@ async function submit(payload) {
       <SearchField
         :model-value="store.query"
         data-testid="search"
-        placeholder="Название теста, артикул продавца или WB"
-        aria-label="Поиск по тестам"
+        placeholder="Test name, vendor code or WB ID"
+        aria-label="Search tests"
         class="w-72 phone:w-full"
         @update:model-value="store.search"
       />
       <span class="ml-auto text-tiny tabular-nums text-muted">
-        Тестов: {{ store.rows.length }}
+        Tests: {{ store.rows.length }}
       </span>
     </div>
 
