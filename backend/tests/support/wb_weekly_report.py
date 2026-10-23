@@ -15,22 +15,28 @@ from typing import Any
 
 import openpyxl
 
-from src.modules.finreports.services.settlement_upload.workbook import REQUIRED_HEADERS
+from src.modules.finreports.services.settlement_upload.workbook import (
+    HEADER_FOR,
+    REQUIRED_HEADERS,
+)
+from tests.support import wb_labels as wb
 
 REPORT_ID = 992915233
-FILENAME = f"Еженедельный детализированный отчет №{REPORT_ID}_9383646.zip"
+#: WB titles the file in Russian; the parser reads only the number after "№",
+#: so the title here is English.
+FILENAME = f"Weekly detailed report №{REPORT_ID}_9383646.zip"
 
 _DEFAULTS: dict[str, Any] = {
-    "Обоснование для оплаты": "Логистика",
-    "Тип документа": "",
-    "Код номенклатуры": 953770957,
-    "Артикул поставщика": "m-trx01-blk",
-    "Баркод": "2046161763178",
+    HEADER_FOR["supplier_oper_name"]: wb.LOGISTICS,
+    HEADER_FOR["doc_type_name"]: "",
+    HEADER_FOR["nm_id"]: 953770957,
+    HEADER_FOR["sa_name"]: "m-trx01-blk",
+    HEADER_FOR["barcode"]: "2046161763178",
     "Srid": "e1.ra9e753cc5d8f4196b02f20c7b10c956b.0.0",
-    "Дата продажи": "2026-10-06",
-    "Дата заказа покупателем": "2026-10-01",
-    "Услуги по доставке товара покупателю": 121.1,
-    "Количество доставок": 1,
+    HEADER_FOR["sale_dt"]: "2026-10-06",
+    HEADER_FOR["order_dt"]: "2026-10-01",
+    HEADER_FOR["delivery_rub"]: 121.1,
+    HEADER_FOR["delivery_amount"]: 1,
 }
 
 
@@ -40,7 +46,7 @@ def weekly_row(overrides: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def weekly_workbook(rows: list[dict[str, Any]], *, headers: list[str] | None = None) -> bytes:
-    """The .xlsx WB serves: one sheet, «№» first, a header row and the rows."""
+    """The .xlsx WB serves: one sheet, "№" first, a header row and the rows."""
     columns = headers or ["№", *sorted(REQUIRED_HEADERS - {"№"}, reverse=True)]
     book = openpyxl.Workbook()
     sheet = book.active

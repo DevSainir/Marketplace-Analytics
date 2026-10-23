@@ -9,8 +9,7 @@ It carries no test counts. Counts drift the moment someone adds a case, and
 asked. Update this file when coverage changes *shape* — a new area covered, a gap opened or
 closed — not when a file moves.
 
-UI labels are quoted in Russian, as the user sees them, with the English meaning beside the
-first mention.
+UI labels are quoted as the user sees them.
 
 ---
 
@@ -24,11 +23,19 @@ first mention.
 | `support/auth.py` | Signed-token minting, header builders, `make_user`, cached password digest |
 | `support/fakes.py` | Hand-written in-memory repositories (users, refresh tokens, workspaces, workspace tokens) |
 | `support/wb_payloads.py` | Canned WildBerries envelopes, copied from observed responses |
+| `support/wb_labels.py` | WB's own Russian labels (operation names, payment types, regions) spelled out once, so the rest of the suite names them |
+| `support/wb_weekly_report.py` | WB's weekly report workbook and zip, headers taken from `HEADER_FOR` |
 | `component/conftest.py` | The real app over ASGI, dependency-override helper, in-memory rate-limit store, database tripwire |
 | `integration/conftest.py` | Test-database provisioning, per-test rolled-back transaction, Redis on index 15, auto-skip |
 
 ### `unit/` — pure business rules
 
+* `core/test_the_repository_is_in_english.py` — no Cyrillic in any file git would publish
+  except the few that must hold WB's own labels, each listed with its reason; it fails on a
+  stray Russian word anywhere, code, tests, docs and skills alike. Its partner
+  `core/test_client_messages_use_seller_vocabulary.py` keeps developer words ("cookie",
+  "workspace_id", "cabinet") out of the messages a 4xx hands to the SPA, and
+  `core/test_calendar_words.py` pins how a backend message writes a date ("22 Oct 2026").
 * `core/` — password hashing and the bcrypt ceiling; access-token policy; the startup hardening
   guard, **including which environments may publish their own API surface** (`/docs`, `/redoc`
   and `/openapi.json` are a `local`-only affordance; every internet-reachable environment
@@ -136,13 +143,13 @@ first mention.
   and the content→analytics fallback. The marketplace surface deliberately has **no** fallback:
   every other WB scope answers it 401, so a substitute would turn a skipped source into a failed one.
 * `monitoring/` — the metrics matrix (build, edit reverse-solver, overrides, associative
-  breakdown, and the «CPC» traffic group — `test_matrix_cpc_group.py` pins that a pay-per-click
-  campaign is classified by its `payment_type`, not its bid type, that «Доля трафика» (traffic
-  share) still sums to 100% within each traffic type, and that the delivery floor is read in the
+  breakdown, and the "CPC" traffic group — `test_matrix_cpc_group.py` pins that a pay-per-click
+  campaign is classified by its `payment_type`, not its bid type, that "Traffic share" still
+  sums to 100% within each traffic type, and that the delivery floor is read in the
   campaign's own billing model — a CPC campaign buys the same impressions for a fraction of the
-  money, so a CPM-calibrated floor would cut real days), per-day notes and «Действия» (Actions),
+  money, so a CPM-calibrated floor would cut real days), per-day notes and "Actions",
   pinned SKUs, price and sale ingestion. Plus the two harvest-pacing behaviours behind
-  «Обновить» (Refresh): the funnel and stocks analytics calls are fetched **in turn, never
+  "Refresh": the funnel and stocks analytics calls are fetched **in turn, never
   concurrently** (`test_harvest_analytics_pacing.py` — one in flight at a time, one failing does
   not cancel the other), and a cohort pass WB served **zero** days *raises* instead of logging a
   quiet "0 refreshed" (`test_cohort_pass_reports_silence.py`).
@@ -151,7 +158,7 @@ first mention.
   fullstats scope as a UNION of the still-running campaigns and those already holding rows in the
   window — WB reports a campaign's status as of *now*, so scoping by status alone silently drops
   the day a campaign was completed on, and that day's spend is uncollectable afterwards — while
-  still keeping completed-and-quiet and foreign-SKU campaigns out, which is what keeps «Обновить»
+  still keeping completed-and-quiet and foreign-SKU campaigns out, which is what keeps "Refresh"
   fast. `test_discovery_catalogue_fallback.py` pins discovery as a *source* rather than a
   precondition: a Content API that 403s (or a workspace with no token for it) falls back to the
   SKUs already on file, and only an empty catalogue is fatal. Both pin `wb_fake_harvest=False`
@@ -162,7 +169,7 @@ first mention.
   name, which is a primary-key column), with the size identity resolved from our own catalogue,
   in-transit columns a true zero, and an uncatalogued barcode dropped rather than guessed onto
   some other SKU.
-  «Поиск по кластерам» (search by cluster, the block at the bottom of a SKU's page) owns two
+  "Search clusters" (the block at the bottom of a SKU's page) owns two
   files. `test_cluster_ingestion.py` pins that the cluster TEXT survives ingestion at all (the
   zone aggregate sums it away, and nothing else records the seller's own search phrases), that a
   phrase repeated inside one day is summed rather than overwritten through its composite key, and
@@ -178,7 +185,7 @@ first mention.
   the live ones — past that it is a truncated answer, not moderation.
   `test_review_history_schedule.py` keeps its beat entry in an hour no other entry starts in.
   `integrations/test_wb_feedbacks_client.py` pins that a non-envelope 200 raises rather than
-  reading as an empty page (which would make every review «vanish»), and that every storefront
+  reading as an empty page (which would make every review "vanish"), and that every storefront
   read spends ONE bucket rather than one per `imtId`.
 * `guide/` — the reference capture, which is the one module whose tests are its only guard:
   nothing in the app reads its rows, so a walk that silently stops working has no downstream
@@ -213,7 +220,7 @@ first mention.
   was the week's last) and the one a naive "max day I fetched something for" gets wrong.
   `test_harvest_single_flight.py` pins the last one: the finance walk is minutes of paced WB
   windows and the schedule ticks hourly, so a locked-out tick must open no session and make no WB
-  call, and the «Обновить» button's read of that lock must **fail open** — reporting "running"
+  call, and the "Refresh" button's read of that lock must **fail open** — reporting "running"
   because Redis is down would disable the manual escape hatch exactly when the scheduled path is
   also degraded. The lock primitive itself is pinned in `core/test_single_flight_lock.py`, where
   the two halves pull against each other and both are pinned: a LIVE holder keeps the lock past
@@ -226,18 +233,18 @@ first mention.
   because every way of getting this wrong yields a *plausible* statement rather than an error:
   refunds arrive positive and must be subtracted, the commission is a residual against the
   sale-side payout only, and the acquiring WB bills separately is a memo. Each of those was
-  mutation-checked. `test_sku_report.py` pins the per-SKU cut («По артикулам», by SKU): a row's
-  «к перечислению» (payout) is net of that SKU's own withholdings only, an uncosted SKU's profit
+  mutation-checked. `test_sku_report.py` pins the per-SKU cut ("By SKU"): a row's
+  "Payout" is net of that SKU's own withholdings only, an uncosted SKU's profit
   is `None` (never "profit at free goods"), missing funnel/ad coverage is `None` not 0, and
   refund-only windows go negative instead of clamping. It also owns the one place WB's two
-  advertising figures meet: the totals row returns the weekly «WB Продвижение» invoice before
-  subtracting the burn, because the invoice is already inside «к перечислению» and the two are
+  advertising figures meet: the totals row returns the weekly "WB Promotion" invoice before
+  subtracting the burn, because the invoice is already inside "Payout" and the two are
   the same money.
-  `test_stock_balance.py` pins «Баланс по товарным остаткам» (stock balance), where every mistake
+  `test_stock_balance.py` pins "Stock balance", where every mistake
   is again a plausible figure: a cell is units × cost price, an uncosted SKU keeps its units and
   reports `None` money (never "stock at zero cost") while counting into `uncosted_count`, a day WB
   never captured renders EMPTY rather than carrying the neighbouring snapshot, and a warehouse
-  marked «Не считать» (exclude) ranks nothing. Note what it does NOT own: that response carries no
+  marked "Don't count" ranks nothing. Note what it does NOT own: that response carries no
   totals at all. The grid's marks and its search apply without a round trip and each changes every
   total, so the panels are summed on the client (`useBalanceRows.spec.js`) — a server-side copy of
   the same addition would disagree with the screen the moment a mark was applied optimistically.
@@ -256,9 +263,9 @@ first mention.
   is structurally forward-only: it probes the day AFTER the watermark, and the watermark jumps to
   the newest report's stated end, so a report WB serves for earlier days would be unreachable for
   good. Both halves are pinned because either alone is inert — the span reaches back behind the
-  watermark, and the pass runs even when the gate says «ничего новее нет» (nothing newer), which
+  watermark, and the pass runs even when the gate says "nothing newer", which
   is true and beside the point exactly when a back-dated report is what is missing. Also pinned:
-  the hourly tick still skips (or every hour becomes a walk), «Обновить» never widens into it (a
+  the hourly tick still skips (or every hour becomes a walk), "Refresh" never widens into it (a
   click must not spend a fortnight of a seller's settlement budget), and it still queues behind
   the harvest lock. It is sized from an incident in which a back-dated report stayed unserved for
   days and then fell out of reach.
@@ -284,9 +291,9 @@ first mention.
   value. `test_harvest_records_freshness.py` owns the harvest loop's half: the verdict is recorded
   **before** the branch, so the quiet path leaves the same trace the harvesting path does; a
   completed walk then supersedes it, because the walk asks WB about the same days and a finished
-  one is strictly better evidence (otherwise a page warns «данные могут быть неполными» — data
-  may be incomplete — over a statement the walk has just proved complete); a walk that lost a
-  window supersedes nothing, since upgrading an incomplete walk to «нового ничего нет» would
+  one is strictly better evidence (otherwise a page warns "data
+  may be incomplete" over a statement the walk has just proved complete); a walk that lost a
+  window supersedes nothing, since upgrading an incomplete walk to "nothing new" would
   report a gap as reassurance; and a Redis outage never reaches the walk it annotates.
 
 `test_worker_memory_signal.py` owns the two signals the worker once had none of, when prefork
@@ -342,14 +349,14 @@ cumulative-since-midnight counters into intervals: clamped at zero so a restated
 rewind the rotation, split by day so midnight does not stall it. `test_triggers.py` owns the
 configuration rule both the create schema and the settings PATCH call — one module precisely so
 the two cannot drift into "create refuses a stray field, edit quietly accepts it".
-`test_metrics.py` asserts the three chained conversions against WB's own «A/Б» result screen to
+`test_metrics.py` asserts the three chained conversions against WB's own "A/B" result screen to
 the second decimal, because each one divides by the previous stage and a wrong denominator still
 lands in a believable 0–100 range. `test_status_transitions.py` owns the hand-set pause and
 cancel: a pause only from running, a cancel only from running or paused, and nothing written on a
-refusal — because a pause used to be accepted from «Завершён» (finished), and the launcher's own
+refusal — because a pause used to be accepted from "Finished", and the launcher's own
 guard then let the finished test start again.
 
-`unit/summary/` owns the four decisions «Сводка» (Summary) makes that the per-SKU report does
+`unit/summary/` owns the four decisions "Summary" makes that the per-SKU report does
 not, each pinned by its own case and each verified to fail when the rule is removed: the margin is
 withheld entirely while any settled SKU is uncosted (the report is softer, which is right for a
 table and wrong for one headline); WB's weekly advertising invoice is swapped for the burn the
@@ -364,12 +371,12 @@ re-derived from summed facts (a week's CTR is Σ clicks / Σ views, never the me
 stock is the LAST day's level across days and a sum across articles; a day the funnel never
 reported is `None`, not zero, while a reported day with no ad row is a real zero; profit is
 withheld the moment one article in a cell has no cost price, and subtracts advertising only for
-the settled days; «Итого» (total) folds DISTINCT articles, so one article in two groups is counted
+the settled days; "Total" folds DISTINCT articles, so one article in two groups is counted
 once; weeks run Monday to Sunday, clipped to the window. The colour rule is pinned in the
 frontend's `heatScale.spec.js` / `grid.spec.js`: the median as the norm, a hand-set norm in its
 place, and a summed metric compared with a daily norm per day of the column.
 
-`unit/advertising/` owns the money rules of «Реклама» (Advertising): which zone a campaign-day's
+`unit/advertising/` owns the money rules of "Advertising": which zone a campaign-day's
 spend lands in (the matrix's `_classify` restated for money — a manual search campaign's
 remainder is the catalogue unless its search slice is missing, CPC is its own group, a slice
 above the total is clamped); how WB's batched bonus is placed on days (its own day first, then
@@ -397,30 +404,32 @@ through the relay.
 ### `component/` — the real app, persistence faked
 
 Owns the wiring: route paths and verbs, the DI graph resolving, auth/tenancy/role guards, request
-validation and response shaping, cookies, and domain error → HTTP status mapping. Per module:
+validation and response shaping, cookies, and domain error → HTTP status mapping.
+`test_validation_messages.py` pins what a 422 says: a validator's own `UserInputError` reaches
+the person, any other `ValueError` text is replaced, because it can quote the input. Per module:
 
 * `summary` — the workspace header scoping the read, and the window being bounded *before* any
   aggregation runs (a multi-year window over the whole settlement table is a denial of service
   with a valid token attached); refused without its own page grant even to a holder of
-  «Мониторинг» and P&L, and opened by that grant alone.
+  "Monitoring" and P&L, and opened by that grant alone.
 * `heatmap` — the same window bound (366 days inclusive), its closed metric list, the bound on
   the article filter, a paying customer let in and a lapsed one refused, group and norm writes
   refused to a read-only manager, a group of another workspace answered 404, the page refused
-  without its own «Тепловая карта» (Heatmap) grant and every metric — money included — opened by
+  without its own "Heatmap" grant and every metric — money included — opened by
   that grant alone. In `test_heatmap_group_routes.py` the groups and their card catalogue are
-  opened by any one page that carries the filter (`GROUP_MODULES`: «Сводка», P&L, «Тепловая
-  карта», «Реклама») and by none of the others; in `test_heatmap_norm_routes.py` the hand-set
+  opened by any one page that carries the filter (`GROUP_MODULES`: "Summary", P&L,
+  "Heatmap", "Advertising") and by none of the others; in `test_heatmap_norm_routes.py` the hand-set
   norms are refused without the heatmap grant and their metric, article and value are bounded.
-* `advertising` — a paying customer let in, the page refused without its own «Реклама» grant and
-  opened by that grant alone (neither «Мониторинг» nor P&L is asked for, by the owner's decision),
+* `advertising` — a paying customer let in, the page refused without its own "Advertising" grant and
+  opened by that grant alone (neither "Monitoring" nor P&L is asked for, by the owner's decision),
   the header scoping the read, a window over the cap or inverted refused without echoing the dates.
 * `workspaces` — the `dev` role gate on admin routes and tokens never appearing in a response;
-  and in `test_workspace_settings.py` the workspace's «Промо-бонусы» (promo bonuses) switch: saved
+  and in `test_workspace_settings.py` the workspace's "Promo bonuses" switch: saved
   by a writer and listed back, refused to a read-only manager, 404 in another company's workspace,
   an empty or unknown body 422 (the frontend's `workspaceSettings.spec.js` pins the switch
   reverting when the save fails).
 * `monitoring` — workspace scoping, paging bounds, SKU ownership on read *and* write, and
-  `/skus/lookup` not being swallowed by `/skus/{nm_id}`; the two per-SKU «Поиск по кластерам»
+  `/skus/lookup` not being swallowed by `/skus/{nm_id}`; the two per-SKU "Search clusters"
   routes — both behind the ownership guard, a phrase required on the live probe, the workspace
   header reaching the probe (the scan looks for the whole catalogue), and a throttled WB arriving
   as **502** rather than as an empty ranking (`test_cluster_routes.py`).
@@ -431,8 +440,8 @@ validation and response shaping, cookies, and domain error → HTTP status mappi
   an omitted one falls back to the newest snapshot on record (never "today", which usually has
   none yet), the stock and catalogue names arrive through the monitoring contract, and a mark of
   an unknown `kind` is a 422 rather than a row nothing can ever match — including the two RETIRED
-  «Закрепить» (pin) kinds (`sku`, `warehouse`), the case that matters being a browser tab left
-  open across a release still sending them. And the «Обновить» trigger, where the assertion is a
+  "Pin" kinds (`sku`, `warehouse`), the case that matters being a browser tab left
+  open across a release still sending them. And the "Refresh" trigger, where the assertion is a
   negative — a click while a harvest is in flight enqueues **nothing at all**
   (`test_harvest_routes.py`), so an impatient seller cannot pile a run per click behind a long
   walk. An unknown `grouping` on the P&L is a 422 rather than a silent fallback to weekly:
@@ -448,7 +457,7 @@ validation and response shaping, cookies, and domain error → HTTP status mappi
   alone (`unit/core/test_cancel_on_disconnect.py`; that the cancellation reaches PostgreSQL is
   `integration/core/test_abandoned_read_stops_in_postgres.py`).
 
-`monitoring/test_refresh_bounds.py` covers the two controls on «Обновить», which do different
+`monitoring/test_refresh_bounds.py` covers the two controls on "Refresh", which do different
 jobs: deduplication answers an identical in-flight request with that task's id (impatience costs
 nothing), while the budget is the bound on abuse and is keyed on the **workspace** — keying it on
 the address would hand one tenant a fresh allowance per device and make two colleagues behind one
@@ -458,8 +467,8 @@ matching property for the finance button: it enqueues a walk scoped to the calle
 not the fleet. It also owns the rule that **every click answers and none of them waits** — a click
 while the finance bucket is shut is refused with the wait attached and enqueues nothing (a queued
 run would only sit still until the bucket refilled), while a run already in flight is reported
-ahead of that rate limit, since the running walk is usually what emptied the bucket and «уже
-идёт» (already running) is the more useful half of the pair. The same file owns the freshness
+ahead of that rate limit, since the running walk is usually what emptied the bucket and "already
+running" is the more useful half of the pair. The same file owns the freshness
 half of `GET /harvest`: the report we hold and the last recorded verdict travel together (either
 alone is unreadable), a failed probe reaches the page as `probe_failed` rather than as an empty
 answer, and nothing recorded arrives as `null`.
@@ -468,7 +477,7 @@ answer, and nothing recorded arrives as `null`.
 the message the raise site wrote — asserted against the whole response body, since the point is
 that the detail does not reach the client by any route through the envelope. Two of its cases
 guard the other direction: a 4xx must keep its own message (blanket-replacing every one would
-turn every actionable error into «что-то пошло не так», "something went wrong"), and the rule
+turn every actionable error into "something went wrong"), and the rule
 keys on the status rather than a per-class allowlist, so a server error added later inherits it.
 
 `test_documentation_exposure.py` sits at the tier root because it is about the app itself
@@ -564,8 +573,8 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   SQL directly, the way a manual renewal would be done. The renewal rule itself (continue from
   the old end while still open, from now once closed) is unit-tested in
   `unit/organizations/test_renewal_rule.py`.
-  `test_page_grants_migration.py` replays `d7f1a3c95e24` on a scratch database: «Сводка» is
-  written only where «Мониторинг» AND P&L were held and «Тепловая карта» where «Мониторинг» was,
+  `test_page_grants_migration.py` replays `d7f1a3c95e24` on a scratch database: "Summary" is
+  written only where "Monitoring" AND P&L were held and "Heatmap" where "Monitoring" was,
   on memberships and invitations alike — so a manager whose owner closed P&L does not wake up
   to the workspace's revenue — plus the six-page column default and a clean downgrade. The guard
   rule itself ("any of" for the groups, an empty set refused when built) is
@@ -573,7 +582,7 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
 * `core/` — **the demo seed's guard** (`test_demo_seed.py`): it refuses a database holding an
   account or a catalogue card that is not the demo's — it empties every table before writing —
   and lets a freshly migrated one through. The same file seeds the shop and builds the newest
-  week's P&L through the real service and loaders: every article sold and costed, no «unknown»
+  week's P&L through the real service and loaders: every article sold and costed, no "unknown"
   caveat, which is what the demo exists to show.
 * `core/` — the **least-privilege database role** (`test_least_privilege_role.py`). A SQL file
   nobody executes is a plan, so this one reads the shipped script, applies it to a real
@@ -639,7 +648,7 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   the part the unit tier cannot prove: the bucket is shared across *processes* (two gate instances
   = two Celery workers on one token), separate per endpoint and per token, honours WB's
   `remaining` header, and refuses past the queue cap. This is the guarantee that a nightly cohort
-  pass and an interactive «Обновить» queue against one budget instead of racing it into 500s.
+  pass and an interactive "Refresh" queue against one budget instead of racing it into 500s.
   Three cases belong to the tier for the same reason the others do — they are arithmetic inside
   the Lua, and a fake would prove the fake. A block is served **longer** than WB demanded; a
   refusal arriving with no block of ours standing **doubles** the last one; a block already
@@ -652,7 +661,7 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   our refill estimate, and as crossing processes — the API answers the click, the worker spends
   the budget.
 * `monitoring/` — `test_fbs_label_rename.py`: an FBS warehouse label is a primary-key value, so
-  renaming one (`c7e4a1d90b62`) has to carry its stock snapshots and «Отгрузить» (ship) marks with
+  renaming one (`c7e4a1d90b62`) has to carry its stock snapshots and "Ship" marks with
   it — including the row a previous migration seeded — and leave the FBO warehouses filed in the
   same table untouched. It still asserts on the marks after that feature was removed, and should:
   the test replays history up to `c7e4a1d90b62`, where the table still exists, and what it pins is
@@ -660,7 +669,7 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   `test_stock_sweep_scoping.py`: the daily stock sweep can spare named warehouses. FBO and FBS
   reach one table from two WB surfaces that fail independently, so an unscoped sweep after a
   failed FBS read would report a full seller warehouse as emptied overnight.
-  `test_cluster_search_sql.py`: everything in the «Поиск по кластерам» reads that IS the SQL — the
+  `test_cluster_search_sql.py`: everything in the "Search clusters" reads that IS the SQL — the
   per-SKU predicate repeated in both statements (two SKUs routinely share a cluster, and the block
   must not report the account's traffic as one card's), the window bound, ranking by impressions,
   the impression-weighted position `CASE`, the four-column upsert making a re-harvest idempotent,
@@ -673,8 +682,8 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   widened row set — that the **residual commission equals the one WB published**
   (`ppvz_vw + ppvz_vw_nds`). `test_pnl_caveats.py` owns the other half: what the statement admits
   it cannot verify. Cost coverage and the wrong-currency drop, an unrecognised operation, a window
-  still mid-backfill, a bucket covering only part of a WB report, and the «в т.ч. НДС» (of which
-  VAT) sub-line being summed over the rows the line above it is.
+  still mid-backfill, a bucket covering only part of a WB report, and the "of which
+  VAT" sub-line being summed over the rows the line above it is.
   `test_harvest_is_atomic.py` runs the real `harvest_workspace` against real PostgreSQL with fake
   WB, and owns the per-batch commit rule: a request that dies mid-page leaves none of its own
   uncommitted rows, the batches already committed and the requests before it stand, and the
@@ -686,8 +695,8 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   money in is never booked over zero rows, while one that owes nothing may be; and
   `reconcile_against_wb` reports zero for a report that adds up and the gap for one that does
   not. `test_pnl_reconciles.py::test_a_correction_takes_its_sign_from_the_document_type` pins
-  the payout sign rule — «Возврат» (return) by `doc_type_name` subtracts, anything else adds —
-  which is what reconciles every report to WB's own `forPaySum`.
+  the payout sign rule — the return document type (`REFUND_DOC_TYPE`) in `doc_type_name`
+  subtracts, anything else adds — which is what reconciles every report to WB's own `forPaySum`.
   `test_sku_identity.py` owns what NAMES a SKU on the balance grid: the article, subject and brand
   come off that SKU's **newest** settlement row, per tenant, rather than an aggregate over its
   history — an aggregate hands a renamed card whichever of its names sorts highest, and it also
@@ -695,10 +704,10 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   A SKU that never settled stays ABSENT rather than triple-empty, because absence is what makes
   the caller fall back to the catalogue vendor code.
   The shared fixture in that directory's `conftest.py` is load-bearing in one non-obvious way: its
-  «Возмещение издержек» (expense reimbursement) row republishes its charge across
+  transport cost reimbursement row (`wb.REBILL`) republishes its charge across
   `ppvz_vw`/`ppvz_vw_nds`, as the real rows do. Without that the two commission tests would pass
   on a basis that drifts over a long history. `test_sku_report_reconciles.py` owns the per-SKU
-  partition: Σ SKU rows + the «Без привязки к артикулу» (not tied to a SKU) bucket equals the
+  partition: Σ SKU rows + the "Not tied to a SKU" bucket equals the
   window totals with no tolerance, account-level charges never smear across SKUs, and the
   monitoring contract loaders (orders from the funnel, ad spend from the Promotion API) deliver
   per-SKU figures — or `None`-with-a-caveat when their history does not cover the window.
@@ -707,7 +716,7 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   places and are allowed to disagree), and the watermark never rewinds — two harvests can overlap,
   and the loser must not re-open a window already closed.
   `test_freshest_report_is_selectable.py` owns a relationship rather than a value: the day
-  `latest_settled_date` reports — `max(date_to)`, what «Обновить» announces — must be a day
+  `latest_settled_date` reports — `max(date_to)`, what "Refresh" announces — must be a day
   `list_periods` actually reaches, since the SPA's period picker is built from the latter. They
   were computed by two queries with different filters, so a report WB stated an end but no start
   for was announced and then unselectable, and the freshness gate (which probes the days *after*
@@ -735,7 +744,7 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   `test_heatmap_norms.py` proves the hand-set norm's upsert (a second set replaces), that a norm
   cannot be set on another workspace's article, and that a list or clear reaches one workspace
   only. `finreports/test_sku_days_reconcile.py` proves the settlement's per-SKU-day cut adds up to
-  the per-SKU window row exactly — revenue, units and payout — so the heatmap and «По артикулам»
+  the per-SKU window row exactly — revenue, units and payout — so the heatmap and "By SKU"
   cannot disagree about one article's money.
 * `monitoring/test_ad_campaign_facts_are_scoped.py` — the advertising page's campaign-grain
   loader: another workspace's spend, search slice, campaign settings and bonus never reach it, and
@@ -760,7 +769,7 @@ A component test that reaches the database fails loudly (`_TripwireSession`).
   rows with the per-article aggregate in real SQL, column by column — the two are separate copies
   of the same expressions.
   `test_rollup_matches_the_detail.py` owns the settlement rollup — the pre-summed copy that made
-  «Вся история» (all history) a page instead of a timeout. It pins the SAFETY property rather than
+  "All time" a page instead of a timeout. It pins the SAFETY property rather than
   the speed: every read verifies the rollup against the detail's own row counts and rebuilds
   whatever disagrees, so stale, partial, empty and hand-edited all have to cost time and nothing
   else. A row rewritten in place keeps the count, so the detail's upsert forgets the days it
@@ -786,7 +795,7 @@ date helpers, the auth guard and store, the metrics matrix, the table components
 maths: reading a metric at the day-major stride (the wrong stride returns another bucket's number
 and renders perfectly happily), the mini-block rows that carry one cell per day instead, and the
 axis rules the charts were rebuilt around — one axis per UNIT so metrics that can be compared
-share a ruler, ordered ₽ / шт / % rather than by whichever chip was clicked first, sized from the
+share a ruler, ordered ₽ / units / % rather than by whichever chip was clicked first, sized from the
 axes actually DRAWN (index mode draws one whatever was picked, and sizing per unit left a gaping
 left margin that jumped when a pick added a unit without adding an axis). It also owns index
 mode's baseline — the first day that REPORTED, not day one — and that stock, carts and orders
@@ -824,7 +833,7 @@ than blanking the rotation.
 
 `finreports/reportFreshness.spec.js` owns the P&L's freshness line, and almost every assertion in
 it is a negative, because the line exists to stop a page reassuring from evidence it does not
-have: a failed check is never phrased as «нового ничего нет» (WB not answering is an unanswered
+have: a failed check is never phrased as "nothing new" (WB not answering is an unanswered
 question), a check nobody has repeated in over a day switches to a warning tone, a missing record
 says so rather than implying calm, and an outcome the build does not recognise is not narrated at
 all. It also pins the two date rules that produce plausible wrong answers rather than errors — a
@@ -832,31 +841,30 @@ report's period is a calendar date and must never be shifted through `Date`, whi
 day and time must come off the same local one — and that a quiet week reads as normal, since a
 permanent warning is read as decoration by the second week.
 
-`finreports/store.spec.js` owns what «Обновить» does. Two rules, and the first is why the second
+`finreports/store.spec.js` owns what "Refresh" does. Two rules, and the first is why the second
 exists at all. **The click answers in one round trip and never waits**: a rate-limited click
 renders the minutes to wait, enqueues nothing and leaves no note, and every other click hands the
 button straight back — it used to stay disabled for the length of the harvest, which on a WB block
-meant minutes of «Обновляем…» (refreshing) over a walk doing nothing. What the seller learns
+meant minutes of "Refreshing…" over a walk doing nothing. What the seller learns
 afterwards comes from a background watcher that disables nothing, so the tests pin that the
 statement still reloads itself when a week lands. **And the watcher survives a reload**, which
 took **two** sources and the tests say why neither is enough. The harvest lock is the only thing
 that knows about a run somebody else started, but it is held by the TASK, not the click — nothing
 holds it before a worker picks the job up or after the task ends, and a reload in either window
 used to drop the state. So the click is also written down (`pendingRefresh.js`), which is what
-lets a reload after the run report its OUTCOME rather than nothing. The baseline for «Загружен
-отчёт по …» (report loaded up to …) rides on that note: it is the settlement day at the CLICK,
-never the one on screen at the reload, or a week that genuinely arrived is announced as «новых
-отчётов нет» (no new reports). The note is cleared at every ending and expires with the poll's
+lets a reload after the run report its OUTCOME rather than nothing. The baseline for "Report
+loaded through …" rides on that note: it is the settlement day at the CLICK,
+never the one on screen at the reload, or a week that genuinely arrived is announced as "No new
+reports". The note is cleared at every ending and expires with the poll's
 own budget — a worker killed mid-task holds no lock and finishes nothing, and a note without an
 expiry would disable the button for good. One poll loop per harvest, too: two would fire the
 statement reload twice over one arrival.
 
-Two specs belong to «Поиск по кластерам» and own one product rule each.
+Two specs belong to "Search clusters" and own one product rule each.
 `clusterStore.spec.js`: the block's two halves fail independently — a throttled probe must leave
 the harvested cluster table on screen — and a rank never survives a SKU switch, since the number
 described the previous card. `SkuClusterBlock.spec.js`: the cluster table renders without anyone
-typing, and «WB не ответил» (WB did not answer), «нет в первых N позициях» (not in the first N
-positions) and a found rank stay three distinct states, because the first two lead a seller to
+typing, and "WB didn't answer", "not in the first N positions" and a found rank stay three distinct states, because the first two lead a seller to
 opposite decisions about the bid.
 
 `csp.spec.js` is the exception to that tier's usual shape — it reads a config file rather than
@@ -898,7 +906,7 @@ Four journeys, and they stay few:
 * `monitoring/main-flow.spec.js` — the morning flow: log in → monitoring → find a SKU by vendor
   code; switching workspace re-scopes `X-Workspace-Id` and survives a reload.
 * `finreports/pnl-dashboard.spec.js` — the P&L landing page resolves against the real API (no
-  eternal «Считаем отчёт…», "building the report") and renders its cards and the per-SKU table.
+  eternal "Loading…") and renders its cards and the per-SKU table.
 * `ab-tests/photo-rotation.spec.js` — create a test, upload photos through a real file input, and
   read the thumbnail back through our own image route. It stops short of the rotation itself:
   advancing needs 10 000 advertising impressions and a media write against a live seller card.

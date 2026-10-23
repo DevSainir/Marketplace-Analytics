@@ -44,6 +44,7 @@ CLIENT_FACING = frozenset(
     }
 )
 
+
 def _literal_text(node: ast.AST) -> str:
     """The fixed text of a string node, with any interpolation dropped.
 

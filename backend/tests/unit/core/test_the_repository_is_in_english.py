@@ -26,7 +26,6 @@ not ignored, so a new file is checked before anyone remembers to add it.
 
 from __future__ import annotations
 
-import fnmatch
 import pathlib
 import re
 import shutil
@@ -55,17 +54,6 @@ _WB_LABELS: dict[str, str] = {
         "a partial index whose predicate is WB's sale operation name"
     ),
     "backend/tests/support/wb_labels.py": "the WB labels the tests feed in, spelled out",
-    "backend/tests/support/wb_weekly_report.py": (
-        "the column headers and file name of the weekly report workbook, as WB writes them"
-    ),
-}
-
-#: The translation in progress, one entry per piece of work; each entry goes
-#: with the commit that translates it, and the list goes with the last one.
-_IN_TRANSLATION: dict[str, tuple[str, ...]] = {
-    # Regenerated from the backend's OpenAPI text once every module is done.
-    "api types": ("frontend/src/core/api/schema.d.ts",),
-    "docs": ("docs/*", ".claude/*", "README.md", "CLAUDE.md"),
 }
 
 
@@ -93,12 +81,6 @@ def _russian_lines(path: str) -> list[int]:
     return [number for number, line in enumerate(text.splitlines(), 1) if _CYRILLIC.search(line)]
 
 
-def _in_translation(path: str) -> bool:
-    """Whether the file belongs to a piece of the translation still to do."""
-    patterns = [pattern for unit in _IN_TRANSLATION.values() for pattern in unit]
-    return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
-
-
 def test_the_scan_sees_the_whole_repository() -> None:
     """Guard the guard: a listing that came back nearly empty checks nothing."""
     # Arrange / Act
@@ -119,7 +101,7 @@ def test_nothing_outside_the_wb_labels_is_in_russian() -> None:
     offenders = [
         f"{path}:{line}"
         for path in _repository_files()
-        if path not in allowed and not _in_translation(path)
+        if path not in allowed
         for line in _russian_lines(path)
     ]
 
