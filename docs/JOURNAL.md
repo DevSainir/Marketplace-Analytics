@@ -32,6 +32,7 @@ Columns:
 
 | Date | Task | Area | Type | Size | Why | Commits |
 |---|---|---|---|---|---|---|
+| 2026-10-24 | Pre-publication check follow-ups: the component tier kept off the Celery broker, the cancellation test freed of its race, vitest on half the cores, the known gitleaks findings recorded | Infrastructure | infrastructure | S | One component test waited ~20 s for a broker that does not resolve, and three tests failed once each on a loaded or sleeping laptop; a full-history gitleaks scan now reports nothing | `09f4aff3` `c372e20e` `f0160e04` `459d7558` |
 | 2026-10-23 | The A/B timeline's ticks shown on a phone | A/B tests | bug | S | With the markers hidden the ticks stuck 6px out of the scroller, which clipped them and moved up and down under a finger | `e92a9e3c` |
 | 2026-10-23 | The A/B timeline's end stamp kept inside the card | A/B tests | bug | S | A line of large pictures reserved 112px a turn, so twelve turns were 1344px in a 1289px card and the stamp naming where the line ends was cut off | `a7b96d02` |
 | 2026-10-23 | The whole product in English: UI, API messages, alerts, demo shop, docs; Russian only where WB's own labels must match | UI | feature | L | The portfolio copy is read by people who do not read Russian; about 6,700 Russian lines in 870 files, with a test that now fails on any outside WB's labels | `53312249` `a108019b` `b6448535` `49474928` `d763880f` `ec00daf5` `19597c8e` `1c5cc83e` `ee5fb968` `847c01da` `755bfeef` `a859ee39` |
