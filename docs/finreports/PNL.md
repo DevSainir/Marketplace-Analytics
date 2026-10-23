@@ -23,6 +23,14 @@ exactly this way. Every statement below was checked arithmetically on a live pay
 weekly report) and/or against aggregates over the whole history in the database. Where a
 check is impossible, it says so.
 
+WB's operation names, document types, `bonus_type_name` markers and report headers are Russian
+strings, and the code matches them character for character. This document names each by an
+English description and, where one exists, the constant that holds it. The exact spellings are in
+`backend/src/modules/finreports/constants.py` (`SALE_OPERS`, `RETURN_OPERS`, `REFUND_DOC_TYPE`,
+`COMPENSATION_OPERS`, …), the report workbook's headers in `HEADER_FOR`
+(`services/settlement_upload/workbook.py`), and the tests' copies in
+`backend/tests/support/wb_labels.py` (`wb.SALE`, `wb.REFUND`, …).
+
 ---
 
 ## 1. What kind of report this is
@@ -41,10 +49,10 @@ actually arrived, and a report that keeps rewriting itself is useless for that.
 
 ## 2. The anchor figure: `ppvz_for_pay`
 
-**«К перечислению за товар» (payout for goods) is never recomputed.** It is
+**"Payout for goods" is never recomputed.** It is
 `Σ ppvz_for_pay` — the only figure WB actually settles on.
 
-The verified identity (on «Продажа» and «Возврат» rows):
+The verified identity (on sale and return rows — `SALE_OPERS`, `RETURN_OPERS`):
 
 ```
 ppvz_for_pay = retail_amount − ppvz_vw − ppvz_vw_nds − acquiring_fee − ppvz_reward
@@ -62,7 +70,7 @@ of either of them with `ppvz_vw_nds` does not match `ppvz_for_pay` — there is 
 rounding residual every week. A reader who added up the report's rows would not arrive at
 the payout.
 
-So the line «Комиссия WB (с НДС)» (WB commission incl. VAT) is derived as a residual:
+So the line "WB commission (incl. VAT)" is derived as a residual:
 
 ```
 commission = paid − payout_for_sales − acquiring_withheld − agent_reward
@@ -80,20 +88,21 @@ rows (measured on one week).
 ## 3. Compensations are counted apart from sales
 
 The commission is derived against the **sales** part of the payout (`ppvz_for_pay` on
-«Продажа» minus that on «Возврат»), not against the whole of it.
+sale rows minus that on return rows), not against the whole of it.
 
 The reason: WB has separate operations that put money into `ppvz_for_pay` and **into no other
-column** — «Компенсация ущерба», «Компенсация брака», «Компенсация подмененного товара»,
-«Компенсация потерянного товара», «Добровольная компенсация при возврате» (damage, defect,
-substituted-item, lost-item and voluntary-on-return compensations). Over a year these add up
+column** — the damage, defect, substituted-item, lost-item and voluntary-on-return
+compensations (`wb.DAMAGE_COMPENSATION`, `wb.DEFECT_COMPENSATION`,
+`wb.SWAPPED_GOODS_COMPENSATION`, `wb.LOST_GOODS_COMPENSATION`,
+`wb.VOLUNTARY_RETURN_COMPENSATION`, all in `COMPENSATION_OPERS`). Over a year these add up
 to a noticeable sum.
 
-* Filter the payout on «Продажа» only, and this money **disappears**.
+* Filter the payout on sale rows only, and this money **disappears**.
 * Derive the commission against the full payout, and it turns into **negative commission** —
   distorting that line by the entire compensation total.
 
-So the report has three lines: «К перечислению за продажи» (payout for sales), «Компенсации
-WB» (WB compensations) and their sum — «К перечислению за товар».
+So the report has three lines: "Payout for sales", "WB compensations" and their sum —
+"Payout for goods".
 
 ### Daily rows live until the day is closed by a weekly report
 
@@ -112,18 +121,19 @@ rule is:
 
 ### Rows from an uploaded file stand in until the API serves them (since 12.10.2026)
 
-A seller can download «Еженедельный детализированный отчет» (the weekly detailed report) in
+A seller can download the weekly detailed report (WB's own title for it) in
 their WB account — it appears there hours, once more than a week, before the API serves it —
-and upload it with the «Загрузить отчёт» button. The file is a WB document, and its 58 columns
+and upload it with the "Upload report" button. The file is a WB document, and its 58 columns
 matched the API rows on every row of a full report. What the file lacks:
 
 * **`rrdId`** — file rows are written with a **negative** `rrd_id` from
   `finreports.upload_row_seq`. The sign is the only marker of a file row; by it `holds_report`
   does not count the report as downloaded, and no header is booked over the file.
-* **`rr_dt`** — taken from «Дата продажи» (sale date), clamped to the week's bounds. That is
+* **`rr_dt`** — taken from the sale date column (`sale_dt`, header `HEADER_FOR["sale_dt"]`),
+  clamped to the week's bounds. That is
   the operation date on almost every row; the rest are logistics a day or two earlier. The
   week as a whole is exact; the days inside it are approximate until the API arrives.
-* **The report number** — only in the file name («…№<report id>_…»), and read from there.
+* **The report number** — only in the file name ("…№<report id>_…"), and read from there.
 * **The currency** — taken from the workspace's earlier rows.
 
 Only what we lack is written: the file rows are compared, as a multiset, with all our rows for
@@ -139,33 +149,33 @@ a disagreement raises the same alert. Code: `services/settlement_upload/`,
 ### The payout's sign comes from the document type, not the operation
 
 WB serves `ppvz_for_pay` positive on every row. The direction lives in `doc_type_name`: rows
-of type **«Возврат» subtract, all others add**. That is exactly WB's `forPaySum` from
+of type **return (`REFUND_DOC_TYPE`) subtract, all others add**. That is exactly WB's `forPaySum` from
 `sales-reports/list`, to the kopeck, on every report in one workspace's history (checked
 24.09.2026).
 
 The operation name does not decide the direction. The same operations arrive with both
 types:
 
-| operation | seen as «Продажа» | seen as «Возврат» |
+| operation | seen as sale | seen as return |
 | --- | --- | --- |
-| «Коррекция продаж» (sales correction) | ✓ | ✓ |
-| «Коррекция возвратов» (returns correction) | ✓ | ✓ |
-| «Компенсация ущерба» (damage compensation) | ✓ | ✓ |
-| «Добровольная компенсация при возврате» (voluntary compensation on return) | ✓ | ✓ |
-| «Частичная компенсация брака» (partial defect compensation) | ✓ | ✓ |
+| sales correction (`wb.SALES_CORRECTION`) | ✓ | ✓ |
+| returns correction (`wb.RETURNS_CORRECTION`) | ✓ | ✓ |
+| damage compensation (`wb.DAMAGE_COMPENSATION`) | ✓ | ✓ |
+| voluntary compensation on return (`wb.VOLUNTARY_RETURN_COMPENSATION`) | ✓ | ✓ |
+| partial defect compensation (`wb.PARTIAL_DEFECT_COMPENSATION`) | ✓ | ✓ |
 
-What they are shows in the rows of a single order (`srid`). «Коррекция возвратов» of type
-«Продажа» arrives when WB cancels a return it had booked earlier, and gives the seller their
-money back. A week later WB may book the same return again, now as «Коррекция возвратов» of
-type «Возврат», and take the money back — the same amount out and in, with the logistics next
-to it corrected by the same pendulum. «Коррекция продаж» of type «Продажа» most often tops up
+What they are shows in the rows of a single order (`srid`). A returns correction of type
+sale arrives when WB cancels a return it had booked earlier, and gives the seller their
+money back. A week later WB may book the same return again, now as a returns correction of
+type return, and take the money back — the same amount out and in, with the logistics next
+to it corrected by the same pendulum. A sales correction of type sale most often tops up
 a sale that was booked with a zero payout.
 
-Until 24.09.2026 the P&L added everything except «Возврат». A rule keyed on the name would have
-matched WB on most reports but not all, and the rule "always subtract «Коррекция продаж»"
-(which lasted a few hours) was right for exactly one report.
+Until 24.09.2026 the P&L added everything except the return operation. A rule keyed on the
+name would have matched WB on most reports but not all, and the rule "always subtract the sales
+correction" (which lasted a few hours) was right for exactly one report.
 
-There is one rule, `REFUND_DOC_TYPE` in `constants.py`. The «Компенсации WB» line, the size
+There is one rule, `REFUND_DOC_TYPE` in `constants.py`. The "WB compensations" line, the size
 breakdown and the report-completeness check (`incomplete_report_ids`) all read it, so the P&L
 and the check cannot drift apart.
 
@@ -175,19 +185,19 @@ and the check cannot drift apart.
 
 Over the whole history the §2 identity fails on a small set of rows. On almost all of them the
 residual **equals `acquiring_fee` exactly**, and every one of those rows has
-`payment_processing = «Комиссия за организацию платежа с НДС»` (payment-arrangement fee incl.
-VAT).
+`payment_processing` set to the payment-arrangement fee incl. VAT
+(`SEPARATELY_BILLED_ACQUIRING`).
 
 Conclusion: WB **does not withhold** this fee from the payout; it invoices it separately. The
-other three `payment_processing` values («Перевыставление эквайринга», «Компенсация платёжных
-услуг», empty) break the identity on only a handful of rows.
+other three `payment_processing` values (acquiring re-billing, payment-services
+compensation, empty) break the identity on only a handful of rows.
 
 So acquiring is split:
 
 | line | formula |
 |---|---|
-| «Эквайринг (удержан)» — acquiring, withheld | `Σ acquiring_fee` where `payment_processing ≠` the marker |
-| «Комиссия за организацию платежа» — payment-arrangement fee | `Σ acquiring_fee` where `payment_processing =` the marker |
+| "Acquiring (withheld)" | `Σ acquiring_fee` where `payment_processing ≠` the marker |
+| "Payment-arrangement fee" | `Σ acquiring_fee` where `payment_processing =` the marker |
 
 The second is **for reference only**; it is subtracted nowhere. Count it as withheld and
 acquiring is overstated by its whole amount while the WB commission is understated by the
@@ -216,13 +226,13 @@ flipped.
 
 ## 6. Units: `quantity` is a classifier, not a measure
 
-`quantity = 1` on every «Продажа» and «Возврат» row in the whole history (min = max = 1),
+`quantity = 1` on every sale and return row in the whole history (min = max = 1),
 and `0` on every expense row. There are no negatives anywhere: the sign is carried by
 `supplier_oper_name`, not by the value.
 
-**`SUM(quantity)` without a filter is forbidden.** The operation «Возмещение издержек по
-перевозке/по складским операциям с товаром» (reimbursement of transport / warehouse costs)
-carries `quantity = 2` on **all** of its rows — it is a placeholder, not units: those rows have
+**`SUM(quantity)` without a filter is forbidden.** The reimbursement of transport / warehouse
+costs (`REBILL_OPERS`, `wb.REBILL`) carries `quantity = 2` on **all** of its rows — it is a
+placeholder, not units: those rows have
 `nm_id = 0` and empty `barcode`, `sa_name`, `office_name`. Summing would add two phantom units
 per such row (e.g. 100 000 filler rows → 200 000 units that never existed) and understate every
 per-unit figure in the report.
@@ -234,17 +244,16 @@ without any movement of goods, and they are not counted as units either.
 
 ## 7. Returns arrive with a POSITIVE sign
 
-`retail_amount`, `ppvz_for_pay`, `acquiring_fee`, `quantity` — on «Возврат» rows everything is
+`retail_amount`, `ppvz_for_pay`, `acquiring_fee`, `quantity` — on return rows everything is
 positive, without a single negative value in the verified week. Each such column is
 **subtracted explicitly**.
 
 Add them to sales instead and a week's payout comes out tens of percent too high — an
 overstatement that still looks like money.
 
-Separately: «Выручка по цене продавца» (revenue at the seller's price) and «Оплачено
-покупателями» (paid by buyers) subtract returns **on the same base**. Subtract returns at
-their after-SPP amount from the before-SPP revenue, and the «Скидка WB» (WB discount) line is
-overstated by the SPP of the returns themselves.
+Separately: "Revenue at seller price" and "Paid by buyers" subtract returns **on the same
+base**. Subtract returns at their after-SPP amount from the before-SPP revenue, and the
+"WB discount" line is overstated by the SPP of the returns themselves.
 
 ---
 
@@ -255,13 +264,13 @@ column is filled by exactly one family of operations and is identically zero on 
 
 | column | operations |
 |---|---|
-| `delivery_rub` | «Логистика», «Коррекция логистики» |
-| `storage_fee` | «Хранение», «Коррекция хранения», «Пересчет хранения» |
-| `acceptance` | «Платная приемка», «Пересчет платной приемки», «Обработка товара» |
-| `penalty` | «Штраф» |
-| `deduction` | «Удержание» |
-| `rebill_logistic_cost` | «Возмещение издержек по перевозке» |
-| `ppvz_vw`, `ppvz_vw_nds` | «Продажа», «Возврат» — **and «Возмещение издержек по перевозке»**, see below |
+| `delivery_rub` | logistics, logistics correction (`LOGISTICS_OPERS`) |
+| `storage_fee` | storage, storage correction, storage recalculation (`STORAGE_OPERS`) |
+| `acceptance` | paid acceptance, its recalculation, goods processing (`ACCEPTANCE_OPERS`) |
+| `penalty` | penalty (`PENALTY_OPERS`) |
+| `deduction` | deduction (`DEDUCTION_OPERS`) |
+| `rebill_logistic_cost` | transport cost reimbursement (`REBILL_OPERS`) |
+| `ppvz_vw`, `ppvz_vw_nds` | sale, return — **and the transport cost reimbursement**, see below |
 | `additional_payment` | never filled (0.00 over the whole history) |
 
 So the expense lines are `Σ` of the column **with no filter by operation**. That is not only
@@ -271,14 +280,14 @@ the storage line instead of vanishing.
 The operation filter is needed for revenue, units and payout — where the operation decides
 the **sign** — and for two more columns where WB breaks its own rule.
 
-**`ppvz_vw` and `ppvz_vw_nds` are not filled by sales alone.** «Возмещение издержек по
-перевозке» reuses them to express the VAT split of its own charge: on those rows `ppvz_vw` and
+**`ppvz_vw` and `ppvz_vw_nds` are not filled by sales alone.** The transport cost
+reimbursement reuses them to express the VAT split of its own charge: on those rows `ppvz_vw` and
 `ppvz_vw_nds` are negative and add up to the amount in `rebill_logistic_cost`. That is not a
 commission at all.
 
 These two columns break down the commission line, and that line is derived as a residual over
 the **sales** part of the payout — so they must be summed over the same rows. Summed over "all
-operations except returns", the «в т.ч. НДС комиссии» (of which VAT on commission) sub-line was
+operations except returns", the "of which VAT on commission" sub-line was
 printed wrong over the whole history and had **the wrong sign** in some weekly reports (a
 negative VAT under a positive commission). The total still reconciled — only the reference
 sub-line was wrong, which is exactly the figure someone quotes when asked "how much VAT did WB
@@ -291,27 +300,29 @@ seen against the taxonomy in `constants.py` and reports the difference in `notes
 
 ## 9. Logistics: two legs and cancellations
 
-`delivery_amount` and `return_amount` are **counters, not money**. On a «Логистика» row exactly
+`delivery_amount` and `return_amount` are **counters, not money**. On a logistics row exactly
 one of them is set: over the whole history there is no row with both or with neither. That is
 what splits `delivery_rub` into "to the customer" and "back". Reading either one as roubles
 doubles the largest expense item.
 
-But **«Коррекция логистики» rows have neither counter set** — all of them. That is money on a
+But **logistics correction rows (`wb.LOGISTICS_CORRECTION`) have neither counter set** — all
+of them. That is money on a
 logistics row belonging to neither leg, so it gets its own third bucket. Folding it into "to
 the customer" so the two sub-lines add up to the total would present corrections as delivery
 to buyers: three honest buckets beat two that add up.
 
 The breakdown by `bonus_type_name` within a week reconciles to the logistics total. The
-reasons WB uses:
+reasons WB uses, translated from WB's Russian (the code groups by the text as WB sends it and
+matches none of them, so no constant holds them):
 
 | reason | meaning |
 |---|---|
-| «К клиенту при отмене» | to the customer, order later cancelled |
-| «К клиенту при продаже» | to the customer, sold |
-| «От клиента при отмене» | back from the customer after a cancellation |
-| «От клиента при возврате» | back from the customer after a return |
-| «Возврат брака (К продавцу)» | defective item returned to the seller |
-| «Возврат неопознанного товара» | unidentified item returned |
+| "To the customer, on cancellation" | to the customer, order later cancelled |
+| "To the customer, on sale" | to the customer, sold |
+| "From the customer, on cancellation" | back from the customer after a cancellation |
+| "From the customer, on return" | back from the customer after a return |
+| "Defect return (to the seller)" | defective item returned to the seller |
+| "Return of an unidentified item" | unidentified item returned |
 
 **On the account this was built against, the majority of the logistics bill paid for
 cancellations — trips that brought in no revenue at all.** That was the report's main finding
@@ -321,12 +332,14 @@ for that seller.
 
 ## 10. Advertising is in the report
 
-The «Удержание» (deduction) operation is not "other". The overwhelming majority of what it
-withholds carries a `bonus_type_name` containing «Продвижение» (promotion) — that is,
-**advertising**. Smaller parts are the «Джем» subscription and delivery of transit supplies.
+The deduction operation (`DEDUCTION_OPERS`) is not "other". The overwhelming majority of what
+it withholds carries a `bonus_type_name` containing WB's word for "promotion"
+(`ADVERTISING_DEDUCTION_MARKER`) — that is, **advertising**. Smaller parts are the "Jam"
+subscription (`SUBSCRIPTION_DEDUCTION_MARKER`) and delivery of transit supplies
+(`TRANSIT_DEDUCTION_MARKER`).
 
-So «Удержания» are split by a substring of `bonus_type_name`. Substring matching is fragile by
-nature, but safe here: an unrecognised label falls into «Прочие удержания» (other deductions) —
+So "Deductions" are split by a substring of `bonus_type_name`. Substring matching is fragile by
+nature, but safe here: an unrecognised label falls into "Other deductions" —
 it may land in the wrong bucket, but it never disappears from the total.
 
 A caveat that must be on the page: advertising paid **from the WB balance** does not appear in
@@ -334,9 +347,9 @@ the weekly report. The report only shows advertising withheld from the payout.
 
 ---
 
-## 11. `Возмещение издержек по перевозке` — the sign is not confirmed
+## 11. The transport cost reimbursement (`REBILL_OPERS`) — the sign is not confirmed
 
-`nm_id = 0`, and almost every row shares its `shk_id` with a «Логистика» row. The money is in
+`nm_id = 0`, and almost every row shares its `shk_id` with a logistics row. The money is in
 `rebill_logistic_cost` — **and in `ppvz_vw` / `ppvz_vw_nds`**, where WB puts the VAT split of
 the same charge (see §8). WB stopped this operation in **May 2025** — it does not appear after
 that.
@@ -402,12 +415,11 @@ Explicitly marked as not included:
 * taxes (the seller's simplified-tax / VAT) — the weekly report has none at all;
 * salaries, rent, packaging, external logistics to the WB warehouse;
 * advertising paid from the WB balance (§10);
-* «Доплаты» (additional payments) — the `additional_payment` column is 0.00 over the whole
+* "Additional payments" — the `additional_payment` column is 0.00 over the whole
   history. Its sign is pinned by a test all the same: nothing in the data would reveal it being
   flipped.
 
-That is why the bottom line is called «Маржинальная прибыль» (contribution margin), not «Чистая
-прибыль» (net profit).
+That is why the bottom line is called "Contribution margin", not "Net profit".
 
 ---
 
@@ -417,14 +429,14 @@ That is why the bottom line is called «Маржинальная прибыль�
 |---|---|
 | `tests/unit/finreports/test_pnl_statement.py` | Arithmetic against a synthetic weekly report whose rows reconcile to its footer by construction; the blocks add up with no tolerance; mutation-checked (adding returns, commission against the full payout, separate acquiring as a deduction, COGS clamping, the sign of top-ups — each is caught by its own test) |
 | `tests/component/finreports/test_pnl_routes.py` | Transport: the default window by the Moscow day, grouping validation, tenancy of reads and writes, cost-price bounds |
-| `tests/unit/finreports/test_sku_report.py` | The SKU row's arithmetic: «к перечислению» (payout) net of the SKU's own deductions, profit `None` without a cost price, `None` ≠ 0 for orders/advertising with no coverage, negative COGS in refund windows |
+| `tests/unit/finreports/test_sku_report.py` | The SKU row's arithmetic: "Payout" net of the SKU's own deductions, profit `None` without a cost price, `None` ≠ 0 for orders/advertising with no coverage, negative COGS in refund windows |
 | `tests/unit/finreports/test_settlement_ingestion.py` | `TXN_UPDATE` covers the whole table (otherwise a repeated harvest would "successfully" leave columns at zero); the mapper writes every column; the period comes from WB, not from min/max `rr_dt`; the precision of `ppvz_vw` |
 | `tests/unit/finreports/test_settlement_streaming.py` | Walking a report does not accumulate pages (checked by counting live objects through `gc` — no assertion would see it otherwise); the period of a report whose rows fell on different pages stays what WB declared; a break mid-walk is not swallowed |
 | `tests/integration/finreports/test_harvest_is_atomic.py` | The real `harvest_workspace` on a real PostgreSQL: a request that fails mid-page leaves none of its rows, while batches committed before the break and earlier requests stay — and the report still counts as not fully fetched; the client inside a transaction retries on a shorter ladder than the standard one. (Until September 2026 this checked a SAVEPOINT around the whole walk — see "A settlement window is written whole or not at all") |
 | `tests/unit/finreports/test_wb_labels_are_pure_cyrillic.py` | No WB label used in a comparison contains Latin look-alike characters |
-| `tests/integration/finreports/test_pnl_caveats.py` | COGS counts only SKUs with a cost; a cost in the wrong currency is dropped, not converted; advertising is broken out of deductions; `test_the_vat_sub_line_belongs_to_the_commission_it_sits_under` — the «в т.ч. НДС» sub-line is summed over the same rows as the line above it (guards §8); an unknown operation becomes a caveat |
+| `tests/integration/finreports/test_pnl_caveats.py` | COGS counts only SKUs with a cost; a cost in the wrong currency is dropped, not converted; advertising is broken out of deductions; `test_the_vat_sub_line_belongs_to_the_commission_it_sits_under` — the "of which VAT" sub-line is summed over the same rows as the line above it (guards §8); an unknown operation becomes a caveat |
 | `tests/integration/finreports/test_pnl_reconciles.py` | The aggregation itself in a real PostgreSQL: the revenue block reconstructs the settled payout, the residual commission matches the one WB published, the buckets sum to the total for any grouping, another tenant's rows are invisible, the filler operation's `quantity` never becomes a unit, a compensation raises the payout without becoming revenue; the payout's sign comes from `doc_type_name` |
-| `tests/integration/finreports/test_sku_report_reconciles.py` | Σ rows + «без привязки» (unattributed) == the window total with no tolerance; account-level money is not smeared across SKUs; the monitoring loaders really deliver orders and advertising per SKU |
+| `tests/integration/finreports/test_sku_report_reconciles.py` | Σ rows + "Not tied to a SKU" (unattributed) == the window total with no tolerance; account-level money is not smeared across SKUs; the monitoring loaders really deliver orders and advertising per SKU |
 | `tests/integration/finreports/test_sizes_match_the_article.py` | The sizes sum to the SKU row in every shared column (§17.1) |
 | `tests/integration/finreports/test_rollup_matches_the_detail.py` | The rollup reports what the detail reports, and every way it can go stale is caught (§15.1) |
 
@@ -482,7 +494,7 @@ invent facts it never harvested. They were filled by `scripts/backfill_pnl_colum
 re-requested the history in windows and upserted by `rrd_id`.
 
 **The script was deleted on 2026-09-24**, together with the "header from rows" path that only
-it used. It had done its job: on the workspace checked, no «Продажа» row was left without revenue (checked
+it used. It had done its job: on the workspace checked, no sale row was left without revenue (checked
 2026-09-24), and a new workspace gets its history through the ordinary backfill, which writes
 every column at once. Keeping a manual date walk that no scheduler calls would have meant
 keeping a second write path for money without a single test.
@@ -516,8 +528,8 @@ which WB shows money while we hold none of its rows gets no header at all, and a
 checked against WB's `forPaySum`.
 
 Cost prices are the seller's own figures and are entered on the page: one at a time, or in
-bulk through the xlsx round trip — export the per-SKU statement, fill in the «Себестоимость за
-1 ед.» column, upload the same file back (`services/cost_price_workbook.py`,
+bulk through the xlsx round trip — export the per-SKU statement, fill in the "Cost price per
+unit" column, upload the same file back (`services/cost_price_workbook.py`,
 `services/cost_upload_parser.py`). Each figure records where it came from (`source`), so a
 number typed by a person is never indistinguishable from one taken from WB's documents.
 
@@ -528,57 +540,57 @@ number typed by a person is never indistinguishable from one taken from WB's doc
 A cut of the same table by `nm_id` over an arbitrary date window. The rules that make it
 reconcilable:
 
-* **Σ rows + «Без привязки к артикулу» (not attributed to a SKU) = the window total, with no
+* **Σ rows + "Not tied to a SKU" = the window total, with no
   tolerance.** A SKU's row contains only its own settlement rows; account-level money
-  (storage, acceptance, «WB Продвижение» invoices, the filler operation) is NOT smeared across
+  (storage, acceptance, "WB Promotion" invoices, the filler operation) is NOT smeared across
   SKUs by any key — it sits on a separate row. The reference spreadsheet the seller used before
-  («Финтетрадь») does smear it — which is why its per-SKU «Чистая прибыль» cannot be
+  (their "finance notebook") does smear it — which is why its per-SKU "Net profit" cannot be
   reconciled, while ours adds up to the total page by page.
-* A row's «К перечислению» = `ppvz_for_pay` of its rows minus its own logistics and penalties —
-  the same formula as the window's «Итого к оплате», applied to a subset.
-* **Every share of revenue is taken of «Продажи» (sales)** — the seller's prices before SPP,
-  net of returns: logistics share, DRR, margin %, in the SKU row, in «Итого», in the sizes, in
+* A row's "Payout" = `ppvz_for_pay` of its rows minus its own logistics and penalties —
+  the same formula as the window's "Total payout", applied to a subset.
+* **Every share of revenue is taken of "Sales"** — the seller's prices before SPP,
+  net of returns: logistics share, DRR, margin %, in the SKU row, in "Total", in the sizes, in
   the card at the top and in the statement lines. Until 26.09.2026 the table divided by
-  «Оплачено» (after SPP) while the card divided by «Продажи», and one page showed two
+  "Paid" (after SPP) while the card divided by "Sales", and one page showed two
   logistics shares. The seller's price was chosen because SPP is WB's discount at WB's expense,
-  and it changes every week: measured against «Оплачено», the logistics share rose whenever WB
+  and it changes every week: measured against "Paid", the logistics share rose whenever WB
   raised SPP although the seller's costs had not changed. WB's payout and commission are also
   computed from the seller's price. Example: price 1000, SPP 20 %, logistics 150 — that is
   15 % of sales (and would be 18.75 % of the paid amount). The colour thresholds
   (`pnlThresholds.js`) were tuned for the old base and read softer on the new one — they are
   worth re-checking against live figures.
-* **Since 01.10.2026 the user picks the base** — the toggle «Цена селлера — до СПП» / «Цена
-  реализации» (seller's price before SPP / sale price), as on the summary page
-  (`frontend/src/modules/finreports/priceBase.js`). The reason: «Продажа» in WB's report is
-  the sale price, and a card showing the seller's price could not be checked against it by eye.
+* **Since 01.10.2026 the user picks the base** — the toggle "Seller price — before WB
+  discount" / "Customer price" (seller's price before SPP / sale price), as on the summary page
+  (`frontend/src/modules/finreports/priceBase.js`). The reason: the sale (`wb.SALE`) in WB's
+  report is the sale price, and a card showing the seller's price could not be checked against it by eye.
   The seller's price stayed the default, for the reason above. Every figure divided by revenue
   follows the base: revenue itself, the average receipt, the logistics share, DRR, margin % —
-  in the cards, the table, «Итого», the phone cards and the size breakdown. The payout, profit
+  in the cards, the table, "Total", the phone cards and the size breakdown. The payout, profit
   in money, ROI (profit over cost price) and SPP do not move — SPP is the very difference
   between the bases. The front end recomputes the shares from the row's sums rather than taking
   the backend's `*_pct`: one division whatever the base. The average receipt follows the base
   too; it used to be the buyer's price even with the base set to the seller's price. The
   highlight thresholds were tuned for the seller's price and fire more often on the sale price.
 * **Three columns do not come from the settlement**, and all three sources are younger than
-  the settlement history: «Заказы» (orders) — from the monitoring funnel, «Реклама»
-  (advertising) — from the Promotion API's campaign statistics (in the settlement itself
-  advertising appears only as account-wide invoices without `nm_id`), «Бонусы» (bonuses) — from
+  the settlement history: "Orders" — from the monitoring funnel, "Advertising" — from the
+  Promotion API's campaign statistics (in the settlement itself advertising appears only as
+  account-wide invoices without `nm_id`), "Promo bonuses" — from
   the write-off log `GET /adv/v1/upd` (see §18). Outside its coverage a column returns `None`
   and a caveat, not zero: "we don't know" and "there was none" read differently on a report.
   Access is only through `monitoring/contract.py` (`load_orders_by_nm`, `load_ad_spend_by_nm`,
   `load_ad_bonus_by_nm`, `*_coverage`).
-* «Чистая прибыль» (net profit) = payout − cost price − advertising **net of bonuses**; without
+* "Net profit" = payout − cost price − advertising **net of bonuses**; without
   a cost price it is `None`, never "the profit if the goods were free". ROI is computed from the
   same figure (§18). The table had ROMI until 29.09.2026; it was removed at the seller's
   request.
-* **A SKU's «Выкуп, %» (buyout rate) is WB's «Процент выкупа» from the funnel (since
+* **A SKU's "Buyout rate, %" is WB's own buyout rate from the funnel (since
   01.10.2026).** Buyouts ÷ (buyouts + refusals) for orders PLACED in the window (funnel days
   are order dates), only over days that have passed the cohort pass: a day with
   `cancel_count IS NULL` does not know its refusals yet and enters neither the numerator nor
   the denominator (otherwise it would look like 100 %). WB's own account and the monitoring
   matrix count it the same way. The last ~3 weeks of a window are still maturing — a property of
   WB's figure itself, not our error. The loader is `load_buyouts_by_nm` in the monitoring
-  contract; the row carries `buyout_units` / `decided_units` so «Итого» divides sums instead of
+  contract; the row carries `buyout_units` / `decided_units` so "Total" divides sums instead of
   averaging percentages.
 
   Before 01.10 the column was a stub marked "temporary": units sold ÷ deliveries to the buyer by
@@ -588,28 +600,28 @@ reconcilable:
   `test_sizes_match_the_article`): the funnel has no sizes, the report rows do, and there is no
   other way to measure a size's buyout. So a SKU's buyout and the sum of its sizes' buyouts now
   legitimately differ.
-* **The «Итого» row takes advertising from WB's invoice** (the owner's decision of
+* **The "Total" row takes advertising from WB's invoice** (the owner's decision of
   2026-10-02). WB charges for advertising in two forms, and it is the same money: the weekly
-  invoice «Оказание услуг «WB Продвижение»» withheld inside the payout, and the spend from the
-  campaign statistics, dated by impression days. A SKU row has no invoice — it arrives without
+  "WB Promotion" services invoice (`wb.ADVERTISING_DEDUCTION`) withheld inside the payout, and
+  the spend from the campaign statistics, dated by impression days. A SKU row has no invoice — it arrives without
   `nm_id` — so the SKU row subtracts the spend net of WB's bonuses. The total is the only place
   that has both, and until 02.10 it replaced the invoice with the spend; now total = payout −
-  cost price, with the invoice already inside the payout. «Реклама» in the total = invoice +
-  bonuses, «Бонусы» = Σ bonuses, the difference = the invoice. Subtracting the spend from a
+  cost price, with the invoice already inside the payout. "Advertising" in the total = invoice +
+  bonuses, "Promo bonuses" = Σ bonuses, the difference = the invoice. Subtracting the spend from a
   payout already net of the invoice takes the advertising off twice. Invoice and spend differ
   because of dates (noticeably week to week, much less over several weeks), and while advertising was billed in roubles also because of the rate date — WB
   converted the rouble invoice at the rate of the day the document closed, we convert the spend
-  at the rate of the impression day. «К перечислению» is untouched, so the check of Σ rows +
-  «без привязки» against WB's payout stays intact.
+  at the rate of the impression day. "Payout" is untouched, so the check of Σ rows +
+  "Not tied to a SKU" against WB's payout stays intact.
 * A row's percentages are shares of its own net revenue (sales − returns), as in the
   reference spreadsheet.
-* **«Логистика на 1 выкуп» (logistics per buyout)** (since 12.10.2026) = all of the row's
+* **"Logistics per buyout"** (since 12.10.2026) = all of the row's
   logistics (outbound, return and other) ÷ units sold, without subtracting returns — like WB's
-  buyout. Computed on the front end from the row's sums; for «Итого» and groups — from sums,
+  buyout. Computed on the front end from the row's sums; for "Total" and groups — from sums,
   not as an average. Sizes have it too. Why: the price of one trip within a SKU hardly depends
   on the size, while the price per sale does — strongly, often several-fold between sizes of
   one SKU — because the trips that ended in a refusal are paid for by the unit that sold. A
-  size's poor buyout shows here in money. «Логистика на 1 доставку» (logistics per delivery)
+  size's poor buyout shows here in money. "Logistics per delivery" (`logistics_per_delivery`)
   remains only in the `/sizes` response.
 
 ---
@@ -621,16 +633,16 @@ The same set of settlement rows, grouped by `ts_name` within one SKU. It exists 
 the rest, and the SKU row does not show it.
 
 * **Every row WB bills carries a size.** Measured on one workspace over a quarter: every
-  «Логистика», «Продажа» and «Возврат» row carries `ts_name`; only a few account-level
-  «Хранение» / «Удержание» rows arrive without a size, and those do not belong to a SKU anyway.
+  logistics, sale and return row carries `ts_name`; only a few account-level
+  storage / deduction rows arrive without a size, and those do not belong to a SKU anyway.
   So the breakdown is a regrouping of the SKU's own rows, not an allocation: **Σ sizes = the SKU
   row, with no tolerance** (`test_sizes_match_the_article` — two copies of the SQL on the same
   rows; on 10.10.2026 the same was checked on the same workspace over several windows from a week to a
-  quarter, every money and unit column to the kopeck). A size's «К перечислению» is computed by
+  quarter, every money and unit column to the kopeck). A size's "Payout" is computed by
   THE SAME formula as the SKU's — otherwise the sum would only match by eye.
-* **A size's «Выкуп» is measured by logistics legs, not orders.** The funnel has no size at
+* **A size's "Buyout rate" is measured by logistics legs, not orders.** The funnel has no size at
   all, and the forward leg `delivery_amount` is the only record that an item reached the buyer,
-  and it carries the size. The «К среднему» column (deviation from the SKU's buyout, in p.p.)
+  and it carries the size. The "vs. average" column (deviation from the SKU's buyout, in p.p.)
   was removed on 26.09.2026: the buyout itself stands next to it, and it repeated it in other
   words.
 * **There is no profit or margin in the breakdown** (since 26.09.2026). The Promotion API ties
@@ -639,21 +651,21 @@ the rest, and the SKU row does not show it.
   seller's decision, is not that important. The breakdown compares how sizes sell: units,
   buyout, price, revenue, logistics, payout. The cost price left together with the margin.
   Profit stays on the SKU row.
-* **«Цена» (price) is the seller's price before SPP per unit bought out**, on the same base as
-  «Выручка» next to it: price × units = revenue. It used to be the buyer's price after SPP, and
+* **"Average price" is the seller's price before SPP per unit bought out**, on the same base
+  as "Sales" next to it: price × units = revenue. It used to be the buyer's price after SPP, and
   the row stopped adding up. SPP is not shown in the breakdown: WB changes it by day and by
   buyer, so a difference between sizes only tells you on which days they were bought.
-* **«Логистика на 1 доставку»** — all of the size's logistics divided by deliveries to the
+* **"Logistics per delivery"** — all of the size's logistics divided by deliveries to the
   buyer. Return trips fall on it too, so a size with a poor buyout is more expensive here.
 * Read from the DETAIL, not the rollup: the rollup is keyed by day × SKU and stores no size,
   and widening it for a cut that is opened one SKU at a time would mean a three times larger
   index on every page load. With a filter on one `nm_id`, the pass over the detail is covered by
   `ix_logistics_txn_nm_id_rr_dt`.
-* **Sizes have no «Итого» of their own** (since 10.10.2026, the owner's decision). It repeated
+* **Sizes have no "Total" of their own** (since 10.10.2026, the owner's decision). It repeated
   the SKU row in everything except the buyout, which is measured differently for sizes — and
   looked like a discrepancy. On screen the sizes are rows of the same table under the SKU, in
   the same columns; the columns a size does not have (orders, SPP, cost price, advertising,
-  DRR, bonuses, ROI, profit) are empty. «Логистика на 1 доставку» stays in the API response, but
+  DRR, bonuses, ROI, profit) are empty. "Logistics per delivery" stays in the API response, but
   the table does not show it: the SKU has no such column.
 * Loaded on click when a row is expanded, not together with the table: e.g. a report of forty
   SKUs has some 400 size rows, and people look at one or two.
@@ -663,9 +675,9 @@ the rest, and the SKU row does not show it.
 ## 18. WB bonuses: advertising the seller did not pay for
 
 **Verified live on 2026-09-15 on one workspace.** WB pays for part of the advertising
-out of a bonus pool («Кэшбэк», up to 50 % of a write-off), and until this change such
-impressions were counted as the seller's money — DRR was overstated, ROI and margin
-understated.
+out of a bonus pool (the cashback payment type, `wb.CASHBACK`, up to 50 % of a write-off), and
+until this change such impressions were counted as the seller's money — DRR was overstated, ROI
+and margin understated.
 
 The scale was material: a substantial share of a month's write-offs was bonus money. On the
 affected SKUs the bonus covered a third to a half of the spend — enough to turn a clearly
@@ -674,9 +686,9 @@ negative ROI into a break-even one, which is the difference between "switch the 
 
 ### Why neither of the two sources showed it
 
-* **The settlement report has no bonuses and cannot have them.** «Кэшбэк» rows have
-  `updNum = 0` — no document number, so WB issues no invoice for them, and the line «Оказание
-  услуг «WB Продвижение», документ №…» never appears for them. Checked: every cashback row over
+* **The settlement report has no bonuses and cannot have them.** Cashback rows have
+  `updNum = 0` — no document number, so WB issues no invoice for them, and the "WB Promotion"
+  services invoice line with its document number never appears for them. Checked: every cashback row over
   two months had `updNum = 0`.
 * **In `fullstats` they are inside `sum`, with no breakdown.** Reconciled by campaign: `upd` and
   `fullstats` over the same campaigns agree to within a fraction of a percent. So spend paid
@@ -717,14 +729,14 @@ So `monitoring.advertising_write_off_daily` keeps the grain
 
   **Correction 29.09.2026: the August switch was not a rename but a real move of the
   advertising account to KGS.** This paragraph used to call it a "rename" and claimed the
-  amounts did not change. The proof of the opposite is the «WB Продвижение» invoices in the
+  amounts did not change. The proof of the opposite is the "WB Promotion" invoices in the
   report itself. Before the switch, invoice = rouble `upd` write-offs × the Bank of Russia rate
   on the document's closing day, to the kopeck. After it, the invoice equals `upd` one to one.
   The currency is fixed for a campaign when it is created. Old campaigns still answer `RUB` in
   `fullstats` (there is a `currency` field there; our harvest does not store it). The amounts
   did not jump at the boundary only because the exchange rate that day was close to one.
 
-  The consequence for this report: **before the switch «Реклама» and «Бонусы» are in roubles
+  The consequence for this report: **before the switch "Advertising" and "Promo bonuses" are in roubles
   while the payout is in soms.** Net profit, ROI and DRR in such a window subtract and divide
   different currencies. There is no conversion at a rate — that is a decision. Instead the
   report shows a caveat whenever a window's advertising was written off in a currency other
@@ -736,15 +748,15 @@ it on, and inventing a SKU is worse than not showing it.
 
 ### What the bonus changes, and what it does not
 
-It changes «Чистая прибыль» and ROI (ROMI, which divided by the money invested, was removed
+It changes "Net profit" and ROI (ROMI, which divided by the money invested, was removed
 from the report on 29.09.2026).
 
-**It does not change «К перечислению» — and that is not an omission.** That is WB's own
+**It does not change "Payout" — and that is not an omission.** That is WB's own
 settlement figure and the anchor of the "Σ rows + unattributed = window total" check. A bonus
 write-off is not in the payout at all (no document — nothing to withhold), so there is nothing
 to change there, and changing it would break the invariant this whole document is written for.
 
-«Реклама» stays gross: the seller checks it by eye against their WB account.
+"Advertising" stays gross: the seller checks it by eye against their WB account.
 
 ### Matching `paymentType` is an allowlist, and the direction is chosen on purpose
 

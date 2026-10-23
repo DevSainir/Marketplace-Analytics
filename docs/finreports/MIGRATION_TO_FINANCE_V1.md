@@ -33,10 +33,11 @@
 > on every sale and return row, and all three guessed renames — `sellerPromo`, `sku`,
 > `country` — matched on every row.
 >
-> Phase 6 paid for itself immediately. WB's `forPaySum` decomposes as «Продажа» − «Возврат» −
-> «Коррекция продаж» + compensations, to the kopeck — and our `RETURN_OPERS` was «Возврат»
-> alone, so «Коррекция продаж» was added where WB subtracts it: a small but real gap on that
-> report. **Not fixed at the time**: one report is one data point, and
+> Phase 6 paid for itself immediately. WB's `forPaySum` decomposes as sale − return − sales
+> correction + compensations, to the kopeck (WB's operation names; the exact Russian spellings
+> are in `finreports/constants.py` and the tests' `wb_labels.py`) — and our `RETURN_OPERS` was
+> the return alone, so the sales correction was added where WB subtracts it: a small but real
+> gap on that report. **Not fixed at the time**: one report is one data point, and
 > `settlement_payout_divergence` was to accumulate the rest.
 >
 > **That last sentence was not true when it was written, and the disagreement is now resolved
@@ -45,9 +46,9 @@
 > (`tasks/settlement/reconcile.py`, called from `_book_report`) and alerts as
 > `SettlementPayoutDisagreesWithWb` on a disagreement of one unit of currency or more. The gap
 > itself was not about the operation at all: the sign of `ppvz_for_pay` comes from
-> `doc_type_name` — «Возврат» subtracts, anything else adds (`REFUND_DOC_TYPE` in
+> `doc_type_name` — the return document type subtracts, anything else adds (`REFUND_DOC_TYPE` in
 > `finreports/constants.py`) — and that rule matches WB's `forPaySum` to the kopeck on every
-> report of one workspace's history. A rule tried first the same day, "always subtract «Коррекция продаж»", was
+> report of one workspace's history. A rule tried first the same day, "always subtract the sales correction", was
 > wrong and was replaced within hours. [`PNL.md`](PNL.md), "The payout's sign comes from the
 > document type, not the operation", has the reasoning.
 >
@@ -64,7 +65,7 @@ cadence, a shared-block mechanism) existed to survive a deprecated endpoint. Non
 the code now except the shared-block mechanism, kept in the rate gate for an endpoint that
 behaves that way again.
 
-The replacement is three methods on the Finance surface. All three answer on the «Финансы»
+The replacement is three methods on the Finance surface. All three answer on the "Finance"
 token we already hold — verified live on one workspace, 2026-09-22.
 
 | method | purpose | limit |
@@ -150,7 +151,7 @@ Each phase is independently landable and leaves `main` working.
 
 ### 1. Client and schema, behind nothing
 
-* `WBFinanceReportsClient` on `finance-api.wildberries.ru`, «Финансы» token:
+* `WBFinanceReportsClient` on `finance-api.wildberries.ru`, "Finance" token:
   `list_reports(date_from, date_to)` and `stream_detail(report_id, rrd_id, limit)`.
 * `WBFinanceReportRow` — the existing `WBReportDetailRow` field names, with `alias=` for each
   of the 20 renames and `populate_by_name=True`. The internal shape does not change.
@@ -315,7 +316,7 @@ What landed:
    phase 2, which is why phase 2 is not optional and not a spot check.
 2. **Type surprises on values the sample row had as zero.** Same mitigation; the probe must
    report type divergence, not only value divergence.
-3. **Tokens.** One workspace holds a per-surface «Финансы» token. The others hold `unified`
+3. **Tokens.** One workspace holds a per-surface "Finance" token. The others hold `unified`
    tokens, which should cover Finance — but that is an assumption, and it must be checked per
    workspace before cutover, not during it.
 4. **`reportType`.** `list` returns `reportType: 1` and the docs mention daily as well as

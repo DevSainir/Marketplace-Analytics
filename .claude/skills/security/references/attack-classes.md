@@ -22,7 +22,7 @@ organisation (`CurrentWorkspaceId`), and row-level security backs that check in 
 database.
 
 **Second form, harder to see.** Cross-module loaders that took no tenant argument let
-`GET /pnl/skus` sum every tenant's orders and advertising into the «Итого» (total) row of
+`GET /pnl/skus` sum every tenant's orders and advertising into the "Total" row of
 whichever tenant asked. No id was forged; the query simply never said whose data it wanted.
 `test_export_loaders_are_scoped.py` now fails the build on a loader without a required
 keyword-only `workspace_id`.

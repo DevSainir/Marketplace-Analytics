@@ -72,7 +72,7 @@ truth and no `v-if` on window width.
 The recipe, as `finreports/components/styles/RecordCards.css` implements it, is a **row, not a
 card**: two lines separated by a hairline — identity and the lead figure on the first, the
 qualifiers on the second — with everything else behind the row itself, which is the disclosure
-control. It was a padded card with a border, a shadow and its own «Подробнее» button first, and
+control. It was a padded card with a border, a shadow and its own "Details" button first, and
 that ran to one screen every two records; nobody scrolls a forty-SKU report at that density. Aim
 for ~50px per record and roughly a screenful per page of results.
 
@@ -83,13 +83,13 @@ a row whose value you just saved may sort out of the visible page (uncosted-firs
 edits made on rows since scrolled past stay in the draft and still save — the pending count on the
 save button is what says so.
 
-Deciding which figures lead is the actual design work — «Чистая прибыль» leads a P&L row because
+Deciding which figures lead is the actual design work — "Net profit" leads a P&L row because
 that is what a seller opens the page for, and the fine's category stays with its figure because
 that is what says whether it is disputable. Three things such a list needs that a table gets from
 its headers:
 
 * **a sort control**, since there are no headers to click (a `<select>` plus a direction toggle);
-* **incremental growth** — a «Показать ещё» rather than a paginator, so finding the next
+* **incremental growth** — a "Show more" rather than a paginator, so finding the next
   loss-maker is a scroll and not a page hunt. **10 rows a page**: the desktop table's 50 is sized
   for a screen five times as tall;
 * **the totals first.** A corner total in a grid becomes a card at the TOP of the list, or the
@@ -115,14 +115,14 @@ through mostly-empty columns to reach the totals, with the date centred across a
 is off-screen for most of its own day.
 
 Once the axis is paged, everything else that is *per-day* joins the same page — the note and the
-«Действия» answers are sections of the day list, not separate screens. Their editing rules travel
+"Actions" answers are sections of the day list, not separate screens. Their editing rules travel
 with them and are about the data, not the layout (a budget locked until its campaign is chosen, a
 type disabled in the other slot, clearing a choice taking its amount with it), so port them
 verbatim rather than re-deriving them; a form that silently drops an edit is worse than a table
 that scrolls.
 
 What works is **paging the repeating axis**: pick one day, render its rows as a vertical list, and
-put a `‹ 19.07.2026 (вс) ›` pager above it. The sub-columns fold into a per-row disclosure and are
+put a `‹ Sun, 19 Jul 2026 ›` pager above it. The sub-columns fold into a per-row disclosure and are
 shown only when something other than the headline column carries a value. See
 `modules/monitoring/dayListRows.js` + `MetricsDayList.vue` — the list projects the SAME `row.cells`
 the table renders, so there is one matrix with two projections and never two sources of truth.
@@ -171,7 +171,7 @@ Two gotchas that have already cost time:
   and check `document.documentElement.scrollWidth === innerWidth`.
 
 Before trusting what you see locally, check whether the data itself is synthetic. `WB_FAKE_HARVEST`
-stock used to invent its `chrt_id`s, so every size in «Остатки по складам» rendered as a bare
+stock used to invent its `chrt_id`s, so every size in "Stock by warehouse" rendered as a bare
 `chrt 5352…` — a local-only artefact that looks exactly like a layout bug. It now reuses the SKU's
 catalogued sizes, but the lesson generalises: when a phone screenshot shows something odd, confirm
 the data is real before redesigning around it.
@@ -191,14 +191,14 @@ resolving to the design gutter is the part you *can* check.
 
 | Surface | State |
 | --- | --- |
-| App chrome (`AppHeader`, `WorkspaceMenu`, `App.vue`) | done — the nav scrolls sideways at phone width, and the active link is scrolled into view on every route change (it sat off-screen past «Сводка») |
+| App chrome (`AppHeader`, `WorkspaceMenu`, `App.vue`) | done — the nav scrolls sideways at phone width, and the active link is scrolled into view on every route change (it sat off-screen past "Summary") |
 | `/` — `HomeView` | done |
-| `/monitoring` | done — metrics matrix, prices/stock, the per-day note and «Действия», search, toolbar, stock compare |
+| `/monitoring` | done — metrics matrix, prices/stock, the per-day note and "Actions", search, toolbar, stock compare |
 | `/profile` | done — label/value pairs stack, the admin panel's workspace rows split into an identity line and an actions line |
 | `/login` | done — and moved onto the design-system tokens on the way, which it had never been on |
 | `/finreports` (P&L) | done — the 18-column SKU table and the SKU × warehouse balance grid both become card lists below `sm`; an opened SKU card carries its sizes as a two-line list per size (`PnlSkuSizeList`), since the 16-column size table cannot fit. Checked 390 / 402 / 768 px, 2026-09-26: no horizontal overflow |
 | `/finreports/cost-prices` | done — the editable grid becomes rows with the input still on screen |
-| `/heatmap` | done — the articles × days grid pages its column axis below `sm` (`HeatmapDayList`): one day, week or month per screen, «Итого» first, each article one line with its tinted value (and, with «Норма: ручной ввод», a 16px norm field labelled just «Норма» or «Норма в день»); filters and selects go full width |
+| `/heatmap` | done — the articles × days grid pages its column axis below `sm` (`HeatmapDayList`): one day, week or month per screen, "Total" first, each article one line with its tinted value (and, with "Target: manual", a 16px norm field labelled just "Target" or "Daily target"); filters and selects go full width |
 | `/ab-tests/:id` | done — the photos × metrics grid pages its photo axis (`VariantMetricsPager`), one photo and its seven figures per screen; the turn log keeps its table and drops its two widest columns |
 
 Keep this table honest; it is how the next session knows where to pick up.

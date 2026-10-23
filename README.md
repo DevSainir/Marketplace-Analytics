@@ -7,9 +7,8 @@ the views a seller works from every morning: a per-article daily matrix, a P&L b
 from Wildberries' own settlement rows, where the advertising money went, a heatmap of the whole
 catalogue, and A/B tests of a card's main photo.
 
-> **The UI is in Russian** — the product targets the Russian-speaking Wildberries market. Code,
-> comments, docs and commit history are in English; a [glossary](#glossary) below maps the
-> Russian terms on the screenshots.
+> Wildberries serves its data in Russian; the product itself — UI, code, docs — is in English. The
+> few marketplace terms it uses are explained in the [glossary](#glossary) below.
 
 **Try it in one command** — no Wildberries account needed, everything runs on a fabricated shop:
 
@@ -62,7 +61,7 @@ exposure measured from the advertising statistics of its own window.
   cost-price editor with Excel import and export; manual upload of a report file. How each line is
   derived is in [`docs/finreports/PNL.md`](docs/finreports/PNL.md).
 * **Advertising** (`/advertising`), **Heatmap** (`/heatmap`), **A/B tests** (`/ab-tests`).
-* **Accounts and access**: companies, several workspaces («кабинеты») per company, invitations,
+* **Accounts and access**: companies, several workspaces (seller accounts) per company, invitations,
   per-page grants for managers, read-only guests, subscriptions.
 * **Capture of expiring feeds** (`guide` module): several Wildberries feeds are served over a
   window that closes for good — return claims live fourteen days — so they are stored verbatim now,
@@ -214,27 +213,23 @@ docs/                  P&L derivation, security design, observability, releases,
 
 ## Glossary
 
-| Russian (UI) | Meaning |
+| Term | Meaning |
 |---|---|
-| Кабинет | A seller account on Wildberries — a **workspace** in the code |
-| Артикул WB / артикул продавца | WB's article id (`nm_id`) / the seller's own article code |
-| Мониторинг | Monitoring — the per-article daily matrix |
-| Сводка | Summary |
-| Тепловая карта | Heatmap |
-| Реклама, РК | Advertising, an advertising campaign |
-| Единая ставка / ручная ставка / CPC | Unified bid / manual bid / cost-per-click campaigns |
-| Поиск / полки / каталог | Ad placements: search results / recommendation shelves / catalogue |
-| Органика | Organic (non-advertising) traffic |
-| ДРР | Ad cost ratio — advertising spend as a share of orders or sales |
-| СПП | Wildberries' own customer discount, applied on top of the seller's price |
-| Цена селлера / цена реализации | Seller's price before WB's discount / what the buyer paid |
-| Выкуп | Buyout — an order the buyer kept rather than refused |
-| Остатки | Stock |
-| Себестоимость | Cost price (cost of goods) |
-| Логистика / удержания / штрафы | Delivery fees / deductions / penalties withheld by Wildberries |
-| К оплате, итого к оплате | The payout Wildberries transfers to the seller |
-| Промо-бонусы | Wildberries' promo bonuses that pay for part of the advertising |
-| Еженедельный отчёт | Wildberries' weekly settlement report (the P&L's source) |
+| Workspace | One Wildberries seller account, with its own catalogue, tokens and P&L |
+| WB ID / vendor code | WB's id for an article (`nm_id`) / the seller's own article code |
+| Monitoring | The per-SKU daily matrix: funnel, advertising, prices, stock |
+| Unified bid / manual bid / CPC | WB's campaign types: one bid for every placement, a bid per placement, pay per click |
+| Search / shelves / catalog | Ad placements: search results / recommendation shelves / category pages |
+| Organic | Traffic that did not come from advertising |
+| ACoS | Advertising cost of sales — ad spend as a share of sales (or of orders) |
+| WB discount | Wildberries' own customer discount, applied on top of the seller's price |
+| Seller price / customer price | The price before WB's discount / what the buyer paid |
+| Buyout, buyout rate | An order the buyer kept rather than refused, and the share of such orders |
+| Cost price | The seller's cost of goods, entered per SKU |
+| Logistics / deductions / penalties | Delivery fees / deductions / fines withheld by Wildberries |
+| Payout | What Wildberries transfers to the seller |
+| Promo bonuses | Wildberries' bonus points that pay for part of the advertising |
+| Weekly report | Wildberries' weekly settlement report — the P&L's source |
 
 ## About
 

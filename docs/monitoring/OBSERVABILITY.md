@@ -335,7 +335,7 @@ defect the policies were installed to catch (see
 **`HarvestProducingNoRows`** — the second clause is what makes it meaningful:
 the harvest *ran* and wrote nothing, which is a different event from "the
 harvest did not run". A harvest can report SUCCESS with `funnel_rows: 0` for days
-while users pressing «Обновить» watch unchanged numbers. No task-level success
+while users pressing "Refresh" watch unchanged numbers. No task-level success
 metric can see that.
 
 **`SecurityControlDegraded`** — binds to the degradation ledger
@@ -459,7 +459,7 @@ says whether the fleet saw it together, the logs say who was late.
 
 **`settlement_payout_divergence`** is the absolute gap, per booked settlement
 report, between WB's own `forPaySum` from `sales-reports/list` and our Σ
-`ppvz_for_pay` with every «Возврат» document negated. It is observed the moment
+`ppvz_for_pay` with every refund document negated. It is observed the moment
 a report is booked, when rows and total come from the same fetch, so a gap is
 ours rather than a later restatement by WB. `SettlementPayoutDisagreesWithWb`
 fires on any report a rouble or more out. The log line («totals … here against

@@ -162,7 +162,7 @@ Configured in `backend/src/core/config/security.py`; implemented in
   instead of tripping breach detection. The child is kept Fernet-encrypted for those seconds only;
   setting the window to 0 restores strict rotation.
 * **Revocation reaches live access tokens**: Redis watermarks per user and per family
-  (`backend/src/core/redis.py`) are checked by `backend/src/core/deps.py`, so «выйти отовсюду», a
+  (`backend/src/core/redis.py`) are checked by `backend/src/core/deps.py`, so "sign out everywhere", a
   completed password reset and ending one session from the sessions list take effect
   immediately, not when the access token expires.
 * **Per-account backoff** (`backend/src/modules/users/services/lockout.py`): failed logins grow
@@ -208,7 +208,7 @@ Covered by, among others, `backend/tests/integration/users/test_breach_detection
   never the client-controlled `X-Forwarded-For` that uvicorn would trust. Pinned by
   `backend/tests/component/users/test_auth_rate_limit_spoofing.py` and
   `backend/tests/unit/core/test_client_ip.py`.
-* **Per-tenant budgets**: re-harvest requests («Обновить») are limited per workspace, because the
+* **Per-tenant budgets**: re-harvest requests ("Refresh") are limited per workspace, because the
   queue and the WB rate budget are spent per tenant; per-workspace row ceilings bound A/B tests,
   SKU groups and cost-price rows (`backend/tests/unit/core/test_tenant_resource_bounds.py`).
 * **Uploads**: nginx `client_max_body_size` per route, then `read_capped`

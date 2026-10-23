@@ -1,4 +1,4 @@
-# «Позиция в выдаче» — what we learned, and why it was removed
+# "Search position" — what we learned, and why it was removed
 
 Written 2026-08-27, immediately **before** the feature was deleted, so that six weeks of
 measurement against WB's storefront edge survive the removal. The behaviour described here
@@ -6,7 +6,7 @@ was measured live against WB, on the dates given; nothing in this file is inferr
 that would describe a particular seller's catalogue (SKUs, their positions, result counts
 for their phrases) are left out or marked as illustrative.
 
-The search-**cluster** panel («Поиск по кластерам», built from harvested advertising
+The search-**cluster** panel ("Search clusters", built from harvested advertising
 statistics) is unaffected and stays. What went is the **live organic rank probe** — the
 part that talked to WB's public storefront in real time.
 
@@ -19,10 +19,10 @@ where a SKU sits in the ranked list:
 
 | Surface | Route | Behaviour |
 | --- | --- | --- |
-| «Проверить позицию» | `POST /skus/{nm_id}/search-position/checks` → 202 | Queue one live probe, poll for the result |
-| «Позиция в выдаче» | `GET /skus/{nm_id}/search-position` | Read the cached sample, 404 if none |
-| «Закрепить» | `GET/POST/DELETE /skus/{nm_id}/pinned-keywords` | Standing phrases, re-probed on a schedule |
-| «Проверить все позиции» | `POST /positions/refresh` → 202 | Re-probe every pinned phrase of the workspace |
+| "Check position" | `POST /skus/{nm_id}/search-position/checks` → 202 | Queue one live probe, poll for the result |
+| "Search position" | `GET /skus/{nm_id}/search-position` | Read the cached sample, 404 if none |
+| "Pin" | `GET/POST/DELETE /skus/{nm_id}/pinned-keywords` | Standing phrases, re-probed on a schedule |
+| "Check all positions" | `POST /positions/refresh` → 202 | Re-probe every pinned phrase of the workspace |
 | poll | `GET /skus/{nm_id}/search-position/checks` | Re-attach to a running check after a reload |
 
 State lived in three places: `monitoring.pinned_keyword` (durable pins + last known
@@ -152,7 +152,7 @@ correct reading of the evidence.
   second — tripping the edge on the probe's own first page and leaving the next press
   inside the penalty window it had just created. Confirmed 2026-08-17, when the same volume
   from a browser was being served fine and a storefront load from the same IP returned WB's
-  «Подозрительная активность» page with a countdown.
+  "suspicious activity" page with a countdown.
 
 Fixes that worked, and are worth reusing:
 
@@ -160,7 +160,7 @@ Fixes that worked, and are worth reusing:
   consulted before *every* attempt, retries included, and shared by the api process and the
   Celery worker — because WB meters the IP they share.
 * **Depth cut from 3 pages to 1** (top 100). Depth was buying rank 101–300 at triple the
-  requests, triple the budget and triple the odds of ending in «повторите через минуту». A
+  requests, triple the budget and triple the odds of ending in "try again in a minute". A
   card outside the first hundred is not being found by shoppers either, so "not in the
   first hundred" is the same decision for the seller as "not in the first three hundred",
   at a third of the cost.
@@ -198,7 +198,7 @@ That is the first thing to check when a seller disputes a position. `dest=125957
 with its `dest` and `spp` — which is why the cache key carried `dest`.
 
 **`normquery` is not cosmetic.** `metadata.normquery` is WB's own normalisation of the
-phrase and can reorder it («носки мужские» → «мужские носки»). It is the key the
+phrase and can reorder it ("socks men's" → "men's socks", in WB's Russian). It is the key the
 advertising clusters are filed under, and therefore the only thing that let a live probe
 line up against harvested cluster data. If the cluster panel ever needs to join against
 anything live, this is the join key.
@@ -215,12 +215,12 @@ feature worked; it does not survive multi-tenancy:
    intercepting a phone's traffic twice a day, forever. No tenant can do that, and we
    cannot do it on their behalf at scale.
 2. **The budget is per-IP and therefore shared by every tenant.** All requests leave from
-   one address, metered as one reputation. One team pressing «Проверить все позиции» spends
+   one address, metered as one reputation. One team pressing "Check all positions" spends
    the budget of every other team — and the failure it causes them is indistinguishable
    from WB being down.
 3. **Its failure mode is the worst kind.** A throttled probe can return HTTP 200 with an
    empty page (§4). Every guard we built exists to stop a rate limit being rendered as
-   «ваш товар нигде не находится» ("your product is nowhere to be found") — a plausible,
+   "your product is nowhere to be found" — a plausible,
    wrong, commercially alarming answer.
 4. **The dependency is unofficial and moves without notice.** Two version retirements in
    four days (§3), each initially misdiagnosed.
