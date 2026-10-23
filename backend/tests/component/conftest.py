@@ -170,6 +170,28 @@ def _no_health_probes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(collectors, "sample_postgres_stats_reset", _ok)
 
 
+@pytest.fixture(autouse=True)
+def _no_broker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Accept every ``send_task`` without opening a connection to the broker.
+
+    Saving a WB token enqueues the harvest it unlocks, and the enqueue is wrapped
+    in a broad ``except`` because the seller must never see a broker error — so
+    a test that saved a token without stubbing it still passed, after Celery
+    spent ~20 s retrying a Redis host that does not resolve here. CI hid it: the
+    job runs a Redis service, so there the task really was queued.
+
+    What the route asks Celery to run is asserted in
+    ``tests/component/workspaces/test_token_bootstrap.py``; its own patch is
+    applied after this one and wins.
+    """
+    from src.core.celery_app import celery_app
+
+    def _accept(name: str, *_args: Any, **_kwargs: Any) -> Any:
+        return type("AsyncResult", (), {"id": f"component-{name}"})()
+
+    monkeypatch.setattr(celery_app, "send_task", _accept)
+
+
 class CapturingHandler(logging.Handler):
     """Collects records already rendered as JSON, the way production emits.
 
