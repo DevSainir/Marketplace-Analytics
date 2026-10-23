@@ -50,7 +50,7 @@ async def main() -> int:
     finally:
         await engine.dispose()
     summary = ", ".join(f"{area} {rows}" for area, rows in written.items())
-    print(f"Demo data written to workspace «{DEMO_WORKSPACE}» for {DEMO_EMAIL}: {summary} rows.")
+    print(f'Demo data written to workspace "{DEMO_WORKSPACE}" for {DEMO_EMAIL}: {summary} rows.')
     return 0
 
 
