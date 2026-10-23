@@ -1,17 +1,17 @@
-"""Remove «Отгрузить» and «Закрепить»: drop warehouse_mark, retire the pin kinds
+"""Remove "Ship" and "Pin": drop warehouse_mark, retire the pin kinds
 
 Both features were taken off the two stock tables. What that leaves behind is
 one whole table and two rows' worth of dead ``kind`` values:
 
-* ``monitoring.warehouse_mark`` — the per-SKU «Отгрузить» flag, dropped. It was
+* ``monitoring.warehouse_mark`` — the per-SKU "Ship" flag, dropped. It was
   keyed ``(nm_id, warehouse_name)`` with no ``workspace_id`` at all, which is
   why it never appears in ``scripts/sql/row_level_security.sql``: it was the
   last monitoring table that could not carry a tenancy policy. Dropping it
   closes that gap rather than working around it.
 
-* ``finreports.balance_pin`` — KEPT. The same table still stores «Не считать»
+* ``finreports.balance_pin`` — KEPT. The same table still stores "Don't count"
   (``warehouse_uncounted`` / ``sku_uncounted``), which stays on the balance
-  grid. Only the two «Закрепить» kinds are retired, and this deletes their
+  grid. Only the two "Pin" kinds are retired, and this deletes their
   rows. ``kind`` is a plain ``varchar(32)``, not a PG enum, so retiring a value
   is a ``DELETE`` and not a type rewrite.
 

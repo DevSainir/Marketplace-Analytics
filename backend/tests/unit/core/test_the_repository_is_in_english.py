@@ -65,15 +65,6 @@ _WB_LABELS: dict[str, str] = {
 _IN_TRANSLATION: dict[str, tuple[str, ...]] = {
     # Regenerated from the backend's OpenAPI text once every module is done.
     "api types": ("frontend/src/core/api/schema.d.ts",),
-    "operations": (
-        "backend/docker/*",
-        "backend/scripts/*",
-        "backend/alembic/*",
-        "backend/.env.example",
-        "backend/pyproject.toml",
-        "frontend/docker/*",
-        "tests/*",
-    ),
     "docs": ("docs/*", ".claude/*", "README.md", "CLAUDE.md"),
 }
 

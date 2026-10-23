@@ -32,10 +32,10 @@ RRD_ID_BASE = 9_000_000_000_000
 #: Where the stock lives, with each warehouse's share of it and the region WB
 #: files it under.
 WAREHOUSES: tuple[tuple[str, str, float], ...] = (
-    ("Коледино", "Центральный", 0.38),
-    ("Электросталь", "Центральный", 0.24),
-    ("Казань", "Приволжский", 0.22),
-    ("Краснодар", "Южный", 0.16),
+    ("Koledino", "Central", 0.38),
+    ("Elektrostal", "Central", 0.24),
+    ("Kazan", "Volga", 0.22),
+    ("Krasnodar", "South", 0.16),
 )
 
 
@@ -80,8 +80,8 @@ SKUS: tuple[DemoSku, ...] = (
     DemoSku(
         nm_id=NM_ID_BASE + 1,
         vendor_code="M-TRX01-BLK",
-        title="Брюки мужские классические прямые, чёрные",
-        subject="Брюки",
+        title="Men's classic straight trousers, black",
+        subject="Trousers",
         sizes=("46", "48", "50", "52", "54"),
         list_price=Decimal("4990"),
         seller_price=Decimal("2490"),
@@ -96,8 +96,8 @@ SKUS: tuple[DemoSku, ...] = (
     DemoSku(
         nm_id=NM_ID_BASE + 2,
         vendor_code="M-TRX01-GRY",
-        title="Брюки мужские классические прямые, серые",
-        subject="Брюки",
+        title="Men's classic straight trousers, grey",
+        subject="Trousers",
         sizes=("46", "48", "50", "52", "54"),
         list_price=Decimal("4990"),
         seller_price=Decimal("2490"),
@@ -112,8 +112,8 @@ SKUS: tuple[DemoSku, ...] = (
     DemoSku(
         nm_id=NM_ID_BASE + 3,
         vendor_code="M-SUI02-NVY",
-        title="Костюм мужской классический, тёмно-синий",
-        subject="Костюмы",
+        title="Men's classic suit, navy",
+        subject="Suits",
         sizes=("48", "50", "52", "54"),
         list_price=Decimal("12990"),
         seller_price=Decimal("6990"),
@@ -128,8 +128,8 @@ SKUS: tuple[DemoSku, ...] = (
     DemoSku(
         nm_id=NM_ID_BASE + 4,
         vendor_code="M-HDY03-GRN",
-        title="Худи мужское оверсайз с капюшоном, оливковое",
-        subject="Худи",
+        title="Men's oversized hoodie, olive",
+        subject="Hoodies",
         sizes=("S", "M", "L", "XL"),
         list_price=Decimal("3990"),
         seller_price=Decimal("2290"),
@@ -144,8 +144,8 @@ SKUS: tuple[DemoSku, ...] = (
     DemoSku(
         nm_id=NM_ID_BASE + 5,
         vendor_code="W-JGR04-BEI",
-        title="Джоггеры женские трикотажные, бежевые",
-        subject="Брюки спортивные",
+        title="Women's knit joggers, beige",
+        subject="Sweatpants",
         sizes=("XS", "S", "M", "L"),
         list_price=Decimal("3290"),
         seller_price=Decimal("1790"),
@@ -160,8 +160,8 @@ SKUS: tuple[DemoSku, ...] = (
     DemoSku(
         nm_id=NM_ID_BASE + 6,
         vendor_code="W-TSH05-WHT",
-        title="Футболка женская базовая хлопковая, белая",
-        subject="Футболки",
+        title="Women's basic cotton T-shirt, white",
+        subject="T-shirts",
         sizes=("XS", "S", "M", "L"),
         list_price=Decimal("1590"),
         seller_price=Decimal("890"),
@@ -215,7 +215,7 @@ class DemoCampaign:
 CAMPAIGNS: tuple[DemoCampaign, ...] = (
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 1,
-        name="Брюки классика — единая ставка",
+        name="Classic trousers — unified bid",
         bid_type="unified",
         payment_type="cpm",
         search=True,
@@ -230,7 +230,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 2,
-        name="Брюки классика — поиск",
+        name="Classic trousers — search",
         bid_type="manual",
         payment_type="cpm",
         search=True,
@@ -245,7 +245,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 3,
-        name="Худи — полки",
+        name="Hoodie — shelves",
         bid_type="manual",
         payment_type="cpm",
         search=False,
@@ -260,7 +260,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 4,
-        name="Футболка — оплата за клик",
+        name="T-shirt — pay per click",
         bid_type="manual",
         payment_type="cpc",
         search=True,
@@ -275,7 +275,7 @@ CAMPAIGNS: tuple[DemoCampaign, ...] = (
     ),
     DemoCampaign(
         campaign_id=CAMPAIGN_ID_BASE + 5,
-        name="Джоггеры — единая ставка",
+        name="Joggers — unified bid",
         bid_type="unified",
         payment_type="cpm",
         search=True,

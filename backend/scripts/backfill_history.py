@@ -30,7 +30,7 @@ Stocks, prices       NOT backfillable — WB exposes no history;    —
 
 Rate-limit budget (why the pauses exist). Official limits are per TOKEN TIER —
 personal/service/base-with-secret tokens get the first figure, a plain basic
-(«Базовый») token a drastically reduced one:
+("Basic") token a drastically reduced one:
 
 * funnel aggregate: 3 req/min, 20 s interval (basic: 2 req/HOUR) → a 365-day
   pass is ≈ 2 h per workspace on a proper token;

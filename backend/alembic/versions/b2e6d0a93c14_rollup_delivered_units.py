@@ -1,6 +1,6 @@
-"""Carry forward logistics legs on the settlement rollup, for the SKU «Выкуп».
+"""Carry forward logistics legs on the settlement rollup, for the SKU "Buyout".
 
-The per-SKU table gains «Выкуп, %» = sold / delivered, the same measure the size
+The per-SKU table gains "Buyout, %" = sold / delivered, the same measure the size
 cut already shows, so an article's row equals the footer of its own sizes. The
 denominator — Σ ``delivery_amount`` — was never rolled up, and the rollup proves
 a day by its row count alone: an existing day would keep its count and read

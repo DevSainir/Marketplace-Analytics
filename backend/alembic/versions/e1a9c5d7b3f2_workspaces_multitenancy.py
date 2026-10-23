@@ -8,7 +8,7 @@ Introduces the workspace tenancy unit:
 
 * ``workspaces.workspaces`` + ``workspaces.workspace_tokens`` (WB tokens now
   live ENCRYPTED in the database, per workspace — no longer in ``.env``).
-* Seeds the first workspace «ИП Иванов. И. И.» and adopts every existing SKU
+* Seeds the first workspace "Ivanov Shop" and adopts every existing SKU
   (``monitoring.product_card.workspace_id``) into it.
 * One-time token migration: the ``WB_*_TOKEN`` environment variables (if
   still present) are Fernet-encrypted with ``FERNET_SECRET_KEY`` and stored
@@ -42,7 +42,7 @@ _AUTH_SCHEMA = "auth"
 #: Fixed id for the seed workspace so every environment (local, prod) knows
 #: the first workspace under the same identifier.
 _SEED_WORKSPACE_ID = uuid.UUID("019f657a-a70c-780a-ac98-f010a1916615")
-_SEED_WORKSPACE_NAME = "ИП Иванов. И. И."
+_SEED_WORKSPACE_NAME = "Ivanov Shop"
 
 #: Operator account granted the ``dev`` role (exists on prod).
 _DEV_EMAIL = "dev@example.com"

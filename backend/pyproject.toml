@@ -103,22 +103,22 @@ select = ["E", "F", "I", "N", "UP", "B", "C4", "ASYNC", "S", "RUF", "SIM", "RET"
 # B008: FastAPI intentionally calls Query()/Depends() in argument defaults.
 # S101: asserts are allowed in tests.
 ignore = ["B008", "S101"]
-# User-facing strings and WB labels are written in Russian (docstrings and
-# comments are English — see the `git-workflow` skill); short words like «РК»,
-# «На» or «с НДС» are built only from Latin-lookalike letters, which RUF001-003
-# would flag as ambiguous — these are legitimate Cyrillic, not confusables.
-#
-# What this list gives up is the check that would catch a Latin lookalike inside
-# a WB label we compare against — «Продажa» with a Latin `a` would silently match
-# nothing and drop every sale row. That risk is now covered directly, and better,
-# by tests/unit/finreports/test_wb_labels_are_pure_cyrillic.py, which asserts
-# every WB-served constant is script-pure rather than merely un-flagged.
-# «С» and «у» joined the list with `src/modules/guide/sources.py`, whose entries
-# are Russian sentences rather than labels — «С начала аккаунта», «что у паллет».
-allowed-confusables = ["Р", "К", "Н", "а", "с", "о", "В", "А", "З", "Е", "е", "С", "у"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/*" = ["N999", "F401"]
+# RUF001: the only Cyrillic in the code is the labels WB itself serves in
+# Russian, which the code compares character for character, and those files
+# are exempted by name — the same list as `_WB_LABELS` in
+# tests/unit/core/test_the_repository_is_in_english.py. Anywhere else a
+# Cyrillic letter is flagged: it is either untranslated text or a lookalike
+# hiding in an English word. Whether a WB label itself is script-pure — that the
+# sale label was not typed with one Latin lookalike, which would match nothing
+# and drop every sale row — is tests/unit/finreports/test_wb_labels_are_pure_cyrillic.py.
+"src/modules/finreports/constants.py" = ["RUF001"]
+"src/modules/finreports/services/settlement_upload/workbook.py" = ["RUF001"]
+"src/modules/monitoring/models/advertising.py" = ["RUF001"]
+"src/core/config/storefront.py" = ["RUF001"]
+"alembic/versions/b3d7f18c05ae_pnl_partial_indexes.py" = ["RUF001"]
 # RUF012: SQLAlchemy's __table_args__ dict is a framework-mandated idiom, not a
 # mutable class-level default that needs a ClassVar annotation.
 "src/modules/**/models.py" = ["RUF012"]
@@ -128,10 +128,8 @@ allowed-confusables = ["Р", "К", "Н", "а", "с", "о", "В", "А", "З", "Е
 #   S311           — random is used to shape load, never for cryptography.
 #   SLF001         — probing a private helper is legitimate in a unit test.
 #   PLR2004        — magic numbers in assertions ARE the expected values.
-#   RUF001-003     — fixture data is deliberately Russian (workspace names, note
-#                    headers, UI labels); the root config whitelists only the
-#                    four confusables the source needs, and extending that list
-#                    globally would weaken the check where it still matters.
+#   RUF001-003     — WB's Russian labels in tests/support, and Greek letters
+#                    where a test proves that a non-Latin alphabet is handled.
 "tests/**" = ["S105", "S106", "S107", "S311", "SLF001", "PLR2004", "RUF001", "RUF002", "RUF003"]
 
 [tool.mypy]

@@ -3,7 +3,7 @@
 Adds the ``monitoring.product_card`` (nm_id -> vendor_code/title) and
 ``monitoring.product_size`` (chrt_id -> tech_size/wb_size) dimension tables,
 sourced from the WB Content API ``cards/list``. These carry the human-readable
-"Артикул продавца" and "Размер вещи" labels the funnel/stock feeds omit; the
+vendor code and item size labels the funnel/stock feeds omit; the
 size table joins onto ``stock_snapshot`` by ``chrt_id``.
 
 Revision ID: da396076273a

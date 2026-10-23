@@ -1,4 +1,4 @@
-"""«Мониторинг»: the SKU list and the busiest SKU cards.
+"""Monitoring: the SKU list and the busiest SKU cards.
 
 The page the probe was written for — on 2026-09-29 every card answered 500 on
 rows from before a migration while the list itself rendered.

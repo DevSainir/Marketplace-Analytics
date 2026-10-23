@@ -67,7 +67,7 @@ async def test_simultaneous_note_saves_leave_exactly_one_row(sessions) -> None:
     async def save(index: int) -> None:
         async with sessions() as session:
             await SkuDayCommentRepository(session).set(
-                nm_id=NM_ID, comment_date=DAY, body=f"note {index}", header="Тема"
+                nm_id=NM_ID, comment_date=DAY, body=f"note {index}", header="Topic"
             )
             await session.commit()
 
@@ -97,7 +97,7 @@ async def test_last_write_wins_without_losing_the_row(sessions) -> None:
     async def save(body: str) -> None:
         async with sessions() as session:
             await SkuDayCommentRepository(session).set(
-                nm_id=NM_ID, comment_date=DAY, body=body, header="Тема"
+                nm_id=NM_ID, comment_date=DAY, body=body, header="Topic"
             )
             await session.commit()
 

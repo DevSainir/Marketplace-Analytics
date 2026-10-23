@@ -1,4 +1,4 @@
-"""Monitoring: WB's «Предмет» and «Бренд» on the catalogue card.
+"""Monitoring: WB's subject (category) and brand on the catalogue card.
 
 The heatmap filters by category and cuts its rows by category or brand, and the
 settlement — the only place either name was stored until now — carries them

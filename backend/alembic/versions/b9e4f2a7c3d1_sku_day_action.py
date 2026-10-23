@@ -1,12 +1,12 @@
-"""sku_day_action: the per-day «Действия» row under the matrix comments
+"""sku_day_action: the per-day "Actions" row under the matrix comments
 
 Revision ID: b9e4f2a7c3d1
 Revises: a2f6b8d0c714
 Create Date: 2026-07-20
 
 One row per (nm_id, day) recording what the manager DID that day: whether the
-unified / manual campaigns were switched on (each with its «Бюджет рекламы»)
-and whether the price was changed («Повысили»/«Понизили»/«Нет» + «На сколько»).
+unified / manual campaigns were switched on (each with its "Ad budget")
+and whether the price was changed ("Raised"/"Lowered"/"No" + "By how much").
 Every field is nullable — the service deletes a row whose answers are all
 cleared, so the table only holds days that were actually touched.
 """

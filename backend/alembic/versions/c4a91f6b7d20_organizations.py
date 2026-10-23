@@ -29,7 +29,7 @@ account. Everyone else becomes a manager — **including the ``dev`` account**.
 That last part is not a formality. The ``dev`` role elevates what a caller may
 DO; it does not supply a tenant to do it in, and every data route resolves its
 workspace through the caller's organisation. A dev with no membership therefore
-cannot open «Мониторинг», «Графики» or «Прибыли и убытки» at all — the platform role
+cannot open Monitoring, Charts or Profit and loss at all — the platform role
 would let them past the role checks and the workspace lookup would then find
 nothing of theirs. So the dev joins the primary organisation like everyone else
 and keeps seeing every internal feature through their role.
@@ -59,7 +59,7 @@ _OWNER_EMAIL = "owner@example.com"
 
 #: What the adopted organisation is called. The seller-facing name of the
 #: company that has been the only tenant so far.
-_PRIMARY_NAME = "Демо"
+_PRIMARY_NAME = "Demo"
 
 #: The backfilled subscription's term. Long rather than the 30-day default: our
 #: own organisation is not a paying customer, and a 30-day term here would drop

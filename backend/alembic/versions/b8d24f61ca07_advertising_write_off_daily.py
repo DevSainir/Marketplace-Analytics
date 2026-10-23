@@ -6,10 +6,10 @@ Create Date: 2026-09-15
 
 ``GET /adv/v3/fullstats`` reports the impressions a campaign served and what
 they cost, and says nothing about where the money came from. WB pays part of a
-seller's advertising out of a bonus pool («Кэшбэк», up to 50 % of a charge), and
+seller's advertising out of a bonus pool (cashback, up to 50 % of a charge), and
 those charges never reach the weekly settlement report either — a bonus
-write-off carries no invoice document, so no «Оказание услуг «WB Продвижение»,
-документ №…» row is ever raised for it.
+write-off carries no invoice document, so no "WB Promotion" services
+deduction row is ever raised for it.
 
 The consequence, measured on one workspace for 2026-09-01..15: WB
 funded 38 % of the write-offs, and the per-SKU report counted every som of it
@@ -20,7 +20,7 @@ where the real figure was +1.6 %.
 table holds it, aggregated to ``(Moscow day, campaign, paymentType, currency)``.
 
 ``currency`` is in the PRIMARY KEY on purpose: WB mixes currencies inside one
-window (96 «Баланс» rows in RUB against 223 in KGS, 2026-08). WB's ``updNum`` is
+window (96 balance rows in RUB against 223 in KGS, 2026-08). WB's ``updNum`` is
 deliberately absent — it is an invoice-document number and every cashback row
 carries ``0``, so it identifies nothing.
 

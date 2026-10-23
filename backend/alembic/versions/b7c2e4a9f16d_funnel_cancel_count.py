@@ -4,7 +4,7 @@ Revision ID: b7c2e4a9f16d
 Revises: a3d1f7b52c68
 Create Date: 2026-07-16
 
-«Процент выкупа» is WB's ``buyoutCount / (buyoutCount + cancelCount)``. The
+The buyout rate is WB's ``buyoutCount / (buyoutCount + cancelCount)``. The
 daily funnel-history feed serves ``buyoutCount`` and a whole-number
 ``buyoutPercent`` but NO cancel count, so the metric used to reverse-engineer
 the denominator as ``buyout_count / buyoutPercent``. That is wrong twice over:

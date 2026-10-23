@@ -42,8 +42,8 @@ from src.modules.workspaces.models import Workspace
 #: printed by `make demo` and written in the README so anyone can log in.
 DEMO_EMAIL = "demo@example.com"
 DEMO_PASSWORD = "demo-password"  # noqa: S105 — the published demo login, see above
-DEMO_ORGANIZATION = "Демо-компания"
-DEMO_WORKSPACE = "Демо"
+DEMO_ORGANIZATION = "Demo company"
+DEMO_WORKSPACE = "Demo"
 
 #: Everything the application writes, emptied before a reseed.
 _SCHEMAS = ("auth", "organizations", "workspaces", "monitoring", "finreports", "heatmap",

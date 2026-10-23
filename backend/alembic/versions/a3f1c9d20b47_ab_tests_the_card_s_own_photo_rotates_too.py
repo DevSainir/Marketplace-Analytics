@@ -41,6 +41,6 @@ def downgrade() -> None:
 
     The captured photo's row survives as an ordinary variant at position 0,
     which the rotation still walks first. Downgrading loses the label, not the
-    photo — and the SPA falls back to «Вариант 0» for it.
+    photo — and the SPA falls back to "Variant 0" for it.
     """
     op.drop_column("ab_test_variant", "is_original", schema="ab_tests")

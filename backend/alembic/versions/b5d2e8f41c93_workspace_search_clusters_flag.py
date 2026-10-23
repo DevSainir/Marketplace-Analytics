@@ -1,4 +1,4 @@
-"""Workspaces: bring «Рекламные кластеры» back, for NEVA only.
+"""Workspaces: bring "Ad clusters" back, for NEVA only.
 
 The cluster block on the SKU page was hidden for everyone on 2026-09-09. It
 comes back as a per-workspace switch, ``search_clusters_enabled``, off by
@@ -26,8 +26,8 @@ down_revision: str | None = "e4b8c1f07a2d"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-#: The workspace the block is shown to, in both scripts, compared upper-cased.
-_ENABLED_FOR = ("NEVA", "НЕВА")
+#: The workspace the block is shown to, compared upper-cased.
+_ENABLED_FOR = "NEVA"
 
 
 def upgrade() -> None:
@@ -45,8 +45,8 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             "UPDATE workspaces.workspaces SET search_clusters_enabled = true "
-            "WHERE upper(btrim(name)) IN (:latin, :cyrillic)"
-        ).bindparams(latin=_ENABLED_FOR[0], cyrillic=_ENABLED_FOR[1])
+            "WHERE upper(btrim(name)) = :name"
+        ).bindparams(name=_ENABLED_FOR)
     )
 
 

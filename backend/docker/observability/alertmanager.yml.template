@@ -116,16 +116,16 @@ receivers:
         # different things (stop what you are doing / look before the end of
         # the day) and arrived looking identical.
         #
-        # The status line is Russian, as are the `summary` and `description`
+        # The status line is plain words, like the `summary` and `description`
         # annotations it wraps: this message is read on a phone by the people
         # who run the service, not by Prometheus. `alertname` stays as it is —
         # it is the identifier you type into Grafana, not prose. And the count
-        # is rendered as «затронуто: N» rather than a noun, because Russian
-        # needs three plural forms for that noun and a template is the wrong
-        # place to get them wrong.
+        # is rendered as "affected: N" rather than "N instances", so the
+        # template never has to pick between a singular and a plural noun —
+        # a choice it would make with an `if` that is easy to get wrong.
         message: |
           {{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "page" }}🔴{{ else }}🟡{{ end }}{{ else }}✅{{ end }} <b>{{ .CommonLabels.alertname }}</b>
-          {{ if eq .Status "firing" }}сработал{{ else }}в норме{{ end }}{{ with .CommonLabels.severity }} · {{ if eq . "page" }}срочно{{ else }}посмотреть{{ end }}{{ end }} · затронуто: {{ len .Alerts }}
+          {{ if eq .Status "firing" }}firing{{ else }}resolved{{ end }}{{ with .CommonLabels.severity }} · {{ if eq . "page" }}urgent{{ else }}look{{ end }}{{ end }} · affected: {{ len .Alerts }}
 
           {{ range .Alerts }}• {{ .Annotations.summary }}
           {{ end }}

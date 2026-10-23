@@ -1,8 +1,8 @@
 """Backfill phase: WB's advertising write-off ledger (who funded the ads).
 
 ``GET /adv/v1/upd`` is the only WB surface that says whether an advertising
-charge came out of the seller's own money («Баланс») or out of WB's bonus pool
-(«Кэшбэк»). The nightly harvest keeps a rolling seven days current; everything
+charge came out of the seller's own money (balance) or out of WB's bonus pool
+(cashback). The nightly harvest keeps a rolling seven days current; everything
 older has to be walked once, which is what this phase does.
 
 It is cheap by the standards of the other phases: the feed is account-wide with

@@ -4,21 +4,21 @@ Revision ID: e2a7c4f9b681
 Revises: c1d5b3e8a746
 Create Date: 2026-07-21
 
-The two ad campaign questions changed from «Включали РК единая/ручная?» (a boolean) to
-«Первая/Вторая РК» — each a campaign TYPE picked from a synced dropdown
-(uni / manual_search / manual_shelves / cpc). «Меняли цену?» loses its «Нет»
+The two ad campaign questions changed from "Were unified/manual campaigns on?" (a boolean) to
+"First/Second campaign" — each a campaign TYPE picked from a synced dropdown
+(uni / manual_search / manual_shelves / cpc). "Price changed?" loses its "No"
 option; an unmoved price is now simply left unanswered.
 
 Existing manager rows are migrated best-effort:
-* ``uni_rk_enabled = true``  -> ``first_rk_type = 'uni'`` («Единая», unified).
+* ``uni_rk_enabled = true``  -> ``first_rk_type = 'uni'`` (unified).
 * ``manual_rk_enabled = true`` -> ``second_rk_type = 'manual_search'`` — the old
   flag did not say which manual placement, so it lands on the primary search
-  zone; the manager can re-pick to «Руч. полки» if it was shelves.
+  zone; the manager can re-pick to "Manual shelves" if it was shelves.
 * ``false`` flags carried no type and no budget, so they become ``NULL``.
-* ``price_change = 'none'`` becomes ``NULL`` (the «Нет» answer no longer exists).
+* ``price_change = 'none'`` becomes ``NULL`` (the "No" answer no longer exists).
 * Budgets are renamed and kept as-is.
 
-Any row left entirely ``NULL`` by the above (a bare «Нет»/false answer) is
+Any row left entirely ``NULL`` by the above (a bare "No"/false answer) is
 deleted, matching the service rule that an all-empty day carries no row.
 """
 
@@ -70,7 +70,7 @@ def upgrade() -> None:
     op.drop_column("sku_day_action", "uni_rk_enabled", schema=_SCHEMA)
     op.drop_column("sku_day_action", "manual_rk_enabled", schema=_SCHEMA)
 
-    # A row the migration emptied (a bare false / «Нет» answer) carries no row.
+    # A row the migration emptied (a bare false / "No" answer) carries no row.
     op.execute(
         f"""
         DELETE FROM {_TABLE}

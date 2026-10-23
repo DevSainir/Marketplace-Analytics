@@ -29,7 +29,7 @@ every stored row names the campaign it came from:
 convenient: they are the sum of whatever was running at the time, and the parts
 were added together before they were stored. They cannot be recovered. The page
 shows them as one unnamed campaign, so a test that was running at deploy time
-reads as «одна РК» (one ad campaign) until the next poll splits the new traffic
+reads as "one campaign" until the next poll splits the new traffic
 properly.
 
 The baselines are NOT cleared. A snapshot keyed ``(test, 0, day)`` is a reading

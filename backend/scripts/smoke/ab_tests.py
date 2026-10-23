@@ -1,4 +1,4 @@
-"""«A/Б-тесты»: the list of tests and the newest test's page.
+"""A/B tests: the list of tests and the newest test's page.
 
 What ``AbTestsView`` asks for when it opens — ``GET /ab-tests`` with no search —
 and what ``AbTestDetailView`` asks for: ``GET /ab-tests/{id}``, here for the
@@ -64,7 +64,7 @@ async def check_ab_tests(
         return len(answer.variants)
 
     listed = await attempt(session, report, "A/B list", listing)
-    await attempt(session, report, "A/Б test", detail)
+    await attempt(session, report, "A/B test", detail)
 
 
 __all__ = ["check_ab_tests"]

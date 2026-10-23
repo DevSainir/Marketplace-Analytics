@@ -1,22 +1,22 @@
-"""«Сводка» and «Тепловая карта» become grants of their own.
+"""Summary and Heatmap become grants of their own.
 
 Adds ``summary`` and ``heatmap`` to the module list of every membership and
 every invitation that could already open the page, and to both columns' server
 default.
 
-**Each page goes to exactly who could open it before.** Until now «Сводка»
-opened on «Мониторинг» AND P&L, and «Тепловая карта» on «Мониторинг» — so
-``summary`` is written where both were held and ``heatmap`` where «Мониторинг»
+**Each page goes to exactly who could open it before.** Until now Summary
+opened on Monitoring AND P&L, and Heatmap on Monitoring — so
+``summary`` is written where both were held and ``heatmap`` where Monitoring
 was. A manager whose owner closed P&L to them does not find the workspace's
-revenue on «Сводка» the morning after. Unlike ``b5d3e8a61f90``, which could
-grant «Реклама» to everyone because every holder of «Мониторинг» had read it.
+revenue on Summary the morning after. Unlike ``b5d3e8a61f90``, which could
+grant Advertising to everyone because every holder of Monitoring had read it.
 
 **One widening, decided by the product owner on 2026-10-12.** A grant now
 opens its whole page, so the heatmap's money metrics (revenue, profit, margin)
-no longer also ask for P&L — and a manager holding «Мониторинг» without P&L,
+no longer also ask for P&L — and a manager holding Monitoring without P&L,
 who kept the page, now sees them there. The alternative was taking the page
 away from those managers (our own organisation's among them); an owner who
-wants the money closed to one of them switches «Тепловая карта» off.
+wants the money closed to one of them switches Heatmap off.
 
 Revision ID: d7f1a3c95e24
 Revises: e8b3d5a1c962

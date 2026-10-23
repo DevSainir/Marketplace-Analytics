@@ -29,8 +29,8 @@ down_revision: str | None = "b5d2e8f41c93"
 branch_labels: str | None = None
 depends_on: str | None = None
 
-#: The workspace opened, in both scripts, compared upper-cased.
-_VIA = ("NEVA", "НЕВА")
+#: The workspace opened, compared upper-cased.
+_VIA = "NEVA"
 
 
 def upgrade() -> None:
@@ -75,8 +75,8 @@ def upgrade() -> None:
         sa.text(
             "SELECT w.id FROM workspaces.workspaces w "
             "JOIN organizations.organizations o ON o.id = w.organization_id "
-            "WHERE upper(btrim(w.name)) IN (:latin, :cyrillic) AND NOT o.is_primary"
-        ).bindparams(latin=_VIA[0], cyrillic=_VIA[1])
+            "WHERE upper(btrim(w.name)) = :name AND NOT o.is_primary"
+        ).bindparams(name=_VIA)
     ).scalar_one_or_none()
     if owner_id is None or via is None:
         return

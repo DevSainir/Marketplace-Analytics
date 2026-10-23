@@ -1,7 +1,7 @@
 """campaigns: bid type + placements; advertising: order_sum + search facts
 
-Three additions backing the monitoring matrix's «Тип рекламной компании» /
-«Зона показов» columns:
+Three additions backing the monitoring matrix's "Traffic type" /
+"Placements" columns:
 
 * ``monitoring.campaigns`` gains the adverts-v2 settings — ``bid_type``
   (unified/manual), the ``placement_search``/``placement_recommendations`` zone

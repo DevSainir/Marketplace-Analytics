@@ -1,9 +1,9 @@
 """Empty the settlement rollup again: ``payout_other`` changed meaning twice.
 
-``d7a1e4c2b9f3`` emptied it when «Коррекция продаж» started being subtracted by
+``d7a1e4c2b9f3`` emptied it when the sales-correction operation started being subtracted by
 name. That rule was wrong: WB puts the direction in ``doc_type_name`` and the
 same operation arrives under both document types, so the column now negates the
-«Возврат» rows whatever their operation (``REFUND_DOC_TYPE``). Any day rebuilt
+refund rows whatever their operation (``REFUND_DOC_TYPE``). Any day rebuilt
 under the short-lived rule holds the wrong figure with the right row count, and
 the rollup proves days by count alone — so it is emptied once more and every
 day is rebuilt from the detail on its next read.

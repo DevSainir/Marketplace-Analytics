@@ -55,7 +55,7 @@ def main() -> int:
     if not path.is_file():
         print(f"no such probe: {path}", file=sys.stderr)
         return 2
-    print(f"# кабинет {diagnostic_workspace()} — только чтение", file=sys.stderr)
+    print(f"# workspace {diagnostic_workspace()} — read-only", file=sys.stderr)
     asyncio.run(_run(path.read_text()))
     return 0
 

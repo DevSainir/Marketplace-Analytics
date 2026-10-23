@@ -1,7 +1,7 @@
-"""finreports: per-SKU «Не включать в общий счёт» marks
+"""finreports: per-SKU "Leave out of the total" marks
 
 Adds ``finreports.pnl_sku_exclusion`` — one row per SKU the seller marks out of
-the P&L dashboard's «общий счёт», keyed ``(workspace_id, nm_id)`` so the mark is
+the P&L dashboard's total, keyed ``(workspace_id, nm_id)`` so the mark is
 shared across a workspace's users and scoped to it. The presence of a row is the
 mark; clearing it deletes the row. It shapes only the dashboard's summed KPIs,
 never a settlement fact or the reconciled per-SKU rows.

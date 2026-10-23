@@ -46,7 +46,7 @@ async def _run(*, email: str, workspace_name: str, actor: str, dry_run: bool) ->
         target = await users.get_by_email(email.strip().lower())
         workspace = await WorkspaceRepository(session).get_by_name(workspace_name.strip())
         if target is None or workspace is None:
-            print("No such account." if target is None else "No such кабинет.", file=sys.stderr)
+            print("No such account." if target is None else "No such workspace.", file=sys.stderr)
             return 1
         print(f"{target.email} (role {target.role}) -> {workspace.name} ({workspace.id})")
         if dry_run:
@@ -75,8 +75,8 @@ async def _run(*, email: str, workspace_name: str, actor: str, dry_run: bool) ->
 def main() -> None:
     """Parse arguments and run."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--email", required=True, help="The account to open the кабинет to.")
-    parser.add_argument("--workspace", required=True, help="The кабинет's name, exactly.")
+    parser.add_argument("--email", required=True, help="The account to open the workspace to.")
+    parser.add_argument("--workspace", required=True, help="The workspace's name, exactly.")
     parser.add_argument("--by", required=True, help="Your email; recorded as the actor.")
     parser.add_argument("--dry-run", action="store_true", help="Show the target, write nothing.")
     args = parser.parse_args()

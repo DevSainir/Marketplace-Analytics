@@ -6,14 +6,14 @@ Revision ID: f2b0c6e8d4a3
 Revises: e1a9c5d7b3f2
 Create Date: 2026-07-16
 
-WB tokens are category-scoped (13 categories). The primary workspace («ИП
-Иванов. И. И.») now stores one token per category; every other workspace stores
+WB tokens are category-scoped (13 categories). The primary workspace ("Ivanov
+Shop") now stores one token per category; every other workspace stores
 a single ``unified`` token reused for all categories.
 
 * ``workspaces.workspaces.is_primary`` (default false); the seed workspace is
   marked primary.
 * The legacy token kind ``advertising`` is renamed to ``promotion`` to match
-  WB's «Продвижение» category slug.
+  WB's promotion category slug.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""pinned_sku: global «Закрепить» flags on SKUs
+"""pinned_sku: global "Pin" flags on SKUs
 
 Revision ID: a1d7e5c2b9f8
 Revises: b8c4d2e6f1a3

@@ -1,11 +1,11 @@
-"""The «Реклама» grant, on for everyone.
+"""The Advertising grant, on for everyone.
 
 Adds ``advertising`` to the module list of every membership and every
 invitation, and to both columns' server default.
 
 **Granted, not withheld, on the deploy that introduces it** — the same risk
 decision as ``9fc926f7c120``. Every member of our own organisation holding
-«Мониторинг» read the page before; none of them may find it gone, and a
+Monitoring read the page before; none of them may find it gone, and a
 customer's owner who wants it closed for a manager does that deliberately
 afterwards rather than by default.
 
@@ -44,7 +44,7 @@ _REVOKE = (
 
 
 def upgrade() -> None:
-    """Grant «Реклама» to every row and make it part of the default."""
+    """Grant Advertising to every row and make it part of the default."""
     for table in _TABLES:
         op.alter_column(table, "modules", server_default=sa.text(_AFTER), schema="organizations")
     for statement in _GRANT:

@@ -9,10 +9,10 @@ sees that class of bug is one that reads real rows through the real service.
 So this does, for each main page, with what the SPA asks for when the page first
 opens, and serialises every answer the way a response is (``scripts/smoke/``):
 
-* «Мониторинг» — the SKU list, and the three busiest SKU cards;
+* Monitoring — the SKU list, and the three busiest SKU cards;
 * P&L — the period list, the per-SKU report for the default week, the stock balance;
-* «Тепловая карта» — the grid and its catalogue, for the default thirty days;
-* «A/Б-тесты» — the list, and the newest test.
+* Heatmap — the grid and its catalogue, for the default thirty days;
+* A/B tests — the list, and the newest test.
 
 Only for the one workspace a diagnostic may read: the session is
 `diagnostic_session()` — read-only at the transaction level and pinned to

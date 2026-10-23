@@ -1,4 +1,4 @@
-"""«Тепловая карта»: the grid and the catalogue behind its filters.
+"""Heatmap: the grid and the catalogue behind its filters.
 
 What ``HeatmapView`` asks for when it opens (``frontend/src/modules/heatmap/store.js``,
 ``init``): ``GET /heatmap`` and ``GET /heatmap/catalog``, both over the thirty

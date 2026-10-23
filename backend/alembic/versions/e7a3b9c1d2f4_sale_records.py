@@ -2,7 +2,7 @@
 
 Adds ``monitoring.sale_record`` — one row per item operation (``S…`` buyout /
 ``R…`` return), dated by the SALE date. This is the sale-date attribution the
-manager's «Выкупы, ₽» expects; the funnel's ``buyoutCount`` (order-date cohort)
+manager's "Buyouts" sum expects; the funnel's ``buyoutCount`` (order-date cohort)
 stays but no longer drives the buyout metrics.
 
 Revision ID: e7a3b9c1d2f4

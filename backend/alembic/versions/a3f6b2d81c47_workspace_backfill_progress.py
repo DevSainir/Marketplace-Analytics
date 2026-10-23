@@ -25,7 +25,7 @@ def upgrade() -> None:
     """One row per (workspace, lane): how far its history walk has got.
 
     Progress lives in Postgres rather than in Celery's result backend — which
-    is where «Обновить все SKU» keeps its own — because the two have different
+    is where "Refresh all SKUs" keeps its own — because the two have different
     lifetimes. That refresh is over in minutes and its task id is still in the
     SPA's hand when it finishes. A backfill's P&L lane runs for sixteen hours
     on a large account, outliving the tab, the worker and any result TTL.

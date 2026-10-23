@@ -4,7 +4,7 @@ Revision ID: b1e7c9d4a2f6
 Revises: 865b8a783a85
 Create Date: 2026-08-27
 
-The «Позиция в выдаче» probe and the pinned phrases it re-checked were removed
+The "Search position" probe and the pinned phrases it re-checked were removed
 on 2026-08-27. The table's only writer was ``monitoring.refresh_pinned_positions``
 and its only reader the pinned-keyword routes; both went with it, so the rows
 have nothing left to mean.

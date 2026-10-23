@@ -1,7 +1,7 @@
 """prices: add price_snapshot, drop funnel order_sum/buyout_sum
 
 Adds ``monitoring.price_snapshot`` (daily seller/customer price per SKU) and
-removes the stored ₽ volumes from ``sales_funnel_daily``: «Заказы, ₽»/«Выкупы, ₽»
+removes the stored ₽ volumes from ``sales_funnel_daily``: the orders/buyouts money
 are now DERIVED as ``count x seller_price`` from the price snapshot, no longer
 taken from or stored for the WB funnel feed.
 

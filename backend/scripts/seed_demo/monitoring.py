@@ -223,13 +223,13 @@ def annotation_rows(today: date) -> tuple[list[dict[str, Any]], list[dict[str, A
             if before == after:
                 continue
             direction = "up" if after > before else "down"
-            header = "Цена ↑" if direction == "up" else "Цена ↓"
-            comment(sku.nm_id, day, header, f"Цена продавца {before:.0f} → {after:.0f} ₽")
+            header = "Price ↑" if direction == "up" else "Price ↓"
+            comment(sku.nm_id, day, header, f"Seller price ₽{before:,.0f} → ₽{after:,.0f}")
             action(sku.nm_id, day, price_change=direction, price_change_amount=abs(after - before))
 
     launch = CAMPAIGNS[-1]
     launch_day = today - timedelta(days=launch.first_day_ago)
-    comment(launch.nm_id, launch_day, "Старт РК", f"Запустили «{launch.name}»")
+    comment(launch.nm_id, launch_day, "Campaign start", f'Launched "{launch.name}"')
     action(launch.nm_id, launch_day, first_rk_type="uni", first_rk_budget=Decimal("900"))
     return list(comments.values()), list(actions.values())
 

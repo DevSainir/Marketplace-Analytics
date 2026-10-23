@@ -1,6 +1,6 @@
 """Drop the ordered-lines table: the feed behind it is not used.
 
-`supplier/orders` was added to give «Заказы» a history deeper than the analytics
+`supplier/orders` was added to give "Orders" a history deeper than the analytics
 funnel's. Measured against the funnel on the same days, it reports 10-15 % fewer
 orders — stable, not explained by cancellations, timezone, FBS/FBO, baskets or
 attribution — so the two cannot be mixed in one line, and the funnel is the one

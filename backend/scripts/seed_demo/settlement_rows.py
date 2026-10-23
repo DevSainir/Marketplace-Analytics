@@ -28,7 +28,25 @@ from scripts.seed_demo.catalogue import (
     size_weight,
 )
 from scripts.seed_demo.economics import COMMISSION_PERCENT, sale_amounts
-from src.modules.finreports.constants import REFUND_DOC_TYPE
+from src.modules.finreports.constants import (
+    ACCEPTANCE_OPERS,
+    ADVERTISING_DEDUCTION_MARKER,
+    DEDUCTION_OPERS,
+    LOGISTICS_OPER,
+    PENALTY_OPER,
+    REFUND_DOC_TYPE,
+    RETURN_OPERS,
+    SALE_OPERS,
+    STORAGE_OPERS,
+)
+
+# WB's own operation names, taken from the constants the P&L classifies by, so
+# the demo's rows land in the same lines a real report's do.
+_SALE = SALE_OPERS[0]
+_RETURN = RETURN_OPERS[0]
+_STORAGE = STORAGE_OPERS[0]
+_ACCEPTANCE_OPER = ACCEPTANCE_OPERS[0]
+_DEDUCTION = DEDUCTION_OPERS[0]
 
 #: What WB charges to bring a cancelled or returned unit back.
 _RETURN_LEG = Decimal("50.00")
@@ -38,7 +56,7 @@ _STORAGE_PER_UNIT = Decimal("0.11")
 _ACCEPTANCE = Decimal("1350.00")
 #: A fine every other week, on the article that earned it.
 _PENALTY = Decimal("500.00")
-_PENALTY_REASON = "Занижение фактических габаритов упаковки товара"
+_PENALTY_REASON = "Understated package dimensions"
 
 
 class DetailRows:
@@ -64,7 +82,7 @@ class DetailRows:
             rr_dt=day,
             supplier_oper_name=oper,
             currency_name=CURRENCY,
-            site_country="Россия",
+            site_country="Russia",
         )
         row.update(fields)
         self.rows.append(row)
@@ -121,41 +139,39 @@ def article_day(rows: DetailRows, report_id: int, sku: DemoSku, sale: sim.SaleDa
         "ppvz_for_pay": money.payout,
     }
     for unit in _units(sku, sale, sale.sold, "sale"):
-        rows.add(report_id, sale.day, "Продажа", doc_type_name="Продажа", **unit, **unit_money)
+        rows.add(report_id, sale.day, _SALE, doc_type_name=_SALE, **unit, **unit_money)
         rows.add(
             report_id,
             sale.day,
-            "Логистика",
-            doc_type_name="Продажа",
-            bonus_type_name="К клиенту при продаже",
+            LOGISTICS_OPER,
+            doc_type_name=_SALE,
+            bonus_type_name="To the customer, on a sale",
             delivery_amount=1,
             delivery_rub=sku.delivery,
             **unit,
         )
     for unit in _units(sku, sale, sale.returned, "return"):
-        rows.add(
-            report_id, sale.day, "Возврат", doc_type_name=REFUND_DOC_TYPE, **unit, **unit_money
-        )
+        rows.add(report_id, sale.day, _RETURN, doc_type_name=REFUND_DOC_TYPE, **unit, **unit_money)
         rows.add(
             report_id,
             sale.day,
-            "Логистика",
-            doc_type_name="Продажа",
-            bonus_type_name="От клиента при возврате",
+            LOGISTICS_OPER,
+            doc_type_name=_SALE,
+            bonus_type_name="From the customer, on a return",
             return_amount=1,
             delivery_rub=_RETURN_LEG,
             **unit,
         )
     for unit in _units(sku, sale, sale.cancelled, "cancel"):
         for reason, leg, cost in (
-            ("К клиенту при отмене", "delivery_amount", sku.delivery),
-            ("От клиента при отмене", "return_amount", _RETURN_LEG),
+            ("To the customer, on a cancellation", "delivery_amount", sku.delivery),
+            ("From the customer, on a cancellation", "return_amount", _RETURN_LEG),
         ):
             rows.add(
                 report_id,
                 sale.day,
-                "Логистика",
-                doc_type_name="Продажа",
+                LOGISTICS_OPER,
+                doc_type_name=_SALE,
                 bonus_type_name=reason,
                 delivery_rub=cost,
                 **{leg: 1},
@@ -177,14 +193,16 @@ def account_charges(
     """
     for day in days:
         units = sum(sim.stock_units(sku, day) for sku in SKUS)
-        rows.add(report_id, day, "Хранение", storage_fee=sim.money(units * _STORAGE_PER_UNIT))
-    rows.add(report_id, days[0], "Платная приемка", acceptance=_ACCEPTANCE)
+        rows.add(report_id, day, _STORAGE, storage_fee=sim.money(units * _STORAGE_PER_UNIT))
+    rows.add(report_id, days[0], _ACCEPTANCE_OPER, acceptance=_ACCEPTANCE)
     advertising = sum((cash_spend(day, today) for day in days), Decimal("0.00"))
     rows.add(
         report_id,
         days[-1],
-        "Удержание",
-        bonus_type_name=f"Оказание услуг «WB Продвижение», документ №{report_id}",
+        _DEDUCTION,
+        # WB names the services in this field; the marker is what files the
+        # deduction under advertising.
+        bonus_type_name=f"WB {ADVERTISING_DEDUCTION_MARKER} services, document {report_id}",
         deduction=advertising,
     )
     if fined is not None:
@@ -192,7 +210,7 @@ def account_charges(
         rows.add(
             report_id,
             days[-1],
-            "Штраф",
+            PENALTY_OPER,
             nm_id=sku.nm_id,
             sa_name=sku.vendor_code,
             subject_name=sku.subject,

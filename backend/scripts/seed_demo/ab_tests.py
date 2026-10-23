@@ -83,15 +83,15 @@ def _plans(today: date) -> list[_Plan]:
     skus = sorted(SKU_BY_NM)
     return [
         _Plan(
-            "Главное фото худи: три ракурса", skus[3], AbTestStatus.CANCELLED,
+            "Hoodie main photo: three angles", skus[3], AbTestStatus.CANCELLED,
             TriggerMode.TIME, 3, at(10, 17), at(9, 10), 60, 12, 15,
         ),
         _Plan(
-            "Брюки: студия или улица", skus[0], AbTestStatus.PAUSED,
+            "Trousers: studio or street", skus[0], AbTestStatus.PAUSED,
             TriggerMode.TIME, 3, at(4, 18), at(3, 11), 90, 4, 30,
         ),
         _Plan(
-            "Футболка: белый фон или образ", skus[5], AbTestStatus.DRAFT,
+            "T-shirt: white background or styled look", skus[5], AbTestStatus.DRAFT,
             TriggerMode.IMPRESSIONS, 2, at(1, 15), None, 60, 0, 30,
         ),
     ]  # fmt: skip
@@ -202,7 +202,7 @@ async def _seed_test(session: AsyncSession, workspace_id: uuid.UUID, plan: _Plan
                 )
             )
     if plan.status is AbTestStatus.CANCELLED:
-        # «Завершить» keeps the best photo on the card and stamps both ends.
+        # "Finish" keeps the best photo on the card and stamps both ends.
         test.active_variant_id = variants[1].id
         test.finished_at = test.stopped_at = clock
     session.add_all(rows)

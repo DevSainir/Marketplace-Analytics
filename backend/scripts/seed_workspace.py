@@ -7,13 +7,13 @@ running only the obvious one leaves a silently incomplete workspace:
 * ``monitoring.harvest_all`` (nightly 06:00 MSK) — catalogue, funnel, advertising,
   search zones, stock, prices, sale records.
 * ``monitoring.refresh_buyout_cohorts`` (nightly 07:00 MSK) — the order-date
-  cohorts carrying ``cancel_count``, WITHOUT which «Процент выкупа» and the
-  «Выкупы, ₽» derived from it are blank. It is a separate pass because the
+  cohorts carrying ``cancel_count``, WITHOUT which "Buyout rate" and the
+  "Buyouts" money derived from it are blank. It is a separate pass because the
   daily funnel endpoint serves only the last 7 days and carries no cancel
   count at all, so maturing cohorts must be re-read day by day.
 
 Both run here — plus a third phase the schedule cannot supply at all: a walk
-back through the funnel aggregate. Without it «Процент выкупа» stays blank on a
+back through the funnel aggregate. Without it "Buyout rate" stays blank on a
 new workspace even once cohorts exist, because the metric for display day D
 reads the cohorts of ``[D - 21, D - 7]`` — days that predate the workspace. The
 nightly jobs only ever maintain a rolling window forward, so those older days
@@ -26,10 +26,10 @@ to resume after a rate-limit interruption.
 Run from the ``backend`` directory (``.env`` populated, migrations applied)::
 
     python -m scripts.seed_workspace                       # every workspace
-    python -m scripts.seed_workspace --workspace "Демо"    # just one
+    python -m scripts.seed_workspace --workspace "Demo"    # just one
     python -m scripts.seed_workspace --verify-only         # report, fetch nothing
 
-    docker compose exec api python -m scripts.seed_workspace --workspace "Демо"
+    docker compose exec api python -m scripts.seed_workspace --workspace "Demo"
 
 **Transaction boundaries.** Each phase commits its own work; the run is NOT one
 database transaction. That is deliberate: the phases span minutes of
@@ -41,7 +41,7 @@ partially-seeded workspace that a re-run completes — especially since each
 phase is individually atomic and idempotent.
 
 **History depth.** The walk reaches back ``--history-days`` (52 by default):
-enough for «Процент выкупа» to render across roughly the last month. It is NOT
+enough for "Buyout rate" to render across roughly the last month. It is NOT
 the full year WB retains — that is ``scripts/backfill_history.py``, which also
 reconstructs advertising and deep sales and runs for hours. The report prints
 the window each workspace actually holds, so the difference is visible rather
@@ -101,7 +101,7 @@ _HARVEST_WINDOW_DAYS = 7
 
 #: How many days of funnel history the seed reconstructs by default.
 #:
-#: This is what makes «Процент выкупа» actually RENDER rather than merely have
+#: This is what makes "Buyout rate" actually RENDER rather than merely have
 #: rows. The metric for display day D averages the order-date cohorts of
 #: ``[D - 21, D - 7]``, so a workspace whose funnel starts today shows a blank
 #: column for its entire first three weeks — the lagged window points at days it
@@ -174,8 +174,8 @@ async def _seed_workspace(
         logger.warning("Cohort phase failed for '%s': %s", tokens.name, exc)
         failures.append(f"cohorts: {exc}")
 
-    # Phase 3 — funnel history. Phases 1-2 leave a workspace whose «Процент
-    # выкупа» is blank for its whole first three weeks: the metric reads cohorts
+    # Phase 3 — funnel history. Phases 1-2 leave a workspace whose "Buyout
+    # rate" is blank for its whole first three weeks: the metric reads cohorts
     # from [D-21, D-7], which for a brand-new workspace point at days before it
     # had any data. This walk reconstructs those older days (rows AND cohorts)
     # from the aggregate endpoint, one call per day. It is the slow phase —
@@ -209,7 +209,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     Returns:
         A process exit code: non-zero when a phase failed or a workspace ended
-        up without the cohort days «Процент выкупа» needs.
+        up without the cohort days "Buyout rate" needs.
     """
     try:
         async with AsyncSessionLocal() as session:
@@ -255,14 +255,14 @@ def main() -> None:
         type=int,
         default=COHORT_REFRESH_DAYS,
         help=f"Order-date cohort days to re-read (default {COHORT_REFRESH_DAYS} — the "
-        "window «Процент выкупа» averages over, plus maturation).",
+        "window 'Buyout rate' averages over, plus maturation).",
     )
     parser.add_argument(
         "--history-days",
         type=int,
         default=_HISTORY_DAYS,
         help=f"Days of funnel history to reconstruct (default {_HISTORY_DAYS}). This is "
-        "what makes «Процент выкупа» render on a new workspace; 0 disables the phase. "
+        "what makes 'Buyout rate' render on a new workspace; 0 disables the phase. "
         "Costs ~1 rate-limited call per day walked.",
     )
     parser.add_argument(

@@ -1,6 +1,6 @@
 """Empty the settlement rollup, because one of its columns changed meaning.
 
-``payout_other`` used to add «Коррекция продаж»; it now subtracts it, the way
+``payout_other`` used to add the sales-correction operation; it now subtracts it, the way
 WB's own ``forPaySum`` does (``PAYOUT_DEDUCTED_OPERS``). The rollup proves each
 day by row count, and a changed formula changes no count — so every day summed
 before this revision would go on serving the old figure. Emptying it makes every

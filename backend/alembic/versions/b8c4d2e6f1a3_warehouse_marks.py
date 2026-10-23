@@ -1,4 +1,4 @@
-"""warehouse_mark: per-SKU «Отгрузить» flags on warehouses
+"""warehouse_mark: per-SKU "Ship" flags on warehouses
 
 Managers mark the warehouses they ship a SKU to; the stock table sorts marked
 warehouses first. A mark is scoped to one SKU — the natural key is

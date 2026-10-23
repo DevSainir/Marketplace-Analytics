@@ -7,7 +7,7 @@ matrix reads.
 The report exists because a partially-seeded workspace looks identical to a
 complete one from the UI — the columns are simply blank, with nothing saying
 whether the harvest never ran, ran and found nothing, or ran and the lagged
-«Процент выкупа» window points at days that predate the workspace. So this
+"Buyout rate" window points at days that predate the workspace. So this
 counts what each family actually holds and prints the window each workspace
 covers, turning "looks empty" into a specific missing phase.
 """
@@ -60,7 +60,7 @@ class WorkspaceReport:
 
     @property
     def buyout_percent_ready(self) -> bool:
-        """Whether «Процент выкупа» actually renders for the newest day.
+        """Whether "Buyout rate" actually renders for the newest day.
 
         Having cohort rows is NOT enough: the metric reads the cohorts of
         ``[D - 21, D - 7]``, so what matters is coverage INSIDE that lagged
@@ -116,7 +116,7 @@ async def _collect_report(tokens: WorkspaceTokenBundle, failures: list[str]) -> 
             )
         ) or 0
         # Cohort coverage is measured twice, because the totals lie on their
-        # own: what «Процент выкупа» needs is not "some cohort days" but cohort
+        # own: what "Buyout rate" needs is not "some cohort days" but cohort
         # days INSIDE the lagged window the newest display day reads from.
         newest = moscow_today() - timedelta(days=1)  # WB serves no current day
         lag_from = newest - timedelta(days=BUYOUT_LAG_START_DAYS)
@@ -172,7 +172,7 @@ async def _collect_report(tokens: WorkspaceTokenBundle, failures: list[str]) -> 
                 .where(PriceSnapshot.nm_id.in_(sku_ids))
             )
         ) or 0
-        # Price DAY coverage, not just row count: «Заказы, ₽» and «Выкупы, ₽»
+        # Price DAY coverage, not just row count: the "Orders" and "Buyouts" money
         # are derived as count x seller_price, so a day without a price snapshot
         # shows «—» however many funnel rows it has. WB serves no price history,
         # so this can only ever grow forward from the first harvest.
@@ -229,7 +229,7 @@ def _render_report(reports: list[WorkspaceReport]) -> str:
                 "  ...in lag window",
                 r.lagged_cohort_days,
                 f"the [D-{BUYOUT_LAG_START_DAYS}, D-{BUYOUT_LAG_END_DAYS}] days "
-                "«Процент выкупа» reads",
+                "'Buyout rate' reads",
             ),
             ("Advertising rows", r.advertising_rows, ""),
             ("Search-zone rows", r.search_rows, ""),
@@ -248,7 +248,7 @@ def _render_report(reports: list[WorkspaceReport]) -> str:
 
         if not r.buyout_percent_ready:
             lines.append(
-                "  ->  «Процент выкупа» WILL BE BLANK for the newest days: the "
+                "  ->  'Buyout rate' WILL BE BLANK for the newest days: the "
                 f"[D-{BUYOUT_LAG_START_DAYS}, D-{BUYOUT_LAG_END_DAYS}] cohort window "
                 "has no data. Re-run with a larger --history-days to reach back "
                 "past it."
@@ -258,7 +258,7 @@ def _render_report(reports: list[WorkspaceReport]) -> str:
         # serves no price history to backfill.
         if r.funnel_days > r.price_days:
             lines.append(
-                f"  ->  «Заказы, ₽» / «Выкупы, ₽» blank on {r.funnel_days - r.price_days} "
+                f"  ->  'Orders' / 'Buyouts' money blank on {r.funnel_days - r.price_days} "
                 "older day(s): no price snapshot for them. WB serves NO price history, "
                 "so those days stay blank permanently; coverage grows forward daily."
             )

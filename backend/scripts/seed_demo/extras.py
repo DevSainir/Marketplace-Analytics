@@ -24,9 +24,9 @@ from src.modules.heatmap.models import SkuGroup, SkuGroupItem, SkuNorm
 
 #: Groups by what the articles are, the way a seller would cut the catalogue.
 _GROUPS: tuple[tuple[str, tuple[int, ...]], ...] = (
-    ("Брюки", (SKUS[0].nm_id, SKUS[1].nm_id, SKUS[4].nm_id)),
-    ("Худи и футболки", (SKUS[3].nm_id, SKUS[5].nm_id)),
-    ("Костюмы", (SKUS[2].nm_id,)),
+    ("Trousers", (SKUS[0].nm_id, SKUS[1].nm_id, SKUS[4].nm_id)),
+    ("Hoodies and T-shirts", (SKUS[3].nm_id, SKUS[5].nm_id)),
+    ("Suits", (SKUS[2].nm_id,)),
 )
 
 #: Daily order targets: a cell below its norm is what the heatmap highlights.

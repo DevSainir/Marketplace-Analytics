@@ -1,6 +1,6 @@
-"""Workspaces: the «Промо-бонусы» switch becomes the workspace's setting.
+"""Workspaces: the "Promo bonuses" switch becomes the workspace's setting.
 
-«Реклама» used to remember the switch per browser. A seller either has WB's
+Advertising used to remember the switch per browser. A seller either has WB's
 promo bonuses or does not, so the choice is made once for the workspace and
 everyone in it sees the same page. On by default, as the per-browser switch
 was.

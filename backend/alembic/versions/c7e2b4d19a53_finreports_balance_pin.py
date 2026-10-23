@@ -1,7 +1,7 @@
 """finreports: pinned rows and columns of the balance grid
 
 Adds ``finreports.balance_pin`` — one row per pinned SKU or warehouse of the
-«Баланс по товарным остаткам» table, keyed ``(workspace_id, kind, value)`` so
+"Stock balance" table, keyed ``(workspace_id, kind, value)`` so
 the pin is shared across a workspace's users and scoped to it. The presence of a
 row is the pin; unpinning deletes it. Pins decide only what the grid shows
 first — never a quantity, a cost, or any settlement fact.

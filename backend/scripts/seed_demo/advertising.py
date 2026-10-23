@@ -19,6 +19,8 @@ from scripts.seed_demo import simulation as sim
 from scripts.seed_demo.catalogue import CAMPAIGNS, CURRENCY, SKU_BY_NM
 from scripts.seed_demo.writes import insert_rows
 from src.modules.monitoring.models import (
+    BALANCE_PAYMENT_TYPE,
+    CASHBACK_PAYMENT_TYPE,
     AdvertisingSearchStatDaily,
     AdvertisingStatDaily,
     AdvertisingWriteOffDaily,
@@ -26,7 +28,7 @@ from src.modules.monitoring.models import (
 )
 
 #: WB's code for the auction campaigns every current campaign is (``type=9``),
-#: and the «active» status — see ``WB_TYPE_LABELS`` / ``WB_STATUS_LABELS``.
+#: and the "active" status — see ``WB_TYPE_LABELS`` / ``WB_STATUS_LABELS``.
 _AUCTION_TYPE = 9
 _ACTIVE = 9
 
@@ -125,7 +127,10 @@ def write_off_rows(today: date) -> list[dict[str, Any]]:
     for day in sim.window(today - timedelta(days=1), sim.HISTORY_DAYS):
         for ad in sim.ad_days(day, today):
             cash = sim.money(ad.spend * _CASH_SHARE)
-            for payment_type, amount in (("Баланс", cash), ("Кэшбэк", ad.spend - cash)):
+            for payment_type, amount in (
+                (BALANCE_PAYMENT_TYPE, cash),
+                (CASHBACK_PAYMENT_TYPE, ad.spend - cash),
+            ):
                 rows.append(
                     {
                         "stat_date": day,

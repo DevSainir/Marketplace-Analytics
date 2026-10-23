@@ -36,13 +36,13 @@ groups:
         labels:
           severity: heartbeat
         annotations:
-          summary: "Алерты доходят: пульс для внешней проверки."
+          summary: "Alerts are getting through: the heartbeat for the outside check."
           description: >-
-            Это правило горит всегда и никуда не отправляется. Его читает
-            /healthz/alerts, а ту страницу проверяет UptimeRobot. Если UptimeRobot
-            сообщил, что страница не отвечает «alerts-ok», значит алерты не
-            доходят. Проверьте `docker exec marketplace-analytics-observability-alertmanager-1
-            wget -qO- localhost:9093/metrics | grep notifications_failed`, логи
+            This rule always fires and is sent nowhere. /healthz/alerts reads it,
+            and UptimeRobot checks that page. If UptimeRobot reports that the page
+            does not answer "alerts-ok", alerts are not getting through. Check
+            `docker exec marketplace-analytics-observability-alertmanager-1
+            wget -qO- localhost:9093/metrics | grep notifications_failed` and the logs of
             `marketplace-analytics-observability-telegram-relay-1`.
 
       - alert: TelegramRoadDown
@@ -55,14 +55,14 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Одна из двух дорог до Telegram не работает шесть часов."
+          summary: "One of the two roads to Telegram has been down for six hours."
           description: >-
-            Алерты пока доходят по второй дороге, но запаса больше нет. Посмотрите
-            логи `marketplace-analytics-observability-telegram-relay-1`: какой сервер (ipv6
-            или ipv4) в состоянии DOWN. Если адрес Telegram перестал отвечать,
-            найдите рабочий (curl --resolve api.telegram.org:443:<ip>
-            https://api.telegram.org/bot0:x/getMe, ответ 401 значит дорога есть)
-            и замените его в backend/docker/telegram-relay/haproxy.cfg.
+            Alerts still arrive over the other road, but there is no spare left. Check
+            the logs of `marketplace-analytics-observability-telegram-relay-1`: which server (ipv6
+            or ipv4) is DOWN. If a Telegram address has stopped answering,
+            find a working one (curl --resolve api.telegram.org:443:<ip>
+            https://api.telegram.org/bot0:x/getMe; a 401 means the road works)
+            and replace it in backend/docker/telegram-relay/haproxy.cfg.
 
   # -------------------------------------------------------------------------
   - name: availability
@@ -73,12 +73,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Инстанс API {{ $labels.instance }} не отвечает."
+          summary: "API instance {{ $labels.instance }} is not responding."
           description: >-
-            nginx перекинет отказанный запрос на второй инстанс. Поэтому
-            один упавший инстанс — это ещё не авария. Сначала проверьте, жив
-            ли второй. Дальше: `make logs` на сервере и поищите упавший шаг
-            миграции.
+            nginx retries a refused request on the other instance, so one
+            instance down is not an outage yet. First check that the other one
+            is alive. Then run `make logs` on the server and look for a failed
+            migration step.
 
       - alert: BothApiInstancesDown
         expr: count(up{job="marketplace-api"} == 1) == 0
@@ -86,10 +86,10 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Оба инстанса API не отвечают. Сайт лежит."
+          summary: "Neither API instance is responding. The site is down."
           description: >-
-            В пуле nginx не осталось ни одного живого. Пользователи видят
-            502. Подробнее — в docs/monitoring/OBSERVABILITY.md.
+            No live instance is left in the nginx pool. Users see
+            502. Details in docs/monitoring/OBSERVABILITY.md.
 
       - alert: DependencyDown
         expr: dependency_up == 0
@@ -97,12 +97,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "{{ $labels.dependency }} не отвечает на проверку здоровья."
+          summary: "{{ $labels.dependency }} is failing its health check."
           description: >-
-            Без Postgres не работает ничего. Без Redis API продолжает
-            отвечать, но ограничитель попыток входа и отзыв сессий начинают
-            пропускать всё подряд. Это не просто «стало
-            медленнее» — это дыра в защите.
+            Without Postgres nothing works. Without Redis the API keeps
+            answering, but the sign-in attempt limiter and session revocation
+            start letting everything through. This is not just "slower" —
+            it is a hole in the defenses.
 
       - alert: PostgresCrashRecovered
         expr: max(changes(postgres_stats_reset_timestamp_seconds[30m])) > 0
@@ -110,15 +110,15 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Postgres аварийно перезапустил свои процессы."
+          summary: "Postgres restarted its processes after a crash."
           description: >-
-            Postgres обнуляет статистику только при восстановлении после сбоя,
-            поэтому это значение сдвинулось. Восстановление занимает секунды,
-            но в этот момент рвутся все соединения. Скорее всего, ядро убило
-            процесс Postgres по лимиту памяти контейнера. На сервере выполните
+            Postgres resets its statistics only when it recovers from a crash,
+            which is why this value moved. Recovery takes seconds, but every
+            connection drops at that moment. Most likely the kernel killed a
+            Postgres process at the container's memory limit. On the server run
             `docker logs --since 1h marketplace-analytics-postgres-1 | grep
-            "terminated by signal"`, затем `dmesg -T | grep oom-kill`. Отчёт
-            ядра о нехватке памяти показывает, какой процесс занял память.
+            "terminated by signal"`, then `dmesg -T | grep oom-kill`. The kernel's
+            out-of-memory report shows which process held the memory.
 
       - alert: WorkerExporterDown
         expr: up{job="marketplace-worker"} == 0
@@ -126,11 +126,11 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Экспортёр метрик воркера Celery недоступен."
+          summary: "The Celery worker's metrics exporter is unreachable."
           description: >-
-            Сам воркер может работать. Прежде чем решить, что сборы встали,
-            посмотрите celery_queue_length и счётчики сборов. Экспортёр
-            поднимается на worker_ready и специально не роняет воркер.
+            The worker itself may be running. Before deciding the harvests have
+            stopped, check celery_queue_length and the harvest counters. The
+            exporter starts on worker_ready and deliberately never takes the worker down.
 
   # -------------------------------------------------------------------------
   - name: security
@@ -142,14 +142,14 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Запрос полез в данные арендатора, не сказав, чьи они."
+          summary: "A query reached for tenant data without saying whose it was."
           description: >-
-            RLS его отклонил. Данные никуда не ушли — защита сработала. Но
-            где-то в коде есть путь к таблицам арендатора мимо
-            get_current_workspace_id. Ради этого политики и ставили (реестр
-            P2.5). Ищите в логах ERROR от src.core.observability.rls_watch —
-            сам запрос лежит в той же строке. `for: 0m` тут намеренно:
-            одного раза достаточно.
+            RLS rejected it. No data left — the control worked. But somewhere
+            in the code there is a path to tenant tables that skips
+            get_current_workspace_id. That is what the policies were put in for
+            (register P2.5). Look in the logs for ERROR from
+            src.core.observability.rls_watch — the query is on the same line.
+            `for: 0m` is deliberate here: once is enough.
 
       - alert: SecurityControlDegraded
         expr: security_degraded_controls == 1
@@ -157,12 +157,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Защита {{ $labels.control }} работает в аварийном режиме и пропускает всё."
+          summary: "Control {{ $labels.control }} is in fallback mode and lets everything through."
           description: >-
-            Она перешла на запасной путь, потому что не отвечает Redis.
-            Пока это так, подбор паролей ограничен только
-            тем, что ещё живо. Две такие сразу — это уже связанный отказ,
-            ради которого журнал и заводили.
+            It fell back because Redis is not answering. While that lasts,
+            password guessing is limited only by
+            what is still alive. Two of these at once is a correlated failure,
+            the one the log was set up to catch.
 
       - alert: AuthFailureSpike
         expr: sum(rate(security_auth_failures_total[5m])) > 2
@@ -170,13 +170,13 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Долгий поток неудачных входов ({{ $value | printf \"%.1f\" }} в секунду)."
+          summary: "A sustained stream of failed sign-ins ({{ $value | printf \"%.1f\" }} per second)."
           description: >-
-            Так выглядит перебор паролей. На пути стоят задержка по аккаунту
-            (P1.5) и лимит по IP (P0.1), так что обычно это отбитая атака, а
-            не успешная. Прежде чем что-то делать, посмотрите
-            security_auth_failures_total в разрезе reason и поле client_ip в
-            логах.
+            This is what password guessing looks like. A per-account delay
+            (P1.5) and a per-IP limit (P0.1) stand in the way, so it is usually
+            a repelled attack, not a successful one. Before doing anything, look
+            at security_auth_failures_total by reason and the client_ip field in
+            the logs.
 
   # -------------------------------------------------------------------------
   - name: harvest
@@ -227,12 +227,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Сбор {{ $labels.harvest }} идёт и ничего не пишет."
+          summary: "Harvest {{ $labels.harvest }} is running and writing nothing."
           description: >-
-            Важна вторая половина: сбор ЗАПУСТИЛСЯ и дал ноль строк. Это не
-            то же самое, что «сбор не запускался». Так выглядел сбой с пулом
-            Redis: задачи успешны, а источники пустые. Ни одна метрика
-            успеха задач такого не покажет.
+            The second half matters: the harvest RAN and produced zero rows. That
+            is not the same as "the harvest did not run". This is what the Redis
+            pool failure looked like: tasks succeed, sources are empty. No task
+            success metric shows that.
 
       # The settlement walk gets its own rule, ahead of the general one and at
       # a threshold of ONE. A finance window that stops early is not a degraded
@@ -267,13 +267,13 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Неделя отчёта о продажах дочитана не до конца хотя бы у одного продавца."
+          summary: "At least one seller's report week was only partly read."
           description: >-
-            За эти дни P&L будет неполным, пока их не дочитает следующий
-            проход. Сверьте `settled_through` в
-            finreports.settlement_watermark с шапками отчётов: проход должен
-            переспросить от водяного знака. Если знак ушёл вперёд, а строк
-            за пропущенные дни нет — вернулся сбой от 2026-09-07.
+            The P&L for those days stays incomplete until the next pass reads
+            them. Compare `settled_through` in
+            finreports.settlement_watermark with the report headers: the pass
+            should re-ask from the watermark. If the watermark moved ahead and
+            the skipped days have no rows, the 2026-09-07 failure is back.
 
       # WB's own forPaySum against ours, taken the moment a report is booked —
       # rows and total from the same fetch, so a gap is ours: a report cut
@@ -290,15 +290,15 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Сумма «к перечислению» по отчёту не сходится с итогом WB."
+          summary: "A report's payout does not match WB's total."
           description: >-
-            Отчёт записан, но наша сумма `ppvz_for_pay` расходится с
-            `forPaySum` из `sales-reports/list` больше чем на рубль. В логе
-            worker ищите «totals … here against WB's» — там номер отчёта и
-            разница. Либо отчёт дочитан не весь (его перекачает следующий
-            тик), либо у WB появилась операция или тип документа, которые мы
-            считаем с другим знаком — см. docs/finreports/PNL.md, раздел про
-            знак выплаты.
+            The report is booked, but our `ppvz_for_pay` total differs from
+            `forPaySum` from `sales-reports/list` by more than a ruble. In the
+            worker log look for "totals … here against WB's" — it has the report
+            number and the difference. Either the report was not read in full (the
+            next tick re-fetches it), or WB has a new operation or document type
+            we count with the wrong sign — see docs/finreports/PNL.md, the section
+            on the payout sign.
 
       # A weekly report the seller uploaded by hand disagrees with WB's API —
       # found at upload (we hold the period and it differs; nothing written) or
@@ -311,13 +311,13 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Загруженный вручную отчёт WB не совпадает с отчётом из API."
+          summary: "A hand-uploaded WB report does not match the report from the API."
           description: >-
-            Продавец загрузил файл недельного отчёта, и его строки разошлись с
-            тем, что отдал API WB. В логе worker ищите «uploaded report … differs»
-            — там номер отчёта, кабинет и обе суммы «к перечислению». Сверьте
-            файл с кабинетом WB: файл могли отредактировать, или WB переиздал
-            отчёт. См. finreports/services/settlement_upload/.
+            A seller uploaded a weekly report file, and its rows differ from
+            what the WB API served. In the worker log look for "uploaded report … differs"
+            — it has the report number, the workspace and both payout totals.
+            Compare the file with the WB seller portal: the file may have been
+            edited, or WB reissued the report. See finreports/services/settlement_upload/.
 
       # `card-prices` is left out on purpose. Since 2026-09-22 the storefront
       # answers 498 (the wbaas captcha) to every address we hold, so every
@@ -331,11 +331,11 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Сбор {{ $labels.harvest }} раз за разом теряет источник {{ $labels.source }}."
+          summary: "Harvest {{ $labels.harvest }} keeps losing source {{ $labels.source }}."
           description: >-
-            Один неполный сбор — это норма: так одна мёртвая ручка WB не
-            роняет весь проход. Много неполных подряд — уже не норма: цифры
-            по этому источнику тихо устаревают.
+            One partial harvest is normal: that is how one dead WB endpoint
+            does not take down the whole pass. Many partials in a row are not:
+            the figures from this source are quietly going stale.
 
       # The other half of HarvestPartial's exclusion: good news, and the only
       # way anyone learns of it. The nightly pass wrote prices within the last
@@ -351,12 +351,13 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Витрина WB снова отдаёт цену покупателя."
+          summary: "The WB storefront serves the customer price again."
           description: >-
-            За сутки ночной сбор ни разу не потерял источник card-prices.
-            С 22.09.2026 витрина отвечала капчей (498), и цена покупателя с
-            СПП не собиралась. Проверьте, что она снова пишется, затем
-            верните card-prices в правило HarvestPartial и удалите это.
+            For a full day the nightly harvest has not lost the card-prices source.
+            Since 2026-09-22 the storefront answered with a captcha (498), and the
+            customer price after the WB discount was not collected. Check that it
+            is written again, then put card-prices back into the HarvestPartial
+            rule and delete this one.
 
       - alert: CeleryQueueBackingUp
         expr: celery_queue_length{queue_name="celery"} > 50
@@ -364,11 +365,11 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "В очереди Celery накопилось {{ $value }} сообщений."
+          summary: "{{ $value }} messages have piled up in the Celery queue."
           description: >-
-            Слотов у воркера четыре. Проверьте, не застряла ли задача: если
-            celery_queue_length{queue_name="unacked"} держится высоко, а
-            сама очередь при этом уходит — работу забрали и не закончили.
+            The worker has four slots. Check whether a task is stuck: if
+            celery_queue_length{queue_name="unacked"} stays high while the
+            queue itself drains, the work was taken and not finished.
 
       - alert: TaskFailureRate
         expr: |
@@ -378,7 +379,7 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Задача {{ $labels.task_name }} падает раз за разом."
+          summary: "Task {{ $labels.task_name }} keeps failing."
 
       # The two rules below are about the same failure from opposite ends: the
       # cgroup OOM killer taking a prefork child mid-task. `TaskFailureRate`
@@ -399,21 +400,21 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Задача {{ $labels.task_name }} оборвалась вместе с процессом воркера."
+          summary: "Task {{ $labels.task_name }} died together with its worker process."
           description: >-
-            Процесс убит снаружи. Задача не переигрывается: сообщение
-            подтверждено, и всё, что она не успела сделать, просто не сделано
-            до следующего тика. Сначала узнайте сигнал:
+            The process was killed from outside. The task is not replayed: the
+            message is acknowledged, and whatever it had not done stays undone
+            until the next tick. First find the signal:
             `docker logs marketplace-analytics-worker-1 | grep "exited with"`.
-            signal 9 (SIGKILL) — это ядро за перерасход памяти: смотрите
-            `celery_worker_memory_bytes` за тот же час и
-            `dmesg -T | grep -i "killed process"`. Виноват не последний кусок,
-            а дно: ребёнок Celery копит свой максимум RSS, поэтому та же работа
-            проходит на свежем воркере и падает через несколько часов.
-            signal 7 (SIGBUS) — это переполнена папка метрик
-            `/tmp/prometheus-multiproc` (tmpfs 32 МБ). Тогда падает каждая
-            задача, пока воркер не перезапустят; см. алерт
-            WorkerMetricsDirFilling.
+            signal 9 (SIGKILL) is the kernel acting on memory overuse: look at
+            `celery_worker_memory_bytes` for the same hour and
+            `dmesg -T | grep -i "killed process"`. The culprit is the baseline, not
+            the last task: a Celery child keeps its peak RSS, so the
+            same work passes on a fresh worker and fails a few hours later.
+            signal 7 (SIGBUS) means the metrics directory
+            `/tmp/prometheus-multiproc` (32 MB tmpfs) is full. Then every task
+            fails until the worker is restarted; see the
+            WorkerMetricsDirFilling alert.
 
       # The approach, so the kill above stops being the first news. 85% of the
       # ceiling with a fresh pool sitting at ~35% (267 MB of 768 MiB, measured
@@ -428,15 +429,15 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Воркер занял {{ $value | humanizePercentage }} своего потолка памяти."
+          summary: "The worker is using {{ $value | humanizePercentage }} of its memory ceiling."
           description: >-
-            Ещё не убит, но запас кончается. Штатное дно свежего пула —
-            около трети потолка; всё, что выше, это накопленный максимум
-            детей плюс то, что держит текущая задача. `--max-memory-per-child`
-            должен переработать ребёнка раньше ядра, так что держащаяся
-            высоко цифра означает либо одну задачу, которой честно нужно
-            столько, либо родителя, который растёт сам — второе он делать не
-            должен.
+            Not killed yet, but the headroom is running out. A fresh pool
+            normally sits at about a third of the ceiling; anything above that is
+            the children's accumulated peak plus what the current task holds.
+            `--max-memory-per-child` should recycle a child before the kernel
+            does, so a figure that stays high means either one task that genuinely
+            needs that much, or a parent growing on its own — which it should
+            not do.
 
       # The multiprocess-metrics tmpfs, which fails harder than memory does: a
       # write past its last page is SIGBUS, so the first process to hit it and
@@ -450,16 +451,16 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Папка метрик воркера заполнена на {{ $value | humanizePercentage }}."
+          summary: "The worker's metrics directory is {{ $value | humanizePercentage }} full."
           description: >-
-            Когда она дойдёт до 100 %, каждая задача будет падать с SIGBUS
-            до перезапуска воркера. Обычно там несколько сотен КБ. Посмотрите,
-            чьи файлы копятся:
+            When it reaches 100%, every task fails with SIGBUS until the
+            worker restarts. Normally it holds a few hundred KB. Check whose
+            files are piling up:
             `docker exec marketplace-analytics-worker-1 ls /tmp/prometheus-multiproc`.
-            Много `counter_<pid>`/`histogram_<pid>` от разных pid значит, что
-            какой-то процесс импортирует приложение с включённым режимом
-            multiprocess и уходит. Так было с проверкой здоровья до 15.10.
-            Срочно: `docker restart marketplace-analytics-worker-1` очищает папку.
+            Many `counter_<pid>`/`histogram_<pid>` from different pids mean
+            some process imports the app with multiprocess mode on and
+            exits. The health check did that until 2026-10-15.
+            Urgent: `docker restart marketplace-analytics-worker-1` clears the directory.
 
   # -------------------------------------------------------------------------
       - alert: SettlementHistoryHasGaps
@@ -468,24 +469,24 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Есть день продаж, который не покрыт ни одним скачанным отчётом."
+          summary: "A sales day is not covered by any downloaded report."
           description: >-
-            У кого-то в P&L не хватит дня. WB делает однодневные
-            дополнительные отчёты и начинает отдавать их строки через
-            несколько дней — окно прохода к этому времени уже ушло вперёд.
-            Так 2026-08-31 пропал у всех пяти воркспейсов, и никто не
-            заметил. Счётчики сборов этого не покажут: проход успешен и
-            пишет ровно то, о чём его попросили. Единственный след — дырка в
-            периодах отчётов. Ночная сверка берёт в первую очередь воркспейс
-            с известной дыркой, поэтому починимая закрывается за сутки.
-            Отсюда и `for: 26h`: достаточно долго, чтобы не сработать на
-            дырке, которая просто ждёт ночи, и достаточно коротко, чтобы
-            увидеть дырку, до которой сверка не дотягивается. КТО продавец и
-            КАКИЕ дни — в логе воркера (`finreports: <name> has N settlement
-            day(s) no report covers`); метрика общая по всем, потому что
-            /metrics не имеет права называть арендатора. Если за ночь не
-            погасло, сверка не дотягивается: посмотрите, не упало ли её окно
-            на лимите WB, и долейте день руками по нужному токену.
+            Someone's P&L is missing a day. WB issues one-day supplementary
+            reports and starts serving their rows a few days later — by then
+            the pass window has moved on. That is how 2026-08-31 went missing
+            for all five workspaces, and nobody noticed. The harvest counters do
+            not show it: the pass succeeds and writes exactly what it was asked
+            for. The only trace is a gap in the report periods. The nightly
+            reconciliation takes a workspace with a known gap first, so a
+            fixable one closes within a day. Hence `for: 26h`: long enough not
+            to fire on a gap that is just waiting for the night, and short
+            enough to see a gap the reconciliation cannot reach. WHICH seller
+            and WHICH days are in the worker log (`finreports: <name> has N settlement
+            day(s) no report covers`); the metric is shared across all of them
+            because /metrics may not name a tenant. If it has not cleared
+            overnight, the reconciliation cannot reach it: check whether its
+            window hit the WB rate limit, and fill the day in by hand with the
+            right token.
 
       - alert: FunnelHistoryHasGaps
         expr: monitoring_funnel_gap_days > 0
@@ -493,18 +494,18 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Есть день воронки, где артикул продавал, а суммы WB или когорты нет."
+          summary: "A funnel day has sales for a SKU but no WB amounts or cohort."
           description: >-
-            У кого-то в мониторинге и тепловой карте нет суммы заказов или
-            процента выкупа за день старше окна ночного пересчёта когорт —
-            его уже никто не перечитает сам. Так 07.09.2026 выпал между
-            догрузкой и ночным проходом, и три дня этого никто не видел.
-            Ночной проход когорт перечитывает до двух таких дней на кабинет
-            за ночь, так что разовая дырка гаснет к утру; `for: 26h` — чтобы
-            не сработать на ней. Если горит дольше, WB не отдаёт этот день:
-            КТО и КАКИЕ дни — в логе воркера (`monitoring: <name> has N funnel
-            day(s)`), метрика общая по всем, потому что /metrics не имеет права
-            называть арендатора.
+            Someone's monitoring and heatmap lack the order amount or the
+            buyout rate for a day older than the nightly cohort recount window —
+            nothing will reread it on its own. That is how 2026-09-07 fell
+            between the catch-up load and the nightly pass, and nobody saw it
+            for three days. The nightly cohort pass rereads up to two such days
+            per workspace a night, so a one-off gap clears by morning; `for: 26h`
+            keeps the rule from firing on it. If it fires longer, WB is not
+            serving that day: WHO and WHICH days are in the worker log (`monitoring: <name> has N funnel
+            day(s)`); the metric is shared across all of them because /metrics
+            may not name a tenant.
 
   - name: wildberries
     rules:
@@ -551,21 +552,21 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Наш ограничитель не пускает запрос к WB: {{ $labels.surface }} {{ $labels.endpoint }}."
+          summary: "Our limiter is holding back a WB request: {{ $labels.surface }} {{ $labels.endpoint }}."
           description: >-
-            `rate_blocked` — это НАШ ограничитель отказывается отправлять
-            запрос, потому что токена пришлось бы ждать дольше допустимого.
-            Это единственный признак, который прямо говорит: настроенный
-            бакет больше не совпадает с бакетом WB. Все прочие симптомы
-            (зависание, 500) выглядят так же, как плохой токен или авария на
-            стороне WB. Прежде чем что-то менять, сравните
-            `wb_analytics_bucket_capacity` / `_refill_seconds` с тем, что
-            показывает `x-ratelimit-remaining` на панели в Grafana. Само по
-            себе это редко и вспышками: 15m скорости, удержанные 30m,
-            означают блокировки, размазанные по получасу, а не один
-            невезучий сбор. За семь дней до 2026-09-07 прод дал всего два
-            ответа `rate_blocked`, оба на финансах — на таком это правило не
-            сработало бы.
+            `rate_blocked` is OUR limiter refusing to send a request,
+            because the token would take longer than allowed to arrive.
+            It is the only sign that says outright: the configured
+            bucket no longer matches WB's bucket. Every other symptom
+            (a stall, a 500) looks the same as a bad token or an outage on
+            WB's side. Before changing anything, compare
+            `wb_analytics_bucket_capacity` / `_refill_seconds` with what
+            `x-ratelimit-remaining` shows on the Grafana panel. On its own
+            this is rare and comes in bursts: a 15m rate held for 30m means
+            blocks spread over half an hour, not one unlucky harvest. In the
+            seven days before 2026-09-07 prod gave only two `rate_blocked`
+            answers, both on finance — this rule would not have fired on
+            that.
 
       - alert: WbRatePacingPressure
         expr: |
@@ -576,20 +577,19 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Очередь к WB {{ $labels.surface }} {{ $labels.endpoint }}: {{ $value | printf \"%.1f\" }} секунды ожидания на каждую секунду времени."
+          summary: "WB {{ $labels.surface }} {{ $labels.endpoint }} queue: {{ $value | printf \"%.1f\" }} seconds of waiting per second."
           description: >-
-            Ранний признак, которым должен был стать датчик квоты, но в
-            форме, которая не может протухнуть. Значение — это секунды
-            ожидания, накопленные за одну секунду реального времени. 1.0
-            значит, что ровно один вызов постоянно стоит в очереди. Для
-            здорового долгого сбора из бакета на три токена с доливкой ~20s
-            это НОРМА, а не поломка. Порог 2 — это примерно вдвое больше
-            любого здорового пика, замеренного за сутки на проде 2026-09-07
-            (финансы reportDetailByPeriod 1.02, sales-funnel/products 0.94,
-            остальное ниже 0.12). Он означает, что на ОДНОЙ ручке постоянно
-            стоят минимум два вызова. Рост здесь начинается раньше, чем
-            `rate_blocked` — есть запас времени расширить окно или снизить
-            параллельность.
+            The early warning the quota gauge was meant to be, in a form that
+            cannot go stale. The value is seconds of waiting accumulated per
+            second of real time. 1.0 means exactly one call is always waiting
+            in the queue. For a healthy long harvest from a three-token bucket
+            refilling every ~20s that is NORMAL, not a fault. The threshold of 2
+            is about twice any healthy peak measured over a day on prod on 2026-09-07
+            (finance reportDetailByPeriod 1.02, sales-funnel/products 0.94,
+            everything else under 0.12). It means at least two calls are always
+            waiting on ONE endpoint. This rises before
+            `rate_blocked` does — there is time to widen the window or lower
+            the concurrency.
 
       - alert: WbRateBlockEscalating
         expr: |
@@ -600,24 +600,24 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "WB закрывает {{ $labels.surface }} {{ $labels.endpoint }} всё дольше: {{ $value | printf \"%.0f\" }} секунд блокировок за 6 часов."
+          summary: "WB blocks {{ $labels.surface }} {{ $labels.endpoint }} for longer and longer: {{ $value | printf \"%.0f\" }} seconds of blocks in 6 hours."
           description: >-
-            Каждая блокировка — это событие с длительностью, которую назвал
-            сам WB. Сумма за шесть часов растёт быстро только в одном
-            сценарии: мы отправляем запрос внутрь ещё открытого окна, WB
-            перезапускает окно длиннее, и цикл повторяется. Ровно так
-            17.09.2026 отчёт расчётов ушёл с 28 197 s на 302 940 s за три
-            шага, и увидели это только через двое суток, раскапывая логи.
-            Порог 7200 — это два часа суммарной блокировки за шесть часов;
-            штатный ритм ручки расчётов (одна блокировка ~900 s) до него не
-            дотягивает.
+            Every block is an event with a duration WB itself named. The
+            six-hour sum grows fast in only one scenario: we send a request
+            inside a window that is still open, WB restarts the window longer,
+            and the cycle repeats. That is exactly how on 2026-09-17 the
+            settlement report went from 28,197 s to 302,940 s in three steps,
+            and it was seen only two days later, digging through logs.
+            The threshold of 7200 is two hours of total blocking in six hours;
+            the settlement endpoint's normal rhythm (one block of ~900 s) does
+            not reach it.
 
-            Что делать: НЕ пробовать вручную. Посмотрите
-            `histogram_quantile(1, ...)` по этой же метрике — если верхняя
-            корзина растёт, значит эскалация идёт, и любой запрос сделает
-            хуже. Гейт уже держит блок с запасом и удваивает его при повторе
-            (`rate_limit_lua.py`, `PENALISE_LUA`); дождитесь, пока
-            `wb_rate_limit_block_seconds_count` перестанет расти.
+            What to do: do NOT try by hand. Look at
+            `histogram_quantile(1, ...)` over the same metric — if the top
+            bucket is growing, the escalation is under way and any request makes
+            it worse. The gate already holds the block with a margin and doubles it on a retry
+            (`rate_limit_lua.py`, `PENALISE_LUA`); wait until
+            `wb_rate_limit_block_seconds_count` stops growing.
 
       - alert: WbErrorRate
         expr: |
@@ -627,12 +627,12 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "Больше четверти запросов к WB падает."
+          summary: "More than a quarter of WB requests are failing."
           description: >-
-            Сюда входят transport_error и rate_blocked, и это намеренно:
-            именно так WB тут и ломается, а HTTP-статуса у этих отказов нет.
-            Прежде чем решить, что дело в WB, а не в одном перевыпущенном
-            токене, разложите по surface и status.
+            This includes transport_error and rate_blocked, deliberately: that
+            is exactly how WB breaks here, and these failures have no HTTP status.
+            Before deciding the problem is WB rather than one reissued
+            token, break it down by surface and status.
 
   # -------------------------------------------------------------------------
   - name: saturation
@@ -643,13 +643,13 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "В пуле не осталось свободных подключений к базе."
+          summary: "The database pool has no free connections left."
           description: >-
-            Такое уже было: утёкшие подключения в состоянии `idle in
-            transaction` держали все слоты 22 часа. Из-за этого в
-            src/core/database.py и появился
-            idle_in_transaction_session_timeout. Если used упёрся в потолок
-            при обычном трафике — ищите утечку, а не нагрузку.
+            This has happened before: leaked connections in the `idle in
+            transaction` state held every slot for 22 hours. That is why
+            src/core/database.py got
+            idle_in_transaction_session_timeout. If used hits the ceiling under
+            ordinary traffic, look for a leak, not for load.
 
       - alert: ApiLatencyHigh
         expr: |
@@ -661,7 +661,7 @@ groups:
         labels:
           severity: warn
         annotations:
-          summary: "p95 времени ответа на {{ $labels.handler }} больше 3 секунд."
+          summary: "p95 response time on {{ $labels.handler }} is over 3 seconds."
 
       - alert: ServerErrorRate
         expr: |
@@ -671,7 +671,7 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Больше 2% ответов — это 5xx."
+          summary: "More than 2% of responses are 5xx."
 
       # The share above is blind to one broken page on a quiet service. On
       # 2026-09-29 every SKU card answered 500 for three hours; the first one
@@ -687,12 +687,12 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "{{ $labels.handler }} отвечает 5xx: {{ $value | humanize }} раз за 5 минут."
+          summary: "{{ $labels.handler }} answers 5xx: {{ $value | humanize }} times in 5 minutes."
           description: >-
-            Один роут падает у всех, кто его открывает. Трассировка — в логах
-            api: `docker logs --since 15m marketplace-analytics-api-1 | grep
-            "Exception in ASGI"`. Если это началось с последнего деплоя —
-            откатите релиз (backend/scripts/deploy/rollback.sh).
+            One route fails for everyone who opens it. The traceback is in the
+            api logs: `docker logs --since 15m marketplace-analytics-api-1 | grep
+            "Exception in ASGI"`. If it started with the last deploy, roll the
+            release back (backend/scripts/deploy/rollback.sh).
 
   # -------------------------------------------------------------------------
   # New-organisation history backfill.
@@ -721,17 +721,17 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Застрявших полос загрузки истории: {{ $value }}. Данные нового продавца не приходят."
+          summary: "Stalled history backfill lanes: {{ $value }}. A new seller's data is not arriving."
           description: >-
-            Полоса перестала двигаться, и перезапуски сторожа её не оживили.
-            Продавец видит полупустой продукт, и больше об этом никто не
-            сообщит. КТО продавец — в логах, не здесь: метрики не называют
-            арендатора. Grafana → Explore → Loki: {service="worker"} |=
-            "backfill" — полоса, workspace_id и курсор есть в каждой строке.
-            Посмотрите застрявшую строку в `workspaces.workspace_backfill` и
-            `backfill_lane_restarts_total` — пытался ли сторож вообще. Если
-            курсор не двигается через перезапуски, дело в самом курсоре, а
-            не в случайном сбое.
+            The lane stopped moving, and the watchdog's restarts did not revive it.
+            The seller sees a half-empty product, and nothing else will report
+            it. WHO the seller is lives in the logs, not here: metrics do not
+            name a tenant. Grafana → Explore → Loki: {service="worker"} |=
+            "backfill" — the lane, workspace_id and cursor are on every line.
+            Look at the stuck row in `workspaces.workspace_backfill` and at
+            `backfill_lane_restarts_total` — whether the watchdog tried at all.
+            If the cursor does not move across restarts, the cursor itself is
+            the problem, not a random failure.
 
       - alert: NewOrgBackfillRestartLoop
         # Restarts happening AND the stall persisting. The watchdog is doing
@@ -750,22 +750,21 @@ groups:
         #
         # Measured 2026-09-13: three pages, each firing for exactly ten
         # minutes and clearing itself, against a lane that was walking
-        # normally (281 of 759 windows, message "Wildberries не отдал
-        # страницу"). A condition that resolves in ten minutes was never one
+        # normally (281 of 759 windows, message "Wildberries did not serve
+        # the page"). A condition that resolves in ten minutes was never one
         # for a person. Restarts that are STILL failing an hour later are.
         for: 1h
         labels:
           severity: page
         annotations:
-          summary: "Полосу загрузки {{ $labels.lane }} перезапускают снова и снова, а она снова встаёт."
+          summary: "Backfill lane {{ $labels.lane }} is restarted again and again, and stalls again."
           description: >-
-            Сторож перезапустил её три раза или больше за два часа, а
-            движения нет. Значит, перезапуск не помогает. Скорее всего дело
-            в испорченном курсоре, в токене, который WB перестал принимать,
-            или в строке, которую не получается записать. Прежде чем
-            перезапускать руками, прочитайте в логе воркера последнее
-            исключение этой полосы — иначе будет то же самое, что и в
-            прошлые три раза.
+            The watchdog restarted it three times or more in two hours, and it
+            has not moved. So restarting does not help. The cause is most
+            likely a corrupted cursor, a token WB stopped accepting, or a row
+            that cannot be written. Before restarting it by hand, read the
+            lane's last exception in the worker log — otherwise it goes the
+            same way as the last three times.
 
       - alert: NewOrgBackfillFailing
         # The moment of death rather than its consequence. Fires earlier than
@@ -777,13 +776,13 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Полоса загрузки {{ $labels.lane }} упала несколько раз за последние 30 минут."
+          summary: "Backfill lane {{ $labels.lane }} failed several times in the last 30 minutes."
           description: >-
-            Два тика этой полосы или больше закончились ошибкой вместо шага.
-            Сторож продолжит её перезапускать, так что может починиться
-            само. Но если полоса падает так часто, дело обычно во входных
-            данных, а не в случайности. Исключение лежит в логе воркера
-            рядом с workspace_id: {service="worker"} |= "died with".
+            Two or more ticks of this lane ended in an error instead of a step.
+            The watchdog keeps restarting it, so it may fix itself. But when
+            a lane fails this often, the cause is usually the input data, not
+            chance. The exception is in the worker log next to
+            workspace_id: {service="worker"} |= "died with".
 
       - alert: BackfillWatchdogNotRunning
         # The watchdog's own watchdog, and the reason it exists is that every
@@ -806,12 +805,11 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: "Сторож загрузок не запускался два часа. Застрявшие полосы никто не перезапускает."
+          summary: "The backfill watchdog has not run for two hours. Nobody restarts stalled lanes."
           description: >-
-            `workspaces.sweep_stalled_backfills` стоит в расписании каждые
-            пятнадцать минут и не выполнялся. Все остальные алерты про
-            загрузку читают датчик, который пишет только эта задача, так что
-            пока это горит — они слепы. Считайте тихую группу загрузки
-            неизвестной, а не здоровой. Проверьте, жив ли Celery beat
-            (`docker ps`, потом его лог) и осталась ли задача в
+            `workspaces.sweep_stalled_backfills` is scheduled every fifteen
+            minutes and has not run. Every other backfill alert reads a gauge
+            only this task writes, so while this fires they are blind. Treat a
+            quiet backfill group as unknown, not healthy. Check that Celery beat
+            is alive (`docker ps`, then its log) and that the task is still in
             `celery_app.conf.beat_schedule`.

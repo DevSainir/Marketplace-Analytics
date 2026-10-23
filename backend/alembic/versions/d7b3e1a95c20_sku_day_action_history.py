@@ -1,4 +1,4 @@
-"""sku_day_action_history: who changed a «Действия» row, and from what
+"""sku_day_action_history: who changed an "Actions" row, and from what
 
 Revision ID: d7b3e1a95c20
 Revises: b5d3e8a61f90

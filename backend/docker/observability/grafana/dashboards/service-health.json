@@ -433,7 +433,7 @@
         "type": "prometheus",
         "uid": "marketplace-prometheus"
       },
-      "description": "The panel that would have shown the 2026-07-30 incident on day one: tasks reporting SUCCESS while every funnel source silently returned nothing. Populated by the nightly pass (06:00 MSK), the interactive «Обновить», and the hourly finreports walk — so it is legitimately empty between runs.",
+      "description": "The panel that would have shown the 2026-07-30 incident on day one: tasks reporting SUCCESS while every funnel source silently returned nothing. Populated by the nightly pass (06:00 MSK), the interactive \"Refresh\", and the hourly finreports walk — so it is legitimately empty between runs.",
       "gridPos": {
         "x": 0,
         "y": 22,

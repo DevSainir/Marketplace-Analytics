@@ -8,7 +8,7 @@ Create Date: 2026-08-14
 until now ingestion summed the clusters away into
 ``advertising_search_stat_daily`` (the zone split). The cluster text is the only
 record of which search phrases the seller's ads actually served, so it gets its
-own table at the source's natural grain — the «Поиск по кластерам» feature reads
+own table at the source's natural grain — the "Search by clusters" feature reads
 it by keyword.
 
 No backfill is possible: WB serves at most a 31-day window and the harvester
