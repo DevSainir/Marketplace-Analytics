@@ -167,8 +167,18 @@ export function roundsIn(history, campaignId = 0) {
   return [...seen].sort((a, b) => b - a)
 }
 
-/** Width one turn needs before its marker starts crowding its neighbour's. */
-const TURN_WIDTH_PX = 56
+/**
+ * Width one turn needs before its marker starts crowding its neighbour's: the
+ * marker's own width in `TimelineMarkers.css` (52px, or 70px large) and a few
+ * pixels of air.
+ *
+ * Sized to the marker and no more. The large size once doubled the small one,
+ * 112px a turn for a 70px picture, and that bought a scroll rather than room:
+ * twelve turns came out 1344px wide in a 1289px card, so the line panned on a
+ * screen it fitted, the overlay scrollbar hid that it did, and the stamp naming
+ * where the line ends was cut off at the card's edge.
+ */
+const TURN_WIDTH_PX = { small: 56, large: 74 }
 
 /** Below this many turns the markers are drawn large; above it they are not. */
 const ROOMY_TURNS = 14
@@ -190,7 +200,8 @@ const ROOMY_TURNS = 14
  */
 export function trackSize(turns) {
   const large = turns <= ROOMY_TURNS
-  return { width: `max(100%, ${turns * TURN_WIDTH_PX * (large ? 2 : 1)}px)`, large }
+  const perTurn = large ? TURN_WIDTH_PX.large : TURN_WIDTH_PX.small
+  return { width: `max(100%, ${turns * perTurn}px)`, large }
 }
 
 /**

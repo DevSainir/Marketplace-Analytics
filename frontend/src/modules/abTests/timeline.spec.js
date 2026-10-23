@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { buildTimeline, roundsIn } from '@/modules/abTests/timeline'
+import { buildTimeline, roundsIn, trackSize } from '@/modules/abTests/timeline'
 
 const NOW = Date.parse('2026-09-08T12:00:00Z')
 
@@ -131,5 +131,30 @@ describe('roundsIn', () => {
   it('offers the laps that actually have turns, newest first', () => {
     expect(roundsIn([turn({ round_number: 1 }), turn({ round_number: 3 })])).toEqual([3, 1])
     expect(roundsIn([])).toEqual([])
+  })
+})
+
+describe('trackSize', () => {
+  // The card's inner width at 1280px, measured in the demo — the narrowest
+  // desktop screen the page is checked at.
+  const CARD_AT_1280_PX = 1182
+
+  /** The fixed half of `max(100%, Npx)`: the width the line insists on. */
+  const insistsOn = (width) => Number(/(\d+)px\)$/.exec(width)[1])
+
+  it('fits the longest line of large pictures in the card instead of scrolling it', () => {
+    // Twelve turns once came out 1344px wide in a 1289px card: the line panned
+    // on a screen it fitted, and the stamp naming its end was cut off.
+    const { width, large } = trackSize(14)
+
+    expect(large).toBe(true)
+    expect(insistsOn(width)).toBeLessThanOrEqual(CARD_AT_1280_PX)
+  })
+
+  it('scrolls a line too long to label instead of compressing it', () => {
+    const { width, large } = trackSize(100)
+
+    expect(large).toBe(false)
+    expect(insistsOn(width)).toBeGreaterThan(CARD_AT_1280_PX)
   })
 })
