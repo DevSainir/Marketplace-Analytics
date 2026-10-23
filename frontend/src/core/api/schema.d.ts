@@ -539,7 +539,7 @@ export interface paths {
      *
      *     **Only when something actually changed.** Opening the form and pressing
      *     save writes the same grant back, and recording that produced entries saying
-     *     «Изменён доступ» about a change that did not happen — which turns a trail
+     *     "Access changed" about a change that did not happen — which turns a trail
      *     meant to be read into one that has to be searched. The comparison is made
      *     here rather than in the service because "was this worth recording" is a
      *     question about the audit trail, not about the membership.
@@ -581,7 +581,7 @@ export interface paths {
     put?: never
     /**
      * Activate
-     * @description Redeem an activation code — «Ключ активации» on the profile page.
+     * @description Redeem an activation code — "Activation code" on the profile page.
      *
      *     Creates the organisation, makes the caller its owner and starts the
      *     subscription, all in this request's transaction.
@@ -602,7 +602,7 @@ export interface paths {
     }
     /**
      * List My Invitations
-     * @description List invitations waiting for this account — «Вас пригласили».
+     * @description List invitations waiting for this account — "You're invited".
      *
      *     Names the inviting organisation and nothing else about it: the caller is
      *     not a member yet.
@@ -630,7 +630,7 @@ export interface paths {
      * @description Accept an invitation and join its organisation as a manager.
      *
      *     Returns the same shape as ``/me`` so the SPA can swap straight from the
-     *     «нет организации» screen into the app without a second round trip.
+     *     "no company" screen into the app without a second round trip.
      */
     post: operations['accept_invitation_api_v1_organizations_invitations_accept_post']
     delete?: never
@@ -946,7 +946,7 @@ export interface paths {
      *     catalogue discovery for it, so a seller who has just connected WB sees their
      *     SKUs within minutes instead of after the next nightly harvest — and walks
      *     only the history lanes that surface feeds. A surface nothing reads, such as
-     *     «Вопросы и отзывы», enqueues nothing. The enqueue is best-effort and
+     *     "Questions and reviews", enqueues nothing. The enqueue is best-effort and
      *     debounced per workspace; it can neither fail this request nor be provoked
      *     into a second run by re-saving the same token.
      */
@@ -970,9 +970,9 @@ export interface paths {
      * @description Report how far this workspace's history backfill has got, per lane.
      *
      *     Any MEMBER may read it, not just an owner: it is rendered in the profile as
-     *     the answer to «почему тут пусто», and a manager who cannot see it is left
+     *     the answer to "why is this empty", and a manager who cannot see it is left
      *     with a blank product page and no explanation. It exposes only counters and
-     *     a Russian status line — no token, no WB response, nothing tenant-specific
+     *     a status line for a person — no token, no WB response, nothing tenant-specific
      *     beyond the workspace the caller was already proved to belong to. A head may
      *     read it in a workspace granted to them, for the same reason.
      *
@@ -1187,7 +1187,7 @@ export interface paths {
     get?: never
     /**
      * Set Pin
-     * @description Pin («Закрепить») or unpin («Закреплено» click) a SKU for everyone.
+     * @description Pin or unpin a SKU for everyone (the "Pin" / "Pinned" button).
      */
     put: operations['set_pin_api_v1_monitoring_skus__nm_id__pin_put']
     post?: never
@@ -1323,7 +1323,7 @@ export interface paths {
     get?: never
     /**
      * Set Day Action
-     * @description Save one day's «Действия» row on a SKU (shared by everyone).
+     * @description Save one day's "Actions" row on a SKU (shared by everyone).
      *
      *     The body is the WHOLE day state (last write wins); a body with every
      *     answer null clears the day's row. The writer is recorded in the day's
@@ -1352,7 +1352,7 @@ export interface paths {
      *
      *     The frontend holds the working copy; this resolves the edit into its inputs
      *     (setting an input, or reverse-solving one for a derived cell) and returns
-     *     the recomputed matrix. Nothing is persisted — «Сохранить» does that.
+     *     the recomputed matrix. Nothing is persisted — "Save" does that.
      */
     post: operations['preview_matrix_edit_api_v1_monitoring_skus__nm_id__matrix_preview_post']
     delete?: never
@@ -1487,7 +1487,7 @@ export interface paths {
      * Get Pnl Sizes
      * @description Return one article's settlement rows cut by WB's size label.
      *
-     *     The drill-down the «По артикулам» table opens under a row. Nothing here
+     *     The drill-down the "By SKU" table opens under a row. Nothing here
      *     comes from outside the settlement detail — WB stamps ``ts_name`` on every
      *     row it bills, so the sizes are a regrouping of the article's own rows and
      *     sum back to it. Advertising has no size and is therefore absent, which the
@@ -1512,10 +1512,10 @@ export interface paths {
     get?: never
     /**
      * Set Sku Exclusion
-     * @description Mark or clear one SKU's «Не включать в общий счёт» flag.
+     * @description Mark or clear one SKU's "Exclude from total" flag.
      *
      *     The mark is stored per workspace, so it is shared across the workspace's
-     *     users, and it changes only the dashboard's «общий счёт» — the per-SKU rows
+     *     users, and it changes only the dashboard's overall total — the per-SKU rows
      *     and the reconciled totals are unaffected. Idempotent in both directions.
      */
     put: operations['set_sku_exclusion_api_v1_finreports_pnl_skus__nm_id__exclusion_put']
@@ -1584,8 +1584,8 @@ export interface paths {
      * Export Cost Prices
      * @description Download the per-SKU P&L as an XLSX for bulk offline cost entry.
      *
-     *     The same «По артикулам» statement the screen shows, with an editable
-     *     «Себестоимость за 1 ед.» column. The seller fills it and uploads the file
+     *     The same "By SKU" statement the screen shows, with an editable
+     *     "Cost price per unit" column. The seller fills it and uploads the file
      *     back through ``POST /cost-prices/import``. The two cross-module columns
      *     (orders, advertising) are resolved here through the monitoring contract, the
      *     same way ``GET /pnl/skus`` does.
@@ -1610,7 +1610,7 @@ export interface paths {
     put?: never
     /**
      * Import Cost Prices
-     * @description Apply the «Себестоимость» column of an uploaded cost sheet.
+     * @description Apply the "Cost price per unit" column of an uploaded cost sheet.
      *
      *     Accepts ``.xlsx``, ``.xls`` and ``.csv``. Costs are written only for SKUs
      *     this workspace already knows and only in its settlement currency; blanks
@@ -1659,7 +1659,7 @@ export interface paths {
     get?: never
     /**
      * Set Balance Pin
-     * @description Mark («Не считать») a SKU row or a warehouse column, or clear the mark.
+     * @description Mark ("Don't count") a SKU row or a warehouse column, or clear the mark.
      *
      *     Stored per workspace, so the marks are shared across its users. A mark
      *     changes only what the grid's totals are drawn from and where the row or
@@ -1684,7 +1684,7 @@ export interface paths {
      * Get Harvest State
      * @description Report harvest liveness, settlement coverage and freshness.
      *
-     *     Polled by «Обновить» while a run is in flight: ``running`` falling to false
+     *     Polled by "Refresh" while a run is in flight: ``running`` falling to false
      *     is the signal to re-fetch the statement, and ``latest_settled`` moving is
      *     what tells the seller a new week actually arrived. It is also read on every
      *     load of the P&L, which renders ``latest_report`` and ``last_check`` as the
@@ -1709,7 +1709,7 @@ export interface paths {
      *
      *     **The gate does not apply to a person.** This used to enqueue the ordinary
      *     gated tick, so a click answered whatever the hourly schedule had already
-     *     answered — and the one moment somebody presses «Обновить» is the moment the
+     *     answered — and the one moment somebody presses "Refresh" is the moment the
      *     schedule has just told them the statement is complete when it is not. On
      *     2026-09-14 the click was logged as «settled through 13.09 — nothing newer can
      *     exist yet, skipping» over a week WB had published that morning.
@@ -1732,7 +1732,7 @@ export interface paths {
      *     **Every outcome is an answer, and none of them is a wait.** WB metered the
      *     old settlement report at one request per ~15 minutes, so a click shortly
      *     after the hourly tick used to enqueue a harvest whose first act was to sit still
-     *     for most of that window — seven minutes of «Обновляем…» during which nothing
+     *     for most of that window — seven minutes of "Refreshing…" during which nothing
      *     could possibly happen (observed 2026-09-09). The bucket already knows, in shared
      *     Redis, so that case is now refused here with the wait attached instead of
      *     being discovered minutes later on a worker.
@@ -1748,7 +1748,7 @@ export interface paths {
      *     limit alone would say only that it cannot start.
      *
      *     Scoped to the caller's own workspace. It used to enqueue the **fleet** walk:
-     *     one seller pressing «Обновить» spent every other seller's WB rate budget and
+     *     one seller pressing "Refresh" spent every other seller's WB rate budget and
      *     held the shared harvest lock for the length of a platform-wide walk, so the
      *     cost of one click grew with the number of tenants and landed on all of them.
      */
@@ -1846,23 +1846,23 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Список A/Б-тестов
+     * List A/B tests
      * @description Return the workspace's tests, newest first.
      */
     get: operations['list_tests_api_ab_tests_get']
     put?: never
     /**
-     * Создать тест
+     * Create a test
      * @description Create an empty draft test.
      *
-     *     The article is resolved against the workspace's catalogue before anything is
-     *     written, and the seller article is read off that card rather than taken from
+     *     The SKU is resolved against the workspace's catalogue before anything is
+     *     written, and the vendor code is read off that card rather than taken from
      *     the body — the two could otherwise disagree.
      *
      *     No photo comes with it. The card's live main image used to be downloaded
      *     from WB's CDN as the baseline; that is gone, because WB serves renditions
      *     rather than the seller's own file and re-installing one put the transcoding
-     *     loss back on the live card. The baseline is now an upload marked «Главное».
+     *     loss back on the live card. The baseline is now an upload marked "Main photo".
      */
     post: operations['create_test_api_ab_tests_post']
     delete?: never
@@ -1879,7 +1879,7 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Каталог для выбора артикула
+     * Catalog for picking a SKU
      * @description Return the cards a test may be created against.
      *
      *     Declared before ``/{test_id}`` so the static path is not swallowed by the
@@ -1890,7 +1890,7 @@ export interface paths {
      *     opens with something in it instead of looking broken — and the order it
      *     opens in is advertised cards first, then last week's orders descending, so
      *     the top of an unfiltered list is the cards worth testing rather than
-     *     whichever article happens to sort first alphabetically.
+     *     whichever SKU happens to sort first alphabetically.
      */
     get: operations['search_skus_api_ab_tests_skus_get']
     put?: never
@@ -1909,21 +1909,21 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Тест с таблицей результатов
+     * A test with its result table
      * @description Return one test and its per-photo metrics.
      */
     get: operations['get_test_api_ab_tests__test_id__get']
     put?: never
     post?: never
     /**
-     * Удалить тест
+     * Delete a test
      * @description Delete a test and its photos.
      */
     delete: operations['delete_test_api_ab_tests__test_id__delete']
     options?: never
     head?: never
     /**
-     * Изменить название или триггер ротации
+     * Change the name or the rotation trigger
      * @description Change a running test's trigger without restarting it.
      *
      *     Needs no WB token: nothing here touches the card. The next polling pass
@@ -1947,7 +1947,7 @@ export interface paths {
     options?: never
     head?: never
     /**
-     * Запустить, поставить на паузу или отменить
+     * Start, pause or cancel
      * @description Change a test's status; starting installs the first photo on the card.
      *
      *     This is the only route that needs a WB token, so it is the only one that
@@ -1967,7 +1967,7 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Завершить тест, оставив на карточке выбранное фото
+     * Finish the test, leaving the chosen photo on the card
      * @description End a test and leave the chosen photo on the live card.
      *
      *     ``WritingAccess`` and not a weaker guard because this installs a picture on
@@ -1978,7 +1978,7 @@ export interface paths {
      *     and a WB upload, where the status route carries neither for a cancel; the
      *     bare cancel there stays for API callers that want the card left as it is.
      *
-     *     The whole test comes back so the page re-renders «На карточке» and the
+     *     The whole test comes back so the page re-renders "On the card" and the
      *     status from one answer.
      */
     post: operations['finish_test_api_ab_tests__test_id__finish_post']
@@ -1998,10 +1998,10 @@ export interface paths {
     get?: never
     put?: never
     /**
-     * Загрузить фото в тест
+     * Upload a photo to a test
      * @description Append a photo to the rotation and return the refreshed test.
      *
-     *     ``main=true`` files it as «Главное»: position 0, first out of the gate, and
+     *     ``main=true`` files it as "Main photo": position 0, first out of the gate, and
      *     the row every other photo's result is read against. One per test — the
      *     seller replaces it by deleting it and uploading another, which is the same
      *     two steps as changing any other photo.
@@ -2028,14 +2028,14 @@ export interface paths {
     put?: never
     post?: never
     /**
-     * Удалить фото из теста
+     * Delete a photo from a test
      * @description Remove a photo from the rotation.
      */
     delete: operations['delete_variant_api_ab_tests__test_id__variants__variant_id__delete']
     options?: never
     head?: never
     /**
-     * Убрать фото из ротации или вернуть
+     * Remove a photo from the rotation, or bring it back
      * @description Take a photo out of the running rotation, or put it back.
      *
      *     Deliberately allowed while the test is running — that is the point. Nothing
@@ -2058,7 +2058,7 @@ export interface paths {
       cookie?: never
     }
     /**
-     * Изображение варианта
+     * A variant's image
      * @description Stream a variant's stored image, full size or as a thumbnail.
      *
      *     Served from our own store rather than WB's CDN because a variant that has
@@ -2113,7 +2113,7 @@ export interface paths {
     }
     /**
      * Get Summary
-     * @description Return every figure the «Сводка» page draws for one window.
+     * @description Return every figure the "Summary" page draws for one window.
      *
      *     The window is the ONLY parameter. Price base, grouping and sort order used
      *     to be query parameters, and every click on one of them cost a round trip
@@ -2199,7 +2199,7 @@ export interface paths {
     }
     /**
      * Get Catalog
-     * @description Return the workspace's cards and subjects, for «Категории», «Артикулы» and the group editor.
+     * @description Return the workspace's cards and subjects, for "Categories", "SKUs" and the group editor.
      *
      *     Its own route because the filters need it before a grid exists. The window
      *     only orders the cards — most-ordered first — so it is bounded the same way
@@ -2269,13 +2269,13 @@ export interface paths {
      * Get Heatmap
      * @description Return the grid: one row per article (or category, brand, group), one column per period.
      *
-     *     **This GET can write, and deliberately** — the same way «Сводка» does. A
+     *     **This GET can write, and deliberately** — the same way "Summary" does. A
      *     finance metric reads the settlement rollup, which verifies itself against
      *     the detail's own row counts and rebuilds the days that disagree. Nothing a
      *     caller sends decides what is written; the tenant is bound by
      *     :data:`CurrentWorkspaceId` exactly as for the read.
      *
-     *     The «Тепловая карта» grant is attached where the router is included
+     *     The "Heatmap" grant is attached where the router is included
      *     (:mod:`src.modules.heatmap.routers`), and it opens every metric: the money
      *     ones stopped asking for P&L as well on 2026-10-12, when each page became a
      *     grant of its own.
@@ -2318,9 +2318,9 @@ export interface paths {
     }
     /**
      * Get Advertising
-     * @description Return every figure the «Реклама» page draws for one window.
+     * @description Return every figure the "Advertising" page draws for one window.
      *
-     *     **This GET may write, as «Сводка»'s does**: reading settled sales fills the
+     *     **This GET may write, as "Summary"'s does**: reading settled sales fills the
      *     settlement rollup for days it did not already cover. Nothing the caller
      *     sends decides what is written — it is derived from the workspace's own
      *     settlement rows, under the tenant :data:`CurrentWorkspaceId` binds.
@@ -2344,7 +2344,7 @@ export interface components {
      *
      *     ``vendor_code`` is deliberately absent: it is read off the catalogue card the
      *     ``nm_id`` resolves to. Taking it from the client would let the two disagree,
-     *     and the seller article is what the list is searched by.
+     *     and the vendor code is what the list is searched by.
      *
      *     A single-bound mode refuses the other bound rather than quietly ignoring
      *     it: sending ``slot_minutes`` with ``trigger_mode="impressions"`` is a 422,
@@ -2355,27 +2355,27 @@ export interface components {
     AbTestCreate: {
       /**
        * Nm Id
-       * @description Артикул WB, чьё главное фото ротируется
+       * @description WB ID whose main photo is rotated
        */
       nm_id: number
       /**
        * Name
-       * @description Название теста
+       * @description Test name
        */
       name: string
       /**
-       * @description Что двигает ротацию: показы, время или что наступит раньше
+       * @description What moves the rotation: impressions, time, or whichever comes first
        * @default impressions
        */
       trigger_mode: components['schemas']['TriggerMode']
       /**
        * Impression Budget
-       * @description Показов на вариант. Режимы «по показам» и «показы и время»
+       * @description Impressions per variant. Modes `impressions` and `either`
        */
       impression_budget?: number | null
       /**
        * Slot Minutes
-       * @description Минут на вариант. Режимы «по времени» и «показы и время»
+       * @description Minutes per variant. Modes `time` and `either`
        */
       slot_minutes?: number | null
     }
@@ -2413,17 +2413,17 @@ export interface components {
       finished_at: string | null
       /**
        * Stopped At
-       * @description Когда ротация в последний раз остановилась — пауза или завершение. Сбрасывается при возобновлении.
+       * @description When the rotation last stopped — a pause or a finish. Cleared on resume.
        */
       stopped_at?: string | null
       /**
        * Photo Conflict At
-       * @description Когда ротация обнаружила на карточке главное фото, которое она не устанавливала: значит, карточку поменяли вручную. Тест остановлен и сам не возобновится — трафик с чужого фото ни одному варианту не принадлежит. null, если такого не было.
+       * @description When the rotation found a main photo on the card that it had not installed: the card was changed by hand. The test is stopped and will not resume by itself — traffic on a foreign photo belongs to no variant. null if that never happened.
        */
       photo_conflict_at?: string | null
       /**
        * Paused By Ads
-       * @description Тест поставила на паузу ротация: на артикуле не идёт ни одна кампания с бюджетом. Продолжится сам, когда реклама пойдёт. false — пауза вручную или теста не на паузе.
+       * @description The rotation paused the test: no campaign with a budget is serving the SKU. It resumes by itself once advertising runs. false — paused by hand or not paused.
        * @default false
        */
       paused_by_ads: boolean
@@ -2434,32 +2434,32 @@ export interface components {
       created_at: string
       /**
        * Leader Variant Id
-       * @description Вариант с лучшим CTR среди набравших хотя бы один полный день. None, пока сравнивать нечего.
+       * @description The variant with the best CTR among those with at least one full day. None while there is nothing to compare.
        */
       leader_variant_id?: string | null
       /** Variants */
       variants?: components['schemas']['VariantMetrics'][]
       /**
        * History
-       * @description Каждая установка фото, новые сверху
+       * @description Every photo install, newest first
        */
       history?: components['schemas']['ExposureRow'][]
       /**
        * Rounds Completed
-       * @description Сколько кругов ротация уже прошла
+       * @description Rounds the rotation has completed
        * @default 0
        */
       rounds_completed: number
       /**
        * Active Since
-       * @description Когда текущее фото встало на карточку. Начало отсчёта слота в режиме «по времени»; null, пока ничего не установлено.
+       * @description When the current photo went up on the card. Where the slot is counted from in `time` mode; null while nothing is installed.
        */
       active_since?: string | null
-      /** @description Итог по тесту целиком — сумма строк таблицы */
+      /** @description Test summary — the sum of the table rows */
       summary: components['schemas']['AbTestSummary']
       /**
        * Campaigns
-       * @description Рекламные кампании, которые реально принесли тесту трафик, в порядке «Единая, Руч. поиск, Руч. полки, CPC». Одна кампания — страница выглядит как раньше; две и больше — появляются разрез и выбор РК. Кампания, выключенная посреди теста, остаётся здесь: её показы никуда не делись.
+       * @description Advertising campaigns that actually brought the test traffic, in the order Unified, Manual search, Manual shelves, CPC. One campaign — the page looks as before; two or more — the split and the campaign picker appear. A campaign switched off mid-test stays here: its impressions did not go anywhere.
        */
       campaigns?: components['schemas']['CampaignTotals'][]
     }
@@ -2471,7 +2471,7 @@ export interface components {
       /**
        * Keep Variant Id
        * Format: uuid
-       * @description Фото, которое останется на карточке
+       * @description The photo that stays on the card
        */
       keep_variant_id: string
     }
@@ -2509,17 +2509,17 @@ export interface components {
       finished_at: string | null
       /**
        * Stopped At
-       * @description Когда ротация в последний раз остановилась — пауза или завершение. Сбрасывается при возобновлении.
+       * @description When the rotation last stopped — a pause or a finish. Cleared on resume.
        */
       stopped_at?: string | null
       /**
        * Photo Conflict At
-       * @description Когда ротация обнаружила на карточке главное фото, которое она не устанавливала: значит, карточку поменяли вручную. Тест остановлен и сам не возобновится — трафик с чужого фото ни одному варианту не принадлежит. null, если такого не было.
+       * @description When the rotation found a main photo on the card that it had not installed: the card was changed by hand. The test is stopped and will not resume by itself — traffic on a foreign photo belongs to no variant. null if that never happened.
        */
       photo_conflict_at?: string | null
       /**
        * Paused By Ads
-       * @description Тест поставила на паузу ротация: на артикуле не идёт ни одна кампания с бюджетом. Продолжится сам, когда реклама пойдёт. false — пауза вручную или теста не на паузе.
+       * @description The rotation paused the test: no campaign with a budget is serving the SKU. It resumes by itself once advertising runs. false — paused by hand or not paused.
        * @default false
        */
       paused_by_ads: boolean
@@ -2530,7 +2530,7 @@ export interface components {
       created_at: string
       /**
        * Leader Variant Id
-       * @description Вариант с лучшим CTR среди набравших хотя бы один полный день. None, пока сравнивать нечего.
+       * @description The variant with the best CTR among those with at least one full day. None while there is nothing to compare.
        */
       leader_variant_id?: string | null
     }
@@ -2549,16 +2549,16 @@ export interface components {
     AbTestSettingsUpdate: {
       /** Name */
       name?: string | null
-      /** @description Сменить режим: показы, время или оба сразу */
+      /** @description Switch the mode: impressions, time, or both at once */
       trigger_mode?: components['schemas']['TriggerMode'] | null
       /**
        * Impression Budget
-       * @description Показов на вариант. Режимы «по показам» и «показы и время»
+       * @description Impressions per variant. Modes `impressions` and `either`
        */
       impression_budget?: number | null
       /**
        * Slot Minutes
-       * @description Минут на вариант. Режимы «по времени» и «показы и время»
+       * @description Minutes per variant. Modes `time` and `either`
        */
       slot_minutes?: number | null
     }
@@ -2584,85 +2584,85 @@ export interface components {
      *     The two durations answer different questions and are both reported. This
      *     one, ``measured_minutes``, is the exposure the ratios are divided over; the
      *     wall clock is derived by the client from ``started_at``/``finished_at``,
-     *     because for a live test it ends at «сейчас» and any stored value of it is
+     *     because for a live test it ends at "now" and any stored value of it is
      *     stale the moment it is serialised.
      */
     AbTestSummary: {
       /**
        * Views
-       * @description Показы карточки в рекламе за весь тест
+       * @description Card impressions in advertising over the whole test
        */
       views: number
       /**
        * Clicks
-       * @description Переходы в карточку за весь тест
+       * @description Card clicks over the whole test
        */
       clicks: number
       /**
        * Atbs
-       * @description Добавления в корзину за весь тест
+       * @description Adds to cart over the whole test
        */
       atbs: number
       /**
        * Orders
-       * @description Оформления заказов за весь тест
+       * @description Orders placed over the whole test
        */
       orders: number
       /**
        * Spend
-       * @description Расход рекламы на этот артикул за измеренные отрезки
+       * @description Advertising spend on this SKU over the measured intervals
        */
       spend: string
       /**
        * Click Through
-       * @description Клики / показы по тесту целиком, %
+       * @description Clicks / impressions over the whole test, %
        */
       click_through: string | null
       /**
        * Add To Cart
-       * @description Корзины / клики по тесту целиком, %
+       * @description Adds to cart / clicks over the whole test, %
        */
       add_to_cart: string | null
       /**
        * Order Rate
-       * @description Заказы / корзины по тесту целиком, %
+       * @description Orders / adds to cart over the whole test, %
        */
       order_rate: string | null
       /**
        * Measured Minutes
-       * @description Сумма длительностей засчитанных отрезков — время, за которое собраны эти числа. Меньше времени с запуска на всё, что тест простоял без рекламы или на паузе.
+       * @description Total length of the counted intervals — the time these figures were collected over. Less than the time since the start by every stretch the test stood without advertising or paused.
        */
       measured_minutes: number
       /**
        * Windows
-       * @description Сколько отрезков опроса зачтено
+       * @description How many polling intervals were counted
        */
       windows: number
       /**
        * First Window At
-       * @description Начало самого раннего засчитанного отрезка
+       * @description Start of the earliest counted interval
        */
       first_window_at?: string | null
       /**
        * Last Window At
-       * @description Конец самого позднего засчитанного отрезка — данные по этот час
+       * @description End of the latest counted interval — data up to this hour
        */
       last_window_at?: string | null
       /**
        * Rounds Completed
-       * @description Сколько кругов ротация уже прошла
+       * @description Rounds the rotation has completed
        * @default 0
        */
       rounds_completed: number
       /**
        * Variants Measured
-       * @description Сколько фото успели набрать показы
+       * @description Photos that have gathered impressions
        * @default 0
        */
       variants_measured: number
       /**
        * Variants Total
-       * @description Сколько фото в тесте
+       * @description Photos in the test
        * @default 0
        */
       variants_total: number
@@ -2680,7 +2680,7 @@ export interface components {
       /**
        * Detail
        * @description Deliberately says nothing about whether the address exists.
-       * @default Если такой адрес зарегистрирован, письмо с кодом отправлено.
+       * @default If this address is registered, a code is on its way.
        */
       detail: string
     }
@@ -2717,13 +2717,13 @@ export interface components {
       valid_for_days?: number | null
       /**
        * Subscription Days
-       * @description Term the code buys when redeemed — what «ключ на N дней» means.
+       * @description Term the code buys when redeemed — what "a code for N days" means.
        * @default 14
        */
       subscription_days: number
       /**
        * Max Workspaces
-       * @description Кабинет cap it sells; null = unlimited.
+       * @description Workspace cap it sells; null = unlimited.
        */
       max_workspaces?: number | null
       /**
@@ -2911,7 +2911,7 @@ export interface components {
      *     article's part of that campaign-day: an article that took 40 % of a
      *     campaign's day takes 40 % of each of its zones. normquery does carry an
      *     article, but a campaign-day split per article from it would send all of
-     *     an article's spend to «Поиск» whenever it had no search row of its own.
+     *     an article's spend to "Search" whenever it had no search row of its own.
      */
     AdvertisingSkuZone: {
       /**
@@ -3075,7 +3075,7 @@ export interface components {
       lane: string
       /**
        * Label
-       * @description Russian lane name, rendered verbatim.
+       * @description Lane name, rendered verbatim.
        */
       label: string
       /**
@@ -3100,7 +3100,7 @@ export interface components {
       percent: number
       /**
        * Message
-       * @description Russian status line shown under the lane.
+       * @description Status line shown under the lane.
        */
       message: string
       /**
@@ -3140,7 +3140,7 @@ export interface components {
     }
     /**
      * BalancePinInput
-     * @description Request body for marking a SKU row or a warehouse column «Не считать».
+     * @description Request body for marking a SKU row or a warehouse column "Don't count".
      */
     BalancePinInput: {
       kind: components['schemas']['BalancePinKind']
@@ -3246,7 +3246,7 @@ export interface components {
     Body_upload_variant_api_ab_tests__test_id__variants_post: {
       /**
        * File
-       * @description Изображение до 32 МБ
+       * @description An image up to 32 MB
        */
       file: string
     }
@@ -3345,64 +3345,64 @@ export interface components {
      * CampaignTotals
      * @description What one advertising campaign brought the test, over all of its photos.
      *
-     *     The branches under each figure of «Итог по тесту». They sum to the figure
+     *     The branches under each figure of "Test summary". They sum to the figure
      *     above them, because both are summed from the same interval rows — the split
      *     happens where the counters arrive, not where they are drawn.
      */
     CampaignTotals: {
       /**
        * Campaign Id
-       * @description Идентификатор кампании в WB; 0 — данные до разделения
+       * @description WB campaign id; 0 — data from before the split
        */
       campaign_id: number
       /**
        * Name
-       * @description Название кампании в кабинете WB
+       * @description Campaign name in the WB seller portal
        */
       name: string
       /**
        * Kind
-       * @description Тип кампании: uni | manual_search | manual_shelves | cpc | unknown
+       * @description Campaign kind: uni | manual_search | manual_shelves | cpc | unknown
        */
       kind: string
       /**
        * Views
-       * @description Показы, которые дала эта РК
+       * @description Impressions this campaign brought
        */
       views: number
       /**
        * Clicks
-       * @description Переходы в карточку с этой РК
+       * @description Card clicks from this campaign
        */
       clicks: number
       /**
        * Atbs
-       * @description Добавления в корзину с этой РК
+       * @description Adds to cart from this campaign
        */
       atbs: number
       /**
        * Orders
-       * @description Заказы с этой РК
+       * @description Orders from this campaign
        */
       orders: number
       /**
        * Spend
-       * @description Расход этой РК за засчитанные отрезки
+       * @description This campaign's spend over the counted intervals
        */
       spend: string
       /**
        * Click Through
-       * @description CTR этой РК по всему тесту, %
+       * @description This campaign's CTR over the whole test, %
        */
       click_through: string | null
       /**
        * Add To Cart
-       * @description Корзины / клики этой РК, %
+       * @description Adds to cart / clicks for this campaign, %
        */
       add_to_cart: string | null
       /**
        * Order Rate
-       * @description Заказы / корзины этой РК, %
+       * @description Orders / adds to cart for this campaign, %
        */
       order_rate: string | null
     }
@@ -3595,32 +3595,32 @@ export interface components {
     DayActionState: {
       /**
        * First Rk Type
-       * @description «Первая РК» campaign type, null when unset.
+       * @description First campaign type, null when unset.
        */
       first_rk_type?: ('uni' | 'manual_search' | 'manual_shelves' | 'cpc') | null
       /**
        * First Rk Budget
-       * @description First campaign «Бюджет рекламы», rubles.
+       * @description First campaign ad budget, rubles.
        */
       first_rk_budget?: number | null
       /**
        * Second Rk Type
-       * @description «Вторая РК» campaign type, null when unset.
+       * @description Second campaign type, null when unset.
        */
       second_rk_type?: ('uni' | 'manual_search' | 'manual_shelves' | 'cpc') | null
       /**
        * Second Rk Budget
-       * @description Second campaign «Бюджет рекламы», rubles.
+       * @description Second campaign ad budget, rubles.
        */
       second_rk_budget?: number | null
       /**
        * Price Change
-       * @description «Меняли цену?» — up (повысили) / down (понизили).
+       * @description Price changed? — up (raised) / down (lowered).
        */
       price_change?: ('up' | 'down') | null
       /**
        * Price Change Amount
-       * @description «На сколько» — the price difference, rubles.
+       * @description By how much — the price difference, rubles.
        */
       price_change_amount?: number | null
     }
@@ -3729,13 +3729,13 @@ export interface components {
       clicks: number
       /**
        * Click Through
-       * @description CTR за эту установку, %
+       * @description CTR for this install, %
        */
       click_through?: string | null
     }
     /**
      * ExposureRow
-     * @description One turn in «История действий»: a photo installed, and what it earned.
+     * @description One turn in "Rotation history": a photo installed, and what it earned.
      */
     ExposureRow: {
       /**
@@ -3751,23 +3751,23 @@ export interface components {
       image_url: string
       /**
        * Round Number
-       * @description Круг, к которому относится установка
+       * @description The round this install belongs to
        */
       round_number: number
       /**
        * Activated At
        * Format: date-time
-       * @description Когда WB принял загрузку
+       * @description When WB accepted the upload
        */
       activated_at: string
       /**
        * Deactivated At
-       * @description Когда фото сняли
+       * @description When the photo came down
        */
       deactivated_at?: string | null
       /**
        * Minutes
-       * @description Сколько минут фото простояло
+       * @description Minutes the photo stayed up
        */
       minutes?: number | null
       /**
@@ -3782,12 +3782,12 @@ export interface components {
       clicks: number
       /**
        * Click Through
-       * @description CTR за эту установку, %
+       * @description CTR for this install, %
        */
       click_through?: string | null
       /**
        * Campaigns
-       * @description Та же установка в разрезе РК; РК без трафика в ней отсутствуют
+       * @description The same install split by campaign; campaigns with no traffic are absent
        */
       campaigns?: components['schemas']['ExposureCampaignCounts'][]
     }
@@ -3798,7 +3798,7 @@ export interface components {
     FreshnessCheckOut: {
       /**
        * Outcome
-       * @description 'wb_empty' is the only one that means «нового ничего нет». 'probe_failed' means WB did not answer — an unanswered question, never to be rendered as reassurance. 'rate_blocked' means WB has the endpoint shut and we did not ask: also not reassurance, and the one case where waiting is genuinely the only option.
+       * @description 'wb_empty' is the only one that means "nothing new". 'probe_failed' means WB did not answer — an unanswered question, never to be rendered as reassurance. 'rate_blocked' means WB has the endpoint shut and we did not ask: also not reassurance, and the one case where waiting is genuinely the only option.
        * @enum {string}
        */
       outcome:
@@ -4017,7 +4017,7 @@ export interface components {
       email: string
       /**
        * Workspace Name
-       * @description The кабинет to open.
+       * @description The workspace to open.
        */
       workspace_name: string
     }
@@ -4065,12 +4065,12 @@ export interface components {
       awaited_report?: components['schemas']['ReportPeriodOut'] | null
       /** @description The newest weekly report whose rows the seller uploaded by hand and WB's API has not yet served; null when none stands. Its rows are in the statement and are compared with the API's when it serves them. */
       uploaded_report?: components['schemas']['ReportPeriodOut'] | null
-      /** @description The last recorded freshness verdict, or null when there is none — never checked, expired, or an unreadable record. All three mean «мы не проверяли», which is the honest answer. */
+      /** @description The last recorded freshness verdict, or null when there is none — never checked, expired, or an unreadable record. All three mean "we have not checked", which is the honest answer. */
       last_check?: components['schemas']['FreshnessCheckOut'] | null
     }
     /**
      * HarvestTriggerResponse
-     * @description Outcome of pressing «Обновить» — always an answer, never a wait.
+     * @description Outcome of pressing "Refresh" — always an answer, never a wait.
      */
     HarvestTriggerResponse: {
       /**
@@ -4115,7 +4115,7 @@ export interface components {
     }
     /**
      * HeatmapCatalogResponse
-     * @description The workspace's catalogue, for the «Категории» and «Артикулы» filters.
+     * @description The workspace's catalogue, for the "Categories" and "SKUs" filters.
      *
      *     Items come most-ordered first over the requested window.
      */
@@ -4250,11 +4250,11 @@ export interface components {
     }
     /**
      * HeatmapRow
-     * @description One row: an article, a category, a brand, a group — or the «Итого» line.
+     * @description One row: an article, a category, a brand, a group — or the "Total" line.
      *
      *     ``values`` runs parallel to :attr:`HeatmapResponse.columns`; ``None`` is a
      *     cell with nothing to show (not measured, not settled yet, or a ratio with
-     *     no denominator), which the page renders as «—» and leaves unpainted.
+     *     no denominator), which the page renders as "—" and leaves unpainted.
      */
     HeatmapRow: {
       /** Key */
@@ -4424,7 +4424,7 @@ export interface components {
      *
      *     ``order_sum`` is ``None`` for split (unified / dual-placement) campaigns
      *     whose order revenue cannot be attributed to a single zone — that cell
-     *     renders «—» and is not editable.
+     *     renders "—" and is not editable.
      *
      *     ``sku`` is the viewed card's own share of all of it (see
      *     :class:`MatrixAdSkuBase`).
@@ -4494,7 +4494,7 @@ export interface components {
      * @description The viewed card's own share of an ad bucket's metrics.
      *
      *     An advertising bucket is the whole campaign; these are the part of it
-     *     booked on the card being viewed. «Общая» and «Органика» are built from
+     *     booked on the card being viewed. "Overall" and "Organic" are built from
      *     them — the card's own day, and that day minus what the ads brought — and
      *     the carts/orders hover reports the rest as the associated share.
      */
@@ -4570,14 +4570,14 @@ export interface components {
      * @description All input facts for a single day column.
      *
      *     ``buckets`` holds only the ad buckets that delivered that day; missing ones
-     *     render «—». ``unclassified`` is the ad remainder (campaigns whose settings
-     *     are unsynced) — hidden and read-only, but summed into «Общая»/«Органика» and
+     *     render "—". ``unclassified`` is the ad remainder (campaigns whose settings
+     *     are unsynced) — hidden and read-only, but summed into "Overall"/"Organic" and
      *     the traffic-share denominator so those stay faithful.
      *     ``lagged_buyout_percent`` and ``stock`` are precomputed facts and read-only;
-     *     «Выкупы, ₽» is derived order-date («Заказы, ₽» x «Процент выкупа»).
+     *     "Buyouts, ₽" is derived order-date ("Orders, ₽" x "Buyout rate").
      *
      *     ``cell_overrides`` holds DISPLAY overrides for non-invertible cells (a
-     *     derived rollup, the empty «Каталог» zone, a tainted split) keyed by
+     *     derived rollup, the empty "Catalog" zone, a tainted split) keyed by
      *     ``"<bucket>:<metric>"`` — applied verbatim AFTER the formulas run, so every
      *     cell is editable without disturbing the dynamic recompute of input cells.
      */
@@ -4610,7 +4610,7 @@ export interface components {
      * MatrixDayCurrencies
      * @description What each money cell of one day column is counted in.
      *
-     *     Two sources, never merged: the order money («Заказы»/«Выкупы» in money) is
+     *     Two sources, never merged: the order money ("Orders"/"Buyouts" in money) is
      *     WB's own funnel sum — in the workspace's settlement currency — or, on a day WB
      *     served none, the order count at the day's price, in the prices' currency.
      *     The spend is in whatever each campaign is billed in, fixed at its creation,
@@ -4626,7 +4626,7 @@ export interface components {
       orders: string
       /**
        * Ads
-       * @description Spend currencies per bucket key; «total» is the card's whole day.
+       * @description Spend currencies per bucket key; 'total' is the card's whole day.
        */
       ads?: {
         [key: string]: string[]
@@ -4634,11 +4634,11 @@ export interface components {
     }
     /**
      * MatrixFunnelBase
-     * @description The editable organic-funnel inputs for one day (the «Общая» column).
+     * @description The editable organic-funnel inputs for one day (the "Overall" column).
      *
      *     ``seller_price``/``customer_price`` are the day's snapshot prices and are
-     *     editable; «Заказы, ₽» and «СПП» derive from them (read-only). Prices are
-     *     ``None`` (rendered «—», not editable) when no snapshot exists for the day.
+     *     editable; "Orders, ₽" and "WB discount" derive from them (read-only). Prices are
+     *     ``None`` (rendered "—", not editable) when no snapshot exists for the day.
      *
      *     ``has_funnel`` is ``False`` on days WB has not served a funnel row for yet
      *     (the CURRENT day — prices/stock are snapshotted at harvest time, but the
@@ -4700,7 +4700,7 @@ export interface components {
      *
      *     ``values`` is flat and day-major: the cell for day index ``d`` and bucket
      *     index ``b`` (within :data:`MATRIX_BUCKETS`) lives at
-     *     ``values[d * len(buckets) + b]``. ``None`` renders as «—» (metric not
+     *     ``values[d * len(buckets) + b]``. ``None`` renders as "—" (metric not
      *     defined / not computable for that cell).
      */
     MatrixMetricRow: {
@@ -4740,7 +4740,7 @@ export interface components {
     }
     /**
      * MatrixStockBase
-     * @description The day's stock totals (read-only facts, «Общая» column).
+     * @description The day's stock totals (read-only facts, "Overall" column).
      *
      *     Carried from the nearest stock snapshot (see the matrix builder); never
      *     editable — stock is a harvested fact, not a derivable input.
@@ -4773,7 +4773,7 @@ export interface components {
      *
      *     ``organization``, ``subscription`` and ``members`` are all ``None`` for a
      *     freshly registered account — which is exactly what tells the SPA to render
-     *     the «введите ключ активации» screen instead of the app.
+     *     the "Enter an activation code" screen instead of the app.
      *
      *     This response stays reachable for a caller every other route refuses. That
      *     is the point of it: an account with no organisation and a tenant past its
@@ -4921,12 +4921,12 @@ export interface components {
      * @description The product surfaces a manager can be granted or denied.
      *
      *     **One per page of the header**, and a grant opens everything on its page.
-     *     «Сводка» and «Тепловая карта» used to borrow other pages' grants — the
-     *     first asked for both «Мониторинг» and P&L, the second for «Мониторинг» and,
+     *     "Summary" and "Heatmap" used to borrow other pages' grants — the
+     *     first asked for both "Monitoring" and P&L, the second for "Monitoring" and,
      *     for its money, P&L — and that is what locked a manager out of pages and
      *     groups nobody meant to close. The owner now decides about each page they
      *     can see in the header, and the page shows what is on it, money included,
-     *     exactly as «Реклама» always did.
+     *     exactly as "Advertising" always did.
      *
      *     Groups are not a page: they are a control on four of them, so their routes
      *     open to anybody holding one of those four (:data:`GROUP_MODULES`).
@@ -5124,8 +5124,8 @@ export interface components {
      *     Separate from :attr:`PnlSkuReportResponse.totals` on purpose. ``totals`` is
      *     the full reconciled window (Σ rows + unallocated, to the kopeck — a tested
      *     invariant). This is what the five cards show, and its four per-SKU figures
-     *     drop the SKUs the seller marked «Не включать в общий счёт». Account-level
-     *     money («Прочие удержания») has no SKU, so it is never affected by a mark.
+     *     drop the SKUs the seller marked "Exclude from total". Account-level
+     *     money (other deductions) has no SKU, so it is never affected by a mark.
      */
     PnlDashboard: {
       /** Sales */
@@ -5286,7 +5286,7 @@ export interface components {
      * PnlSkuRow
      * @description One SKU's slice of the window, every money figure in the row currency.
      *
-     *     Percentages are shares of :attr:`revenue_paid` (net «Продажи - Возвраты»),
+     *     Percentages are shares of :attr:`revenue_paid` (net sales minus returns),
      *     matching the reference workbook's convention.
      */
     PnlSkuRow: {
@@ -5551,7 +5551,7 @@ export interface components {
      *     ending a session needs the family id and nothing else, and a response DTO is
      *     where a secret would escape if one ever could.
      *
-     *     ``user_agent`` travels raw. Turning it into «Chrome на macOS» is the SPA's
+     *     ``user_agent`` travels raw. Turning it into "Chrome on macOS" is the SPA's
      *     job: it is presentation, it changes with every browser release, and a string
      *     the parser does not recognise should be shown as nothing rather than as a
      *     confident guess about a device somebody is deciding whether to trust.
@@ -5605,7 +5605,7 @@ export interface components {
     SettlementCurrencyResponse: {
       /**
        * Currency
-       * @description ISO 4217 code WB settles this кабинет in (e.g. `KGS`); empty before the first settlement report, when the unit is not yet known.
+       * @description ISO 4217 code WB settles this workspace in (e.g. `KGS`); empty before the first settlement report, when the unit is not yet known.
        */
       currency: string
     }
@@ -5768,7 +5768,7 @@ export interface components {
       nm_id: number
       /**
        * Vendor Code
-       * @description Seller article code (WB 'Артикул продавца').
+       * @description Seller article code (WB's vendor code).
        */
       vendor_code?: string | null
       /**
@@ -5790,7 +5790,7 @@ export interface components {
       }
       /**
        * Day Actions
-       * @description Per-day manager action rows («Действия»: РК toggles + budgets, price change), keyed by day; untouched days are absent.
+       * @description Per-day manager action rows ("Actions": campaign toggles + budgets, price change), keyed by day; untouched days are absent.
        */
       day_actions?: {
         [key: string]: components['schemas']['DayActionState']
@@ -5798,7 +5798,7 @@ export interface components {
       window: components['schemas']['MetricWindow']
       /**
        * Price Currency
-       * @description Currency of the prices and of every sum valued at them (orders, buyouts) — what WB's prices API states, RUB even for a кабинет settled in KGS. Empty before the first labelled snapshot.
+       * @description Currency of the prices and of every sum valued at them (orders, buyouts) — what WB's prices API states, RUB even for a workspace settled in KGS. Empty before the first labelled snapshot.
        * @default
        */
       price_currency: string
@@ -5823,7 +5823,7 @@ export interface components {
     }
     /**
      * SkuExclusionInput
-     * @description Request body for marking a SKU «Не включать в общий счёт» (or clearing it).
+     * @description Request body for marking a SKU "Exclude from total" (or clearing it).
      */
     SkuExclusionInput: {
       /** Excluded */
@@ -5839,7 +5839,7 @@ export interface components {
     }
     /**
      * SkuGroupRead
-     * @description A seller-defined set of articles, shown as one «Группы» option.
+     * @description A seller-defined set of articles, shown as one "Groups" option.
      */
     SkuGroupRead: {
       /**
@@ -5874,7 +5874,7 @@ export interface components {
       nm_id: number
       /**
        * Vendor Code
-       * @description Seller article code (WB 'Артикул продавца').
+       * @description Seller article code (WB's vendor code).
        */
       vendor_code: string
       /**
@@ -5968,28 +5968,28 @@ export interface components {
     SkuOption: {
       /**
        * Nm Id
-       * @description Артикул WB
+       * @description WB ID
        */
       nm_id: number
       /**
        * Vendor Code
-       * @description Артикул продавца
+       * @description Vendor code
        */
       vendor_code: string
       /**
        * Title
-       * @description Название карточки
+       * @description Product card title
        */
       title: string
       /**
        * Orders 7D
-       * @description Заказов за последнюю неделю
+       * @description Orders over the last week
        * @default 0
        */
       orders_7d: number
       /**
        * Has Ads
-       * @description Есть реклама за последнюю неделю
+       * @description Advertised over the last week
        * @default false
        */
       has_ads: boolean
@@ -6016,9 +6016,9 @@ export interface components {
      *     (``total_open_count`` … ``total_orders``) are ORDER-date facts from WB's
      *     analytics feed. The buyout/return figures are SALE-date facts from the
      *     Statistics ``supplier/sales`` records — real per-item money, which is what
-     *     makes ``total_buyout_sum`` match the manager's Excel «Выкупы, ₽».
+     *     makes ``total_buyout_sum`` match the manager's Excel "Buyouts, ₽".
      *
-     *     Consequently there is deliberately **no «Процент выкупа» here**. That metric
+     *     Consequently there is deliberately **no "Buyout rate" here**. That metric
      *     is ``buyouts / (buyouts + refusals-at-pickup)`` over a LAGGED cohort window
      *     and lives on the SKU matrix (``buyout_percent``). It cannot be answered for
      *     this endpoint's arbitrary window: refusals never become sale records, and
@@ -6036,7 +6036,7 @@ export interface components {
       nm_id: number
       /**
        * Vendor Code
-       * @description Seller article code (WB 'Артикул продавца').
+       * @description Seller article code (WB's vendor code).
        */
       vendor_code?: string | null
       /**
@@ -6081,7 +6081,7 @@ export interface components {
       total_buyout_sum: number
       /**
        * Total Return Count
-       * @description Post-purchase returns recorded in the window (sale-date) — a buyer sending an item back AFTER buying it. NOT a refusal at pickup (WB `cancelCount`), which never becomes a sale record and drives «Процент выкупа» instead.
+       * @description Post-purchase returns recorded in the window (sale-date) — a buyer sending an item back AFTER buying it. NOT a refusal at pickup (WB `cancelCount`), which never becomes a sale record and drives the buyout rate instead.
        */
       total_return_count: number
       /**
@@ -6161,7 +6161,7 @@ export interface components {
       chrt_id: number
       /**
        * Tech Size
-       * @description Human size label (WB 'Размер вещи'); None if not yet synced.
+       * @description Human size label (WB's item size); None if not yet synced.
        */
       tech_size?: string | null
       /** Warehouse Name */
@@ -6229,7 +6229,7 @@ export interface components {
      * StockRangeResponse
      * @description Every day of the analysis window, oldest first.
      *
-     *     Feeds the «Остатки по складам» ribbon, which renders one column group per
+     *     Feeds the "Stock by warehouse" ribbon, which renders one column group per
      *     day and scrolls sideways through them. EVERY calendar day of the window is
      *     present, including the ones WB never reported — a missing day is an empty
      *     breakdown rather than a gap in the list, so the ribbon's columns and the
@@ -6255,7 +6255,7 @@ export interface components {
       chrt_id: number
       /**
        * Tech Size
-       * @description Human size label (WB 'Размер вещи'); None if not yet synced.
+       * @description Human size label (WB's item size); None if not yet synced.
        */
       tech_size?: string | null
       /** Quantity */
@@ -6345,8 +6345,8 @@ export interface components {
      * SummaryKpi
      * @description The headline cards.
      *
-     *     There is deliberately no fixed-cost line and no «Прибыль»: this service has
-     *     no source for taxes, salaries or rent, and a «Прибыль» computed without them
+     *     There is deliberately no fixed-cost line and no "Profit": this service has
+     *     no source for taxes, salaries or rent, and a "Profit" computed without them
      *     would be a margin wearing a more confident name.
      */
     SummaryKpi: {
@@ -6375,7 +6375,7 @@ export interface components {
     }
     /**
      * SummaryResponse
-     * @description Everything the «Сводка» page draws, for one window.
+     * @description Everything the "Summary" page draws, for one window.
      */
     SummaryResponse: {
       /**
@@ -6569,13 +6569,13 @@ export interface components {
      * @description One photo's figures inside ONE campaign.
      *
      *     Everything is recomputed within the campaign, the gap to the leader
-     *     included: a photo can lead «Единая» and trail «CPC», and that is precisely
+     *     included: a photo can lead "Unified" and trail "CPC", and that is precisely
      *     what the whole-test row cannot show.
      */
     VariantCampaignMetrics: {
       /**
        * Campaign Id
-       * @description Кампания, в которой посчитаны эти числа
+       * @description The campaign these figures were counted in
        */
       campaign_id: number
       /** Views */
@@ -6590,32 +6590,32 @@ export interface components {
       spend: string
       /**
        * Click Through
-       * @description Доля переходов в карточку, %
+       * @description Click-through rate, %
        */
       click_through: string | null
       /**
        * Add To Cart
-       * @description Доля добавлений в корзину, %
+       * @description Add-to-cart rate, %
        */
       add_to_cart: string | null
       /**
        * Order Rate
-       * @description Доля оформлений заказов, %
+       * @description Order rate, %
        */
       order_rate: string | null
       /**
        * Ctr Gap
-       * @description Отставание CTR от лучшего В ЭТОЙ РК, п.п.
+       * @description CTR gap to the best IN THIS CAMPAIGN, pp
        */
       ctr_gap: string | null
       /**
        * Ctr Result
-       * @description То же отставание в процентах
+       * @description The same gap, in percent
        */
       ctr_result: string | null
       /**
        * Rounds Played
-       * @description В скольких кругах эта РК приносила показы этому фото. Не круги теста: РК, выключенная на четвёртом круге, сыграла четыре.
+       * @description How many rounds this campaign brought this photo impressions in. Not the test's rounds: a campaign switched off in round four played four.
        * @default 0
        */
       rounds_played: number
@@ -6627,7 +6627,7 @@ export interface components {
     VariantExclusionUpdate: {
       /**
        * Excluded
-       * @description true — убрать из ротации, false — вернуть
+       * @description true — remove from the rotation, false — bring back
        */
       excluded: boolean
     }
@@ -6649,90 +6649,90 @@ export interface components {
       position: number
       /**
        * Image Url
-       * @description Где SPA заберёт само изображение
+       * @description Where the SPA fetches the image itself
        */
       image_url: string
       /**
        * Is Active
-       * @description Это фото сейчас стоит на карточке
+       * @description This photo is on the card right now
        */
       is_active: boolean
       /**
        * Is Original
-       * @description Главное фото теста — эталон, с которым сравниваются остальные; позиция 0
+       * @description The main photo — the baseline the others are compared with; position 0
        * @default false
        */
       is_original: boolean
       /**
        * Is Excluded
-       * @description Убрано из ротации: в следующих кругах не участвует, метрики сохранены
+       * @description Removed from the rotation: sits out the next rounds, metrics kept
        * @default false
        */
       is_excluded: boolean
       /**
        * Rounds Played
-       * @description В скольких кругах фото участвовало
+       * @description How many rounds the photo took part in
        * @default 0
        */
       rounds_played: number
       /**
        * Ctr Gap
-       * @description Отставание CTR от лучшего, в процентных пунктах
+       * @description CTR gap to the best, in percentage points
        */
       ctr_gap?: string | null
       /**
        * Ctr Result
-       * @description То же отставание относительно лучшего, в процентах
+       * @description The same gap relative to the best, in percent
        */
       ctr_result?: string | null
       /**
        * Click Through
-       * @description Доля переходов в карточку, %
+       * @description Click-through rate, %
        */
       click_through: string | null
       /**
        * Add To Cart
-       * @description Доля добавлений в корзину, %
+       * @description Add-to-cart rate, %
        */
       add_to_cart: string | null
       /**
        * Order Rate
-       * @description Доля оформлений заказов, %
+       * @description Order rate, %
        */
       order_rate: string | null
       /**
        * Views
-       * @description Показы карточки в выдаче
+       * @description Card impressions in search results
        */
       views: number
       /**
        * Clicks
-       * @description Переходы в карточку
+       * @description Card clicks
        */
       clicks: number
       /**
        * Atbs
-       * @description Добавления в корзину
+       * @description Adds to cart
        */
       atbs: number
       /**
        * Orders
-       * @description Оформления заказов
+       * @description Orders placed
        */
       orders: number
       /**
        * Spend
-       * @description Расход на рекламу за дни этого варианта
+       * @description Advertising spend over this variant's days
        */
       spend: string
       /**
        * Days Measured
-       * @description Сколько полных дней зачтено этому фото
+       * @description Full days credited to this photo
        */
       days_measured: number
       /**
        * Campaigns
-       * @description Те же метрики отдельно по каждой рекламной кампании, в порядке «Единая, Руч. поиск, Руч. полки, CPC». Пусто у теста без измерений.
+       * @description The same metrics for each advertising campaign separately, in the order Unified, Manual search, Manual shelves, CPC. Empty for a test with no measurements.
        */
       campaigns?: components['schemas']['VariantCampaignMetrics'][]
     }
@@ -8089,7 +8089,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description No such account or кабинет. */
+      /** @description No such account or workspace. */
       404: {
         headers: {
           [name: string]: unknown
@@ -8316,7 +8316,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description A read-only role, or a guest in another company's кабинет. */
+      /** @description A read-only role, or a guest in another company's workspace. */
       403: {
         headers: {
           [name: string]: unknown
@@ -8868,7 +8868,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -8918,7 +8918,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -8968,7 +8968,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -9159,7 +9159,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -9210,7 +9210,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -9308,7 +9308,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -9477,7 +9477,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Per-SKU P&L rows for the window («По артикулам»). */
+      /** @description Per-SKU P&L rows for the window ("By SKU"). */
       200: {
         headers: {
           [name: string]: unknown
@@ -9523,7 +9523,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Per-size P&L rows for one article («подтаблица размеров»). */
+      /** @description Per-size P&L rows for one SKU (the size sub-table). */
       200: {
         headers: {
           [name: string]: unknown
@@ -9568,7 +9568,7 @@ export interface operations {
       }
     }
     responses: {
-      /** @description SKU marked «Не включать в общий счёт», or cleared. */
+      /** @description SKU marked "Exclude from total", or cleared. */
       204: {
         headers: {
           [name: string]: unknown
@@ -9828,7 +9828,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -9876,7 +9876,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Подписка истекла — доступ только для чтения. */
+      /** @description Subscription expired — read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -10004,7 +10004,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Another upload of this кабинет is still being read. */
+      /** @description Another upload of this workspace is still being read. */
       409: {
         headers: {
           [name: string]: unknown
@@ -10050,7 +10050,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description No such upload in this кабинет. */
+      /** @description No such upload in this workspace. */
       404: {
         headers: {
           [name: string]: unknown
@@ -10080,7 +10080,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description The active кабинет's settlement currency, or empty. */
+      /** @description The active workspace's settlement currency, or empty. */
       200: {
         headers: {
           [name: string]: unknown
@@ -10117,7 +10117,7 @@ export interface operations {
   list_tests_api_ab_tests_get: {
     parameters: {
       query?: {
-        /** @description Поиск по названию и артикулам */
+        /** @description Search by name, WB ID and vendor code */
         q?: string | null
       }
       header?: {
@@ -10138,7 +10138,7 @@ export interface operations {
           'application/json': components['schemas']['AbTestRead'][]
         }
       }
-      /** @description Не аутентифицирован */
+      /** @description Not authenticated */
       401: {
         headers: {
           [name: string]: unknown
@@ -10181,14 +10181,14 @@ export interface operations {
           'application/json': components['schemas']['AbTestRead']
         }
       }
-      /** @description Не аутентифицирован */
+      /** @description Not authenticated */
       401: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
@@ -10209,7 +10209,7 @@ export interface operations {
   search_skus_api_ab_tests_skus_get: {
     parameters: {
       query?: {
-        /** @description Часть артикула WB, артикула продавца или названия */
+        /** @description Part of the WB ID, vendor code or title */
         q?: string
       }
       header?: {
@@ -10230,7 +10230,7 @@ export interface operations {
           'application/json': components['schemas']['SkuOption'][]
         }
       }
-      /** @description Не аутентифицирован */
+      /** @description Not authenticated */
       401: {
         headers: {
           [name: string]: unknown
@@ -10271,7 +10271,7 @@ export interface operations {
           'application/json': components['schemas']['AbTestDetail']
         }
       }
-      /** @description Тест не найден */
+      /** @description Test not found */
       404: {
         headers: {
           [name: string]: unknown
@@ -10310,14 +10310,14 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест не найден */
+      /** @description Test not found */
       404: {
         headers: {
           [name: string]: unknown
@@ -10362,28 +10362,28 @@ export interface operations {
           'application/json': components['schemas']['AbTestRead']
         }
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест не найден */
+      /** @description Test not found */
       404: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест уже завершён */
+      /** @description The test is already finished */
       409: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Настройка не от того режима */
+      /** @description A setting from the other mode */
       422: {
         headers: {
           [name: string]: unknown
@@ -10419,28 +10419,28 @@ export interface operations {
           'application/json': components['schemas']['AbTestRead']
         }
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест не найден */
+      /** @description Test not found */
       404: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Переход невозможен в текущем статусе */
+      /** @description Not possible from the current status */
       409: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Неизвестный статус */
+      /** @description Unknown status */
       422: {
         headers: {
           [name: string]: unknown
@@ -10476,21 +10476,21 @@ export interface operations {
           'application/json': components['schemas']['AbTestDetail']
         }
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест или фото не найдено */
+      /** @description Test or photo not found */
       404: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест не запущен и не на паузе */
+      /** @description The test is neither running nor paused */
       409: {
         headers: {
           [name: string]: unknown
@@ -10511,7 +10511,7 @@ export interface operations {
   upload_variant_api_ab_tests__test_id__variants_post: {
     parameters: {
       query?: {
-        /** @description Загрузить как главное фото карточки */
+        /** @description Upload as the card's main photo */
         main?: boolean
       }
       header?: {
@@ -10538,28 +10538,28 @@ export interface operations {
           'application/json': components['schemas']['AbTestDetail']
         }
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест не найден */
+      /** @description Test not found */
       404: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Достигнут предел в 10 фото, или главное фото уже загружено */
+      /** @description The 10-photo limit is reached, or a main photo is already uploaded */
       409: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Файл не является поддерживаемым изображением */
+      /** @description The file is not a supported image */
       422: {
         headers: {
           [name: string]: unknown
@@ -10590,21 +10590,21 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест или вариант не найден */
+      /** @description Test or variant not found */
       404: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Фото сейчас стоит на карточке */
+      /** @description The photo is on the card right now */
       409: {
         headers: {
           [name: string]: unknown
@@ -10650,21 +10650,21 @@ export interface operations {
           'application/json': components['schemas']['AbTestDetail']
         }
       }
-      /** @description Доступ только для чтения */
+      /** @description Read-only access */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Тест или вариант не найден */
+      /** @description Test or variant not found */
       404: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Это последнее фото в ротации */
+      /** @description The last photo in the rotation */
       409: {
         headers: {
           [name: string]: unknown
@@ -10685,7 +10685,7 @@ export interface operations {
   get_variant_image_api_ab_tests__test_id__variants__variant_id__image_get: {
     parameters: {
       query?: {
-        /** @description thumb — уменьшенная копия для списков и таймлайна */
+        /** @description thumb — a small copy for lists and the timeline */
         size?: 'full' | 'thumb'
       }
       header?: {
@@ -10700,7 +10700,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Файл изображения */
+      /** @description The image file */
       200: {
         headers: {
           [name: string]: unknown
@@ -10709,7 +10709,7 @@ export interface operations {
           'image/*': unknown
         }
       }
-      /** @description Тест, вариант или файл не найден */
+      /** @description Test, variant or file not found */
       404: {
         headers: {
           [name: string]: unknown
@@ -10739,7 +10739,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Диапазон рассчитанных дней кабинета. */
+      /** @description The range of the workspace's settled days. */
       200: {
         headers: {
           [name: string]: unknown
@@ -10755,7 +10755,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Нет раздела «Сводка». */
+      /** @description No access to the summary. */
       403: {
         headers: {
           [name: string]: unknown
@@ -10790,7 +10790,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Сводные показатели кабинета за период. */
+      /** @description The workspace's summary figures for the period. */
       200: {
         headers: {
           [name: string]: unknown
@@ -10806,14 +10806,14 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Нет раздела «Сводка». */
+      /** @description No access to the summary. */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Период инвертирован или длиннее допустимого. */
+      /** @description The period is inverted or longer than allowed. */
       422: {
         headers: {
           [name: string]: unknown
@@ -10893,21 +10893,21 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Доступ только для чтения. */
+      /** @description Read-only access. */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Группа с таким названием уже есть. */
+      /** @description A group with this name already exists. */
       409: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Название пустое, артикулов нет в каталоге или достигнут лимит. */
+      /** @description The name is empty, an SKU is not in the catalog, or the limit is reached. */
       422: {
         headers: {
           [name: string]: unknown
@@ -10950,28 +10950,28 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Доступ только для чтения. */
+      /** @description Read-only access. */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Группа не найдена. */
+      /** @description Group not found. */
       404: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Группа с таким названием уже есть. */
+      /** @description A group with this name already exists. */
       409: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Название пустое, артикулов нет в каталоге или достигнут лимит. */
+      /** @description The name is empty, an SKU is not in the catalog, or the limit is reached. */
       422: {
         headers: {
           [name: string]: unknown
@@ -11008,14 +11008,14 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Доступ только для чтения. */
+      /** @description Read-only access. */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Группа не найдена. */
+      /** @description Group not found. */
       404: {
         headers: {
           [name: string]: unknown
@@ -11050,7 +11050,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Каталог кабинета для фильтров. */
+      /** @description The workspace catalog for the filters. */
       200: {
         headers: {
           [name: string]: unknown
@@ -11066,7 +11066,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Нет ни одного раздела с группами. */
+      /** @description No access to any page with groups. */
       403: {
         headers: {
           [name: string]: unknown
@@ -11183,14 +11183,14 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Доступ только для чтения. */
+      /** @description Read-only access. */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Артикула нет в каталоге кабинета или значение вне границ. */
+      /** @description The SKU is not in the workspace catalog, or the value is out of bounds. */
       422: {
         headers: {
           [name: string]: unknown
@@ -11253,7 +11253,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Доступ только для чтения. */
+      /** @description Read-only access. */
       403: {
         headers: {
           [name: string]: unknown
@@ -11339,7 +11339,7 @@ export interface operations {
         period?: 'day' | 'week' | 'month'
         /** @description What one row stands for. */
         group_by?: 'sku' | 'subject' | 'brand' | 'group'
-        /** @description WB «Предмет». */
+        /** @description WB categories. */
         subjects?: string[]
         /** @description Groups. */
         group_ids?: string[]
@@ -11355,7 +11355,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Тепловая карта за период. */
+      /** @description The heatmap for the period. */
       200: {
         headers: {
           [name: string]: unknown
@@ -11371,14 +11371,14 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Нет раздела «Тепловая карта». */
+      /** @description No access to the heatmap. */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Период инвертирован или длиннее допустимого. */
+      /** @description The period is inverted or longer than allowed. */
       422: {
         headers: {
           [name: string]: unknown
@@ -11399,7 +11399,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Дни, за которые у кабинета есть реклама. */
+      /** @description The days the workspace has advertising for. */
       200: {
         headers: {
           [name: string]: unknown
@@ -11415,7 +11415,7 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Нет раздела «Реклама». */
+      /** @description No access to advertising. */
       403: {
         headers: {
           [name: string]: unknown
@@ -11450,7 +11450,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Реклама кабинета за период. */
+      /** @description The workspace's advertising for the period. */
       200: {
         headers: {
           [name: string]: unknown
@@ -11466,14 +11466,14 @@ export interface operations {
         }
         content?: never
       }
-      /** @description Нет раздела «Реклама». */
+      /** @description No access to advertising. */
       403: {
         headers: {
           [name: string]: unknown
         }
         content?: never
       }
-      /** @description Период инвертирован или длиннее допустимого. */
+      /** @description The period is inverted or longer than allowed. */
       422: {
         headers: {
           [name: string]: unknown
