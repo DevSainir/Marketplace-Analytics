@@ -24,9 +24,9 @@ test("a guest visiting a protected page is sent to login and returned afterwards
   await expect(page).toHaveURL(/\/login\?redirect=/);
   expect(new URL(page.url()).searchParams.get("redirect")).toBe("/monitoring");
 
-  await page.getByPlaceholder("manager@company.ru").fill(CREDENTIALS.email);
+  await page.getByPlaceholder("manager@company.com").fill(CREDENTIALS.email);
   await page.getByPlaceholder("••••••••").fill(CREDENTIALS.password);
-  await page.getByRole("button", { name: "Войти" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(page).toHaveURL(/\/monitoring$/);
 });
@@ -36,12 +36,12 @@ test("wrong credentials keep the user on the form with a message", async ({
 }) => {
   await page.goto("/login");
 
-  await page.getByPlaceholder("manager@company.ru").fill(CREDENTIALS.email);
+  await page.getByPlaceholder("manager@company.com").fill(CREDENTIALS.email);
   await page.getByPlaceholder("••••••••").fill("definitely-not-the-password");
-  await page.getByRole("button", { name: "Войти" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
 
   await expect(
-    page.getByText(/Invalid email or password|Неверн/i),
+    page.getByText(/Wrong email or password/i),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
 });
@@ -55,7 +55,7 @@ test("the session survives a full page reload", async ({ signedIn: page }) => {
   await expect(page).toHaveURL(new RegExp(`${AFTER_LOGIN_PATH}$`));
   // The profile link is the header's authenticated-only affordance, and unlike
   // the nav links it is not hidden behind the burger menu.
-  await expect(page.getByLabel("Профиль")).toBeVisible();
+  await expect(page.getByLabel("Profile")).toBeVisible();
 });
 
 test("the refresh cookie is HttpOnly and scoped to the auth path", async ({
@@ -84,7 +84,7 @@ test("logging out ends the session for good", async ({ signedIn: page }) => {
   // Straight to the control: `ui-next` replaced the burger with a header that
   // carries its nav, the profile link and this button at every viewport, so
   // there is no longer a menu to open first.
-  await page.getByRole("button", { name: "Выйти" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
 
   await expect(page).toHaveURL(/\/login/);
 

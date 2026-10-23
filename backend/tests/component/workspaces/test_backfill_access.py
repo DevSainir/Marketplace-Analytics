@@ -32,12 +32,12 @@ _PROGRESS = BackfillStatusResponse(
     lanes=[
         BackfillLaneStatus(
             lane="funnel",
-            label="Воронка",
+            label="Sales funnel",
             state="running",
             done_units=30,
             total_units=180,
             percent=17,
-            message="Загружаем историю воронки.",
+            message="Loading funnel history.",
         )
     ],
 )

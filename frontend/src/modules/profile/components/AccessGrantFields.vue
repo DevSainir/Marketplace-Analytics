@@ -38,7 +38,7 @@ function toggleModule(key) {
 <template>
   <div class="flex flex-col gap-lg">
     <fieldset class="flex flex-col gap-sm">
-      <legend class="pf-legend">Уровень доступа</legend>
+      <legend class="pf-legend">Access level</legend>
       <div class="grid grid-cols-2 gap-sm phone:grid-cols-1">
         <label
           v-for="level in GRANT_LEVELS"
@@ -60,7 +60,7 @@ function toggleModule(key) {
     </fieldset>
 
     <fieldset class="flex flex-col gap-sm">
-      <legend class="pf-legend">Разделы</legend>
+      <legend class="pf-legend">Sections</legend>
       <label
         v-for="module in GRANT_MODULES"
         :key="module.key"

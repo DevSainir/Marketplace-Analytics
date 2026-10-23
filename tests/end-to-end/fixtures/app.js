@@ -42,9 +42,9 @@ const RATE_LIMIT_WINDOW_SECONDS = Number(
  */
 async function submitLogin(page) {
   await page.goto("/login");
-  await page.getByPlaceholder("manager@company.ru").fill(CREDENTIALS.email);
+  await page.getByPlaceholder("manager@company.com").fill(CREDENTIALS.email);
   await page.getByPlaceholder("••••••••").fill(CREDENTIALS.password);
-  await page.getByRole("button", { name: "Войти" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
 
   const landed = await page
     .waitForURL(new RegExp(`${AFTER_LOGIN_PATH}$`), { timeout: 15_000 })
@@ -57,7 +57,7 @@ async function submitLogin(page) {
     .first()
     .textContent()
     .catch(() => "");
-  return /too many requests|слишком много/i.test(message || "")
+  return /too many requests/i.test(message || "")
     ? "throttled"
     : "rejected";
 }
@@ -111,7 +111,7 @@ export const test = base.extend({
   signedIn: async ({ page }, use, testInfo) => {
     await page.goto("/login");
     await expect(
-      page.getByRole("heading", { name: "Вход в аккаунт" }),
+      page.getByRole("heading", { name: "Sign in to your account" }),
       "The app did not serve /login. Is the stack up and E2E_BASE_URL correct?",
     ).toBeVisible();
 

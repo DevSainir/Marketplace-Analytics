@@ -101,7 +101,7 @@ async def set_member_access(
 
     **Only when something actually changed.** Opening the form and pressing
     save writes the same grant back, and recording that produced entries saying
-    «Изменён доступ» about a change that did not happen — which turns a trail
+    "Access changed" about a change that did not happen — which turns a trail
     meant to be read into one that has to be searched. The comparison is made
     here rather than in the service because "was this worth recording" is a
     question about the audit trail, not about the membership.

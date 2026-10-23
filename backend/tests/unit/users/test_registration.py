@@ -111,7 +111,7 @@ async def test_a_password_from_a_public_breach_is_refused() -> None:
     with pytest.raises(ValidationError) as excinfo:
         await service.register(email="new@example.com", password="Password1!")
 
-    assert "утечках" in excinfo.value.message
+    assert "breaches" in excinfo.value.message
 
 
 async def test_a_password_not_in_the_corpus_registers_normally() -> None:
@@ -139,8 +139,8 @@ async def test_a_taken_email_is_refused_before_the_password_is_checked() -> None
 
 @pytest.mark.parametrize(
     "password",
-    ["alllowercase", "ALLUPPERCASE", "тольконижний", "ТОЛЬКОВЕРХНИЙ"],
-    ids=["latin-lower", "latin-upper", "cyrillic-lower", "cyrillic-upper"],
+    ["alllowercase", "ALLUPPERCASE", "ωμέγααλφάβητο", "ΩΜΕΓΑΑΛΦΑΒΗΤΟ"],
+    ids=["latin-lower", "latin-upper", "greek-lower", "greek-upper"],
 )
 def test_both_password_doors_apply_the_same_case_rule(password: str) -> None:
     """Registration and password reset share one validator.
@@ -165,9 +165,9 @@ def test_both_password_doors_apply_the_same_case_rule(password: str) -> None:
 def test_a_password_with_both_cases_satisfies_both_doors() -> None:
     """The mirror: a rule that refuses everything would pass the test above."""
     # Arrange / Act / Assert
-    assert UserRegisterRequest(email="a@example.com", password="ПравильныйПароль")
+    assert UserRegisterRequest(email="a@example.com", password="ΣωστόςΚωδικός")
     assert PasswordResetConfirmRequest(
-        email="a@example.com", code="123456", new_password="ПравильныйПароль"
+        email="a@example.com", code="123456", new_password="ΣωστόςΚωδικός"
     )
 
 

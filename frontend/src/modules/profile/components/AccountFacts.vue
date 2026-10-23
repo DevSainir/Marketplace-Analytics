@@ -13,54 +13,44 @@
  * the alignment does that work, and dividers on a four-item row read as a table
  * somebody forgot to finish.
  *
- * The plan LIMITS are deliberately absent. «2 / 5 кабинетов» invites the
+ * The plan LIMITS are deliberately absent. "2 / 5 workspaces" invites the
  * question "what happens at 5?" on a screen that cannot answer it, and the API
  * refuses the sixth one with a message that can.
  *
  * The subscription is absent for a different reason: it moved to the rail,
  * where it is visible from all three pages instead of only from this one.
  */
+import { plural } from '@/core/utils/format'
+
 defineProps({
   roleLabel: { type: String, default: '—' },
   workspaces: { type: Number, default: 0 },
   /** `null` for an account that may not see the roster. */
   managers: { type: Number, default: null },
 })
-
-/** «5 дней» / «2 дня» / «1 день» — the count decides the ending. */
-function plural(n, forms) {
-  const mod100 = n % 100
-  if (mod100 >= 11 && mod100 <= 14) return forms[2]
-  const mod10 = n % 10
-  if (mod10 === 1) return forms[0]
-  if (mod10 >= 2 && mod10 <= 4) return forms[1]
-  return forms[2]
-}
 </script>
 
 <template>
   <dl class="pf-facts">
     <div class="pf-fact">
-      <dt class="pf-fact__label">Доступ</dt>
+      <dt class="pf-fact__label">Access</dt>
       <dd class="pf-fact__value">{{ roleLabel }}</dd>
     </div>
 
     <div class="pf-fact">
-      <dt class="pf-fact__label">Кабинеты</dt>
+      <dt class="pf-fact__label">Workspaces</dt>
       <dd class="pf-fact__value">
         {{ workspaces }}
-        <span class="pf-fact__aside">
-          {{ plural(workspaces, ['подключён', 'подключено', 'подключено']) }}
-        </span>
+        <span class="pf-fact__aside">connected</span>
       </dd>
     </div>
 
     <div v-if="managers !== null" class="pf-fact">
-      <dt class="pf-fact__label">Команда</dt>
+      <dt class="pf-fact__label">Team</dt>
       <dd class="pf-fact__value">
         {{ managers }}
         <span class="pf-fact__aside">
-          {{ plural(managers, ['менеджер', 'менеджера', 'менеджеров']) }}
+          {{ plural(managers, ['manager', 'managers']) }}
         </span>
       </dd>
     </div>

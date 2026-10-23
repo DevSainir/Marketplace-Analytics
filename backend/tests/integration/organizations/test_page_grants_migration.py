@@ -1,10 +1,10 @@
-"""«Сводка» and «Тепловая карта» go exactly to who could open them (``d7f1a3c95e24``).
+"""The "Summary" and "Heatmap" grants go exactly to who could open them (``d7f1a3c95e24``).
 
-Before this migration «Сводка» opened on «Мониторинг» AND P&L, and «Тепловая
-карта» on «Мониторинг». The migration turns both into grants of their own, and
+Before this migration "Summary" opened on "Monitoring" AND P&L, and "Heatmap"
+on "Monitoring". The migration turns both into grants of their own, and
 the property that matters is that nobody's reach to a page changes on the
 deploy — above all, that a manager whose owner closed P&L to them does not find
-the workspace's revenue on «Сводка» the morning after.
+the workspace's revenue on "Summary" the morning after.
 
 Nothing below asserts on the SQL: each case seeds a membership or invitation the
 way the previous revision stored it, runs the one upgrade, and reads the list
@@ -93,7 +93,7 @@ def _organization(conn: sa.Connection) -> uuid.UUID:
     conn.execute(
         sa.text(
             "INSERT INTO organizations.organizations (id, name, is_primary) "
-            "VALUES (:id, 'Клиент', false)"
+            "VALUES (:id, 'Client', false)"
         ).bindparams(id=org_id)
     )
     return org_id
@@ -161,7 +161,7 @@ def _modules(conn: sa.Connection, table: str, row_id: uuid.UUID) -> set[str]:
 def test_each_page_goes_to_exactly_who_could_open_it(
     scratch: sa.Engine, table: str, before: list[str], gained: set[str]
 ) -> None:
-    """«Сводка» where both halves were held, «Тепловая карта» where «Мониторинг» was."""
+    """Summary where both halves were held, Heatmap where Monitoring was."""
     with scratch.begin() as conn:
         org_id = _organization(conn)
         seed = _manager if table == "memberships" else _invitation
@@ -174,7 +174,7 @@ def test_each_page_goes_to_exactly_who_could_open_it(
 
 
 def test_a_manager_without_pnl_does_not_gain_the_summary(scratch: sa.Engine) -> None:
-    """The case the rule exists for: P&L closed by the owner stays closed on «Сводка»."""
+    """The case the rule exists for: P&L closed by the owner stays closed on "Summary"."""
     with scratch.begin() as conn:
         row_id = _manager(conn, _organization(conn), ["monitoring", "ab_tests", "advertising"])
 

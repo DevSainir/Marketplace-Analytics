@@ -30,8 +30,8 @@ describe('BackfillNotice', () => {
       lanes: [lane('pnl', 'running', 42)],
     })
 
-    expect(wrapper.text()).toContain('Загружаем историю из WB')
-    expect(wrapper.text()).toContain('42 %')
+    expect(wrapper.text()).toContain('Loading history from WB')
+    expect(wrapper.text()).toContain('42%')
   })
 
   it('stays silent about lanes another page is built on', async () => {

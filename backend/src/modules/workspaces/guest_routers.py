@@ -72,7 +72,7 @@ async def list_grantable(_dev: DevAccess, session: DbSession) -> list[GuestWorks
     status_code=status.HTTP_201_CREATED,
     responses={
         **_DEV_ONLY_RESPONSES,
-        404: {"description": "No such account or кабинет."},
+        404: {"description": "No such account or workspace."},
         409: {"description": "The account is a dev."},
     },
 )

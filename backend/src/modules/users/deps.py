@@ -122,7 +122,7 @@ async def get_current_user(user_id: CurrentUserId, user_repo: UserRepoDep) -> Us
     """
     user = await user_repo.get_by_id(user_id)
     if user is None or not user.is_active:
-        raise AuthenticationError("Аккаунт отключён или больше не существует.")
+        raise AuthenticationError("Account disabled or no longer exists.")
     return user
 
 
@@ -146,7 +146,7 @@ async def require_dev_role(user: CurrentUser) -> User:
         PermissionDeniedError: If the user does not hold the ``dev`` role.
     """
     if user.role != ROLE_DEV:
-        raise PermissionDeniedError("Действие доступно только разработчику.")
+        raise PermissionDeniedError("Only a developer can do this.")
     return user
 
 
@@ -184,9 +184,7 @@ async def require_confirmed_email(user: CurrentUser) -> User:
     if not settings.email_confirmation_required:
         return user
     if user.email_confirmed_at is None:
-        raise PermissionDeniedError(
-            f"Подтвердите адрес электронной почты — мы отправили код на {user.email}."
-        )
+        raise PermissionDeniedError(f"Confirm your email address. We sent a code to {user.email}.")
     return user
 
 

@@ -122,7 +122,7 @@ async def test_administration_is_refused_to_an_account_with_no_organisation(
     login_as(role=EffectiveRole.USER, org=None)
 
     response = await client.post(
-        "/api/v1/workspaces", headers=auth_headers(user.id), json={"name": "Чужой"}
+        "/api/v1/workspaces", headers=auth_headers(user.id), json={"name": "Foreign"}
     )
 
     assert response.status_code == 403
@@ -131,11 +131,11 @@ async def test_administration_is_refused_to_an_account_with_no_organisation(
 async def test_the_owner_can_create_a_workspace(client: httpx.AsyncClient, dev_user: Any) -> None:
     """The dev role unlocks creation, answering 201 with the new workspace."""
     response = await client.post(
-        "/api/v1/workspaces", headers=auth_headers(dev_user.id), json={"name": "ООО Новый"}
+        "/api/v1/workspaces", headers=auth_headers(dev_user.id), json={"name": "New LLC"}
     )
 
     assert response.status_code == 201
-    assert response.json()["name"] == "ООО Новый"
+    assert response.json()["name"] == "New LLC"
     assert response.json()["is_primary"] is False
 
 
@@ -224,7 +224,7 @@ async def test_missing_workspace_header_is_400(client: httpx.AsyncClient, user: 
     # calls this API and it sets the header itself, so a missing one is a client
     # bug rather than something the reader can act on — and `detail` is rendered
     # to the user verbatim. The name still goes to the log, where it helps.
-    assert response.json()["detail"] == "Не выбран кабинет."
+    assert response.json()["detail"] == "No workspace selected."
 
 
 async def test_malformed_workspace_header_is_400(client: httpx.AsyncClient, user: Any) -> None:

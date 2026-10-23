@@ -54,7 +54,7 @@ def invitation_service(session: AsyncSession) -> InvitationService:
 
 async def persist_organization(session: AsyncSession, owner: User) -> Organization:
     """An organisation with ``owner`` at its head."""
-    org = await OrganizationRepository(session).create(name="ООО Ромашка")
+    org = await OrganizationRepository(session).create(name="Daisy LLC")
     await MembershipRepository(session).create(
         organization_id=org.id, user_id=owner.id, role=MemberRole.OWNER
     )

@@ -86,17 +86,17 @@ class PasswordChangeService:
         # bcrypt is CPU-bound (~100-300 ms); to_thread keeps the loop serving.
         if not await asyncio.to_thread(verify_password, current_password, user.hashed_password):
             logger.info("Password change refused for user %s: current password wrong.", user.id)
-            raise AuthenticationError("Текущий пароль неверен.")
+            raise AuthenticationError("Current password is wrong.")
 
         if current_password == new_password:
-            raise ValidationError("Новый пароль совпадает с текущим.")
+            raise ValidationError("New password matches the current one.")
 
         # Before the bcrypt cost, not after: no point spending 200 ms hashing a
         # password we are about to refuse. The check fails open, so a HIBP
         # outage costs a round trip and nothing else.
         if await self._breach_check.is_breached(new_password):
             raise ValidationError(
-                "Этот пароль встречался в публичных утечках данных. Придумайте другой."
+                "This password has appeared in public data breaches. Choose another."
             )
 
         hashed = await asyncio.to_thread(hash_password, new_password)

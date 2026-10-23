@@ -273,7 +273,7 @@ def test_a_head_inside_a_lapsed_company_is_not_a_guest_only() -> None:
 # --------------------------------------------------------------------------- #
 def _organization(*, is_primary: bool = False) -> Organization:
     """An unattached organisation row, for the pure fan-out rule."""
-    return Organization(id=uuid.uuid4(), name="ООО Тест", is_primary=is_primary)
+    return Organization(id=uuid.uuid4(), name="Test LLC", is_primary=is_primary)
 
 
 def test_a_paid_up_tenant_is_harvested() -> None:

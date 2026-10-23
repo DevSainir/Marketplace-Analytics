@@ -56,7 +56,7 @@ async def test_the_password_that_survives_is_the_one_bound_to_the_redeemed_code(
 async def test_asking_for_another_code_does_not_drop_the_pending_password() -> None:
     """A resend carries the candidate forward.
 
-    Otherwise «Отправить код ещё раз» would quietly discard the password the
+    Otherwise "Resend code" would quietly discard the password the
     person typed at signup and leave whatever the account was created with —
     which, in the attack above, is the attacker's.
     """

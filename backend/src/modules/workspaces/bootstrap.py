@@ -86,11 +86,11 @@ _BACKFILL_DELAY_SECONDS = 10 * 60
 #: The token kinds the first-run harvests read. Discovery reads content,
 #: analytics, promotion, prices and statistics; the finance walk reads finance
 #: (and content and analytics for its internal extras). A surface outside this
-#: set — «Вопросы и отзывы», «Чат», «Поставки» and the rest — unlocks nothing
+#: set — "Questions and reviews", "Chat", "Supplies" and the rest — unlocks nothing
 #: either harvest or any backfill lane could use.
 #:
 #: Observed on 2026-10-02: a `feedback` token added to a workspace
-#: whose history had loaded weeks earlier, reset all four lanes to «В очереди…»
+#: whose history had loaded weeks earlier, reset all four lanes to "Queued…"
 #: and re-walked the whole history — the shared WB budget and the worker's
 #: 768 MiB spent on rows already held.
 HARVEST_SURFACES: frozenset[TokenKind] = frozenset(
@@ -106,7 +106,7 @@ HARVEST_SURFACES: frozenset[TokenKind] = frozenset(
 
 #: Which backfill lanes a newly reachable surface is worth re-walking.
 #:
-#: A lane that ran without its token finished at once with «нет токена», so
+#: A lane that ran without its token finished at once with "no token", so
 #: the token arriving later is exactly when that lane has to run again — and
 #: only that lane: the others already hold their history. Content brings the
 #: funnel and advertising lanes with it because the catalogue lane starts both
@@ -127,7 +127,7 @@ LANES_BY_SURFACE: dict[TokenKind, tuple[BackfillLane, ...]] = {
 #: harvest it represents is still running.
 #:
 #: Claimed per harvest and per lane rather than once per workspace: an owner
-#: who pastes «Аналитика» and then «Финансы» five minutes later must still get
+#: who pastes "Analytics" and then "Finance" five minutes later must still get
 #: the P&L lane the second save unlocked.
 _CLAIM_TTL_SECONDS = 15 * 60
 

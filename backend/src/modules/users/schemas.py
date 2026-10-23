@@ -35,20 +35,20 @@ def _validate_password(value: str) -> str:
         The password unchanged.
 
     Raises:
-        ValueError: Rendered to the client by the 422 handler, in Russian.
+        ValueError: Rendered to the client by the 422 handler.
     """
     # bcrypt reads only the first 72 BYTES and silently ignores the rest, so a
     # longer password would give a false sense of extra entropy. Bytes, not
-    # characters: Cyrillic is two bytes apiece and reaches the limit at ~36.
+    # characters: Cyrillic or Greek is two bytes apiece and reaches the limit at 36.
     if len(value.encode("utf-8")) > PASSWORD_MAX_BYTES:
-        raise UserInputError(f"Пароль слишком длинный (максимум {PASSWORD_MAX_BYTES} байт).")
-    # `str.islower`/`isupper` are Unicode-aware, so «пароль» and «ПАРОЛЬ» count
-    # exactly as their Latin equivalents do. An all-Cyrillic password is a
-    # first-class one here and must not be refused for being Cyrillic.
+        raise UserInputError(f"Password is too long (max {PASSWORD_MAX_BYTES} bytes).")
+    # `str.islower`/`isupper` are Unicode-aware, so "ωμέγα" and "ΩΜΈΓΑ" count
+    # exactly as their Latin equivalents do. A password in any alphabet is a
+    # first-class one here and must not be refused for not being Latin.
     if not any(char.islower() for char in value):
-        raise UserInputError("Пароль должен содержать хотя бы одну строчную букву.")
+        raise UserInputError("Password needs at least one lowercase letter.")
     if not any(char.isupper() for char in value):
-        raise UserInputError("Пароль должен содержать хотя бы одну заглавную букву.")
+        raise UserInputError("Password needs at least one uppercase letter.")
     return value
 
 
@@ -124,7 +124,7 @@ class SessionRead(BaseModel):
     ending a session needs the family id and nothing else, and a response DTO is
     where a secret would escape if one ever could.
 
-    ``user_agent`` travels raw. Turning it into «Chrome на macOS» is the SPA's
+    ``user_agent`` travels raw. Turning it into "Chrome on macOS" is the SPA's
     job: it is presentation, it changes with every browser release, and a string
     the parser does not recognise should be shown as nothing rather than as a
     confident guess about a device somebody is deciding whether to trust.
@@ -210,6 +210,6 @@ class AcceptedResponse(BaseModel):
     """
 
     detail: str = Field(
-        default="Если такой адрес зарегистрирован, письмо с кодом отправлено.",
+        default="If this address is registered, a code is on its way.",
         description="Deliberately says nothing about whether the address exists.",
     )

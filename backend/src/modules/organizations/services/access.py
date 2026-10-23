@@ -176,7 +176,7 @@ class OrganizationAccess:
                 fails the request closed instead of scoping a query to ``None``.
         """
         if self.organization_id is None:
-            raise PermissionDeniedError("Аккаунт не привязан к организации.")
+            raise PermissionDeniedError("This account has no company.")
         return self.organization_id
 
     @property

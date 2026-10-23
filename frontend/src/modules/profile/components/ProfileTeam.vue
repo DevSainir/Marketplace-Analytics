@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Команда» — the members list as a control room.
+ * "Team" — the members list as a control room.
  *
  * The old panel rendered the full grant editor inside every row: four controls
  * per manager, repeated. Five managers meant five copies of the same form and
@@ -17,7 +17,7 @@ import { levelLabel, moduleLabel } from '@/modules/profile/components/grantModul
 import { formatMoscowDate } from '@/core/utils/moscow'
 
 defineProps({
-  /** The team is still being read — until then «no managers» would be a guess. */
+  /** The team is still being read — until then "no managers" would be a guess. */
   loading: { type: Boolean, default: false },
   managers: { type: Array, default: () => [] },
   /** user_id currently being written, or 'invite'. */
@@ -38,11 +38,11 @@ function joined(iso) {
   <div class="pf-panel">
     <header class="pf-panel__head">
       <div class="min-w-0">
-        <h2 class="pf-panel__title">Команда</h2>
-        <p class="pf-panel__note">Доступы</p>
+        <h2 class="pf-panel__title">Team</h2>
+        <p class="pf-panel__note">Access</p>
       </div>
       <button v-if="canInvite" type="button" class="ui-btn ui-btn--primary" @click="emit('invite')">
-        Пригласить менеджера
+        Invite a manager
       </button>
     </header>
 
@@ -50,23 +50,23 @@ function joined(iso) {
     <DataState
       v-else-if="!managers.length"
       kind="empty"
-      text="В организации пока нет менеджеров"
-      hint="Приглашение выдаёт доступ сразу — менеджер входит уже с теми правами, которые вы выбрали."
+      text="No managers in the company yet"
+      hint="An invitation grants access at once — the manager signs in with the rights you chose."
     />
 
     <div v-else class="pf-grid" role="table">
       <div class="pf-grid__head" role="row">
-        <span role="columnheader">Сотрудник</span>
-        <span role="columnheader">Уровень</span>
-        <span role="columnheader">Разделы</span>
-        <span role="columnheader">В команде с</span>
-        <span role="columnheader" class="sr-only">Действия</span>
+        <span role="columnheader">Member</span>
+        <span role="columnheader">Level</span>
+        <span role="columnheader">Sections</span>
+        <span role="columnheader">On the team since</span>
+        <span role="columnheader" class="sr-only">Actions</span>
       </div>
 
       <div v-for="manager in managers" :key="manager.user_id" class="pf-grid__row" role="row">
         <span class="pf-cell pf-cell--who" role="cell">
           <span class="pf-who__mail" :title="manager.email">{{ manager.email }}</span>
-          <span class="pf-who__meta">менеджер</span>
+          <span class="pf-who__meta">manager</span>
         </span>
 
         <span class="pf-cell" role="cell">
@@ -79,7 +79,7 @@ function joined(iso) {
           <span v-for="key in manager.modules" :key="key" class="ui-badge is-soft">
             {{ moduleLabel(key) }}
           </span>
-          <span v-if="!manager.modules?.length" class="pf-who__meta">нет доступа</span>
+          <span v-if="!manager.modules?.length" class="pf-who__meta">no access</span>
         </span>
 
         <span class="pf-cell pf-who__meta" role="cell">{{ joined(manager.joined_at) }}</span>
@@ -91,7 +91,7 @@ function joined(iso) {
             :disabled="saving === manager.user_id"
             @click="emit('edit', manager)"
           >
-            Доступ
+            Access
           </button>
           <button
             type="button"

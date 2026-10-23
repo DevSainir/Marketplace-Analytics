@@ -68,7 +68,7 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
         # workspace has no content token" into a 403 three layers away: the
         # catalogue refresh caught it, fell back to yesterday's SKU list and
         # logged a warning, so one workspace ran on a three-week-old catalogue
-        # unnoticed, and «Запустить» on an A/B test failed with a raw
+        # unnoticed, and "Start" on an A/B test failed with a raw
         # integration error instead of the message that names the missing token.
         content=pick(TokenKind.CONTENT),
         analytics=pick(TokenKind.ANALYTICS),
@@ -82,7 +82,7 @@ def _resolve_bundle(workspace: Workspace, tokens: dict[str, str]) -> WorkspaceTo
         # That happened on the 2026-08-14 harvest — three workspaces each
         # reported «stocks-fbs withheld», polluting the signal that exists to
         # flag real WB outages. A workspace ships FBS only if it was given an
-        # explicit «Маркетплейс» token.
+        # explicit "Marketplace" token.
         marketplace=tokens.get(TokenKind.MARKETPLACE.value, ""),
         # Reference-only scopes, read by the `guide` capture. They DO fall back
         # to ``unified``, unlike marketplace: these feeds are account-wide, so a
@@ -141,15 +141,15 @@ class WorkspaceService:
             current = await self._workspaces.count_for_organization(organization_id)
             if current >= max_workspaces:
                 raise ValidationError(
-                    f"Достигнут лимит кабинетов ({max_workspaces}). "
-                    "Удалите один из текущих или продлите подписку."
+                    f"Workspace limit reached ({max_workspaces}). "
+                    "Remove a workspace or renew the subscription."
                 )
         # Names are unique platform-wide, so a collision with ANOTHER tenant's
         # workspace lands here too. That is deliberate today (see the model's
         # comment) and it does leak one bit — "this name is taken somewhere".
         # The message says only that, and never whose.
         if await self._workspaces.get_by_name(name) is not None:
-            raise ConflictError(f"Кабинет «{name}» уже существует.")
+            raise ConflictError(f'Workspace "{name}" already exists.')
         workspace = await self._workspaces.create(organization_id=organization_id, name=name)
         return WorkspaceRead.model_validate(workspace)
 
@@ -172,7 +172,7 @@ class WorkspaceService:
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
         if workspace is None or workspace.organization_id != organization_id:
-            raise NotFoundError("Кабинет не найден.")
+            raise NotFoundError("Workspace not found.")
         await self._workspaces.delete(workspace)
 
     async def update_settings(
@@ -190,7 +190,7 @@ class WorkspaceService:
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
         if workspace is None or workspace.organization_id != organization_id:
-            raise NotFoundError("Кабинет не найден.")
+            raise NotFoundError("Workspace not found.")
         await self._workspaces.set_ads_show_bonus(workspace, ads_show_bonus)
         return WorkspaceRead.model_validate(workspace)
 
@@ -235,12 +235,12 @@ class WorkspaceService:
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
         if workspace is None or workspace.organization_id != organization_id:
-            raise NotFoundError("Кабинет не найден.")
+            raise NotFoundError("Workspace not found.")
         allowed = self._allowed_kinds(workspace)
         for kind in payload.tokens:
             if kind not in allowed:
                 mode = "primary" if workspace.is_primary else "unified-token"
-                raise ValidationError(f"Токен «{kind}» не подходит для кабинета в режиме «{mode}».")
+                raise ValidationError(f'Token "{kind}" does not apply to a {mode} workspace.')
 
         for kind, token in payload.tokens.items():
             if token is None:
@@ -272,7 +272,7 @@ class WorkspaceService:
         """
         workspace = await self._workspaces.get_by_id(workspace_id)
         if workspace is None or workspace.organization_id != organization_id:
-            raise NotFoundError("Кабинет не найден.")
+            raise NotFoundError("Workspace not found.")
         configured = sorted(row.kind for row in await self._tokens.list_for_workspace(workspace_id))
         return WorkspaceTokensStatus(
             workspace_id=workspace_id,

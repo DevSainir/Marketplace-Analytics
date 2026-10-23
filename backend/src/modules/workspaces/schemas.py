@@ -21,9 +21,9 @@ class WorkspaceRead(BaseModel):
     id: uuid.UUID
     name: str
     is_primary: bool
-    #: Whether the SKU page renders «Рекламные кластеры» for this workspace.
+    #: Whether the SKU page renders "Search clusters" for this workspace.
     search_clusters_enabled: bool
-    #: Whether «Реклама» shows WB's promo bonus — the workspace's own setting.
+    #: Whether "Advertising" shows WB's promo bonus — the workspace's own setting.
     ads_show_bonus: bool
     created_at: datetime
     #: Another company's workspace, opened read-only to this head by a dev. The
@@ -100,8 +100,8 @@ class WorkspaceTokenBundle(BaseModel):
     advertising: str = ""
     prices: str = ""
     statistics: str = ""
-    #: «Финансы». The realization report's home since 2026-09-22: WB switched
-    #: off the statistics-surface `reportDetailByPeriod` on 15.07.2026, and its
+    #: "Finance". The realization report's home since 2026-09-22: WB switched
+    #: off the statistics-surface `reportDetailByPeriod` on 15 Jul 2026, and its
     #: replacement is `POST /api/finance/v1/sales-reports/*`. Falls back to
     #: ``unified`` like the others; an empty string means this workspace has no
     #: P&L at all, which the harvest reports rather than ignores.
@@ -119,7 +119,7 @@ class BackfillLaneStatus(BaseModel):
     """One lane of a workspace's history walk, as the profile renders it."""
 
     lane: str = Field(description="Lane key: catalogue | funnel | advertising | pnl.")
-    label: str = Field(description="Russian lane name, rendered verbatim.")
+    label: str = Field(description="Lane name, rendered verbatim.")
     state: str = Field(description="pending | running | done | failed.")
     done_units: int = Field(description="Units walked so far (days, windows, pages).")
     total_units: int = Field(
@@ -130,7 +130,7 @@ class BackfillLaneStatus(BaseModel):
         )
     )
     percent: int = Field(description="0-100, clamped; 100 whenever the lane is done.")
-    message: str = Field(description="Russian status line shown under the lane.")
+    message: str = Field(description="Status line shown under the lane.")
     updated_at: datetime | None = Field(
         default=None, description="Last tick — a stalled lane is visible by this going stale."
     )
@@ -153,7 +153,7 @@ class GuestGrantRequest(BaseModel):
     """
 
     email: str = Field(min_length=3, max_length=320, description="The head's login email.")
-    workspace_name: str = Field(min_length=1, max_length=256, description="The кабинет to open.")
+    workspace_name: str = Field(min_length=1, max_length=256, description="The workspace to open.")
 
 
 class GuestWorkspaceOption(BaseModel):

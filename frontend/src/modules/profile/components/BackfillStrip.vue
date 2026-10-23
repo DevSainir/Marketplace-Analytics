@@ -1,13 +1,13 @@
 <script setup>
 /**
- * «Загружаем историю» — the four lanes of a new workspace's backfill.
+ * "Loading history" — the four lanes of a new workspace's backfill.
  *
  * It polls one endpoint and stops when nothing is moving. It shows LANES
  * rather than one bar because WB serves history at three very different
  * speeds, and a combined bar would sit under 15% for most of a day and be
  * wrong about all four.
  *
- * It is a strip of four columns inside «Обзор» rather than a full-width block
+ * It is a strip of four columns inside "Overview" rather than a full-width block
  * of its own, because on this page it is one fact among several rather than
  * the only thing on the screen.
  */
@@ -73,10 +73,9 @@ onBeforeUnmount(stop)
 <template>
   <section v-if="visible" class="pf-backfill">
     <header class="pf-backfill__head">
-      <h3 class="pf-backfill__title">Загружаем историю Wildberries</h3>
+      <h3 class="pf-backfill__title">Loading Wildberries history</h3>
       <p class="pf-backfill__note">
-        Это происходит один раз, само — нажимать ничего не нужно. Финансовые отчёты WB отдаёт
-        медленнее остального.
+        Runs once, on its own — nothing to press. WB serves financial reports slower than the rest.
       </p>
     </header>
 
@@ -87,9 +86,9 @@ onBeforeUnmount(stop)
           <span class="pf-lane__state" :class="toneFor(lane.state)">
             {{
               lane.state === 'done'
-                ? 'готово'
+                ? 'done'
                 : lane.state === 'failed'
-                  ? 'ошибка'
+                  ? 'failed'
                   : `${lane.percent ?? 0}%`
             }}
           </span>

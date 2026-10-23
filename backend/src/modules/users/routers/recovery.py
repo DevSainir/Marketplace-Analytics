@@ -80,7 +80,7 @@ async def confirm_email(
         # One message for every failure. Distinguishing "wrong code" from "no
         # such address" here would hand back exactly what the 202 above spends
         # effort withholding.
-        raise ValidationError("Неверный или просроченный код.")
+        raise ValidationError("Invalid or expired code.")
     tokens = await auth.issue_session(user_id=account.id)
     _set_refresh_cookie(response, tokens)
     return TokenPairResponse(
@@ -149,7 +149,7 @@ async def request_password_reset(
         # deployment-wide switch reveals nothing about any account, and is
         # observable anyway by submitting a code and reading `/confirm`'s
         # answer. So the honest failure is the better trade.
-        raise ValidationError("Восстановление пароля временно недоступно.")
+        raise ValidationError("Password recovery is temporarily unavailable.")
     try:
         await recovery.request_password_reset(email=payload.email)
     except Exception:
@@ -204,12 +204,12 @@ async def reset_password(
     likely to be looking.
     """
     if not settings.password_reset_enabled:
-        raise ValidationError("Восстановление пароля временно недоступно.")
+        raise ValidationError("Password recovery is temporarily unavailable.")
     user = await recovery.reset_password(
         email=payload.email, code=payload.code, new_password=payload.new_password
     )
     if user is None:
-        raise ValidationError("Неверный или просроченный код.")
+        raise ValidationError("Invalid or expired code.")
     revoked = await service.revoke_all_sessions(user_id=user.id)
     access = await resolve_access(session, user_id=user.id, platform_role=user.role)
     await audit.record(
@@ -222,4 +222,4 @@ async def reset_password(
         metadata={"via": "password-reset", "sessions_revoked": revoked},
     )
     response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path)
-    return AcceptedResponse(detail="Пароль изменён. Войдите заново.")
+    return AcceptedResponse(detail="Password changed. Sign in again.")

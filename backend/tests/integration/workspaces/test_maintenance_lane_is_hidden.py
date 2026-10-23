@@ -2,7 +2,7 @@
 
 ``funnel_sums`` re-walks the funnel of workspaces whose history loaded long ago,
 to fill the sums first stored on 2026-09-29. It reports into the same table the
-profile reads «Загружаем историю» from, and a seller seeing that strip come back
+profile reads "Loading history" from, and a seller seeing that strip come back
 months after signup would reasonably think their data had been lost.
 """
 
@@ -33,7 +33,7 @@ async def test_a_running_maintenance_lane_shows_nothing_and_keeps_nothing_pollin
         workspace_id=workspace.id,
         lane=BackfillLane.FUNNEL_SUMS,
         state=BackfillState.RUNNING,
-        message="Собираем воронку: 40 из 365 дней.",
+        message="Collecting the funnel: 40 of 365 days.",
     )
 
     progress = await read_progress(db_session, workspace.id)

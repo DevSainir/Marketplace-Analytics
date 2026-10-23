@@ -136,7 +136,7 @@ async def create_workspace(
     responses={
         200: {"description": "The workspace with its settings changed."},
         401: {"description": "Missing or invalid access token."},
-        403: {"description": "A read-only role, or a guest in another company's кабинет."},
+        403: {"description": "A read-only role, or a guest in another company's workspace."},
         404: {"description": "No such workspace in this organisation."},
     },
 )
@@ -246,7 +246,7 @@ async def set_tokens(
     catalogue discovery for it, so a seller who has just connected WB sees their
     SKUs within minutes instead of after the next nightly harvest — and walks
     only the history lanes that surface feeds. A surface nothing reads, such as
-    «Вопросы и отзывы», enqueues nothing. The enqueue is best-effort and
+    "Questions and reviews", enqueues nothing. The enqueue is best-effort and
     debounced per workspace; it can neither fail this request nor be provoked
     into a second run by re-saving the same token.
     """
@@ -299,9 +299,9 @@ async def get_backfill_status(
     """Report how far this workspace's history backfill has got, per lane.
 
     Any MEMBER may read it, not just an owner: it is rendered in the profile as
-    the answer to «почему тут пусто», and a manager who cannot see it is left
+    the answer to "why is this empty", and a manager who cannot see it is left
     with a blank product page and no explanation. It exposes only counters and
-    a Russian status line — no token, no WB response, nothing tenant-specific
+    a status line for a person — no token, no WB response, nothing tenant-specific
     beyond the workspace the caller was already proved to belong to. A head may
     read it in a workspace granted to them, for the same reason.
 

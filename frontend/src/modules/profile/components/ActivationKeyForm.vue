@@ -31,7 +31,7 @@ async function submit() {
   <form class="flex flex-col gap-sm" @submit.prevent="submit">
     <label class="block">
       <span class="mb-xs block text-tiny font-medium text-muted" :class="`text-${align}`">
-        Ключ активации
+        Activation code
       </span>
       <input
         v-model="code"
@@ -52,7 +52,7 @@ async function submit() {
       :disabled="members.saving === 'activation' || !code.trim()"
       class="ui-btn ui-btn--primary w-full"
     >
-      {{ members.saving === 'activation' ? 'Проверяем…' : 'Активировать' }}
+      {{ members.saving === 'activation' ? 'Checking…' : 'Activate' }}
     </button>
   </form>
 </template>

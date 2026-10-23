@@ -20,7 +20,7 @@ const email = ref(typeof route.query.email === 'string' ? route.query.email : ''
 const code = ref('')
 const newPassword = ref('')
 
-const heading = computed(() => (step.value === 'done' ? 'Пароль изменён' : 'Восстановление пароля'))
+const heading = computed(() => (step.value === 'done' ? 'Password changed' : 'Reset password'))
 
 async function requestCode() {
   // True means "accepted", NOT "that address exists" — the backend answers the
@@ -52,13 +52,13 @@ function goToLogin() {
         <h1 class="text-h2 font-bold tracking-tight text-primary">{{ heading }}</h1>
         <p class="mt-xs text-tiny font-medium text-muted">
           <template v-if="step === 'ask'">
-            Отправим код на вашу почту. Код действует ограниченное время.
+            We'll email you a code. It is valid for a limited time.
           </template>
           <template v-else-if="step === 'redeem'">
-            Если аккаунт с такой почтой существует, письмо с кодом уже отправлено.
+            If an account with this email exists, a code is on its way.
           </template>
           <template v-else>
-            Все сессии этого аккаунта завершены — войдите с новым паролем.
+            Every session of this account has ended. Sign in with the new password.
           </template>
         </p>
       </header>
@@ -66,13 +66,13 @@ function goToLogin() {
       <section class="mt-lg rounded-card border border-border-subtle bg-surface p-lg shadow-card">
         <form v-if="step === 'ask'" class="flex flex-col gap-md" @submit.prevent="requestCode">
           <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Электронная почта</span>
+            <span class="mb-xs block text-tiny font-medium text-muted">Email</span>
             <input
               v-model="email"
               type="email"
               required
               autocomplete="email"
-              placeholder="manager@company.ru"
+              placeholder="manager@company.com"
               class="ui-input w-full"
             />
           </label>
@@ -85,7 +85,7 @@ function goToLogin() {
           </p>
 
           <button type="submit" :disabled="auth.loading" class="ui-btn ui-btn--primary w-full">
-            {{ auth.loading ? 'Подождите…' : 'Отправить код' }}
+            {{ auth.loading ? 'Working…' : 'Send code' }}
           </button>
         </form>
 
@@ -96,7 +96,7 @@ function goToLogin() {
         >
           <div>
             <span class="mb-sm block text-center text-tiny font-medium text-muted">
-              Код из письма
+              Code from the email
             </span>
             <CodeInput
               v-model="code"
@@ -107,7 +107,7 @@ function goToLogin() {
           </div>
 
           <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Новый пароль</span>
+            <span class="mb-xs block text-tiny font-medium text-muted">New password</span>
             <PasswordField v-model="newPassword" autocomplete="new-password" />
             <PasswordRules :value="newPassword" />
           </label>
@@ -120,19 +120,19 @@ function goToLogin() {
           </p>
 
           <button type="submit" :disabled="auth.loading" class="ui-btn ui-btn--primary w-full">
-            {{ auth.loading ? 'Подождите…' : 'Сохранить пароль' }}
+            {{ auth.loading ? 'Working…' : 'Save password' }}
           </button>
 
           <!-- `self-center`: a <button> in a flex COLUMN stretches to the full
                row, so hovering anywhere on the line lit the text up. -->
           <button type="button" class="auth-link self-center" @click="requestCode">
-            Отправить код ещё раз
+            Resend code
           </button>
         </form>
 
         <div v-else class="flex flex-col gap-md">
           <button type="button" class="ui-btn ui-btn--primary w-full" @click="goToLogin">
-            Войти
+            Sign in
           </button>
         </div>
       </section>
@@ -141,7 +141,7 @@ function goToLogin() {
         <RouterLink
           class="text-tiny font-medium text-action transition hover:text-action-hover"
           :to="{ name: 'login' }"
-          >Вернуться ко входу</RouterLink
+          >Back to sign in</RouterLink
         >
       </p>
     </div>

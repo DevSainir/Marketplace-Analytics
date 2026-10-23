@@ -1,6 +1,6 @@
-"""Component tests for the workspace's display settings — the «Промо-бонусы» switch.
+"""Component tests for the workspace's display settings — the "Promo bonuses" switch.
 
-The setting changes «Реклама» for everyone in the workspace, so it is a write in
+The setting changes "Advertising" for everyone in the workspace, so it is a write in
 every sense that matters: a read-only manager must not flip it for the owner,
 and nobody may flip it in a workspace of another company.
 """
@@ -82,7 +82,7 @@ async def test_another_companys_kabinet_reads_as_missing(
     foreign_organization_id: uuid.UUID,
 ) -> None:
     """404, not 403 — the route must not confirm that a foreign workspace exists."""
-    foreign = make_workspace(organization_id=foreign_organization_id, name="ООО Чужой")
+    foreign = make_workspace(organization_id=foreign_organization_id, name="Foreign LLC")
     workspace_repo.workspaces[foreign.id] = foreign
 
     response = await client.patch(

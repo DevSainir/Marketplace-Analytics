@@ -38,13 +38,13 @@ from src.modules.workspaces.schemas import BackfillLaneStatus, BackfillStatusRes
 
 logger = get_logger(__name__)
 
-#: What each lane is called on the seller's screen. Russian, because it is
-#: rendered verbatim: the profile shows «Воронка», not "funnel".
+#: What each lane is called on the seller's screen. Written for a person,
+#: because it is rendered verbatim: the profile shows "Sales funnel", not "funnel".
 LANE_LABELS: dict[BackfillLane, str] = {
-    BackfillLane.CATALOGUE: "Каталог",
-    BackfillLane.FUNNEL: "Воронка продаж",
-    BackfillLane.ADVERTISING: "Реклама",
-    BackfillLane.PNL: "Финансы (P&L)",
+    BackfillLane.CATALOGUE: "Catalog",
+    BackfillLane.FUNNEL: "Sales funnel",
+    BackfillLane.ADVERTISING: "Advertising",
+    BackfillLane.PNL: "P&L",
 }
 
 #: The order the profile renders them in — fastest first, so the seller sees
@@ -80,7 +80,7 @@ class LaneStep:
             derivable from the counters: a walk that stops at WB's retention
             floor or at the seller's first trade ends with ``done < total`` and
             is nonetheless done.
-        message: Russian, user-facing, rendered verbatim in the profile.
+        message: User-facing, rendered verbatim in the profile.
         rows: Rows written by this step, for the log.
     """
 
@@ -98,7 +98,7 @@ async def start_backfill(
     """Seed a workspace's lanes as PENDING, replacing any previous run of them.
 
     Only the named lanes are reset. A token that unlocks the P&L must not send
-    a catalogue that finished weeks ago back to «В очереди…» — the profile
+    a catalogue that finished weeks ago back to "Queued…" — the profile
     would announce a full history load that nothing is going to run.
 
     Called once when a workspace's backfill is enqueued, so the profile has
@@ -143,7 +143,7 @@ async def start_backfill(
                     state=BackfillState.PENDING,
                     done_units=0,
                     total_units=0,
-                    message="В очереди…",
+                    message="Queued…",
                 )
             await session.commit()
     except Exception:
@@ -189,7 +189,7 @@ async def record_progress(
         done_units: Progress numerator, if it advanced.
         total_units: Progress denominator, if it was (re)estimated.
         cursor: The lane's private resume point, if it moved.
-        message: User-facing Russian status line, if it changed.
+        message: User-facing status line, if it changed.
     """
     try:
         async with AsyncSessionLocal() as session:
@@ -215,7 +215,7 @@ def _percent(row: WorkspaceBackfill) -> int:
     A DONE lane reads 100 whatever the counters say, because ``total_units`` is
     an estimate and a walk that stopped early at WB's retention floor — the
     normal ending for a young account — would otherwise be frozen at 40% while
-    saying «готово» beside it.
+    saying "done" beside it.
     """
     if row.state == BackfillState.DONE:
         return 100
@@ -294,7 +294,7 @@ async def record_failure(
     await record_progress(
         workspace_id=workspace_id,
         lane=lane,
-        message="Сбой загрузки — перезапустим автоматически.",
+        message="Load failed. Retrying automatically.",
     )
 
 

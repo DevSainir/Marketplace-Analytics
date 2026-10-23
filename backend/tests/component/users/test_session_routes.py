@@ -144,7 +144,7 @@ async def test_ending_a_session_revokes_only_that_lineage(
     user_repo: FakeUserRepository,
     token_repo: FakeRefreshTokenRepository,
 ) -> None:
-    """«Завершить сеанс» on one device leaves the others signed in."""
+    """Signing out one device leaves the others signed in."""
     user = make_user()
     user_repo.users[user.id] = user
     phone, laptop = uuid7(), uuid7()

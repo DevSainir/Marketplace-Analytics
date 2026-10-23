@@ -55,7 +55,7 @@ async def test_redeeming_a_code_makes_the_caller_an_owner_with_a_subscription(
     buyer = await persist_user(db_session, "buyer@example.com")
     service = activation_service(db_session)
     issued = await service.generate_code(
-        note="ООО Ромашка, 15000₽",
+        note="Daisy LLC, ₽15,000",
         valid_for_days=30,
         subscription_days=30,
         created_by_user_id=dev.id,

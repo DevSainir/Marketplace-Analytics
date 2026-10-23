@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Журнал доступа» — who did what inside this company, newest first.
+ * "Access log" — who did what inside this company, newest first.
  *
  * The rows have existed since the audit trail was built and the endpoint since
  * it stopped being write-only, and nothing in the product ever rendered them.
@@ -8,7 +8,7 @@
  * removed this manager".
  *
  * **The line is a button.** A headline and a timestamp say that something
- * happened and nothing about what — «Изменён доступ» leaves out whose access,
+ * happened and nothing about what — "Access changed" leaves out whose access,
  * and to what. Pressing it opens the same drawer the token and invite editors
  * use, with the whole entry in it. The row stays a row: the list is still
  * scannable, and the detail is one press away rather than five columns wide.
@@ -58,13 +58,13 @@ function step(delta) {
   <div class="pf-panel">
     <header class="pf-panel__head">
       <div class="min-w-0">
-        <h2 class="pf-panel__title">Журнал доступа</h2>
-        <p class="pf-panel__note">Что происходило с доступом в компании.</p>
+        <h2 class="pf-panel__title">Access log</h2>
+        <p class="pf-panel__note">Access changes in this company.</p>
       </div>
     </header>
 
     <DataState v-if="loading && !entries.length" kind="loading" />
-    <DataState v-else-if="!entries.length" kind="empty" text="Пока ничего не происходило" />
+    <DataState v-else-if="!entries.length" kind="empty" text="Nothing yet" />
 
     <template v-else>
       <ol class="pf-log">
@@ -73,30 +73,30 @@ function step(delta) {
             <span class="pf-log__dot" :class="REMOVING_EVENTS.has(entry.event) ? 'is-bad' : ''" />
             <span class="pf-log__what">{{ eventLabel(entry.event) }}</span>
           </button>
-          <span class="pf-log__who">{{ entry.actor_email || 'система' }}</span>
+          <span class="pf-log__who">{{ entry.actor_email || 'system' }}</span>
           <time class="pf-log__when" :datetime="entry.occurred_at">
             {{ shortMoment(entry.occurred_at) }}
           </time>
         </li>
       </ol>
 
-      <nav v-if="pageCount > 1" class="pf-pager" aria-label="Страницы журнала">
+      <nav v-if="pageCount > 1" class="pf-pager" aria-label="Log pages">
         <button
           type="button"
           class="ui-btn ui-btn--ghost ui-btn--sm"
           :disabled="page === 0"
           @click="step(-1)"
         >
-          Назад
+          Previous
         </button>
-        <span class="pf-pager__count">{{ page + 1 }} из {{ pageCount }}</span>
+        <span class="pf-pager__count">{{ page + 1 }} of {{ pageCount }}</span>
         <button
           type="button"
           class="ui-btn ui-btn--ghost ui-btn--sm"
           :disabled="page >= pageCount - 1"
           @click="step(1)"
         >
-          Дальше
+          Next
         </button>
       </nav>
     </template>

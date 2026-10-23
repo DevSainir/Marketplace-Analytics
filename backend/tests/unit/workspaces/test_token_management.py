@@ -54,18 +54,18 @@ def _service(
 # --------------------------------------------------------------------------- #
 async def test_workspace_names_are_unique() -> None:
     """Creating a second workspace with an existing name is a conflict."""
-    existing = make_workspace(organization_id=ORG_ID, name="ИП Иванов")
+    existing = make_workspace(organization_id=ORG_ID, name="Ivanov Shop")
     service = _service(FakeWorkspaceRepository([existing]), FakeWorkspaceTokenRepository())
 
     with pytest.raises(ConflictError):
-        await service.create_workspace(organization_id=ORG_ID, name="ИП Иванов")
+        await service.create_workspace(organization_id=ORG_ID, name="Ivanov Shop")
 
 
 async def test_new_workspaces_are_never_primary() -> None:
     """Only the seeded workspace is primary; new ones use a unified token."""
     service = _service(FakeWorkspaceRepository(), FakeWorkspaceTokenRepository())
 
-    created = await service.create_workspace(organization_id=ORG_ID, name="ООО Новый")
+    created = await service.create_workspace(organization_id=ORG_ID, name="New LLC")
 
     assert created.is_primary is False
 

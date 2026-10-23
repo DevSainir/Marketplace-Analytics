@@ -294,7 +294,7 @@ async def test_the_flow_says_so_when_it_is_switched_off(
 
     # Assert
     assert requested.status_code == 422, requested.text
-    assert "недоступно" in requested.text
+    assert "unavailable" in requested.text
     assert confirmed.status_code == 422
     assert await _login(api_client, user, PASSWORD)
 

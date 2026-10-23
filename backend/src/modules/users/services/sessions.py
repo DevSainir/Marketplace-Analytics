@@ -1,6 +1,6 @@
 """Seeing your own sessions, and ending the ones you do not recognise.
 
-Until now an account holder had exactly one lever — «выйти отовсюду» — which is
+Until now an account holder had exactly one lever — "Sign out everywhere" — which is
 the right thing to reach for when you already know something is wrong and the
 wrong thing to need in order to find out. This module is the other half: the
 list you look at first, and the aimed version of the same lever.
@@ -64,7 +64,7 @@ async def end_session(
     """
     if not await tokens.family_belongs_to(family_id=family_id, user_id=user_id):
         logger.info("Refused to end session %s: not owned by user %s.", family_id, user_id)
-        raise NotFoundError("Сессия не найдена.")
+        raise NotFoundError("Session not found.")
 
     # Rows first, watermark second — the reverse leaves a gap in which a
     # rotation racing this call mints a pair past the watermark.

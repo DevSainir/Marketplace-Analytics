@@ -6,17 +6,17 @@
  * `ModuleKey`; the labels are this page's own.
  */
 export const GRANT_MODULES = [
-  { key: 'monitoring', label: 'Мониторинг', hint: 'Карточки и воронка' },
-  { key: 'summary', label: 'Сводка', hint: 'Выручка, маржа, заказы и реклама' },
-  { key: 'finreports', label: 'P&L', hint: 'Прибыль, себестоимость, логистика' },
-  { key: 'ab_tests', label: 'A/Б-тесты', hint: 'Ротация фото' },
-  { key: 'heatmap', label: 'Тепловая карта', hint: 'Все метрики по дням, с деньгами' },
-  { key: 'advertising', label: 'Реклама', hint: 'Расход, ДРР от продаж, бонусы' },
+  { key: 'monitoring', label: 'Monitoring', hint: 'Product cards and the funnel' },
+  { key: 'summary', label: 'Summary', hint: 'Revenue, margin, orders and ads' },
+  { key: 'finreports', label: 'P&L', hint: 'Profit, cost price, logistics' },
+  { key: 'ab_tests', label: 'A/B tests', hint: 'Photo rotation' },
+  { key: 'heatmap', label: 'Heatmap', hint: 'Every metric by day, money included' },
+  { key: 'advertising', label: 'Advertising', hint: 'Spend, ACoS (sales), bonuses' },
 ]
 
 export const GRANT_LEVELS = [
-  { value: 'read_write', label: 'Чтение и запись', hint: 'Может менять данные' },
-  { value: 'read_only', label: 'Только чтение', hint: 'Смотрит, но не меняет' },
+  { value: 'read_write', label: 'Read and write', hint: 'Can change data' },
+  { value: 'read_only', label: 'Read only', hint: 'Views, does not change' },
 ]
 
 /** Short label for a level, for a table cell. */

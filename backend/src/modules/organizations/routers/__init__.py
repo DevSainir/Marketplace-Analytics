@@ -115,7 +115,7 @@ async def activate(
     service: ActivationServiceDep,
     audit: AuditTrail,
 ) -> OrganizationRead:
-    """Redeem an activation code — «Ключ активации» on the profile page.
+    """Redeem an activation code — "Activation code" on the profile page.
 
     Creates the organisation, makes the caller its owner and starts the
     subscription, all in this request's transaction.
@@ -145,7 +145,7 @@ async def list_my_invitations(
     user: CurrentUser,
     service: InvitationServiceDep,
 ) -> list[PendingInvitation]:
-    """List invitations waiting for this account — «Вас пригласили».
+    """List invitations waiting for this account — "You're invited".
 
     Names the inviting organisation and nothing else about it: the caller is
     not a member yet.
@@ -178,7 +178,7 @@ async def accept_invitation(
     """Accept an invitation and join its organisation as a manager.
 
     Returns the same shape as ``/me`` so the SPA can swap straight from the
-    «нет организации» screen into the app without a second round trip.
+    "no company" screen into the app without a second round trip.
     """
     await invitations.accept(token=payload.token, user_id=access.user_id, email=user.email)
     # Re-resolved rather than patched: `access` was captured BEFORE the join and

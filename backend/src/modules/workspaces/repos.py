@@ -97,7 +97,7 @@ class WorkspaceRepository:
         return workspace
 
     async def set_ads_show_bonus(self, workspace: Workspace, value: bool) -> None:
-        """Store the «Промо-бонусы» switch of one workspace."""
+        """Store the "Promo bonuses" switch of one workspace."""
         workspace.ads_show_bonus = value
         await self._session.flush()
 
@@ -287,7 +287,7 @@ class BackfillRepository:
             done_units: Progress numerator, if it advanced.
             total_units: Progress denominator, if it was (re)estimated.
             cursor: The lane's private resume point, if it moved.
-            message: User-facing Russian status line, if it changed.
+            message: User-facing status line, if it changed.
 
         Returns:
             The persisted row.

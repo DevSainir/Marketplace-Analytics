@@ -75,14 +75,15 @@ async def test_register_with_a_taken_email_is_409(
         {"email": "not-an-email", "password": "A-long-password"},
         {"email": "a@example.com", "password": "short"},
         {"email": "a@example.com"},
-        {"email": "a@example.com", "password": "я" * 40},
+        {"email": "a@example.com", "password": "ω" * 40},
         {"email": "a@example.com", "password": "alllowercase"},
         {"email": "a@example.com", "password": "ALLUPPERCASE"},
-        # Cyrillic satisfies the case rules exactly as Latin does: the check is
-        # `str.islower`/`isupper`, not an A-Z list. A password that is only
-        # refused for being Russian would be a bug, so both halves are pinned.
-        {"email": "a@example.com", "password": "тольконижний"},
-        {"email": "a@example.com", "password": "ТОЛЬКОВЕРХНИЙ"},
+        # A non-Latin alphabet (Greek here) satisfies the case rules exactly as
+        # Latin does: the check is `str.islower`/`isupper`, not an A-Z list. A
+        # password refused only for not being Latin would be a bug, so both
+        # halves are pinned.
+        {"email": "a@example.com", "password": "ωμέγααλφάβητο"},
+        {"email": "a@example.com", "password": "ΩΜΕΓΑΑΛΦΑΒΗΤΟ"},
     ],
     ids=[
         "malformed-email",
@@ -91,8 +92,8 @@ async def test_register_with_a_taken_email_is_409(
         "password-over-72-bytes",
         "password-without-an-uppercase-letter",
         "password-without-a-lowercase-letter",
-        "cyrillic-password-without-an-uppercase-letter",
-        "cyrillic-password-without-a-lowercase-letter",
+        "greek-password-without-an-uppercase-letter",
+        "greek-password-without-a-lowercase-letter",
     ],
 )
 async def test_register_rejects_malformed_payloads(
@@ -149,7 +150,7 @@ async def test_login_with_wrong_password_is_401(client: httpx.AsyncClient) -> No
     )
 
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "Неверная почта или пароль."
+    assert response.json()["error"]["message"] == "Wrong email or password."
 
 
 async def test_login_for_an_unknown_account_is_indistinguishable(
@@ -275,8 +276,8 @@ async def test_logout_without_a_session_still_succeeds(client: httpx.AsyncClient
 
 @pytest.mark.parametrize(
     "password",
-    ["ПравильныйПароль", "A-long-password", "пароль-С-Заглавной"],
-    ids=["all-cyrillic", "latin", "mixed-alphabet"],
+    ["ΣωστόςΚωδικός", "A-long-password", "ωμέγα-With-Latin"],
+    ids=["all-greek", "latin", "mixed-alphabet"],
 )
 async def test_register_accepts_a_password_that_meets_the_policy(
     client: httpx.AsyncClient, password: str

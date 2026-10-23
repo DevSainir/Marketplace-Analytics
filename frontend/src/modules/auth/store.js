@@ -128,7 +128,7 @@ export const useAuthStore = defineStore('auth', () => {
     // The workspace id outlived the session, and it is a TENANT's id. The next
     // account to sign in on this browser kept stamping every request with a
     // workspace belonging to the previous one — which the API refuses, so the
-    // symptom was «Кабинет не найден» on a fresh, valid login.
+    // symptom was "Workspace not found" on a fresh, valid login.
     setWorkspaceId(null)
     accessExpiresAt.value = null
     status.value = 'guest'
@@ -310,7 +310,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function resetPassword(email, code, newPassword) {
     const ok = await runRecovery(
       () => confirmPasswordReset({ email, code, newPassword }),
-      'Ответ от сервера не получен. Пароль мог быть изменён — попробуйте войти с новым паролем, и запросите код заново, если не получится.',
+      'No response from the server. The password may have changed: sign in with the new one, or request a new code if that fails.',
     )
     if (ok) {
       markGuest()

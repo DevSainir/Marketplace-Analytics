@@ -38,18 +38,18 @@ const repeat = ref('')
 const reveal = ref(false)
 
 /** One eye, three fields: the value is the same in all of them. */
-const eyeLabel = computed(() => (reveal.value ? 'Скрыть пароли' : 'Показать пароли'))
+const eyeLabel = computed(() => (reveal.value ? 'Hide passwords' : 'Show passwords'))
 
 const RULES = [
-  { key: 'length', label: 'не короче 8 символов', test: (v) => v.length >= 8 },
+  { key: 'length', label: 'At least 8 characters', test: (v) => v.length >= 8 },
   {
     key: 'lower',
-    label: 'есть строчная буква',
+    label: 'At least one lowercase letter',
     test: (v) => [...v].some((c) => c.toLowerCase() === c && c.toUpperCase() !== c),
   },
   {
     key: 'upper',
-    label: 'есть заглавная буква',
+    label: 'At least one uppercase letter',
     test: (v) => [...v].some((c) => c.toUpperCase() === c && c.toLowerCase() !== c),
   },
 ]
@@ -87,7 +87,7 @@ defineExpose({ reset })
   <form class="pf-pw" @submit.prevent="onSubmit">
     <div class="pf-pw__fields">
       <label class="pf-pw__field">
-        <span class="pf-field__label">Текущий пароль</span>
+        <span class="pf-field__label">Current password</span>
         <span class="pf-pw__wrap">
           <input
             v-model="current"
@@ -107,7 +107,7 @@ defineExpose({ reset })
       </label>
 
       <label class="pf-pw__field">
-        <span class="pf-field__label">Новый пароль</span>
+        <span class="pf-field__label">New password</span>
         <span class="pf-pw__wrap">
           <input
             v-model="next"
@@ -127,7 +127,7 @@ defineExpose({ reset })
       </label>
 
       <label class="pf-pw__field">
-        <span class="pf-field__label">Новый пароль ещё раз</span>
+        <span class="pf-field__label">Repeat new password</span>
         <span class="pf-pw__wrap">
           <input
             v-model="repeat"
@@ -153,13 +153,13 @@ defineExpose({ reset })
       </li>
     </ul>
 
-    <p v-if="sameAsCurrent" class="pf-pw__warn">Новый пароль совпадает с текущим.</p>
-    <p v-else-if="mismatch" class="pf-pw__warn">Пароли не совпадают.</p>
+    <p v-if="sameAsCurrent" class="pf-pw__warn">New password matches the current one.</p>
+    <p v-else-if="mismatch" class="pf-pw__warn">Passwords do not match.</p>
     <p v-else-if="error" class="pf-pw__warn">{{ error }}</p>
 
     <div>
       <button type="submit" class="ui-btn ui-btn--primary" :disabled="!canSubmit">
-        {{ saving ? 'Меняем…' : 'Сменить пароль' }}
+        {{ saving ? 'Changing…' : 'Change password' }}
       </button>
     </div>
   </form>

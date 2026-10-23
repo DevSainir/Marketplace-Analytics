@@ -48,18 +48,18 @@ describe('ProfileTeam', () => {
     const wrapper = mountPanel()
     const [first, second] = rows(wrapper)
 
-    expect(first.text()).toContain('Чтение и запись')
-    expect(first.text()).toContain('Мониторинг')
-    expect(second.text()).toContain('Только чтение')
+    expect(first.text()).toContain('Read and write')
+    expect(first.text()).toContain('Monitoring')
+    expect(second.text()).toContain('Read only')
     // A grant of nothing is a state worth naming — it looks identical to a
     // loading row otherwise.
-    expect(second.text()).toContain('нет доступа')
+    expect(second.text()).toContain('no access')
   })
 
   it('asks the parent to open the drawer for one manager', async () => {
     const wrapper = mountPanel()
 
-    await button(rows(wrapper)[1], 'Доступ').trigger('click')
+    await button(rows(wrapper)[1], 'Access').trigger('click')
 
     expect(wrapper.emitted('edit')).toEqual([[MANAGERS[1]]])
   })
@@ -96,12 +96,12 @@ describe('ProfileTeam', () => {
   it('says so when there is nobody to configure', () => {
     const wrapper = mountPanel({ managers: [] })
 
-    expect(wrapper.text()).toContain('В организации пока нет менеджеров')
+    expect(wrapper.text()).toContain('No managers in the company yet')
   })
 
   it('offers no invitation to somebody who may not issue one', () => {
     const wrapper = mountPanel({ canInvite: false })
 
-    expect(wrapper.text()).not.toContain('Пригласить менеджера')
+    expect(wrapper.text()).not.toContain('Invite a manager')
   })
 })

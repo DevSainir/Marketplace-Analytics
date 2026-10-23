@@ -70,7 +70,7 @@ class OrganizationService:
             Role, feature flags, and — when they belong to one — their
             organisation and its subscription. All three are ``None`` for a
             freshly registered account, which is what tells the SPA to render
-            the «введите ключ активации» screen instead of the app.
+            the "Enter an activation code" screen instead of the app.
 
             ``has_access`` is the other screen: ``False`` means the tenant is
             past its grace window and the SPA draws the paywall. Both answers
@@ -143,7 +143,7 @@ class OrganizationService:
         Read separately from :meth:`set_member_access` so the caller can tell a
         real change from a re-save of the same form. That distinction is not
         cosmetic: the audit trail is read to answer "who changed what", and a
-        page full of «Изменён доступ» entries that changed nothing is a trail
+        page full of "Access changed" entries that changed nothing is a trail
         that has to be searched rather than read.
 
         Scoped to the pair, never to ``user_id`` alone — same rule as every
@@ -191,9 +191,9 @@ class OrganizationService:
             organization_id=organization_id, user_id=user_id
         )
         if membership is None:
-            raise NotFoundError("Участник не найден в этой организации.")
+            raise NotFoundError("Member not found in this company.")
         if membership.role == MemberRole.OWNER.value:
-            raise ValidationError("Доступ владельца изменить нельзя.")
+            raise ValidationError("The owner's access cannot be changed.")
 
         membership.access_level = access_level.value
         membership.modules = [m.value for m in modules]
@@ -217,7 +217,7 @@ class OrganizationService:
         """
         organization = await self._organizations.get_by_id(organization_id)
         if organization is None:
-            raise NotFoundError("Организация не найдена.")
+            raise NotFoundError("Company not found.")
         await self._organizations.rename(organization, name=name)
         return OrganizationRead.model_validate(organization)
 
@@ -238,9 +238,9 @@ class OrganizationService:
         """
         membership = await self._memberships.get_for_user(user_id)
         if membership is None or membership.organization_id != organization_id:
-            raise NotFoundError("Участник не найден.")
+            raise NotFoundError("Member not found.")
         if membership.role == MemberRole.OWNER.value:
-            raise ValidationError("Владельца организации нельзя удалить.")
+            raise ValidationError("The company owner cannot be removed.")
         await self._memberships.delete(membership)
         logger.info("User %s removed from organisation %s.", user_id, organization_id)
 

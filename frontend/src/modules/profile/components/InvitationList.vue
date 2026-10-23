@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Приглашения» — the links that are out there but not yet used.
+ * "Invitations" — the links that are out there but not yet used.
  *
  * The missing half of the team page. Issuing an invitation showed its link
  * once and then forgot it existed, so a link handed to the wrong person, or
@@ -11,7 +11,7 @@
  * looking at the same link read the same state. Acceptance is deliberately NOT
  * a status: a link stays usable until it expires, so "someone joined" says
  * nothing about whether it still works — which is why the count of joiners is
- * its own column and «Отозвать» stays available on a link somebody has used.
+ * its own column and "Revoke" stays available on a link somebody has used.
  */
 import { computed } from 'vue'
 
@@ -22,7 +22,7 @@ import { formatMoscowDate } from '@/core/utils/moscow'
 const props = defineProps({
   /** @type {Array<object>} rows from GET /v1/organizations/invitations */
   invitations: { type: Array, default: () => [] },
-  /** The list is still being read — until then «none» would be a guess. */
+  /** The list is still being read — until then "none" would be a guess. */
   loading: { type: Boolean, default: false },
   /** invitation id being revoked, or null. */
   busy: { type: [String, null], default: null },
@@ -34,8 +34,8 @@ const emit = defineEmits(['revoke'])
 const revocation = useConfirmClick()
 
 const STATUS = {
-  pending: { label: 'действует', tone: 'is-ok' },
-  expired: { label: 'истекло', tone: 'is-quiet' },
+  pending: { label: 'active', tone: 'is-ok' },
+  expired: { label: 'expired', tone: 'is-quiet' },
 }
 
 /**
@@ -49,16 +49,16 @@ const STATUS = {
  */
 const visible = computed(() => props.invitations.filter((invite) => invite.status !== 'revoked'))
 
-/** «через 3 ч» while it is alive; the date once it is not. */
+/** "3 h" while it is alive; the date once it is not. */
 function expiry(invitation) {
   const ms = new Date(invitation.expires_at).getTime() - Date.now()
   if (invitation.status !== 'pending' || ms <= 0) {
     return formatMoscowDate(invitation.expires_at)
   }
   const hours = Math.round(ms / 3600000)
-  if (hours < 1) return `${Math.max(1, Math.round(ms / 60000))} мин`
-  if (hours < 48) return `${hours} ч`
-  return `${Math.round(hours / 24)} дн`
+  if (hours < 1) return `${Math.max(1, Math.round(ms / 60000))} min`
+  if (hours < 48) return `${hours} h`
+  return `${Math.round(hours / 24)} days`
 }
 </script>
 
@@ -66,29 +66,27 @@ function expiry(invitation) {
   <div class="pf-panel">
     <header class="pf-panel__head">
       <div class="min-w-0">
-        <h2 class="pf-panel__title">Приглашения</h2>
-        <p class="pf-panel__note">
-          Пока ссылка действует, войти по ней может любой, у кого она есть.
-        </p>
+        <h2 class="pf-panel__title">Invitations</h2>
+        <p class="pf-panel__note">While a link is valid, anyone who has it can join.</p>
       </div>
     </header>
 
     <DataState v-if="loading && !visible.length" kind="loading" />
-    <DataState v-else-if="!visible.length" kind="empty" text="Действующих приглашений нет" />
+    <DataState v-else-if="!visible.length" kind="empty" text="No active invitations" />
 
     <div v-else class="pf-grid" role="table">
       <div class="pf-grid__head" role="row">
-        <span role="columnheader">Кому</span>
-        <span role="columnheader">Состояние</span>
-        <span role="columnheader">Вошли</span>
-        <span role="columnheader">Осталось</span>
-        <span role="columnheader" class="sr-only">Действия</span>
+        <span role="columnheader">To</span>
+        <span role="columnheader">Status</span>
+        <span role="columnheader">Joined</span>
+        <span role="columnheader">Left</span>
+        <span role="columnheader" class="sr-only">Actions</span>
       </div>
 
       <div v-for="invite in visible" :key="invite.id" class="pf-grid__row" role="row">
         <span class="pf-cell pf-cell--who" role="cell">
-          <span class="pf-who__mail">{{ invite.email || 'Ссылка без адреса' }}</span>
-          <span class="pf-who__meta"> выдано {{ formatMoscowDate(invite.created_at) }} </span>
+          <span class="pf-who__mail">{{ invite.email || 'Link without an address' }}</span>
+          <span class="pf-who__meta"> issued {{ formatMoscowDate(invite.created_at) }} </span>
         </span>
 
         <span class="pf-cell" role="cell">

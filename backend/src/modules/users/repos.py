@@ -225,7 +225,7 @@ class RefreshTokenRepository:
         Revoked and expired lineages are left out: this list is what somebody
         looks at to decide whether to end something, and a dead session is not
         a decision. A family with a single revoked row disappears entirely,
-        which is what «завершён» should look like.
+        which is what "ended" should look like.
 
         Args:
             user_id: The account whose sessions to list.

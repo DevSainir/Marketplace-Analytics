@@ -5,7 +5,7 @@
  * What the list row cannot hold: the primary workspace takes a token per WB API
  * category — thirteen password fields — and the old page kept them in an
  * accordion INSIDE a list item, which is why the list could not also say which
- * workspace was actually wired up. The row reports «12 из 13»; this holds the
+ * workspace was actually wired up. The row reports "12 of 13"; this holds the
  * form.
  */
 import SidePanel from '@/modules/profile/components/SidePanel.vue'
@@ -25,7 +25,7 @@ const emit = defineEmits(['close', 'save'])
 <template>
   <SidePanel
     :open="Boolean(workspace)"
-    title="Токены Wildberries"
+    title="Wildberries tokens"
     :subtitle="workspace?.name ?? ''"
     @close="emit('close')"
   >
@@ -38,7 +38,7 @@ const emit = defineEmits(['close', 'save'])
     />
     <template #footer>
       <button type="submit" form="pf-tokens-form" class="ui-btn ui-btn--primary" :disabled="busy">
-        {{ busy ? 'Сохраняем…' : 'Сохранить токены' }}
+        {{ busy ? 'Saving…' : 'Save tokens' }}
       </button>
     </template>
   </SidePanel>

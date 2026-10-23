@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="pf-drawer__close"
-              aria-label="Закрыть"
+              aria-label="Close"
               @click="emit('close')"
             >
               <svg

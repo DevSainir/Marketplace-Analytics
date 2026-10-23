@@ -9,12 +9,12 @@ vi.mock('@/modules/profile/api', () => ({ fetchBackfillStatus: vi.fn() }))
 function lane(overrides = {}) {
   return {
     lane: 'funnel',
-    label: 'Воронка продаж',
+    label: 'Sales funnel',
     state: 'running',
     done_units: 73,
     total_units: 365,
     percent: 20,
-    message: 'Собираем воронку: 73 из 365 дней.',
+    message: 'Collecting the funnel: 73 of 365 days.',
     updated_at: '2026-09-10T11:00:00Z',
     ...overrides,
   }
@@ -39,18 +39,18 @@ describe('BackfillStrip', () => {
     // have finished, and a single percentage would be wrong about all four.
     fetchBackfillStatus.mockResolvedValue({
       active: true,
-      lanes: [lane(), lane({ lane: 'pnl', label: 'Финансы (P&L)', percent: 3 })],
+      lanes: [lane(), lane({ lane: 'pnl', label: 'P&L', percent: 3 })],
     })
 
     const wrapper = mountPanel()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Воронка продаж')
-    expect(wrapper.text()).toContain('Финансы (P&L)')
+    expect(wrapper.text()).toContain('Sales funnel')
+    expect(wrapper.text()).toContain('P&L')
   })
 
   it('hides itself once every lane is done', async () => {
-    // A workspace backfilled last month must not carry a permanent «готово»
+    // A workspace backfilled last month must not carry a permanent "done"
     // block down its profile — the panel exists to explain a wait.
     fetchBackfillStatus.mockResolvedValue({
       active: false,
@@ -68,13 +68,13 @@ describe('BackfillStrip', () => {
     // seller does not have and would otherwise never be told about.
     fetchBackfillStatus.mockResolvedValue({
       active: false,
-      lanes: [lane({ state: 'failed', message: 'Нет токена «Продвижение».' })],
+      lanes: [lane({ state: 'failed', message: 'No "Promotion" token.' })],
     })
 
     const wrapper = mountPanel()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('ошибка')
+    expect(wrapper.text()).toContain('failed')
   })
 
   it('stops polling once nothing is moving', async () => {

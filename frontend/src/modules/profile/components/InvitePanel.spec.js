@@ -6,7 +6,7 @@ import InvitePanel from '@/modules/profile/components/InvitePanel.vue'
  * What an owner is handed after issuing an invitation.
  *
  * This suite exists because the form used to show the raw token under the words
- * «Ссылка показывается один раз». It was not a link, and there was nowhere for
+ * "The link is shown once". It was not a link, and there was nowhere for
  * the recipient to put a bare token — the accept screen did not exist. An owner
  * looking at it could not tell what they were supposed to send, or where.
  */

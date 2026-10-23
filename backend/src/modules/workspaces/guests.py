@@ -83,12 +83,12 @@ async def grant_guest(
     """
     workspace = await WorkspaceRepository(session).get_by_name(workspace_name.strip())
     if workspace is None:
-        raise NotFoundError("Кабинет с таким названием не найден.")
+        raise NotFoundError("No workspace with this name.")
     if await load_role(session, email) == ROLE_DEV:
-        raise ConflictError("Разработчику гостевой доступ не нужен.")
+        raise ConflictError("A developer needs no guest access.")
     user_id = await promote_to_head(session, email)
     if user_id is None:
-        raise NotFoundError("Аккаунт с такой почтой не найден.")
+        raise NotFoundError("No account with this email.")
     guest = await WorkspaceGuestRepository(session).add(
         workspace_id=workspace.id, user_id=user_id, granted_by=granted_by
     )
@@ -109,7 +109,7 @@ async def revoke_guest(session: AsyncSession, grant_id: uuid.UUID) -> uuid.UUID:
     """
     guest = await WorkspaceGuestRepository(session).remove(grant_id)
     if guest is None:
-        raise NotFoundError("Гостевой доступ не найден.")
+        raise NotFoundError("Guest access not found.")
     return guest.user_id
 
 

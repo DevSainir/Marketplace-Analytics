@@ -10,7 +10,7 @@ vi.mock('@/modules/profile/api', () => ({ createActivationCode: vi.fn() }))
  *
  * The defaults are the commercial promise: "a key for N days" means N days of
  * service, and everything not typed is unlimited. A form that sent 30 where 14
- * was meant, or a cleared field as 0 instead of «без лимита», would sell
+ * was meant, or a cleared field as 0 instead of "no limit", would sell
  * something other than what was agreed.
  */
 const ISSUED = {
@@ -84,6 +84,6 @@ describe('ActivationCodesPanel', () => {
     await flushPromises()
 
     expect(wrapper.find('code').text()).toBe('the-key')
-    expect(wrapper.text()).toContain('бессрочно')
+    expect(wrapper.text()).toContain('no expiry')
   })
 })

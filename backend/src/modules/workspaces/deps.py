@@ -144,14 +144,14 @@ async def get_current_workspace_id(
     if not x_workspace_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не выбран кабинет.",
+            detail="No workspace selected.",
         )
     try:
         workspace_id = uuid.UUID(x_workspace_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Некорректный идентификатор кабинета.",
+            detail="Invalid workspace ID.",
         ) from exc
     return await _enter_as_member(
         workspace_id,
@@ -183,7 +183,7 @@ async def _enter_as_member(
     if workspace is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Кабинет не найден.",
+            detail="Workspace not found.",
         )
     # `organization_id`, not `tenant_id`: a guest with no company of their own
     # has none, and every workspace is "another company's" to them.
@@ -195,12 +195,12 @@ async def _enter_as_member(
         if not await _may_enter_as_guest(access, workspace_id, guest_repo):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Кабинет не найден.",
+                detail="Workspace not found.",
             )
         if method not in _GUEST_METHODS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Этот кабинет открыт вам только для просмотра.",
+                detail="This workspace is view-only for you.",
             )
     # Proven to belong to the caller — only now is it safe to tell the database,
     # or the logs. Both announcements sit behind the same check for the same
@@ -258,7 +258,7 @@ async def get_path_workspace_id(
     if workspace is None or workspace.organization_id != access.tenant_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Кабинет не найден.",
+            detail="Workspace not found.",
         )
     await set_workspace_context(session, workspace_id)
     return workspace_id
@@ -278,7 +278,7 @@ async def get_member_path_workspace_id(
     refused every manager. `GET /{workspace_id}/backfill` did exactly that from
     2026-09-10 to 2026-10-17: its own guard said ``MemberAccess``, the binder
     said ``OwnerAccess``, the stricter one won, and managers got a blank product
-    page instead of the «почему тут пусто» strip — dozens of refusals a week.
+    page instead of the "why is this empty" strip — dozens of refusals a week.
 
     The rule is the header binder's, not a looser one: the caller's own
     organisation, or a head's grant on another company's workspace and then only

@@ -7,10 +7,10 @@ import { detailRows, eventLabel } from '@/modules/profile/components/auditEntry'
  * 02:00, by us — so the events are stored in English and translated here. Two
  * rules are worth pinning because both were got wrong in the first version:
  *
- *  * the labels name the ACTION, not the column. «Кто» is not wrong, it is
+ *  * the labels name the ACTION, not the column. "Who" is not wrong, it is
  *    empty: every entry has somebody, and the useful half is what they did;
- *  * an event with only one party gets one line. «Кто присоединился: X»
- *    followed by «Кого касается: X» is the same name under two questions.
+ *  * an event with only one party gets one line. "Joined: X" followed by
+ *    "About: X" is the same name under two questions.
  */
 function entry(overrides = {}) {
   return {
@@ -31,7 +31,7 @@ const labelled = (rows, label) => rows.find((row) => row.label === label)?.value
 
 describe('eventLabel', () => {
   it('translates a known event', () => {
-    expect(eventLabel('MEMBER_REMOVED')).toBe('Менеджер удалён из компании')
+    expect(eventLabel('MEMBER_REMOVED')).toBe('Manager removed')
   })
 
   it('shows an unknown event rather than hiding it', () => {
@@ -44,8 +44,8 @@ describe('detailRows — who the two people are', () => {
   it('names the action rather than the column', () => {
     const rows = detailRows(entry({ metadata: { email: 'manager@example.com' } }))
 
-    expect(labelled(rows, 'Кто изменил')).toBe('owner@example.com')
-    expect(labelled(rows, 'Кому изменили')).toBe('manager@example.com')
+    expect(labelled(rows, 'Changed by')).toBe('owner@example.com')
+    expect(labelled(rows, 'Changed for')).toBe('manager@example.com')
   })
 
   it('uses the right verb per event', () => {
@@ -56,11 +56,11 @@ describe('detailRows — who the two people are', () => {
       entry({ event: 'INVITATION_REVOKED', target_type: 'invitation', metadata: {} }),
     )
 
-    expect(labelled(invited, 'Кто пригласил')).toBe('owner@example.com')
-    expect(labelled(invited, 'Кого пригласили')).toBe('a@b.c')
-    expect(labelled(revoked, 'Кто отозвал')).toBe('owner@example.com')
-    // A bare link has no address, and saying «—» would read as missing data.
-    expect(labelled(revoked, 'Какое приглашение')).toBe('ссылка без адреса')
+    expect(labelled(invited, 'Invited by')).toBe('owner@example.com')
+    expect(labelled(invited, 'Invited')).toBe('a@b.c')
+    expect(labelled(revoked, 'Revoked by')).toBe('owner@example.com')
+    // A bare link has no address, and saying "—" would read as missing data.
+    expect(labelled(revoked, 'Invitation')).toBe('link without an address')
   })
 
   it('gives a one-party event a single line', () => {
@@ -71,14 +71,14 @@ describe('detailRows — who the two people are', () => {
       entry({ event: 'MEMBER_JOINED', actor_email: 'a@b.c', metadata: { email: 'a@b.c' } }),
     )
 
-    expect(labelled(rows, 'Кто присоединился')).toBe('a@b.c')
+    expect(labelled(rows, 'Joined')).toBe('a@b.c')
     expect(rows.filter((row) => row.value === 'a@b.c')).toHaveLength(1)
   })
 
-  it('calls an actorless entry «система» rather than leaving it blank', () => {
+  it('calls an actorless entry "system" rather than leaving it blank', () => {
     const rows = detailRows(entry({ actor_email: null }))
 
-    expect(labelled(rows, 'Кто изменил')).toBe('система')
+    expect(labelled(rows, 'Changed by')).toBe('system')
   })
 })
 
@@ -88,14 +88,14 @@ describe('detailRows — what actually changed', () => {
       entry({ metadata: { access_level: 'read_only', modules: ['finreports'] } }),
     )
 
-    expect(labelled(rows, 'Уровень')).toBe('Только чтение')
-    expect(labelled(rows, 'Разделы')).toBe('P&L')
+    expect(labelled(rows, 'Level')).toBe('Read only')
+    expect(labelled(rows, 'Sections')).toBe('P&L')
   })
 
   it('names a grant of nothing instead of rendering an empty line', () => {
     const rows = detailRows(entry({ metadata: { modules: [] } }))
 
-    expect(labelled(rows, 'Разделы')).toBe('ни одного')
+    expect(labelled(rows, 'Sections')).toBe('none')
   })
 
   it('shows the previous state only where it differs', () => {
@@ -120,18 +120,18 @@ describe('detailRows — what actually changed', () => {
       }),
     )
 
-    expect(labelled(unchanged, 'Было: уровень')).toBeUndefined()
-    expect(labelled(unchanged, 'Было: разделы')).toBeUndefined()
-    expect(labelled(changed, 'Было: уровень')).toBe('Чтение и запись')
-    expect(labelled(changed, 'Было: разделы')).toBe('Мониторинг, P&L')
+    expect(labelled(unchanged, 'Previous level')).toBeUndefined()
+    expect(labelled(unchanged, 'Previous sections')).toBeUndefined()
+    expect(labelled(changed, 'Previous level')).toBe('Read and write')
+    expect(labelled(changed, 'Previous sections')).toBe('Monitoring, P&L')
   })
 
   it('reports an invitation’s window in hours or days, as fits', () => {
     const short = detailRows(entry({ event: 'MEMBER_INVITED', metadata: { valid_for_hours: 6 } }))
     const long = detailRows(entry({ event: 'MEMBER_INVITED', metadata: { valid_for_hours: 72 } }))
 
-    expect(labelled(short, 'Ссылка действовала')).toBe('6 ч')
-    expect(labelled(long, 'Ссылка действовала')).toBe('3 дн')
+    expect(labelled(short, 'Link valid for')).toBe('6 h')
+    expect(labelled(long, 'Link valid for')).toBe('3 days')
   })
 })
 
@@ -150,9 +150,9 @@ describe('detailRows — a subscription change', () => {
       }),
     )
 
-    expect(labelled(rows, 'Кто изменил')).toBe('dev@example.com')
-    expect(labelled(rows, 'Действует до')).toBe('19 October 2026')
-    expect(labelled(rows, 'Было: до')).toBe('5 October 2026')
+    expect(labelled(rows, 'Changed by')).toBe('dev@example.com')
+    expect(labelled(rows, 'Valid until')).toBe('19 October 2026')
+    expect(labelled(rows, 'Previously until')).toBe('5 October 2026')
   })
 
   it('says a change made straight in SQL was made by hand, not by the system', () => {
@@ -169,6 +169,6 @@ describe('detailRows — a subscription change', () => {
       }),
     )
 
-    expect(labelled(rows, 'Кто изменил')).toBe('вручную в базе')
+    expect(labelled(rows, 'Changed by')).toBe('by hand in the database')
   })
 })

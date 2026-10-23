@@ -145,7 +145,7 @@ class InvitationRepository:
     async def list_pending_for_email(self, email: str) -> list[Invitation]:
         """Return the live invitations addressed to one email address.
 
-        This is what puts «Вас пригласили» on a registered user's own profile
+        This is what puts "You're invited" on a registered user's own profile
         page without them ever seeing a link. Revoked and accepted rows are
         filtered out here; expiry is judged by the service against its own
         clock, so that "expired" reads the same everywhere.

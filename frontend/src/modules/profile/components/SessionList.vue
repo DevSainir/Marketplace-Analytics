@@ -1,17 +1,17 @@
 <script setup>
 /**
- * «Активные входы» — every browser this account is signed in on.
+ * "Active sessions" — every browser this account is signed in on.
  *
  * Telegram's sessions screen is the reference, and the part worth copying is
  * the INFORMATION, not the chrome: what device, what app, where, when last
  * seen, and which one you are reading it on. The part not worth copying is its
- * modal-per-session — a row with its own «Завершить» is one press instead of
+ * modal-per-session — a row with its own "Sign out" is one press instead of
  * three, and there is nothing else to put in the modal.
  *
  * The User-Agent is parsed HERE and nowhere else. The server stores it raw on
  * purpose: parsing is presentation, it changes with every browser release, and
- * a string this function does not recognise must show as «Неизвестное
- * устройство» rather than as a confident guess about a device somebody is
+ * a string this function does not recognise must show as "Unknown device"
+ * rather than as a confident guess about a device somebody is
  * deciding whether to trust.
  */
 import { computed } from 'vue'
@@ -49,7 +49,7 @@ const OS = [
 const BROWSERS = [
   [/Edg\//i, 'Edge'],
   [/OPR\/|Opera/i, 'Opera'],
-  [/YaBrowser/i, 'Яндекс.Браузер'],
+  [/YaBrowser/i, 'Yandex Browser'],
   [/Firefox\//i, 'Firefox'],
   [/Chrome\//i, 'Chrome'],
   [/Safari\//i, 'Safari'],
@@ -59,28 +59,28 @@ function match(table, value) {
   return table.find(([pattern]) => pattern.test(value))?.[1] ?? null
 }
 
-/** «Chrome на macOS», or as much of it as the string actually supports. */
+/** "Chrome on macOS", or as much of it as the string actually supports. */
 function describe(userAgent) {
-  if (!userAgent) return { title: 'Неизвестное устройство', detail: 'Браузер не определился' }
+  if (!userAgent) return { title: 'Unknown device', detail: 'Browser not recognized' }
   const os = match(OS, userAgent)
   const browser = match(BROWSERS, userAgent)
-  if (!os && !browser) return { title: 'Неизвестное устройство', detail: userAgent.slice(0, 60) }
+  if (!os && !browser) return { title: 'Unknown device', detail: userAgent.slice(0, 60) }
   return {
-    title: browser && os ? `${browser} на ${os}` : (browser ?? os),
+    title: browser && os ? `${browser} on ${os}` : (browser ?? os),
     detail: os && browser ? os : '',
   }
 }
 
-/** «только что» / «12 минут назад» / «вчера» / a date. */
+/** "now" / "12 min ago" / "yesterday" / a date. */
 function lastSeen(iso) {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
-  if (minutes < 2) return 'сейчас'
-  if (minutes < 60) return `${minutes} мин назад`
+  if (minutes < 2) return 'now'
+  if (minutes < 60) return `${minutes} min ago`
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} ч назад`
+  if (hours < 24) return `${hours} h ago`
   const days = Math.round(hours / 24)
-  if (days === 1) return 'вчера'
-  if (days < 7) return `${days} дн назад`
+  if (days === 1) return 'yesterday'
+  if (days < 7) return `${days} days ago`
   return formatMoscowDate(iso)
 }
 
@@ -98,22 +98,22 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
            structural idea worth taking: you cannot decide about the others
            until you know which one is you. -->
       <section v-if="current" class="pf-sessions__group">
-        <h3 class="pf-sessions__heading">Это устройство</h3>
+        <h3 class="pf-sessions__heading">This device</h3>
         <article class="pf-session is-current">
           <span class="pf-session__main">
             <span class="pf-session__title">{{ describe(current.user_agent).title }}</span>
             <span class="pf-session__meta">
-              {{ current.ip_address || 'адрес не записан' }} · вход
+              {{ current.ip_address || 'IP not recorded' }} · signed in
               {{ formatMoscowDate(current.started_at) }}
             </span>
           </span>
-          <span class="ui-badge is-on">сейчас здесь</span>
+          <span class="ui-badge is-on">here now</span>
         </article>
       </section>
 
       <section class="pf-sessions__group">
         <header class="pf-sessions__head">
-          <h3 class="pf-sessions__heading">Другие устройства</h3>
+          <h3 class="pf-sessions__heading">Other devices</h3>
           <button
             v-if="others.length"
             type="button"
@@ -132,13 +132,13 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
           </button>
         </header>
 
-        <p v-if="!others.length" class="pf-sessions__note">Больше нигде не выполнен вход.</p>
+        <p v-if="!others.length" class="pf-sessions__note">Not signed in anywhere else.</p>
 
         <article v-for="session in others" :key="session.family_id" class="pf-session">
           <span class="pf-session__main">
             <span class="pf-session__title">{{ describe(session.user_agent).title }}</span>
             <span class="pf-session__meta">
-              {{ session.ip_address || 'адрес не записан' }} · активность
+              {{ session.ip_address || 'IP not recorded' }} · active
               {{ lastSeen(session.last_seen_at) }}
             </span>
           </span>
@@ -194,7 +194,7 @@ const others = computed(() => props.sessions.filter((session) => !session.is_cur
 
 /* Tinted rather than white: it is context, not a row you are deciding about.
    The sunk grey was too close to the canvas to read as a separate thing at
-   all, so it takes the action tint — the same one the «сейчас здесь» pill is
+   all, so it takes the action tint — the same one the "here now" pill is
    made of, which is what ties the two together. */
 .pf-session.is-current {
   background: var(--ui-action-soft);

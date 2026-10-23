@@ -269,7 +269,7 @@ async def test_a_broker_failure_costs_the_backfill_but_not_the_token(
 
 
 def test_a_feedback_token_reaches_nothing_the_bootstrap_reads() -> None:
-    """«Вопросы и отзывы» feeds no harvest and no lane.
+    """A "Questions and reviews" token feeds no harvest and no lane.
 
     Adding one to a workspace once reset all four lanes and re-walked the
     whole history for rows the workspace already held.
@@ -334,7 +334,7 @@ async def test_a_second_surface_inside_the_debounce_still_gets_its_lane(
     enqueued: list[dict[str, Any]],
     seeded: list[tuple[BackfillLane, ...]],
 ) -> None:
-    """The claim is per lane: «Аналитика» saved, then «Финансы» five minutes
+    """The claim is per lane: "Analytics" saved, then "Finance" five minutes
     later, must not lose the P&L walk to the first save's claim."""
     workspace_id = uuid.uuid4()
 

@@ -56,7 +56,7 @@ test('a dead backend resolves to the login screen, not an endless spinner', asyn
 
   // The guard must reach a decision — guest — and route accordingly.
   await expect(page).toHaveURL(/\/login/, { timeout: DEAD_BACKEND_BUDGET_MS })
-  await expect(page.getByRole('heading', { name: 'Вход в аккаунт' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible()
 })
 
 test('a hanging backend still resolves within the client timeout', async ({ page }) => {

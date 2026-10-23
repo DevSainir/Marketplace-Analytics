@@ -8,10 +8,10 @@ import SessionList from '@/modules/profile/components/SessionList.vue'
  * The User-Agent is parsed here and nowhere else: the server stores it raw
  * because parsing is presentation and changes with every browser release. The
  * rule that matters is what happens to a string the parser does not recognise
- * — it must read as «Неизвестное устройство», never as a confident guess about
+ * — it must read as "Unknown device", never as a confident guess about
  * a device somebody is deciding whether to trust.
  *
- * The current session is separated and never offered a «Завершить» in the list
+ * The current session is separated and never offered a "Sign out" in the list
  * of others: you cannot decide about the rest until you know which one is you,
  * and an accidental press there is a sign-out with no warning.
  */
@@ -40,7 +40,7 @@ describe('SessionList — naming a device', () => {
   it('reads a browser and an OS out of the string', () => {
     const wrapper = mountList([session({ is_current: true })])
 
-    expect(wrapper.text()).toContain('Chrome на macOS')
+    expect(wrapper.text()).toContain('Chrome on macOS')
   })
 
   it('does not let Chrome’s Safari claim win', () => {
@@ -48,13 +48,13 @@ describe('SessionList — naming a device', () => {
     // Chrome. Order in the table is the whole implementation.
     const wrapper = mountList([session({ user_agent: SAFARI_IPHONE, is_current: true })])
 
-    expect(wrapper.text()).toContain('Safari на iOS')
+    expect(wrapper.text()).toContain('Safari on iOS')
   })
 
-  it('says «неизвестное» rather than guessing', () => {
+  it('says "unknown" rather than guessing', () => {
     const wrapper = mountList([session({ user_agent: 'curl/8.4.0', is_current: true })])
 
-    expect(wrapper.text()).toContain('Неизвестное устройство')
+    expect(wrapper.text()).toContain('Unknown device')
   })
 
   it('says so when the row predates the provenance columns', () => {
@@ -62,20 +62,20 @@ describe('SessionList — naming a device', () => {
     // people use to decide whether they have been broken into.
     const wrapper = mountList([session({ user_agent: null, ip_address: null, is_current: true })])
 
-    expect(wrapper.text()).toContain('Неизвестное устройство')
-    expect(wrapper.text()).toContain('адрес не записан')
+    expect(wrapper.text()).toContain('Unknown device')
+    expect(wrapper.text()).toContain('IP not recorded')
   })
 })
 
 describe('SessionList — deciding about the others', () => {
-  it('separates the session doing the reading and offers it no «Завершить»', () => {
+  it('separates the session doing the reading and offers it no "Sign out"', () => {
     const wrapper = mountList([
       session({ family_id: 'mine', is_current: true }),
       session({ family_id: 'phone' }),
     ])
     const current = wrapper.find('.pf-session.is-current')
 
-    expect(current.text()).toContain('сейчас здесь')
+    expect(current.text()).toContain('here now')
     expect(current.findAll('button')).toHaveLength(0)
   })
 
@@ -110,7 +110,7 @@ describe('SessionList — deciding about the others', () => {
   it('offers nothing to end when there is nothing else', () => {
     const wrapper = mountList([session({ is_current: true })])
 
-    expect(wrapper.text()).toContain('Больше нигде не выполнен вход')
+    expect(wrapper.text()).toContain('Not signed in anywhere else')
     expect(wrapper.findAll('button')).toHaveLength(0)
   })
 })

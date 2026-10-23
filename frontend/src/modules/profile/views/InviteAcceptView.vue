@@ -4,7 +4,7 @@
  *
  * This screen did not exist, which made the whole invite feature a dead end:
  * an owner could issue an invitation and the profile page showed them the
- * token under the words «Ссылка показывается один раз», but it was not a link
+ * token under the words "The link is shown once", but it was not a link
  * and there was nowhere for the person receiving it to put it. The API had
  * `/invitations/accept` all along, and its request schema even calls this
  * "the link flow" — the link just had no page to land on.
@@ -47,16 +47,14 @@ onMounted(async () => {
     <div class="mx-auto flex w-full max-w-md flex-col">
       <header class="text-center">
         <h1 class="text-h2 font-bold tracking-tight text-primary">
-          {{ joined ? 'Вы в компании' : 'Приглашение' }}
+          {{ joined ? "You're in the company" : 'Invitation' }}
         </h1>
         <p class="mt-xs text-tiny font-medium text-muted">
-          <template v-if="joined">Доступ открыт — можно начинать работу.</template>
+          <template v-if="joined">Access is open. You can start working.</template>
           <template v-else-if="waiting">
-            Вас пригласили в «{{ waiting.organization_name ?? 'компанию' }}».
+            You're invited to {{ waiting.organization_name ?? 'a company' }}.
           </template>
-          <template v-else>
-            Вставьте код приглашения, который вам прислал владелец компании.
-          </template>
+          <template v-else> Paste the invitation code the company owner sent you. </template>
         </p>
       </header>
 
@@ -67,18 +65,18 @@ onMounted(async () => {
           class="ui-btn ui-btn--primary w-full"
           @click="router.push('/')"
         >
-          На главную
+          Home
         </button>
 
         <!-- Already a member: accepting a second invitation is refused by the
              API (409), so the screen says so instead of offering the attempt. -->
         <p v-else-if="members.hasOrganization" class="text-center text-base text-muted">
-          Этот аккаунт уже состоит в компании.
+          This account already belongs to a company.
         </p>
 
         <form v-else class="flex flex-col gap-sm" @submit.prevent="submit">
           <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Код приглашения</span>
+            <span class="mb-xs block text-tiny font-medium text-muted">Invitation code</span>
             <input
               v-model="token"
               type="text"
@@ -96,7 +94,7 @@ onMounted(async () => {
             :disabled="members.saving === 'invitation' || !token.trim()"
             class="ui-btn ui-btn--primary w-full"
           >
-            {{ members.saving === 'invitation' ? 'Проверяем…' : 'Принять приглашение' }}
+            {{ members.saving === 'invitation' ? 'Checking…' : 'Accept invitation' }}
           </button>
         </form>
       </section>

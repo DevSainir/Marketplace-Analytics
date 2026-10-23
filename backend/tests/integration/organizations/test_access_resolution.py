@@ -61,7 +61,7 @@ async def test_a_dev_outranks_their_membership_role(db_session: AsyncSession) ->
     the one our own accounts are in.
     """
     dev = await persist_user(db_session, "dev@example.com", role=ROLE_DEV)
-    org = await OrganizationRepository(db_session).create(name="Наша")
+    org = await OrganizationRepository(db_session).create(name="Ours")
     await MembershipRepository(db_session).create(
         organization_id=org.id, user_id=dev.id, role=MemberRole.MANAGER
     )
@@ -78,7 +78,7 @@ async def test_the_owner_of_the_primary_organisation_may_issue_codes(
 ) -> None:
     """The primary flag is read off the organisation row, and its owner sells accounts."""
     owner = await persist_user(db_session, "owner@example.com")
-    org = await OrganizationRepository(db_session).create(name="Наша", is_primary=True)
+    org = await OrganizationRepository(db_session).create(name="Ours", is_primary=True)
     await MembershipRepository(db_session).create(
         organization_id=org.id, user_id=owner.id, role=MemberRole.OWNER
     )
@@ -94,7 +94,7 @@ async def test_a_customers_owner_may_not_issue_codes(
 ) -> None:
     """The same role in a different organisation would be minting free accounts."""
     owner = await persist_user(db_session, "owner@example.com")
-    org = await OrganizationRepository(db_session).create(name="ООО Ромашка")
+    org = await OrganizationRepository(db_session).create(name="Daisy LLC")
     await MembershipRepository(db_session).create(
         organization_id=org.id, user_id=owner.id, role=MemberRole.OWNER
     )
@@ -116,7 +116,7 @@ async def test_a_tenant_with_no_subscription_row_reaches_nothing(
     is the whole service, not just its writes.
     """
     owner = await persist_user(db_session, "owner@example.com")
-    org = await OrganizationRepository(db_session).create(name="ООО Без подписки")
+    org = await OrganizationRepository(db_session).create(name="No Subscription LLC")
     await MembershipRepository(db_session).create(
         organization_id=org.id, user_id=owner.id, role=MemberRole.OWNER
     )
@@ -145,7 +145,7 @@ async def test_a_manager_quota_refuses_a_further_invitation(db_session: AsyncSes
         organization_id=org.id, user_id=existing.id, role=MemberRole.MANAGER
     )
 
-    with pytest.raises(ValidationError, match="лимит менеджеров"):
+    with pytest.raises(ValidationError, match="Manager limit"):
         await invitation_service(db_session).invite(
             organization_id=org.id, owner_user_id=owner.id, email=None, valid_for_hours=24
         )

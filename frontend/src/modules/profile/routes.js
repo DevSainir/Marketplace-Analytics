@@ -7,7 +7,7 @@ export const profileRoutes = [
     // `allowWithoutOrganization`, obviously: this is how an account WITHOUT one
     // gets one. Blurring it behind the activation gate would hide the only
     // screen that resolves the state the gate is complaining about.
-    meta: { title: 'Приглашение', requiresAuth: true, allowWithoutOrganization: true },
+    meta: { title: 'Invitation', requiresAuth: true, allowWithoutOrganization: true },
   },
   {
     // A parent with three children rather than one long page. The security
@@ -27,22 +27,22 @@ export const profileRoutes = [
         // The parent used to carry this name, and half the app navigates by it
         // — the header's profile button, the guard's redirects, the e2e specs.
         // Moving it to the default child keeps every `{ name: 'profile' }`
-        // working and lands it on «Общие».
+        // working and lands it on "General".
         name: 'profile',
         component: () => import('@/modules/profile/views/ProfileGeneralView.vue'),
-        meta: { title: 'Профиль', requiresAuth: true, allowWithoutOrganization: true },
+        meta: { title: 'Profile', requiresAuth: true, allowWithoutOrganization: true },
       },
       {
         path: 'team',
         name: 'profile-team',
         component: () => import('@/modules/profile/views/ProfileTeamView.vue'),
-        meta: { title: 'Команда', requiresAuth: true, allowWithoutOrganization: true },
+        meta: { title: 'Team', requiresAuth: true, allowWithoutOrganization: true },
       },
       {
         path: 'security',
         name: 'profile-security',
         component: () => import('@/modules/profile/views/ProfileSecurityView.vue'),
-        meta: { title: 'Безопасность', requiresAuth: true, allowWithoutOrganization: true },
+        meta: { title: 'Security', requiresAuth: true, allowWithoutOrganization: true },
       },
       {
         // Dev only: the rail hides it from everyone else and the API refuses
@@ -50,7 +50,7 @@ export const profileRoutes = [
         path: 'guests',
         name: 'profile-guests',
         component: () => import('@/modules/profile/views/ProfileGuestsView.vue'),
-        meta: { title: 'Доступы', requiresAuth: true, allowWithoutOrganization: true },
+        meta: { title: 'Access', requiresAuth: true, allowWithoutOrganization: true },
       },
     ],
   },

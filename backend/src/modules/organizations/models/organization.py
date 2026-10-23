@@ -91,30 +91,30 @@ class ModuleKey(enum.StrEnum):
     """The product surfaces a manager can be granted or denied.
 
     **One per page of the header**, and a grant opens everything on its page.
-    «Сводка» and «Тепловая карта» used to borrow other pages' grants — the
-    first asked for both «Мониторинг» and P&L, the second for «Мониторинг» and,
+    "Summary" and "Heatmap" used to borrow other pages' grants — the
+    first asked for both "Monitoring" and P&L, the second for "Monitoring" and,
     for its money, P&L — and that is what locked a manager out of pages and
     groups nobody meant to close. The owner now decides about each page they
     can see in the header, and the page shows what is on it, money included,
-    exactly as «Реклама» always did.
+    exactly as "Advertising" always did.
 
     Groups are not a page: they are a control on four of them, so their routes
     open to anybody holding one of those four (:data:`GROUP_MODULES`).
     """
 
-    #: «Мониторинг» — cards and the funnel.
+    #: "Monitoring" — cards and the funnel.
     MONITORING = "monitoring"
     #: P&L — the profit-and-loss statement built from WB's settlement detail.
     FINREPORTS = "finreports"
-    #: «A/Б-тесты» — photo A/B tests.
+    #: "A/B tests" — photo A/B tests.
     AB_TESTS = "ab_tests"
-    #: «Реклама» — where the advertising money went. Its own switch rather than
-    #: «Мониторинг»'s, because the page shows sales and «ДРР от продаж»: an owner
+    #: "Advertising" — where the advertising money went. Its own switch rather than
+    #: "Monitoring"'s, because the page shows sales and "ACoS (sales)": an owner
     #: who grants it is deciding about money, not about cards.
     ADVERTISING = "advertising"
-    #: «Сводка» — the workspace's revenue and margin beside its orders and ads.
+    #: "Summary" — the workspace's revenue and margin beside its orders and ads.
     SUMMARY = "summary"
-    #: «Тепловая карта» — every metric by day, the settlement's money included.
+    #: "Heatmap" — every metric by day, the settlement's money included.
     HEATMAP = "heatmap"
 
 

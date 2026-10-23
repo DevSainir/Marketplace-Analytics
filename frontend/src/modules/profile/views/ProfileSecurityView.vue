@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Безопасность» — the two things an account holder controls about their own
+ * "Security" — the two things an account holder controls about their own
  * access, both of which the product used to only half-offer.
  *
  * The password button mailed a reset code and left nowhere to type it, so the
@@ -92,7 +92,7 @@ async function onEndOthers() {
     <div class="pf-panel">
       <header class="pf-panel__head">
         <div class="min-w-0">
-          <h2 class="pf-panel__title">Пароль</h2>
+          <h2 class="pf-panel__title">Password</h2>
         </div>
       </header>
 
@@ -108,8 +108,8 @@ async function onEndOthers() {
     <div class="pf-panel">
       <header class="pf-panel__head">
         <div class="min-w-0">
-          <h2 class="pf-panel__title">Активные сеансы</h2>
-          <p class="pf-panel__note">Каждый браузер, в котором выполнен вход в этот аккаунт.</p>
+          <h2 class="pf-panel__title">Active sessions</h2>
+          <p class="pf-panel__note">Every browser signed in to this account.</p>
         </div>
       </header>
 

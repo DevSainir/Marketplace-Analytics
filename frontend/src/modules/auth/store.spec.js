@@ -77,7 +77,7 @@ describe('register', () => {
     loginUser.mockRejectedValue({
       response: {
         status: 403,
-        data: { error: { code: 'email_not_confirmed', message: 'Аккаунт не активирован.' } },
+        data: { error: { code: 'email_not_confirmed', message: 'Account not activated.' } },
       },
     })
 
@@ -292,10 +292,10 @@ describe('account recovery', () => {
   })
 
   it('surfaces a refused code as an error rather than a silent false', async () => {
-    confirmEmail.mockRejectedValue({ response: { data: { detail: 'Неверный код.' } } })
+    confirmEmail.mockRejectedValue({ response: { data: { detail: 'Wrong code.' } } })
 
     await expect(store.confirmAddress('a@b.ru', '000000')).resolves.toBe(false)
-    expect(store.error).toBe('Неверный код.')
+    expect(store.error).toBe('Wrong code.')
   })
 
   it('drops the local session once a reset succeeds', async () => {
@@ -320,14 +320,14 @@ describe('account recovery', () => {
   })
 
   it('keeps the session when the reset is refused', async () => {
-    confirmPasswordReset.mockRejectedValue({ response: { data: { detail: 'Просрочен.' } } })
+    confirmPasswordReset.mockRejectedValue({ response: { data: { detail: 'Expired.' } } })
     loginUser.mockResolvedValue(TOKENS)
     await store.login('a@b.ru', 'secret-enough')
 
     await expect(store.resetPassword('a@b.ru', '000000', 'a-new-password')).resolves.toBe(false)
 
     expect(store.isAuthenticated).toBe(true)
-    expect(store.error).toBe('Просрочен.')
+    expect(store.error).toBe('Expired.')
   })
 
   it('does not report a timeout as a failure when a code was consumed', async () => {
@@ -342,16 +342,16 @@ describe('account recovery', () => {
 
     await expect(store.resetPassword('a@b.ru', '123456', 'a-new-password')).resolves.toBe(false)
 
-    expect(store.error).toContain('Пароль мог быть изменён')
+    expect(store.error).toContain('The password may have changed')
     expect(store.error).not.toContain('timeout')
   })
 
   it('still reports a refusal from its own message', async () => {
-    confirmPasswordReset.mockRejectedValue({ response: { data: { detail: 'Просрочен.' } } })
+    confirmPasswordReset.mockRejectedValue({ response: { data: { detail: 'Expired.' } } })
 
     await store.resetPassword('a@b.ru', '000000', 'a-new-password')
 
-    expect(store.error).toBe('Просрочен.')
+    expect(store.error).toBe('Expired.')
   })
 
   it('clears loading on both paths', async () => {
@@ -369,7 +369,7 @@ describe('ending a session', () => {
    *
    * Sign out, sign in as somebody from another company, and the browser kept
    * stamping every request with the previous tenant's workspace — which the API
-   * refuses, so a perfectly valid new login met «Кабинет не найден».
+   * refuses, so a perfectly valid new login met "Workspace not found".
    * Nothing leaked (the server said no), but the app was broken for
    * the second person to use it.
    */

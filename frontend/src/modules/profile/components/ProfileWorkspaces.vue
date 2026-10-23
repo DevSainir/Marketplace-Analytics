@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Кабинеты» — the list, and what state each one's WB credentials are in.
+ * "Workspaces" — the list, and what state each one's WB credentials are in.
  *
  * The old panel hid the credentials behind a per-row accordion, which meant
  * you could not see from the list which workspace was actually wired up — and
@@ -50,45 +50,45 @@ const removal = useConfirmClick()
   <div class="pf-panel">
     <header class="pf-panel__head">
       <div class="min-w-0">
-        <h2 class="pf-panel__title">Кабинеты</h2>
+        <h2 class="pf-panel__title">Workspaces</h2>
       </div>
 
       <form v-if="canManage" class="pf-panel__form" @submit.prevent="onCreate">
         <input
           v-model="newName"
           type="text"
-          placeholder="Название нового"
+          placeholder="New workspace name"
           class="ui-input w-full"
-          aria-label="Название нового кабинета"
+          aria-label="New workspace name"
         />
         <button type="submit" class="ui-btn ui-btn--primary" :disabled="busy || !newName.trim()">
-          {{ creating ? 'Создаём…' : 'Создать' }}
+          {{ creating ? 'Creating…' : 'Create' }}
         </button>
       </form>
     </header>
 
-    <p v-if="!workspaces.length" class="pf-empty">Пока нет ни одного кабинета.</p>
+    <p v-if="!workspaces.length" class="pf-empty">No workspaces yet.</p>
 
     <div v-else class="pf-grid" :class="canManage ? '' : 'is-readonly'" role="table">
       <div class="pf-grid__head" role="row">
-        <span role="columnheader">Название</span>
-        <!-- A manager cannot set a token, so a column of «—» for them is a
+        <span role="columnheader">Name</span>
+        <!-- A manager cannot set a token, so a column of "—" for them is a
              column that says nothing. -->
-        <span v-if="canManage" role="columnheader">Токены WB</span>
-        <span role="columnheader">Создан</span>
-        <span role="columnheader" class="sr-only">Действия</span>
+        <span v-if="canManage" role="columnheader">WB tokens</span>
+        <span role="columnheader">Created</span>
+        <span role="columnheader" class="sr-only">Actions</span>
       </div>
 
       <div v-for="ws in workspaces" :key="ws.id" class="pf-grid__row" role="row">
         <span class="pf-cell pf-cell--who" role="cell">
           <span class="pf-who__mail" :title="ws.name">{{ ws.name }}</span>
           <span class="pf-cell--chips">
-            <!-- «Активно» said nothing: every workspace in the list is active.
+            <!-- "Active" said nothing: every workspace in the list is active.
                  What this marks is the one whose data the rest of the app is
                  currently showing — so it says that, and pairs with the
-                 «Выбрать» on every other row. -->
-            <span v-if="ws.id === currentId" class="ui-badge is-on">Выбран</span>
-            <span v-if="ws.is_primary" class="ui-badge is-soft">основной</span>
+                 "Select" on every other row. -->
+            <span v-if="ws.id === currentId" class="ui-badge is-on">Current</span>
+            <span v-if="ws.is_primary" class="ui-badge is-soft">primary</span>
           </span>
         </span>
 
@@ -104,7 +104,7 @@ const removal = useConfirmClick()
                     : 'is-ok'
               "
             >
-              {{ tokenSummary(ws, tokenStatuses).set }} из
+              {{ tokenSummary(ws, tokenStatuses).set }} of
               {{ tokenSummary(ws, tokenStatuses).total }}
             </span>
           </template>
@@ -122,7 +122,7 @@ const removal = useConfirmClick()
             class="ui-btn ui-btn--ghost ui-btn--sm"
             @click="emit('select', ws.id)"
           >
-            Выбрать
+            Select
           </button>
           <template v-if="canManage">
             <button
@@ -130,7 +130,7 @@ const removal = useConfirmClick()
               class="ui-btn ui-btn--ghost ui-btn--sm"
               @click="emit('tokens', ws)"
             >
-              Токены
+              Tokens
             </button>
             <button
               type="button"

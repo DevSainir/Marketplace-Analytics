@@ -135,7 +135,7 @@ async def test_the_grant_form_offers_every_workspace_by_name(
 ) -> None:
     """Across companies, sorted by name regardless of case."""
     # Arrange
-    other = Workspace(organization_id=organization.id, name="aлфавит")
+    other = Workspace(organization_id=organization.id, name="aλφάβητο")
     db_session.add(other)
     await db_session.flush()
 
@@ -144,5 +144,5 @@ async def test_the_grant_form_offers_every_workspace_by_name(
 
     # Assert
     names = [option.name for option in options]
-    assert {"NEVA", "aлфавит"} <= set(names)
+    assert {"NEVA", "aλφάβητο"} <= set(names)
     assert names == sorted(names, key=str.lower)

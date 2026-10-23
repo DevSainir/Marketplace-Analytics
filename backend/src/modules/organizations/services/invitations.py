@@ -112,8 +112,7 @@ class InvitationService:
         limit = subscription.max_managers if subscription else None
         if limit is not None and await self._memberships.count_managers(organization_id) >= limit:
             raise ValidationError(
-                f"Достигнут лимит менеджеров ({limit}). "
-                "Удалите одного из текущих или продлите подписку."
+                f"Manager limit reached ({limit}). Remove a manager or renew the subscription."
             )
 
     async def invite(
@@ -226,7 +225,7 @@ class InvitationService:
         """
         row = await self._invitations.get_by_id(invitation_id)
         if row is None or row.organization_id != organization_id:
-            raise NotFoundError("Приглашение не найдено.")
+            raise NotFoundError("Invitation not found.")
         if row.revoked_at is None:
             await self._invitations.mark_revoked(row, revoked_at=datetime.now(UTC))
         return row.email
@@ -237,7 +236,7 @@ class InvitationService:
     async def list_pending_for(self, *, email: str) -> list[PendingInvitation]:
         """List live invitations addressed to one account's email.
 
-        This is what puts «Вас пригласили» on a registered user's own profile
+        This is what puts "You're invited" on a registered user's own profile
         page — no link needed, so an owner inviting a colleague who already has
         an account does not have to get a URL to them.
         """
@@ -274,7 +273,7 @@ class InvitationService:
         """
         existing = await self._memberships.get_for_user(user_id)
         if existing is not None:
-            raise ConflictError("Этот аккаунт уже состоит в организации.")
+            raise ConflictError("This account already belongs to a company.")
 
         row = await self._invitations.get_by_hash(hash_opaque_secret(token.strip()))
         now = datetime.now(UTC)
@@ -298,7 +297,7 @@ class InvitationService:
                 row is not None,
                 addressed_to_someone_else,
             )
-            raise PermissionDeniedError("Приглашение недействительно.")
+            raise PermissionDeniedError("Invalid invitation.")
 
         # The quota, re-checked at the moment it is spent. Issuing checked it
         # too, but a reusable link makes that check historical: five people can
@@ -334,6 +333,6 @@ class InvitationService:
             # The request transaction rolls back, which un-claims the
             # invitation too — so a caller who already belongs somewhere does
             # not burn somebody else's invitation on the way to being refused.
-            raise ConflictError("Этот аккаунт уже состоит в организации.") from exc
+            raise ConflictError("This account already belongs to a company.") from exc
         logger.info("User %s joined organisation %s as manager.", user_id, row.organization_id)
         return row.organization_id

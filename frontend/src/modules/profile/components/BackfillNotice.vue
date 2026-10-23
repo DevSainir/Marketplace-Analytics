@@ -1,10 +1,10 @@
 <script setup>
 /**
  * One line under a page's header while a new workspace's history is still being
- * fetched from WB: «Загружаем историю из WB — Воронка продаж 40 %».
+ * fetched from WB: "Loading history from WB — Sales funnel 40%".
  *
- * Without it a new workspace's «Сводка», «Реклама» or heatmap was simply empty
- * for the day the backfill runs, which reads as «the service does not work».
+ * Without it a new workspace's "Summary", "Advertising" or heatmap was simply empty
+ * for the day the backfill runs, which reads as "the service does not work".
  * The profile shows the full lanes (`BackfillStrip`); a page only names the
  * lanes its own figures come from — the summary does not care that the
  * funnel is still walking, the heatmap does.
@@ -34,8 +34,8 @@ let timer = null
 
 const text = computed(() => {
   if (!moving.value.length) return ''
-  const parts = moving.value.map((lane) => `${lane.label} ${lane.percent ?? 0} %`)
-  return `Загружаем историю из WB — ${parts.join(', ')}. Ранние дни появятся сами, по мере загрузки.`
+  const parts = moving.value.map((lane) => `${lane.label} ${lane.percent ?? 0}%`)
+  return `Loading history from WB — ${parts.join(', ')}. Earlier days appear as they load.`
 })
 
 function stop() {

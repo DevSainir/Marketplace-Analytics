@@ -139,7 +139,7 @@ async def test_an_invitation_cannot_be_revoked_from_another_organisation(
     owner = await persist_user(db_session, "owner@example.com")
     outsider = await persist_user(db_session, "outsider@example.com")
     org = await persist_organization(db_session, owner)
-    other_org = await OrganizationRepository(db_session).create(name="ООО Чужая")
+    other_org = await OrganizationRepository(db_session).create(name="Foreign LLC")
     await MembershipRepository(db_session).create(
         organization_id=other_org.id, user_id=outsider.id, role=MemberRole.OWNER
     )
@@ -187,7 +187,7 @@ async def test_an_already_used_invitation_can_still_be_revoked(db_session: Async
 async def test_a_pending_invitation_is_offered_to_its_recipient(
     db_session: AsyncSession,
 ) -> None:
-    """«Вас пригласили» — an existing account never needs the link at all."""
+    """The "You're invited" list — an existing account never needs the link at all."""
     owner = await persist_user(db_session, "owner@example.com")
     joiner = await persist_user(db_session, "manager@example.com")
     org = await persist_organization(db_session, owner)
@@ -204,7 +204,7 @@ async def test_a_pending_invitation_is_offered_to_its_recipient(
     assert len(pending) == 1
     # The organisation's name, and nothing else about it: the caller has not
     # joined yet and is not entitled to its roster or its workspaces.
-    assert pending[0].organization_name == "ООО Ромашка"
+    assert pending[0].organization_name == "Daisy LLC"
 
 
 async def test_a_link_only_invitation_is_offered_to_nobody(db_session: AsyncSession) -> None:
@@ -309,7 +309,7 @@ async def test_two_accounts_can_join_through_one_forwarded_link(
         async with AsyncSession(engine) as cleanup:
             await cleanup.execute(sa.text("DELETE FROM auth.users WHERE email LIKE 'race-inv-%'"))
             await cleanup.execute(
-                sa.text("DELETE FROM organizations.organizations WHERE name = 'ООО Ромашка'")
+                sa.text("DELETE FROM organizations.organizations WHERE name = 'Daisy LLC'")
             )
             await cleanup.commit()
 

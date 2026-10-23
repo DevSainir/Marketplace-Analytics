@@ -90,13 +90,13 @@ class BackfillLane(enum.StrEnum):
     report serves **one request a minute per method** (one per fifteen minutes
     per token until the finance-api cutover on 2026-09-22). Showing them
     as one bar would park it near zero for most of a day; showing four lanes
-    lets the three fast ones report «готово» while the slow one keeps its own
+    lets the three fast ones report "done" while the slow one keeps its own
     honest estimate.
     """
 
-    CATALOGUE = "catalogue"  # «Каталог» — cards, sizes, SKU ownership
-    FUNNEL = "funnel"  # «Воронка» — 365 days, the WB ceiling
-    ADVERTISING = "advertising"  # «Реклама» — to the first campaign
+    CATALOGUE = "catalogue"  # "Catalog" — cards, sizes, SKU ownership
+    FUNNEL = "funnel"  # "Sales funnel" — 365 days, the WB ceiling
+    ADVERTISING = "advertising"  # "Advertising" — to the first campaign
     PNL = "pnl"  # P&L — to the first settlement report
     #: Not a seller's lane: a maintenance re-walk of the funnel for the sums
     #: stored since 2026-09-29, on workspaces whose history predates them. It is
@@ -120,7 +120,7 @@ class BackfillState(enum.StrEnum):
 class WorkspaceBackfill(Base):
     """One lane's progress AND its resume point, for one workspace.
 
-    Deliberately one row rather than two mechanisms. The «Обновить все SKU»
+    Deliberately one row rather than two mechanisms. The "Refresh all SKUs"
     refresh publishes progress into Celery's result backend and the SPA polls
     it by task id, which works because that refresh is over in minutes. A
     backfill is not: the P&L lane runs for **sixteen hours** on a large
@@ -145,7 +145,7 @@ class WorkspaceBackfill(Base):
             retention floor finishes with ``done < total``, which is why
             ``state`` and not the ratio is what says "finished".
         cursor: The lane's private resume point; ``None`` before it starts.
-        message: Russian, user-facing — rendered verbatim under the lane.
+        message: User-facing — rendered verbatim under the lane.
         started_at / finished_at: When the lane began and stopped.
         updated_at: Last tick, so a stalled lane is visible as such.
     """
@@ -187,15 +187,15 @@ class Workspace(Base):
         is_primary: The main workspace stores a token per WB category (granular
             control); every other workspace stores a single ``unified`` token
             reused for all categories. Exactly one workspace is primary (the
-            seeded «ИП Иванов. И. И.»); new workspaces are never primary.
-        search_clusters_enabled: Shows «Рекламные кластеры» on the SKU page.
+            seeded "Ivanov Shop"); new workspaces are never primary.
+        search_clusters_enabled: Shows "Search clusters" on the SKU page.
             The block was hidden for everyone on 2026-09-09 as a product
             decision and brought back for one workspace on 2026-09-26, so
             it is a per-workspace switch rather than a global one. Flipped by
             migration, not by any route — no caller can turn it on for itself.
             The harvester fills the cluster tables whatever this says.
-        ads_show_bonus: Whether «Реклама» shows WB's promo bonus — the
-            «Промо-бонусы» switch. A seller either has bonuses or does not,
+        ads_show_bonus: Whether "Advertising" shows WB's promo bonus — the
+            "Promo bonuses" switch. A seller either has bonuses or does not,
             so the choice is the workspace's and made once, for everyone in it,
             rather than a per-browser toggle. On by default; any writer in the
             workspace flips it (``PATCH /v1/workspaces/current/settings``).

@@ -18,7 +18,7 @@ vi.mock('@/modules/profile/api', () => ({
   updateMemberAccess: vi.fn(),
 }))
 
-const ORG = { id: 'org-1', name: 'Демо' }
+const ORG = { id: 'org-1', name: 'Demo' }
 
 /** The `/v1/organizations/me` payload, defaulting to a fresh unattached account. */
 function me(overrides = {}) {
@@ -95,14 +95,14 @@ describe('membersStore — the account that has not been let in yet', () => {
 
     activateOrganization.mockRejectedValue({
       isAxiosError: true,
-      response: { status: 403, data: { error: { message: 'Ключ активации недействителен.' } } },
+      response: { status: 403, data: { error: { message: 'Invalid activation code.' } } },
     })
 
     const ok = await store.activate('WRONG')
 
     expect(ok).toBe(false)
     expect(store.hasOrganization).toBe(false)
-    expect(store.error).toBe('Ключ активации недействителен.')
+    expect(store.error).toBe('Invalid activation code.')
     expect(store.saving).toBeNull()
   })
 })

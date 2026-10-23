@@ -32,17 +32,17 @@ const store = useWorkspaceStore()
 const members = useMembersStore()
 
 const ROLE_LABELS = {
-  dev: 'Разработчик',
-  owner: 'Владелец',
-  manager: 'Менеджер',
-  user: 'Без компании',
+  dev: 'Developer',
+  owner: 'Owner',
+  manager: 'Manager',
+  user: 'No company',
 }
 
 const SECTIONS = [
-  { name: 'profile', label: 'Общие' },
-  { name: 'profile-team', label: 'Команда' },
-  { name: 'profile-security', label: 'Безопасность' },
-  { name: 'profile-guests', label: 'Доступы' },
+  { name: 'profile', label: 'General' },
+  { name: 'profile-team', label: 'Team' },
+  { name: 'profile-security', label: 'Security' },
+  { name: 'profile-guests', label: 'Access' },
 ]
 
 /** Only the sections this account can actually be shown. */
@@ -57,7 +57,7 @@ const sections = computed(() =>
 )
 
 const roleLabel = computed(() =>
-  members.guestOnly ? 'Гостевой доступ' : (ROLE_LABELS[members.role] ?? ''),
+  members.guestOnly ? 'Guest access' : (ROLE_LABELS[members.role] ?? ''),
 )
 
 onMounted(async () => {
@@ -86,11 +86,11 @@ onMounted(async () => {
         <!-- The only screen an account without a company can reach anything
              from, so it carries the way out rather than describing it. -->
         <section v-if="!members.hasOrganization && !members.guestOnly" class="pf-activation">
-          <h2 class="pf-panel__title">Ключ активации</h2>
+          <h2 class="pf-panel__title">Activation code</h2>
           <p class="pf-panel__note">
-            Аккаунт ещё не привязан к компании. Введите ключ активации — или
-            <RouterLink class="pf-link" :to="{ name: 'invite' }">примите приглашение</RouterLink>,
-            если владелец компании вам его прислал.
+            The account has no company yet. Enter an activation code, or
+            <RouterLink class="pf-link" :to="{ name: 'invite' }">accept an invitation</RouterLink>
+            if a company owner sent you one.
           </p>
           <ActivationKeyForm align="left" />
         </section>

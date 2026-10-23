@@ -1,18 +1,17 @@
 <script setup>
 /**
- * «Команда» — who is in the company, what they may reach, and how they got in.
+ * "Team" — who is in the company, what they may reach, and how they got in.
  *
  * The roster on its own is a thin page: most companies here have two or three
  * managers, and a three-row table is not a screen. What fills it is the rest of
  * the same question, and both halves already existed in the API with nothing
  * rendering them:
  *
- *  - **Invitations («Приглашения»).** Issuing one showed its link once and
- *    then forgot it, so a link handed to the wrong person was untrackable and
- *    unrevokable from the product — and an invitation is a door standing open
- *    until it expires.
- *  - **Access log («Журнал доступа»).** The audit rows have been written since
- *    the trail was built and read only over psql. "Who removed this manager" is the question
+ *  - **Invitations.** Issuing one showed its link once and then forgot it, so
+ *    a link handed to the wrong person was untrackable and unrevokable from the
+ *    product — and an invitation is a door standing open until it expires.
+ *  - **Access log.** The audit rows have been written since the trail was
+ *    built and read only over psql. "Who removed this manager" is the question
  *    an owner actually asks, and until now the product could not answer it.
  *
  * They also order themselves: the roster is who is in, invitations are who is

@@ -1,6 +1,6 @@
 <script setup>
 /**
- * «Доступы» — which workspaces of other companies are open to whom. Dev only.
+ * "Access" — which workspaces of other companies are open to whom. Dev only.
  *
  * A grant opens one workspace, read-only, to one account by its email: every
  * section, no writes. The account needs no company of its own — that is what
@@ -104,23 +104,23 @@ function grantedOn(iso) {
 
 <template>
   <div class="pf-section">
-    <p v-if="members.role && !isDev" class="pf-empty">Раздел доступен только разработчику.</p>
+    <p v-if="members.role && !isDev" class="pf-empty">Only a developer can open this section.</p>
 
     <template v-else-if="isDev">
       <div class="pf-panel">
         <header class="pf-panel__head">
           <div class="min-w-0">
-            <h2 class="pf-panel__title">Открыть кабинет</h2>
+            <h2 class="pf-panel__title">Open a workspace</h2>
             <p class="pf-panel__note">
-              Человек увидит все разделы кабинета, но ничего не сможет изменить. Своя компания ему
-              не нужна — достаточно зарегистрироваться.
+              The person sees every section of the workspace and can change nothing. They need no
+              company of their own — signing up is enough.
             </p>
           </div>
         </header>
 
         <form class="guests-form" @submit.prevent="submit">
           <label class="guests-form__field">
-            <span class="guests-label">Почта</span>
+            <span class="guests-label">Email</span>
             <input
               v-model="email"
               type="email"
@@ -132,14 +132,14 @@ function grantedOn(iso) {
             />
           </label>
           <label class="guests-form__field">
-            <span class="guests-label">Кабинет</span>
+            <span class="guests-label">Workspace</span>
             <select v-model="workspaceName" required class="ui-select w-full">
-              <option value="" disabled>Выберите кабинет</option>
+              <option value="" disabled>Choose a workspace</option>
               <option v-for="ws in workspaces" :key="ws.id" :value="ws.name">{{ ws.name }}</option>
             </select>
           </label>
           <button type="submit" class="ui-btn ui-btn--primary" :disabled="!canSubmit">
-            {{ saving ? 'Открываем…' : 'Открыть доступ' }}
+            {{ saving ? 'Opening…' : 'Grant access' }}
           </button>
         </form>
 
@@ -149,24 +149,24 @@ function grantedOn(iso) {
       <div class="pf-panel">
         <header class="pf-panel__head">
           <div class="min-w-0">
-            <h2 class="pf-panel__title">Открытые доступы</h2>
+            <h2 class="pf-panel__title">Open access</h2>
           </div>
         </header>
 
         <DataState v-if="loading" kind="loading" />
         <DataState v-else-if="loadError" kind="error" :text="loadError" />
-        <p v-else-if="!grants.length" class="pf-empty">Пока никому не открыт ни один кабинет.</p>
+        <p v-else-if="!grants.length" class="pf-empty">No workspace is open to anyone yet.</p>
 
         <div v-else class="pf-grid">
           <div class="pf-grid__head guests-cols">
-            <span>Кто</span>
-            <span>Кабинет</span>
+            <span>Who</span>
+            <span>Workspace</span>
             <span />
           </div>
           <article v-for="grant in grants" :key="grant.id" class="pf-grid__row guests-cols">
             <span class="pf-cell pf-cell--who">
               <span class="pf-who__mail" :title="grant.email">{{ grant.email }}</span>
-              <span class="pf-who__meta">с {{ grantedOn(grant.created_at) }}</span>
+              <span class="pf-who__meta">since {{ grantedOn(grant.created_at) }}</span>
             </span>
             <span class="pf-cell">
               <span class="ui-badge is-soft">{{ grant.workspace_name }}</span>
@@ -178,7 +178,7 @@ function grantedOn(iso) {
                 :disabled="revoking === grant.id"
                 @click="revoke(grant.id)"
               >
-                {{ revoking === grant.id ? 'Закрываем…' : 'Закрыть' }}
+                {{ revoking === grant.id ? 'Revoking…' : 'Revoke' }}
               </button>
             </span>
           </article>

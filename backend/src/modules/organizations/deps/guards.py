@@ -112,15 +112,13 @@ async def require_member(access: CurrentAccess) -> OrganizationAccess:
     """
     if access.organization_id is None and not access.is_guest_only:
         raise PermissionDeniedError(
-            "Аккаунт не привязан к организации. Введите ключ активации или примите приглашение."
+            "This account has no company. Enter an activation code or accept an invitation."
         )
     if not access.has_access:
         # Checked AFTER the membership: an account with nowhere to be is not
         # behind on a payment, and telling them to renew sends them to support
         # with the wrong question.
-        raise PermissionDeniedError(
-            "Подписка истекла — доступ к сервису закрыт. Продлите подписку, чтобы вернуть доступ."
-        )
+        raise PermissionDeniedError("Subscription expired. Renew it to restore access.")
     return access
 
 
@@ -150,12 +148,8 @@ async def require_writer(access: MemberAccess) -> OrganizationAccess:
         # read-only cannot, and telling them to renew sends them to support with
         # the wrong question.
         if access.access_level is AccessLevel.READ_ONLY and access.role is EffectiveRole.MANAGER:
-            raise PermissionDeniedError(
-                "Доступ только для чтения — изменения вносит владелец организации."
-            )
-        raise PermissionDeniedError(
-            "Подписка истекла — доступ к сервису закрыт. Продлите подписку, чтобы вернуть доступ."
-        )
+            raise PermissionDeniedError("Read-only access. Changes are made by the company owner.")
+        raise PermissionDeniedError("Subscription expired. Renew it to restore access.")
     return access
 
 
@@ -195,9 +189,7 @@ def require_any_module(
             # Deliberately says the access is missing rather than that the
             # module is: "no such section" would be a lie the person cannot
             # act on, and they need to know who to ask.
-            raise PermissionDeniedError(
-                "Раздел недоступен для вашей учётной записи. Доступ выдаёт владелец организации."
-            )
+            raise PermissionDeniedError("No access to this section. Ask the company owner for it.")
         return access
 
     return _guard
@@ -239,7 +231,7 @@ async def require_owner(access: MemberAccess) -> OrganizationAccess:
         PermissionDeniedError: The caller is a manager.
     """
     if access.role not in (EffectiveRole.OWNER, EffectiveRole.DEV):
-        raise PermissionDeniedError("Действие доступно только владельцу организации.")
+        raise PermissionDeniedError("Only the company owner can do this.")
     return access
 
 
@@ -253,7 +245,7 @@ async def require_dev(access: CurrentAccess) -> OrganizationAccess:
         PermissionDeniedError: Anyone else.
     """
     if access.role is not EffectiveRole.DEV:
-        raise PermissionDeniedError("Действие доступно только разработчику.")
+        raise PermissionDeniedError("Only a developer can do this.")
     return access
 
 
@@ -270,7 +262,7 @@ async def require_code_issuer(access: CurrentAccess) -> OrganizationAccess:
         PermissionDeniedError: Anyone else.
     """
     if not access.can_issue_codes:
-        raise PermissionDeniedError("Действие недоступно.")
+        raise PermissionDeniedError("Not available.")
     return access
 
 

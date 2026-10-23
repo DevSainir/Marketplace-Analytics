@@ -1,19 +1,20 @@
 <script setup>
 /**
- * «Ключи активации» — issuing a key to hand to a customer who paid.
+ * "Activation codes" — issuing a code to hand to a customer who paid.
  *
  * Shown to a dev and to the owner of the primary organisation; the API refuses everyone else.
  * The defaults are what is sold most often: 14 days of service, and nothing
- * else bounded. An empty limit field means «без лимита», which is why every
+ * else bounded. An empty limit field means "no limit", which is why every
  * one of them is optional and only the term is required.
  *
- * The key is shown exactly once — the server stores only its hash — so it stays
- * on screen until the next key is issued.
+ * The code is shown exactly once — the server stores only its hash — so it stays
+ * on screen until the next code is issued.
  */
 import { computed, ref } from 'vue'
 
 import { extractErrorMessage } from '@/core/api/axios'
 import { createActivationCode } from '@/modules/profile/api'
+import { plural } from '@/core/utils/format'
 import { formatMoscowDate } from '@/core/utils/moscow'
 
 const DEFAULT_DAYS = 14
@@ -28,7 +29,7 @@ const error = ref('')
 const issued = ref(null)
 const copied = ref(false)
 
-/** An empty or zero field is «без лимита»; v-model.number hands back '' when cleared. */
+/** An empty or zero field is "no limit"; v-model.number hands back '' when cleared. */
 function limit(value) {
   const n = Number(value)
   return value === '' || value === null || !Number.isFinite(n) || n <= 0 ? null : Math.floor(n)
@@ -36,18 +37,18 @@ function limit(value) {
 
 const canSubmit = computed(() => limit(subscriptionDays.value) !== null && !saving.value)
 
-function describe(value, unit) {
-  return value === null ? 'без лимита' : `${value} ${unit}`
+function describe(value, forms) {
+  return value === null ? 'no limit' : `${value} ${plural(value, forms)}`
 }
 
 const summary = computed(() => {
   const key = issued.value
   if (!key) return []
   return [
-    ['Пользование', `${key.subscription_days} дн.`],
-    ['Ключ действует', key.expires_at ? `до ${formatMoscowDate(key.expires_at)}` : 'бессрочно'],
-    ['Кабинеты', describe(key.max_workspaces, 'шт.')],
-    ['Менеджеры', describe(key.max_managers, 'чел.')],
+    ['Term', describe(key.subscription_days, ['day', 'days'])],
+    ['Code valid', key.expires_at ? `until ${formatMoscowDate(key.expires_at)}` : 'no expiry'],
+    ['Workspaces', describe(key.max_workspaces, ['workspace', 'workspaces'])],
+    ['Managers', describe(key.max_managers, ['manager', 'managers'])],
   ]
 })
 
@@ -87,10 +88,9 @@ async function copyKey() {
   <div class="pf-panel">
     <header class="pf-panel__head">
       <div class="min-w-0">
-        <h2 class="pf-panel__title">Ключи активации</h2>
+        <h2 class="pf-panel__title">Activation codes</h2>
         <p class="pf-panel__note">
-          Ключ одноразовый. Пустое поле — без лимита. Срок пользования считается с момента ввода
-          ключа.
+          Single use. An empty field means no limit. The term starts when the code is entered.
         </p>
       </div>
     </header>
@@ -98,7 +98,7 @@ async function copyKey() {
     <form class="flex flex-col gap-md" @submit.prevent="submit">
       <div class="key-grid">
         <label class="flex flex-col gap-xs">
-          <span class="pf-field__label">Пользование, дней</span>
+          <span class="pf-field__label">Term, days</span>
           <input
             v-model.number="subscriptionDays"
             type="number"
@@ -109,35 +109,35 @@ async function copyKey() {
           />
         </label>
         <label class="flex flex-col gap-xs">
-          <span class="pf-field__label">Ключ действует, дней</span>
+          <span class="pf-field__label">Code valid, days</span>
           <input
             v-model.number="validForDays"
             type="number"
             min="1"
             max="365"
-            placeholder="Бессрочно"
+            placeholder="No expiry"
             class="ui-input w-full"
           />
         </label>
         <label class="flex flex-col gap-xs">
-          <span class="pf-field__label">Кабинетов</span>
+          <span class="pf-field__label">Workspaces</span>
           <input
             v-model.number="maxWorkspaces"
             type="number"
             min="1"
             max="1000"
-            placeholder="Без лимита"
+            placeholder="No limit"
             class="ui-input w-full"
           />
         </label>
         <label class="flex flex-col gap-xs">
-          <span class="pf-field__label">Менеджеров</span>
+          <span class="pf-field__label">Managers</span>
           <input
             v-model.number="maxManagers"
             type="number"
             min="1"
             max="1000"
-            placeholder="Без лимита"
+            placeholder="No limit"
             class="ui-input w-full"
           />
         </label>
@@ -145,17 +145,17 @@ async function copyKey() {
 
       <div class="key-row">
         <label class="flex min-w-0 flex-1 flex-col gap-xs">
-          <span class="pf-field__label">Заметка (необязательно)</span>
+          <span class="pf-field__label">Note (optional)</span>
           <input
             v-model="note"
             type="text"
             maxlength="256"
-            placeholder="Кому и за сколько"
+            placeholder="Who and for how much"
             class="ui-input w-full"
           />
         </label>
         <button type="submit" class="ui-btn ui-btn--primary" :disabled="!canSubmit">
-          {{ saving ? 'Создаём…' : 'Создать ключ' }}
+          {{ saving ? 'Creating…' : 'Create code' }}
         </button>
       </div>
 
@@ -163,7 +163,7 @@ async function copyKey() {
     </form>
 
     <div v-if="issued" class="key-issued">
-      <p class="pf-field__label">Ключ показывается один раз — скопируйте его сейчас.</p>
+      <p class="pf-field__label">The code is shown once. Copy it now.</p>
       <code class="key-issued__code">{{ issued.code }}</code>
       <dl class="key-issued__facts">
         <div v-for="[label, value] in summary" :key="label">
@@ -172,7 +172,7 @@ async function copyKey() {
         </div>
       </dl>
       <button type="button" class="ui-btn ui-btn--good" @click="copyKey">
-        {{ copied ? 'Скопировано' : 'Скопировать ключ' }}
+        {{ copied ? 'Copied' : 'Copy code' }}
       </button>
     </div>
   </div>

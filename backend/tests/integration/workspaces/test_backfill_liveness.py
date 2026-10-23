@@ -40,7 +40,7 @@ async def test_a_tick_that_changes_nothing_still_counts_as_a_tick(
     charges a whole window for.
     """
     repo = BackfillRepository(db_session)
-    waiting = "Ждём окно Wildberries (1 запрос в 15 минут)…"
+    waiting = "Waiting for a Wildberries slot (1 request per 15 minutes)…"
 
     first = await repo.upsert(
         workspace_id=workspace.id,
@@ -69,7 +69,7 @@ async def test_progress_still_moves_the_stamp(
     repo = BackfillRepository(db_session)
 
     first = await repo.upsert(
-        workspace_id=workspace.id, lane=BackfillLane.PNL, done_units=1, message="Собираем…"
+        workspace_id=workspace.id, lane=BackfillLane.PNL, done_units=1, message="Collecting…"
     )
     was = first.updated_at
 

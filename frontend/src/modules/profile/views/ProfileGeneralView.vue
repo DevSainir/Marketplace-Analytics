@@ -1,13 +1,13 @@
 <script setup>
 /**
- * «Общие» — what this account is, and the workspaces it can look at.
+ * "General" — what this account is, and the workspaces it can look at.
  *
  * The facts strip replaces five stat tiles. A tile is for a number that moves
  * and that you came to read; a term ending in ten years and a count of two
  * workspaces are standing facts, checked once and then ignored, and four boxes
  * for four constants is a dashboard pretending something is happening.
  *
- * «Компания» is gone from it entirely: the name is the owner's email for every
+ * "Company" is gone from it entirely: the name is the owner's email for every
  * organisation created by an activation code, and nobody outside this repo
  * knows what an "organisation" is here. The role says the same thing usefully.
  * The term moved to the rail, where all three pages can see it.
@@ -26,10 +26,10 @@ const store = useWorkspaceStore()
 const members = useMembersStore()
 
 const ROLE_LABELS = {
-  dev: 'Разработчик',
-  owner: 'Владелец',
-  manager: 'Менеджер',
-  user: 'Без компании',
+  dev: 'Developer',
+  owner: 'Owner',
+  manager: 'Manager',
+  user: 'No company',
 }
 
 /** Lazily loaded token statuses per workspace id. */
@@ -81,7 +81,7 @@ function onSelect(id) {
   window.location.reload()
 }
 
-/** A workspace is being created — its own flag, so «Создаём…» never shows on a delete. */
+/** A workspace is being created — its own flag, so "Creating…" never shows on a delete. */
 const creating = ref(false)
 
 async function onCreate(name) {

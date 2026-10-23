@@ -157,7 +157,7 @@ class ActivationService:
         """
         existing = await self._memberships.get_for_user(user_id)
         if existing is not None:
-            raise ConflictError("Этот аккаунт уже состоит в организации.")
+            raise ConflictError("This account already belongs to a company.")
 
         row = await self._codes.get_by_hash(hash_opaque_secret(code.strip()))
         now = datetime.now(UTC)
@@ -172,7 +172,7 @@ class ActivationService:
                 bool(row and row.used_at),
                 bool(row and row.expires_at and row.expires_at <= now),
             )
-            raise PermissionDeniedError("Ключ активации недействителен.")
+            raise PermissionDeniedError("Invalid activation code.")
 
         # Claim the code BEFORE building anything. The check above is a
         # read-then-write, and two DIFFERENT accounts redeeming the same code in
@@ -184,7 +184,7 @@ class ActivationService:
         # nothing has been created yet.
         if not await self._codes.claim(row.id, used_at=now, used_by_user_id=user_id):
             logger.info("User %s lost the race to redeem activation code %s.", user_id, row.id)
-            raise PermissionDeniedError("Ключ активации недействителен.")
+            raise PermissionDeniedError("Invalid activation code.")
 
         organization = await self._organizations.create(name=email, is_primary=False)
         try:
@@ -197,7 +197,7 @@ class ActivationService:
             # Two redemptions racing on the same account: the UNIQUE on
             # memberships.user_id catches the loser here, and it means the same
             # thing as the pre-check above.
-            raise ConflictError("Этот аккаунт уже состоит в организации.") from exc
+            raise ConflictError("This account already belongs to a company.") from exc
 
         await self._subscriptions.create(
             organization_id=organization.id,

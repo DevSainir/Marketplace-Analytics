@@ -239,7 +239,7 @@ class AccountRecoveryService:
         # the caller already knows, and it tells them nothing.
         if await self._breach_check.is_breached(new_password):
             raise ValidationError(
-                "Этот пароль встречался в публичных утечках данных. Придумайте другой."
+                "This password has appeared in public data breaches. Choose another."
             )
         user = await self._users.get_by_email(_normalize_email(email))
         if user is None or not user.is_active:

@@ -49,7 +49,7 @@ describe('PasswordForm — what it refuses to send', () => {
     await fill(wrapper, { current: 'old-one', next: 'Horosho-2026', repeat: 'Horosho-202' })
 
     expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('Пароли не совпадают')
+    expect(wrapper.text()).toContain('Passwords do not match')
   })
 
   it('will not submit the password that is already set', async () => {
@@ -60,7 +60,7 @@ describe('PasswordForm — what it refuses to send', () => {
     await fill(wrapper, { current: 'Horosho-2026', next: 'Horosho-2026', repeat: 'Horosho-2026' })
 
     expect(submitButton(wrapper).attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('Новый пароль совпадает с текущим')
+    expect(wrapper.text()).toContain('New password matches the current one')
   })
 })
 
@@ -79,9 +79,9 @@ describe('PasswordForm — what it sends', () => {
   it('renders the server’s refusal verbatim', async () => {
     // The API says which of several things went wrong — wrong current
     // password, a password in a public leak — and the form must not paraphrase.
-    const wrapper = mountForm({ error: 'Текущий пароль неверен.' })
+    const wrapper = mountForm({ error: 'Current password is wrong.' })
 
-    expect(wrapper.text()).toContain('Текущий пароль неверен.')
+    expect(wrapper.text()).toContain('Current password is wrong.')
   })
 
   it('clears the fields when the parent says the change landed', async () => {

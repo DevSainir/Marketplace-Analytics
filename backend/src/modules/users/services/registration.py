@@ -154,14 +154,14 @@ class RegistrationService:
                     created=False,
                 )
             raise ConflictError(
-                "Аккаунт с такой почтой уже существует — войдите или восстановите пароль."
+                "An account with this email already exists. Sign in or reset your password."
             )
         # Before the bcrypt cost, not after: there is no point spending 200 ms
         # hashing a password we are about to refuse. The check fails open, so a
         # HIBP outage costs a round trip and nothing else.
         if await self._breach_check.is_breached(password):
             raise ValidationError(
-                "Этот пароль встречался в публичных утечках данных. Придумайте другой."
+                "This password has appeared in public data breaches. Choose another."
             )
         hashed = await asyncio.to_thread(hash_password, password)
         try:
@@ -171,7 +171,7 @@ class RegistrationService:
             # pre-check; the unique index catches the loser here. Map it to the
             # same 409 as the fast path instead of leaking a raw 500.
             raise ConflictError(
-                "Аккаунт с такой почтой уже существует — войдите или восстановите пароль."
+                "An account with this email already exists. Sign in or reset your password."
             ) from exc
         return RegistrationOutcome(
             account=UserRead.model_validate(user),

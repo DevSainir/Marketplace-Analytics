@@ -61,16 +61,16 @@ defineExpose({ submit })
   <div class="flex flex-col gap-lg">
     <div class="grid grid-cols-2 gap-md phone:grid-cols-1">
       <label class="flex flex-col gap-xs">
-        <span class="pf-field__label">Email (необязательно)</span>
+        <span class="pf-field__label">Email (optional)</span>
         <input
           v-model="email"
           type="email"
           class="ui-input w-full"
-          placeholder="Пусто — просто ссылка"
+          placeholder="Empty — just a link"
         />
       </label>
       <label class="flex flex-col gap-xs">
-        <span class="pf-field__label">Ссылка действует, часов</span>
+        <span class="pf-field__label">Link valid, hours</span>
         <input
           v-model.number="validForHours"
           type="number"
@@ -90,8 +90,7 @@ defineExpose({ submit })
 
     <div v-if="issued" class="pf-issued">
       <p class="pf-field__label">
-        Ссылка показывается один раз. Пока она действует, по ней может присоединиться любой, у кого
-        она есть.
+        The link is shown once. While it is valid, anyone who has it can join.
       </p>
       <code class="pf-issued__code">{{ inviteLink }}</code>
       <!-- Green, not violet: the drawer's primary action sits right below it in
@@ -99,7 +98,7 @@ defineExpose({ submit })
            them the thing to press. This one reports a success rather than
            asking for a decision, which is what the positive tone is for. -->
       <button type="button" class="ui-btn ui-btn--good" @click="copyLink">
-        {{ copied ? 'Скопировано' : 'Скопировать ссылку' }}
+        {{ copied ? 'Copied' : 'Copy link' }}
       </button>
     </div>
   </div>

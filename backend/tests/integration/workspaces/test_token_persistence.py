@@ -52,7 +52,7 @@ async def primary(db_session: AsyncSession, organization: Organization) -> Works
 @pytest.fixture
 async def secondary(db_session: AsyncSession, organization: Organization) -> Workspace:
     """A persisted non-primary workspace (single ``unified`` token)."""
-    workspace = Workspace(organization_id=organization.id, name="ООО Второй", is_primary=False)
+    workspace = Workspace(organization_id=organization.id, name="Second LLC", is_primary=False)
     db_session.add(workspace)
     await db_session.flush()
     return workspace

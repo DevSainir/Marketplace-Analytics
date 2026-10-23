@@ -5,7 +5,7 @@ export const authRoutes = [
     name: 'login',
     component: () => import('@/modules/auth/views/LoginView.vue'),
     // Authenticated users have no business on the login page.
-    meta: { title: 'Вход', guestOnly: true },
+    meta: { title: 'Sign in', guestOnly: true },
   },
   {
     path: '/password-reset',
@@ -13,7 +13,7 @@ export const authRoutes = [
     component: () => import('@/modules/auth/views/PasswordResetView.vue'),
     // Guest-only for the same reason as /login: somebody already signed in
     // changes their password from the profile, not from a mailed code.
-    meta: { title: 'Восстановление пароля', guestOnly: true },
+    meta: { title: 'Reset password', guestOnly: true },
   },
   {
     path: '/confirm-email',
@@ -23,6 +23,6 @@ export const authRoutes = [
     // account in and then sends it here, so a guest-only guard would bounce
     // every new user straight off the screen they were just given; and someone
     // who confirms from a different browser has no session to require.
-    meta: { title: 'Подтверждение почты' },
+    meta: { title: 'Confirm email' },
   },
 ]

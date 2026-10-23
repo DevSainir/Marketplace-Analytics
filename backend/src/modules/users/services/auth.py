@@ -155,11 +155,11 @@ class AuthService:
                 "Login refused during a %ds backoff (consecutive failures on this account).",
                 penalty,
             )
-            raise AuthenticationError("Неверная почта или пароль.")
+            raise AuthenticationError("Wrong email or password.")
 
         if user is None or not password_matches:
             await self._backoff.record_failure(email=email)
-            raise AuthenticationError("Неверная почта или пароль.")
+            raise AuthenticationError("Wrong email or password.")
 
         if not user.is_active:
             # Counted like any other failure: not doing so would make a disabled
@@ -167,7 +167,7 @@ class AuthService:
             # difference an attacker can measure.
             await self._backoff.record_failure(email=email)
             logger.info("Login attempt for disabled account %s.", user.id)
-            raise AuthenticationError("Неверная почта или пароль.")
+            raise AuthenticationError("Wrong email or password.")
 
         await self._backoff.clear(email=email)
 
@@ -183,9 +183,7 @@ class AuthService:
         # Here it costs nothing: whoever sees it already had the password.
         if user.email_confirmed_at is None:
             logger.info("Login refused for an unconfirmed address (account %s).", user.id)
-            raise EmailNotConfirmedError(
-                "Аккаунт не активирован — подтвердите адрес электронной почты."
-            )
+            raise EmailNotConfirmedError("Account not activated. Confirm your email address.")
 
         # A fresh login opens a new token family/lineage.
         return await self._issue_pair(
@@ -249,10 +247,10 @@ class AuthService:
             TokenReuseError: If a consumed token is replayed (breach).
         """
         if not refresh_secret:
-            raise AuthenticationError("Сессия не найдена. Войдите снова.")
+            raise AuthenticationError("Session not found. Sign in again.")
         token = await self._tokens.get_by_hash(hash_refresh_secret(refresh_secret))
         if token is None:
-            raise AuthenticationError("Сессия недействительна. Войдите снова.")
+            raise AuthenticationError("Session invalid. Sign in again.")
 
         # --- Consumed token: a racing tab, or a genuine replay. ---
         # These are indistinguishable from the token alone, so the difference is
@@ -266,21 +264,21 @@ class AuthService:
             if replayed is not None:
                 return replayed
             await revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
-            raise TokenReuseError("Сессия завершена в целях безопасности. Войдите снова.")
+            raise TokenReuseError("Session ended for security. Sign in again.")
 
         if token.is_revoked:
-            raise AuthenticationError("Сессия завершена. Войдите снова.")
+            raise AuthenticationError("Session ended. Sign in again.")
 
         now = datetime.now(UTC)
         if token.expires_at <= now:
-            raise AuthenticationError("Срок сессии истёк. Войдите снова.")
+            raise AuthenticationError("Session expired. Sign in again.")
 
         # Rotation must re-check the account, not just the token row: a
         # disabled user holding a valid refresh cookie would otherwise keep
         # renewing 7-day sessions forever.
         user = await self._users.get_by_id(token.user_id)
         if user is None or not user.is_active:
-            raise AuthenticationError("Аккаунт отключён.")
+            raise AuthenticationError("Account disabled.")
 
         # Absolute ceiling per login lineage: rotation slides the refresh
         # window, but a family may not outlive the configured session lifetime.
@@ -289,7 +287,7 @@ class AuthService:
             seconds=settings.session_absolute_lifetime_seconds
         )
         if session_deadline <= now:
-            raise AuthenticationError("Срок сессии истёк. Войдите снова.")
+            raise AuthenticationError("Session expired. Sign in again.")
 
         # --- Breach (race path): consume the token atomically. If another
         # request already consumed it between our read and this UPDATE, this is
@@ -306,7 +304,7 @@ class AuthService:
             if replayed is not None:
                 return replayed
             await revoke_breached_family(user_id=token.user_id, family_id=token.family_id)
-            raise TokenReuseError("Сессия завершена в целях безопасности. Войдите снова.")
+            raise TokenReuseError("Session ended for security. Sign in again.")
 
         issued = await self._issue_pair(
             user_id=token.user_id,

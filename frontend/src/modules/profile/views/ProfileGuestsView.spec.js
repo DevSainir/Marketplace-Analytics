@@ -31,7 +31,7 @@ vi.mock('@/modules/profile/api', () => ({
 }))
 
 /**
- * «Доступы»: a dev opens another company's workspace to an account, read-only.
+ * "Access": a dev opens another company's workspace to an account, read-only.
  *
  * The API is the gate (`DevAccess`); what is pinned here is that the form sends
  * what was chosen, the list follows what the server holds, and nobody but a
@@ -53,7 +53,7 @@ function me(role) {
     has_access: true,
     can_write: true,
     modules: [],
-    organization: { id: 'org-1', name: 'Демо' },
+    organization: { id: 'org-1', name: 'Demo' },
     subscription: null,
   }
 }
@@ -73,7 +73,7 @@ describe('ProfileGuestsView', () => {
     fetchMyInvitations.mockResolvedValue([])
     fetchGuestGrants.mockResolvedValue([GRANT])
     fetchGrantableWorkspaces.mockResolvedValue([
-      { id: 'ws-main', name: 'Демо' },
+      { id: 'ws-main', name: 'Demo' },
       { id: 'ws-via', name: 'NEVA' },
     ])
   })
@@ -85,25 +85,25 @@ describe('ProfileGuestsView', () => {
     expect(wrapper.text()).toContain('NEVA')
   })
 
-  it('sends the typed email and the chosen кабинет', async () => {
+  it('sends the typed email and the chosen workspace', async () => {
     const wrapper = await mountView()
     grantGuest.mockResolvedValue(GRANT)
 
     await wrapper.find('input[type="email"]').setValue(' someone@example.com ')
-    await wrapper.find('select').setValue('Демо')
+    await wrapper.find('select').setValue('Demo')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
     expect(grantGuest).toHaveBeenCalledWith({
       email: 'someone@example.com',
-      workspaceName: 'Демо',
+      workspaceName: 'Demo',
     })
   })
 
   it('shows why a grant was refused', async () => {
     const wrapper = await mountView()
     grantGuest.mockRejectedValue({
-      response: { data: { detail: 'Аккаунт с такой почтой не найден.' } },
+      response: { data: { detail: 'No account with this email.' } },
     })
 
     await wrapper.find('input[type="email"]').setValue('nobody@example.com')
@@ -111,7 +111,7 @@ describe('ProfileGuestsView', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Аккаунт с такой почтой не найден.')
+    expect(wrapper.text()).toContain('No account with this email.')
   })
 
   it('drops a closed grant from the list', async () => {
@@ -129,7 +129,7 @@ describe('ProfileGuestsView', () => {
     const wrapper = await mountView('owner')
 
     expect(wrapper.find('form').exists()).toBe(false)
-    expect(wrapper.text()).toContain('только разработчику')
+    expect(wrapper.text()).toContain('Only a developer')
     expect(fetchGuestGrants).not.toHaveBeenCalled()
   })
 })

@@ -17,6 +17,7 @@
  */
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { plural } from '@/core/utils/format'
 import { formatMoscow } from '@/core/utils/moscow'
 
 const props = defineProps({
@@ -34,7 +35,7 @@ const SUBSCRIPTION_TONE = {
   expired: 'is-bad',
 }
 
-/** «до 14 сентября» — no year: a term that ends this decade does not need one. */
+/** "until 14 September" — no year: a term that ends this decade does not need one. */
 const until = computed(() =>
   props.subscription
     ? formatMoscow(props.subscription.expires_at, { day: 'numeric', month: 'long' })
@@ -48,16 +49,6 @@ const daysLeft = computed(() => {
   return Math.max(0, Math.ceil(ms / 86400000))
 })
 
-/** «5 дней» / «2 дня» / «1 день» — the count decides the ending. */
-function plural(n, forms) {
-  const mod100 = n % 100
-  if (mod100 >= 11 && mod100 <= 14) return forms[2]
-  const mod10 = n % 10
-  if (mod10 === 1) return forms[0]
-  if (mod10 >= 2 && mod10 <= 4) return forms[1]
-  return forms[2]
-}
-
 /** First letter of the address, as a stand-in for an avatar nobody uploads. */
 function initialOf(email) {
   return (email || '?').trim().charAt(0).toUpperCase()
@@ -65,7 +56,7 @@ function initialOf(email) {
 </script>
 
 <template>
-  <nav class="pf-nav" aria-label="Настройки">
+  <nav class="pf-nav" aria-label="Settings">
     <div class="pf-nav__id">
       <span class="pf-nav__avatar" aria-hidden="true">{{ initialOf(email) }}</span>
       <span class="min-w-0">
@@ -87,16 +78,16 @@ function initialOf(email) {
       </li>
     </ul>
 
-    <!-- The term, in the rail rather than on «Общие». It belongs to the account
+    <!-- The term, in the rail rather than on "General". It belongs to the account
          rather than to any one page, and it is the one fact here worth seeing
          from all three. -->
     <div v-if="subscription" class="pf-nav__sub" :class="SUBSCRIPTION_TONE[subscription.state]">
-      <span class="pf-nav__sub-date">До {{ until }}</span>
+      <span class="pf-nav__sub-date">Until {{ until }}</span>
       <span v-if="daysLeft !== null" class="pf-nav__sub-left">
         {{
           daysLeft === 0
-            ? 'подписка истекла'
-            : `осталось ${daysLeft} ${plural(daysLeft, ['день', 'дня', 'дней'])}`
+            ? 'subscription expired'
+            : `${daysLeft} ${plural(daysLeft, ['day', 'days'])} left`
         }}
       </span>
     </div>

@@ -111,7 +111,7 @@ class MeResponse(BaseModel):
 
     ``organization``, ``subscription`` and ``members`` are all ``None`` for a
     freshly registered account — which is exactly what tells the SPA to render
-    the «введите ключ активации» screen instead of the app.
+    the "Enter an activation code" screen instead of the app.
 
     This response stays reachable for a caller every other route refuses. That
     is the point of it: an account with no organisation and a tenant past its
@@ -136,7 +136,7 @@ class MeResponse(BaseModel):
     #: link and could open a page that then answered 403 at every request.
     #: An owner and a dev get everything.
     modules: list[ModuleKey] = Field(default_factory=list)
-    #: Whether «Ключи активации» is shown: a dev, or the owner of the primary
+    #: Whether "Activation codes" is shown: a dev, or the owner of the primary
     #: organisation. The same predicate ``require_code_issuer`` refuses by.
     can_issue_codes: bool = False
     #: A head with no company of their own: ``organization`` is ``None`` and
@@ -174,10 +174,10 @@ class ActivationCodeCreateRequest(BaseModel):
         default=14,
         ge=1,
         le=3650,
-        description="Term the code buys when redeemed — what «ключ на N дней» means.",
+        description='Term the code buys when redeemed — what "a code for N days" means.',
     )
     max_workspaces: int | None = Field(
-        default=None, ge=1, le=1000, description="Кабинет cap it sells; null = unlimited."
+        default=None, ge=1, le=1000, description="Workspace cap it sells; null = unlimited."
     )
     max_managers: int | None = Field(
         default=None, ge=1, le=1000, description="Manager cap it sells; null = unlimited."

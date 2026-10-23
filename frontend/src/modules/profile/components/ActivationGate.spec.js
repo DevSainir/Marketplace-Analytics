@@ -23,7 +23,7 @@ vi.mock('vue-router', async () => {
   return { ...actual, useRoute: () => route }
 })
 
-const ORG = { id: 'org-1', name: 'Демо' }
+const ORG = { id: 'org-1', name: 'Demo' }
 
 /** The `/v1/organizations/me` payload of a paid-up owner, unless told otherwise. */
 function me(overrides = {}) {
@@ -51,7 +51,7 @@ async function mountGate({ payload = me(), meta = { module: 'monitoring' } } = {
   route = { meta }
   fetchOrganizationMe.mockResolvedValue(payload)
   const wrapper = mount(ActivationGate, {
-    slots: { default: '<p>секретные цифры</p>' },
+    slots: { default: '<p>secret figures</p>' },
     global: { stubs: { RouterLink: true } },
   })
   await useMembersStore().ensureLoaded()
@@ -70,7 +70,7 @@ describe('ActivationGate', () => {
   it('lets a paid-up member through', async () => {
     const wrapper = await mountGate()
 
-    expect(wrapper.text()).toContain('секретные цифры')
+    expect(wrapper.text()).toContain('secret figures')
     expect(wrapper.find('.gate-card').exists()).toBe(false)
   })
 
@@ -87,7 +87,7 @@ describe('ActivationGate', () => {
       }),
     })
 
-    expect(wrapper.text()).toContain('секретные цифры')
+    expect(wrapper.text()).toContain('secret figures')
     expect(wrapper.find('.gate-card').exists()).toBe(false)
   })
 
@@ -108,7 +108,7 @@ describe('ActivationGate', () => {
       payload: me({ has_access: false, can_write: false, subscription: null }),
     })
 
-    expect(wrapper.text()).toContain('Подписка истекла')
+    expect(wrapper.text()).toContain('Subscription expired')
     expect(wrapper.find('.gate-blurred').exists()).toBe(true)
   })
 
@@ -122,7 +122,7 @@ describe('ActivationGate', () => {
       meta: { allowWithoutOrganization: true },
     })
 
-    expect(wrapper.text()).toContain('Подписка истекла')
+    expect(wrapper.text()).toContain('Subscription expired')
   })
 
   it('tells a manager who to ask instead of telling them to pay', async () => {
@@ -132,8 +132,8 @@ describe('ActivationGate', () => {
       payload: me({ role: 'manager', has_access: false }),
     })
 
-    expect(wrapper.text()).toContain('Обратитесь к владельцу компании')
-    expect(wrapper.text()).not.toContain('Напишите нам')
+    expect(wrapper.text()).toContain('Ask the company owner')
+    expect(wrapper.text()).not.toContain('Write to us')
   })
 
   it('names the day the term ran out when it knows it', async () => {
@@ -161,7 +161,7 @@ describe('ActivationGate', () => {
     fetchOrganizationMe.mockResolvedValue(me({ has_access: false }))
 
     const wrapper = mount(ActivationGate, {
-      slots: { default: '<p>секретные цифры</p>' },
+      slots: { default: '<p>secret figures</p>' },
       global: { stubs: { RouterLink: true } },
     })
 
@@ -174,7 +174,7 @@ describe('ActivationGate', () => {
       meta: {},
     })
 
-    expect(wrapper.text()).toContain('Нужен ключ активации')
+    expect(wrapper.text()).toContain('Activation code needed')
   })
 
   it('still refuses a section the manager was not granted', async () => {
@@ -183,6 +183,6 @@ describe('ActivationGate', () => {
       meta: { module: 'finreports' },
     })
 
-    expect(wrapper.text()).toContain('Раздел недоступен')
+    expect(wrapper.text()).toContain('No access to this section')
   })
 })

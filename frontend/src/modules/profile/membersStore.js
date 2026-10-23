@@ -30,7 +30,7 @@ import {
 
 export const useMembersStore = defineStore('members', () => {
   const role = ref(null)
-  //: «Ключи активации»: a dev, or the owner of the primary organisation. The API refuses
+  //: "Activation codes": a dev, or the owner of the primary organisation. The API refuses
   //: everyone else (`require_code_issuer`); this only decides what is drawn.
   const canIssueCodes = ref(false)
   /** Whether the caller's role writes — false for a read-only manager. */
@@ -59,7 +59,7 @@ export const useMembersStore = defineStore('members', () => {
   //: no organisation — a member has nothing to accept.
   const invitations = ref([])
   const members = ref([])
-  //: Invitations this company issued, and its access trail. Both are «Команда»
+  //: Invitations this company issued, and its access trail. Both are "Team"
   //: state: nothing else in the app reads them, and loading them with the
   //: bootstrap would make every page pay for one screen.
   const issuedInvitations = ref([])
@@ -78,7 +78,7 @@ export const useMembersStore = defineStore('members', () => {
    *
    * `require_owner` on the API admits a **dev** as well as an owner, and a dev
    * account collapses to the `dev` effective role however it is a member of its
-   * company. Gating on `isOwner` alone therefore hid «Команда», the invitations
+   * company. Gating on `isOwner` alone therefore hid "Team", the invitations
    * and the access log from a developer — the API would have answered all
    * three (checked: 200, not 403), and only this flag said no.
    */
@@ -147,7 +147,7 @@ export const useMembersStore = defineStore('members', () => {
       if (canManageTeam.value && hasAccess.value) members.value = await fetchMembers()
       loaded.value = true
     } catch (err) {
-      error.value = err?.response?.data?.detail ?? 'Не удалось загрузить участников.'
+      error.value = err?.response?.data?.detail ?? "Couldn't load members."
     } finally {
       loading.value = false
     }
@@ -163,7 +163,7 @@ export const useMembersStore = defineStore('members', () => {
       members.value = members.value.map((m) => (m.user_id === userId ? updated : m))
       return true
     } catch (err) {
-      error.value = err?.response?.data?.detail ?? 'Не удалось сохранить доступ.'
+      error.value = err?.response?.data?.detail ?? "Couldn't save access."
       return false
     } finally {
       saving.value = null
@@ -176,7 +176,7 @@ export const useMembersStore = defineStore('members', () => {
     try {
       return await createInvitation(payload)
     } catch (err) {
-      error.value = err?.response?.data?.detail ?? 'Не удалось создать приглашение.'
+      error.value = err?.response?.data?.detail ?? "Couldn't create the invitation."
       return null
     } finally {
       saving.value = null
@@ -267,7 +267,7 @@ export const useMembersStore = defineStore('members', () => {
   /**
    * The invitations this company has issued, and its access trail.
    *
-   * Loaded on demand rather than in `ensureLoaded`: only «Команда» renders
+   * Loaded on demand rather than in `ensureLoaded`: only "Team" renders
    * them, and every other page in the app pays for that bootstrap.
    */
   async function loadTeamHistory() {

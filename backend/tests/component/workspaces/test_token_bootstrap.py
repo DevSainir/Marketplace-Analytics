@@ -191,10 +191,10 @@ async def test_a_token_nothing_reads_neither_harvests_nor_resets_the_history(
     enqueued: list[dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """«Вопросы и отзывы» added to an established workspace is not a new seller.
+    """A "Questions and reviews" token added to an established workspace is no new seller.
 
     On 2026-10-02 exactly this save sent all four lanes of one workspace back to
-    «В очереди…» and re-walked its whole history. A surface no harvest and no
+    "Queued…" and re-walked its whole history. A surface no harvest and no
     lane reads must leave the queue and the lanes alone — while a surface a
     lane does read, saved next, still starts that lane.
     """

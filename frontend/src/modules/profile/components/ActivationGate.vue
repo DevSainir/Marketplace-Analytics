@@ -72,7 +72,7 @@ const blockedByModule = computed(
 
 const allowed = computed(() => !paywalled.value && !needsActivation.value && !blockedByModule.value)
 
-/** «до 9 сентября 2026 г.» — the date the term ran out, when we know it. */
+/** "9 September 2026" — the date the term ran out, when we know it. */
 const lapsedOn = computed(() => {
   const iso = members.subscription?.expires_at
   if (!iso) return ''
@@ -93,18 +93,18 @@ const lapsedOn = computed(() => {
            humans, so the only honest next step is "write to us". An owner is
            told to renew; a manager is told who to ask, because they cannot. -->
       <section v-if="paywalled" class="gate-card">
-        <h2 class="text-h2 font-bold tracking-tight text-primary">Подписка истекла</h2>
+        <h2 class="text-h2 font-bold tracking-tight text-primary">Subscription expired</h2>
         <p v-if="lapsedOn" class="mt-xs text-tiny font-medium text-muted">
-          Срок действия закончился {{ lapsedOn }}, льготные дни израсходованы.
+          The term ended on {{ lapsedOn }}, and the grace days are used up.
         </p>
         <p class="mt-sm text-tiny font-medium text-muted">
           <template v-if="members.isOwner">
-            Доступ к сервису закрыт до продления. Напишите нам, чтобы продлить подписку — данные
-            компании сохранены и вернутся сразу после оплаты.
+            Access is closed until renewal. Write to us to renew — the company's data is kept and
+            comes back as soon as you pay.
           </template>
           <template v-else>
-            Доступ к сервису закрыт: подписка компании не продлена. Обратитесь к владельцу компании
-            — продлить её может только он.
+            Access is closed: the company's subscription has not been renewed. Ask the company owner
+            — only they can renew it.
           </template>
         </p>
       </section>
@@ -113,18 +113,16 @@ const lapsedOn = computed(() => {
            form here, because nothing they can type changes it — only their
            owner can. -->
       <section v-else-if="blockedByModule" class="gate-card">
-        <h2 class="text-h2 font-bold tracking-tight text-primary">Раздел недоступен</h2>
-        <p class="mt-xs text-tiny font-medium text-muted">
-          У вас нет доступа к этому разделу. Его открывает владелец компании.
-        </p>
+        <h2 class="text-h2 font-bold tracking-tight text-primary">No access to this section</h2>
+        <p class="mt-xs text-tiny font-medium text-muted">The company owner grants access to it.</p>
       </section>
 
       <section v-else class="gate-card">
-        <h2 class="text-h2 font-bold tracking-tight text-primary">Нужен ключ активации</h2>
+        <h2 class="text-h2 font-bold tracking-tight text-primary">Activation code needed</h2>
         <p class="mt-xs text-tiny font-medium text-muted">
-          Аккаунт создан, но ещё не привязан к компании. Введите ключ активации — или
-          <RouterLink class="gate-link" :to="{ name: 'invite' }">примите приглашение</RouterLink>,
-          если владелец компании вам его прислал.
+          The account has no company yet. Enter an activation code, or
+          <RouterLink class="gate-link" :to="{ name: 'invite' }">accept an invitation</RouterLink>
+          if a company owner sent you one.
         </p>
 
         <ActivationKeyForm class="mt-md" />

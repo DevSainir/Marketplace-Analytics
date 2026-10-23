@@ -44,8 +44,8 @@ watch(
   <div>
     <SidePanel
       :open="drawer?.kind === 'invite'"
-      title="Пригласить менеджера"
-      subtitle="Доступ выдаётся сразу — менеджер входит уже с этими правами"
+      title="Invite a manager"
+      subtitle="Access is granted at once — the manager signs in with these rights"
       @close="emit('close')"
     >
       <InvitePanel ref="invitePanel" :saving="memberSaving" @invite="emit('invite', $event)" />
@@ -56,14 +56,14 @@ watch(
           :disabled="memberSaving === 'invite'"
           @click="invitePanel?.submit()"
         >
-          {{ memberSaving === 'invite' ? 'Создаём…' : 'Создать приглашение' }}
+          {{ memberSaving === 'invite' ? 'Creating…' : 'Create invitation' }}
         </button>
       </template>
     </SidePanel>
 
     <SidePanel
       :open="drawer?.kind === 'access'"
-      title="Доступ менеджера"
+      title="Manager access"
       :subtitle="drawer?.manager?.email ?? ''"
       @close="emit('close')"
     >
@@ -81,7 +81,7 @@ watch(
           :disabled="memberSaving === drawer?.manager?.user_id"
           @click="emit('save-access', draftGrant)"
         >
-          {{ memberSaving === drawer?.manager?.user_id ? 'Сохраняем…' : 'Сохранить' }}
+          {{ memberSaving === drawer?.manager?.user_id ? 'Saving…' : 'Save' }}
         </button>
       </template>
     </SidePanel>

@@ -13,7 +13,7 @@ const router = useRouter()
 
 // Initial tab can be deep-linked from the header (`/login?mode=register`).
 const mode = ref(route.query.mode === 'register' ? 'register' : 'login') // 'login' | 'register'
-// Prefilled when «Изменить почту» sends someone back from the code screen:
+// Prefilled when "Change email" sends someone back from the code screen:
 // they are correcting a typo, and retyping the whole address to fix one letter
 // is how the typo happens again.
 const email = ref(typeof route.query.email === 'string' ? route.query.email : '')
@@ -86,13 +86,13 @@ async function submit() {
     <div class="mx-auto flex w-full max-w-md flex-col">
       <header class="text-center">
         <h1 class="text-h2 font-bold tracking-tight text-primary">
-          {{ isLogin ? 'Вход в аккаунт' : 'Регистрация' }}
+          {{ isLogin ? 'Sign in to your account' : 'Sign up' }}
         </h1>
         <p class="mt-xs text-tiny font-medium text-muted">
           {{
             isLogin
-              ? 'Введите почту и пароль, чтобы продолжить.'
-              : 'Создайте аккаунт менеджера, чтобы получить доступ к аналитике.'
+              ? 'Email and password to continue.'
+              : 'Create a manager account to reach the analytics.'
           }}
         </p>
       </header>
@@ -108,7 +108,7 @@ async function submit() {
             :class="isLogin ? 'login-tab--active' : ''"
             @click="switchMode('login')"
           >
-            Вход
+            Sign in
           </button>
           <button
             type="button"
@@ -116,25 +116,25 @@ async function submit() {
             :class="!isLogin ? 'login-tab--active' : ''"
             @click="switchMode('register')"
           >
-            Регистрация
+            Sign up
           </button>
         </div>
 
         <form class="mt-md flex flex-col gap-md" @submit.prevent="submit">
           <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Электронная почта</span>
+            <span class="mb-xs block text-tiny font-medium text-muted">Email</span>
             <input
               v-model="email"
               type="email"
               required
               autocomplete="email"
-              placeholder="manager@company.ru"
+              placeholder="manager@company.com"
               class="ui-input w-full"
             />
           </label>
 
           <label class="block">
-            <span class="mb-xs block text-tiny font-medium text-muted">Пароль</span>
+            <span class="mb-xs block text-tiny font-medium text-muted">Password</span>
             <PasswordField
               v-model="password"
               :autocomplete="isLogin ? 'current-password' : 'new-password'"
@@ -159,7 +159,7 @@ async function submit() {
               class="mt-xs block font-semibold underline"
               @click="switchMode('login')"
             >
-              Перейти ко входу
+              Go to sign in
             </button>
           </p>
 
@@ -175,7 +175,7 @@ async function submit() {
             >
               <path d="M12 3a9 9 0 1 0 9 9" />
             </svg>
-            {{ auth.loading ? 'Подождите…' : isLogin ? 'Войти' : 'Создать аккаунт' }}
+            {{ auth.loading ? 'Working…' : isLogin ? 'Continue' : 'Create account' }}
           </button>
         </form>
 
@@ -184,7 +184,7 @@ async function submit() {
             class="text-tiny font-medium text-action transition hover:text-action-hover"
             :to="{ name: 'password-reset' }"
           >
-            Забыли пароль?
+            Forgot password?
           </RouterLink>
         </p>
       </section>

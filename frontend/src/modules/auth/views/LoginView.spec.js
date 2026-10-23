@@ -45,7 +45,7 @@ async function submit(wrapper, { mode }) {
   if (mode === 'register') {
     await wrapper
       .findAll('button')
-      .find((b) => b.text() === 'Регистрация')
+      .find((b) => b.text() === 'Sign up')
       .trigger('click')
   }
   await wrapper.find('input[type="email"]').setValue('new@example.com')

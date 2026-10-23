@@ -86,7 +86,7 @@ async def test_failed_logins_are_indistinguishable(email: str, password: str, ca
     with pytest.raises(AuthenticationError) as excinfo:
         await service.authenticate(email=email, password=password)
 
-    assert excinfo.value.message == "Неверная почта или пароль."
+    assert excinfo.value.message == "Wrong email or password."
 
 
 async def test_a_backed_off_account_is_refused_even_with_the_right_password() -> None:
@@ -102,7 +102,7 @@ async def test_a_backed_off_account_is_refused_even_with_the_right_password() ->
     with pytest.raises(AuthenticationError) as excinfo:
         await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
 
-    assert excinfo.value.message == "Неверная почта или пароль."
+    assert excinfo.value.message == "Wrong email or password."
 
 
 async def test_a_backed_off_account_answers_exactly_like_a_wrong_password() -> None:
@@ -166,7 +166,7 @@ async def test_disabled_account_cannot_log_in() -> None:
     with pytest.raises(AuthenticationError) as excinfo:
         await service.authenticate(email="fired@example.com", password=KNOWN_PASSWORD)
 
-    assert excinfo.value.message == "Неверная почта или пароль."
+    assert excinfo.value.message == "Wrong email or password."
 
 
 async def test_a_fresh_login_opens_a_new_token_family() -> None:
@@ -250,7 +250,7 @@ async def test_revoked_token_cannot_rotate() -> None:
     issued = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
     await service.logout(refresh_secret=issued.refresh_secret)
 
-    with pytest.raises(AuthenticationError, match="завершена"):
+    with pytest.raises(AuthenticationError, match="ended"):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 
 
@@ -264,7 +264,7 @@ async def test_expired_token_cannot_rotate() -> None:
     assert stored is not None
     stored.expires_at = datetime.now(UTC) - timedelta(seconds=1)
 
-    with pytest.raises(AuthenticationError, match="истёк"):
+    with pytest.raises(AuthenticationError, match="expired"):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 
 
@@ -280,7 +280,7 @@ async def test_disabled_account_cannot_rotate() -> None:
     issued = await service.authenticate(email="user@example.com", password=KNOWN_PASSWORD)
     user.is_active = False
 
-    with pytest.raises(AuthenticationError, match="отключён"):
+    with pytest.raises(AuthenticationError, match="disabled"):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 
 
@@ -302,7 +302,7 @@ async def test_session_cannot_outlive_the_absolute_lifetime(settings_override) -
         settings_override(
             session_absolute_lifetime_seconds=int(timedelta(days=30).total_seconds())
         ),
-        pytest.raises(AuthenticationError, match="Срок сессии истёк"),
+        pytest.raises(AuthenticationError, match="Session expired"),
     ):
         await service.rotate_refresh_token(refresh_secret=issued.refresh_secret)
 

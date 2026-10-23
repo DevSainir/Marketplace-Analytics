@@ -67,11 +67,11 @@ function goOn() {
     <div class="mx-auto flex w-full max-w-md flex-col">
       <header class="text-center">
         <h1 class="text-h2 font-bold tracking-tight text-primary">
-          {{ confirmed ? 'Почта подтверждена' : 'Подтвердите почту' }}
+          {{ confirmed ? 'Email confirmed' : 'Confirm your email' }}
         </h1>
         <p class="mt-xs text-tiny font-medium text-muted">
-          <template v-if="confirmed"> Вы вошли в аккаунт. </template>
-          <template v-else> Мы отправили код на вашу почту. </template>
+          <template v-if="confirmed"> You are signed in. </template>
+          <template v-else> We sent a code to your email. </template>
         </p>
       </header>
 
@@ -80,29 +80,29 @@ function goOn() {
              cannot see or correct from here. -->
         <div v-if="!confirmed && !email" class="flex flex-col gap-md text-center">
           <p class="text-base text-muted">
-            Не удалось определить, какую почту подтверждать. Начните вход или регистрацию заново.
+            No email to confirm. Start signing in or signing up again.
           </p>
           <RouterLink class="ui-btn ui-btn--primary w-full" :to="{ name: 'login' }"
-            >Войти</RouterLink
+            >Sign in</RouterLink
           >
         </div>
 
         <form v-else-if="!confirmed" class="flex flex-col gap-md" @submit.prevent="submit">
           <!-- Shown, not editable: the code was mailed to THIS address, so
                changing it here could only ever invalidate the code being
-               typed. Seeing it is what catches the typo; «Изменить почту»
+               typed. Seeing it is what catches the typo; "Change email"
                is what fixes it. -->
           <div class="flex flex-col items-center gap-xs">
-            <span class="text-tiny font-medium text-muted">Код отправлен на</span>
+            <span class="text-tiny font-medium text-muted">Code sent to</span>
             <span class="max-w-full truncate text-base font-semibold text-primary">
               {{ email }}
             </span>
-            <button type="button" class="auth-link" @click="changeEmail">Изменить почту</button>
+            <button type="button" class="auth-link" @click="changeEmail">Change email</button>
           </div>
 
           <div>
             <span class="mb-sm block text-center text-tiny font-medium text-muted">
-              Код из письма
+              Code from the email
             </span>
             <CodeInput
               v-model="code"
@@ -123,7 +123,7 @@ function goOn() {
                answers the same way for an address that does not exist, and this
                screen must not become the oracle the backend refuses to be. -->
           <p v-else-if="resent" class="text-center text-tiny font-medium text-muted">
-            Если аккаунт с такой почтой существует, новый код отправлен.
+            If an account with this email exists, a new code is on its way.
           </p>
 
           <button
@@ -131,19 +131,17 @@ function goOn() {
             :disabled="auth.loading || code.length < 6"
             class="ui-btn ui-btn--primary w-full"
           >
-            {{ auth.loading ? 'Подождите…' : 'Подтвердить' }}
+            {{ auth.loading ? 'Working…' : 'Confirm' }}
           </button>
 
           <!-- `self-center` is load-bearing: a <button> in a flex COLUMN
                stretches to the full row, so the hover state fired anywhere on
                the line, metres from the words. -->
-          <button type="button" class="auth-link self-center" @click="resend">
-            Отправить код ещё раз
-          </button>
+          <button type="button" class="auth-link self-center" @click="resend">Resend code</button>
         </form>
 
         <button v-else type="button" class="ui-btn ui-btn--primary w-full" @click="goOn">
-          Продолжить
+          Continue
         </button>
       </section>
     </div>

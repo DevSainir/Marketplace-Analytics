@@ -23,7 +23,8 @@ const props = defineProps({
 
 const MIN_CHARS = 8
 //: bcrypt truncates at 72 BYTES, so the backend refuses anything longer rather
-//: than silently ignoring the tail. In Cyrillic that is ~36 characters, which
+//: than silently ignoring the tail. In Greek or Cyrillic (two bytes a letter)
+//: that is 36 characters, which
 //: is reachable by a real person typing a passphrase — the reason this rule is
 //: shown at all instead of treated as unreachable.
 const MAX_BYTES = 72
@@ -31,7 +32,7 @@ const MAX_BYTES = 72
 const byteLength = computed(() => new TextEncoder().encode(props.value).length)
 const longEnough = computed(() => props.value.length >= MIN_CHARS)
 const shortEnough = computed(() => byteLength.value <= MAX_BYTES)
-// Case is tested with the same Unicode rules the backend uses, so «Пароль»
+// Case is tested with the same Unicode rules the backend uses, so "Ωμέγα"
 // satisfies this exactly as `Password` does. Comparing a character to its own
 // upper/lower form is what makes that work without an alphabet list.
 const hasLower = computed(() => [...props.value].some((c) => c.toUpperCase() !== c))
@@ -43,20 +44,20 @@ const touched = computed(() => props.value.length > 0)
   <ul class="mt-xs flex flex-col gap-xs text-tiny font-medium">
     <li :class="touched && longEnough ? 'rule-met' : 'rule-pending'">
       <span aria-hidden="true">{{ touched && longEnough ? '✓' : '•' }}</span>
-      Минимум {{ MIN_CHARS }} символов
+      At least {{ MIN_CHARS }} characters
     </li>
     <!-- Only once it is actually a problem: a limit nobody is near is noise. -->
     <li v-if="touched && !shortEnough" class="rule-broken">
       <span aria-hidden="true">✕</span>
-      Слишком длинный пароль — не больше {{ MAX_BYTES }} байт
+      Too long — {{ MAX_BYTES }} bytes max (non-Latin letters take 2)
     </li>
     <li :class="touched && hasLower ? 'rule-met' : 'rule-pending'">
       <span aria-hidden="true">{{ touched && hasLower ? '✓' : '•' }}</span>
-      Хотя бы одна строчная буква
+      At least one lowercase letter
     </li>
     <li :class="touched && hasUpper ? 'rule-met' : 'rule-pending'">
       <span aria-hidden="true">{{ touched && hasUpper ? '✓' : '•' }}</span>
-      Хотя бы одна заглавная буква
+      At least one uppercase letter
     </li>
   </ul>
 </template>

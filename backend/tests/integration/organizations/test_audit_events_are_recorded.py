@@ -201,8 +201,8 @@ async def test_re_saving_the_same_grant_records_nothing(
 ) -> None:
     """Opening the access form and pressing save is not a change.
 
-    The trail is read to answer «who changed what». An entry saying «Изменён
-    доступ» about a grant that is byte-for-byte what it was turns a list meant
+    The trail is read to answer "who changed what". An entry saying "Access
+    changed" about a grant that is byte-for-byte what it was turns a list meant
     to be read into one that has to be searched.
     """
     # Arrange
