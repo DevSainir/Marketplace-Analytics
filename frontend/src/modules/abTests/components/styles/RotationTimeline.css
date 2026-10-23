@@ -126,7 +126,8 @@
 }
 
 /* The markers hide themselves on a phone (see TimelineMarkers.css), and their
-   height is what was holding the total clear of the ticks. */
+   height is what was holding the ticks inside the line and the total clear of
+   them. */
 @media (max-width: 430px) {
   /* No markers to hang into the gutters, and 36px of each side of a 390px
      screen is a third of the line.
@@ -135,13 +136,19 @@
      buys room for the markers — and the markers are the thing this breakpoint
      hides, so on a phone that budget buys a bar you have to pan along to see
      the end of. `!important` beats the inline value, which is the one case the
-     design system allows it for. */
+     design system allows it for.
+
+     The bottom padding is the ticks' 6px. With nothing below the track they hung
+     out of the scroller, which `overflow-x: auto` makes `auto` vertically too:
+     it clipped them, and panned 6px up and down under a finger. */
   .ab-timeline {
     width: 100% !important;
-    padding: 0 4px;
+    padding: 0 4px 6px;
   }
 
+  /* 14px under the track as before: the ticks' 6px, now inside the line, and
+     8px of air. */
   .ab-timeline__total {
-    margin-top: 14px;
+    margin-top: 8px;
   }
 }
