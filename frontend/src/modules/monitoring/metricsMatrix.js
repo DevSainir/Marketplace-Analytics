@@ -113,14 +113,20 @@ export const DAY_COLSPAN = COLUMNS_PER_DAY
  * names the group's campaign in `campaigns.byDay` (see `campaignLinks.js`).
  * "Manual search" spans two zones: WB search campaigns also deliver in the catalog
  * (backend-split).
+ *
+ * `header`, where set, is the label as the header cell prints it: "Overall" and
+ * "Organic" are a few pixels wider than their one-column cell at 1280px, and
+ * Chromium does not hyphenate a capitalised word on its own, so a soft hyphen
+ * marks where each may break onto a second line rather than lose its last
+ * letters to the clip.
  */
 export const TRAFFIC_GROUPS = [
   { key: 'uni', label: 'Unified bid', span: 2 },
   { key: 'manual_search', label: 'Manual search', span: 2 },
   { key: 'manual_shelves', label: 'Manual shelves', span: 1 },
   { key: 'cpc', label: 'CPC', span: 2 },
-  { key: 'total', label: 'Overall', span: 1, spansZones: true },
-  { key: 'organic', label: 'Organic', span: 1, spansZones: true },
+  { key: 'total', label: 'Overall', header: 'Over\u00adall', span: 1, spansZones: true },
+  { key: 'organic', label: 'Organic', header: 'Or\u00adganic', span: 1, spansZones: true },
 ]
 
 /**

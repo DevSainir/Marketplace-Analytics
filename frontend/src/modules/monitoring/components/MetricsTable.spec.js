@@ -165,12 +165,26 @@ describe('table composition', () => {
     ])
   })
 
+  it('lets "Overall" and "Organic" break onto a second line instead of clipping', () => {
+    // Both are wider than their one-column cell at 1280px, and Chromium does
+    // not hyphenate a capitalised word by itself.
+    const wrapper = mountTable()
+
+    const groups = wrapper.findAll('thead tr:nth-child(2) th').map((th) => th.text())
+
+    expect(groups).toContain('Over\u00adall')
+    expect(groups).toContain('Or\u00adganic')
+  })
+
   it('heads the CPC group with its own Search/Shelves zone pair', () => {
     // The CPC campaigns are billed per click, so they read as their own
     // traffic type rather than as more zones of a CPM column.
     const wrapper = mountTable()
 
-    const groups = wrapper.findAll('thead tr:nth-child(2) th').map((th) => th.text())
+    // A soft hyphen is invisible until it breaks a line, so it is read past here.
+    const groups = wrapper
+      .findAll('thead tr:nth-child(2) th')
+      .map((th) => th.text().replaceAll('\u00ad', ''))
     const zones = wrapper.findAll('thead tr:nth-child(3) th').map((th) => th.text())
 
     expect(groups).toEqual([

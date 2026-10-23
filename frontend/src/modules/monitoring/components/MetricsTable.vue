@@ -178,9 +178,9 @@ watch(
                     rel="noopener noreferrer"
                     @mouseenter="showTip($event, advertFor(day.iso, group.key).id)"
                     @mouseleave="hideTip"
-                    >{{ group.label }}</a
+                    >{{ group.header ?? group.label }}</a
                   >
-                  <template v-else>{{ group.label }}</template>
+                  <template v-else>{{ group.header ?? group.label }}</template>
                 </th>
               </template>
             </tr>
