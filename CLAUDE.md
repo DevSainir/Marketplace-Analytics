@@ -23,7 +23,8 @@ Four rules that cost more to discover from a failing test than to state here:
   with the public API re-exported from `__init__.py`.
 
 All four are machine-enforced — `backend/tests/unit/core/test_module_boundaries.py`,
-`frontend/eslint.config.js`, `frontend/tests/integration/architecture.spec.js`.
+ruff's TID252 for absolute imports (`backend/pyproject.toml`), `frontend/eslint.config.js`,
+`frontend/tests/integration/architecture.spec.js`.
 
 **Trunk-based.** Work is committed and pushed straight to `main` in small commits — no feature
 branches, no worktrees, no PRs for ordinary work. Two hooks in `.claude/settings.json` hold the

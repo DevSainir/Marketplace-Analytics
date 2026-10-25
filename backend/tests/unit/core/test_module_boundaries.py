@@ -7,9 +7,12 @@ makes a horizontal import a fatal lint error); the backend had none, so nothing
 but attention stopped ``src/modules/a/services.py`` from importing
 ``src/modules/b/repos.py`` and quietly welding two domains together.
 
-Four properties are pinned here, all read straight from the source tree with
-``ast`` — no imports are executed, so a test failure names the offending file
-instead of blowing up at collection:
+Four properties are pinned here. Numbers 1, 2 and 4 are read straight from the
+source tree — the import statements through ``ast``, the file layout, the line
+counts — so a failure names the offending file instead of blowing up at
+collection. Number 3 has to import each contract, since only an import proves a
+re-exported name resolves; it does so inside the test body, so a broken contract
+fails its own case rather than the whole collection.
 
 1. **No horizontal imports.** Cross-module traffic goes through ``contract.py``.
 2. **Every module publishes a contract**, so there is always a legal way in.
@@ -17,6 +20,11 @@ instead of blowing up at collection:
    resolve — this is what makes a currently-unconsumed contract (``monitoring``,
    ``finreports``) a maintained surface rather than dead code.
 4. **The 500-line hard limit** on any single source file.
+
+The first check only recognises the absolute ``src.modules.*`` spelling. That
+imports are absolute is ruff's rule TID252 (``backend/pyproject.toml``), so a
+relative import fails ``make lint`` and the pre-commit hook instead of slipping
+past this file.
 """
 
 from __future__ import annotations

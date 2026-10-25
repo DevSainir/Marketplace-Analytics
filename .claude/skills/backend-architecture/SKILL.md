@@ -37,10 +37,13 @@ what leaves a module's internals free to move. Modules call each other in-proces
 no schema between them to version — a breaking change surfaces as a `mypy --strict` error, and
 that only holds while the contract stays the single door.
 
-Imports are absolute from `src.` everywhere; the backend has no relative imports.
+Imports are absolute from `src.` everywhere; the backend has no relative imports. Ruff's
+TID252 (`ban-relative-imports = "all"` in `backend/pyproject.toml`) fails `make lint` and the
+pre-commit hook on one. It matters beyond style: the boundary test below only recognises the
+`src.modules.*` spelling, so `from ..other.repos import X` would cross a module unseen.
 
-`backend/tests/unit/core/test_module_boundaries.py` fails the build on a violation of any of
-this, including the line limit.
+`backend/tests/unit/core/test_module_boundaries.py` fails the build on a horizontal import, a
+missing or rotten contract, and the line limit.
 
 ## Database
 

@@ -99,10 +99,17 @@ target-version = "py312"
 src = ["src", "."]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "ASYNC", "S", "RUF", "SIM", "RET", "PT", "PTH"]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "ASYNC", "S", "RUF", "SIM", "RET", "PT", "PTH", "TID"]
 # B008: FastAPI intentionally calls Query()/Depends() in argument defaults.
 # S101: asserts are allowed in tests.
 ignore = ["B008", "S101"]
+
+# Imports are absolute from `src.` (CLAUDE.md). TID252 is what checks it; its
+# default only bans `from ..x`, so a sibling `from .x` needs "all". A relative
+# import also hides a module boundary from tests/unit/core/test_module_boundaries.py,
+# which only recognises the absolute `src.modules.*` spelling.
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/*" = ["N999", "F401"]
