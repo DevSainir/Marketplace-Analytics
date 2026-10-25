@@ -32,6 +32,7 @@ Columns:
 
 | Date | Task | Area | Type | Size | Why | Commits |
 |---|---|---|---|---|---|---|
+| 2026-10-25 | A relative backend import now fails the lint | Process | infrastructure | S | CLAUDE.md called "imports are absolute from `src.`" machine-enforced, but nothing checked it: `from ..users import repos` passed lint and slipped past the boundary test; ruff's TID252 now fails it | `8a33aded` |
 | 2026-10-24 | The cancelled-request test now fails when `get_db` loses its shield | Infrastructure | infrastructure | S | It passed with the shield removed: a single `task.cancel()` let the rollback finish anyway; it now cancels through an anyio scope on a pooled engine and checks the connection comes back `idle` | `c128b6e9` |
 | 2026-10-24 | Pre-publication check follow-ups: the component tier kept off the Celery broker, the cancellation test freed of its race, vitest on half the cores, the known gitleaks findings recorded | Infrastructure | infrastructure | S | One component test waited ~20 s for a broker that does not resolve, and three tests failed once each on a loaded or sleeping laptop; a full-history gitleaks scan now reports nothing | `09f4aff3` `c372e20e` `f0160e04` `459d7558` |
 | 2026-10-23 | The A/B timeline's ticks shown on a phone | A/B tests | bug | S | With the markers hidden the ticks stuck 6px out of the scroller, which clipped them and moved up and down under a finger | `e92a9e3c` |
