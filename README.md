@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/hero.jpg" width="800"
+  <img src="https://github.com/user-attachments/assets/2c92d156-b7a8-46f3-babe-e13ba11810ae" width="800"
        alt="The daily sheet filled in overnight: one product, day by day, by ad placement and organic traffic">
 </p>
 
