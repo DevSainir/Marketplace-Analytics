@@ -32,6 +32,7 @@ Columns:
 
 | Date | Task | Area | Type | Size | Why | Commits |
 |---|---|---|---|---|---|---|
+| 2026-10-26 | Every CI workflow green on GitHub: base images refreshed, nginx on its slim build, dev-tree advisories cleared | Security | infrastructure | S | The first manual run of each workflow on hosted runners failed the weekly base-image check (three images rebuilt upstream, fixable CVEs in nginx and haproxy) and flagged high advisories in the dev dependencies | `191646a9` `d84e6884` `389ef3f1` |
 | 2026-10-26 | pillow, aiohttp, certifi and follow-redirects updated for vulnerabilities | Security | infrastructure | S | The dependency audit failed the first CI runs on GitHub: 37 CVEs in pillow 12.3.0, 8 in aiohttp, 1 in certifi, 2 high advisories in follow-redirects | `3aa5d2ab` `d94d70e8` |
 | 2026-10-26 | The README rewritten around the live product, and an AI policy added | Process | docs | M | The old README never said the service is in daily use or who built it, and readers misread who wrote the code | `f6b7e3dd` `041380bb` |
 | 2026-10-26 | A blocking database, HTTP or Redis client in the backend now fails the lint | Process | infrastructure | S | CLAUDE.md called "every I/O path is async" machine-enforced, but a sync `Session`, `httpx.Client` or `redis.Redis` in a sync helper passed lint and all 2072 fast tests; ruff's TID251 now fails them, with Alembic and the nightly Redis lock exempt by name | `902c2378` |
