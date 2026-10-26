@@ -1,241 +1,180 @@
-# Marketplace Analytics
+<p align="center"><img src="frontend/public/favicon.svg" width="72" alt=""></p>
 
-Analytics for sellers on [Wildberries](https://www.wildberries.ru), the Russian online
-marketplace. It pulls a seller's data from the Wildberries seller APIs every night —
-card funnel, prices, stock, advertising statistics, weekly settlement reports — and turns it into
-the views a seller works from every morning: a per-article daily matrix, a P&L built line by line
-from Wildberries' own settlement rows, where the advertising money went, a heatmap of the whole
-catalogue, and A/B tests of a card's main photo.
+<h1 align="center">Marketplace Analytics</h1>
 
-> Wildberries serves its data in Russian; the product itself — UI, code, docs — is in English. The
-> few marketplace terms it uses are explained in the [glossary](#glossary) below.
+<p align="center">
+  An analytics service for Wildberries sellers: finance and a daily ads-and-sales sheet that fills
+  itself — every product, every day, by ad placement and against organic traffic.
+</p>
 
-**Try it in one command** — no Wildberries account needed, everything runs on a fabricated shop:
+<p align="center">In daily use since July 2026 · Python · FastAPI · PostgreSQL · Redis · Vue 3 · Docker</p>
 
-```bash
-cp backend/.env.example backend/.env
-make demo        # then open http://localhost:8080
-```
+<p align="center">
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#try-it">Try it</a> ·
+  <a href="#how-its-built">How it's built</a> ·
+  <a href="docs/finreports/PNL.md">How the P&amp;L is derived</a> ·
+  <a href="AI_POLICY.md">Building it with Claude</a>
+</p>
 
-## Screenshots
+<p align="center">
+  <img src="docs/screenshots/hero.jpg" width="800"
+       alt="The daily sheet filled in overnight: one product, day by day, by ad placement and organic traffic">
+</p>
 
-All figures are fabricated by the demo seed (`backend/scripts/seed_demo/`): six invented articles
-of the brand «DEMO», a year of history, nine weekly reports.
+## About
 
-**Summary** — the workspace's week: revenue, net profit, units, orders, buyout rate, penalties and
-the ad cost ratio, with daily charts.
-![Summary](docs/screenshots/summary.jpg)
+Selling on [Wildberries](https://www.wildberries.ru), a large Russian online marketplace, means
+paying for ads in several placements at once and working out which of them paid off. The team this
+was built for kept an Excel sheet for it: 18 numbers a day for every product. Marketplace Analytics
+builds that sheet itself every night — all 18 numbers, from impressions and clicks to orders, spend
+and ad cost, for every product and day, by placement and against organic traffic, next to prices and stock. The
+finance side turns Wildberries' weekly settlement reports into a P&L.
 
-**Monitoring** — one article, day by day: traffic, spend and conversions per advertising zone
-(unified and manual bids, CPC; search, shelves, catalogue) against organic, then prices, stock and
-the buyout rate. Cells are editable; the backend recomputes what depends on them.
-![Monitoring](docs/screenshots/monitoring.jpg)
+Today a seller's team and several client businesses, each with 3 to 30 products, work in it. Every morning two managers used to
+spend from 10 a.m. to noon filling in the sheet before the team could start on it; now it is
+filled overnight, and the team starts with it at 10. Every campaign and price change a manager makes is
+recorded on its day, with a history of who changed what, so the head of the business can see what
+was done and what followed. And because stock, ads and the sales funnel sit on one page, an analyst
+can trace clear cause and effect.
 
-**P&L** — built from Wildberries' weekly settlement reports, row by row: sales at the seller's
-price, logistics, deductions, cost of goods and the payout, then the same per article.
-![P&L](docs/screenshots/pnl.jpg)
-
-**Advertising** — where the money went, by bid type and placement, how much of it Wildberries paid
-in promo bonuses, and the ad cost ratio against settled sales.
-![Advertising](docs/screenshots/advertising.jpg)
-
-**Heatmap** — every article × every day for any of 25 metrics, by day, week or month, with
-per-article norms and the seller's own groups.
-![Heatmap](docs/screenshots/heatmap.jpg)
-
-**A/B photo test** — the card's main photo rotated across variants by time or by impressions, each
-exposure measured from the advertising statistics of its own window.
-![A/B test](docs/screenshots/ab-test.jpg)
+I have been its only engineer since July 2026: I designed the system and run it, and the code was
+written by Claude Code under my direction — [who did what](#ai-usage).
 
 ## What it does
 
-* **Harvesting.** Nightly Celery tasks walk the Wildberries seller APIs per workspace — content,
-  analytics, prices, statistics, advertising, finance, marketplace (FBS) — through client-side
-  rate buckets sized from limits measured against the live API, not from the documentation.
-  Tokens are stored per workspace, Fernet-encrypted.
-* **Monitoring** (`/monitoring`): the daily matrix above, pinned articles, day notes and actions,
-  stock by warehouse and size.
-* **Summary** (`/summary`): the workspace's KPIs and daily series over any window.
-* **P&L** (`/finreports`): the settlement-based statement and per-article P&L with cost prices,
-  penalties by reason, advertising and promo bonuses, ROI; stock valued at cost by warehouse; a
-  cost-price editor with Excel import and export; manual upload of a report file. How each line is
-  derived is in [`docs/finreports/PNL.md`](docs/finreports/PNL.md).
-* **Advertising** (`/advertising`), **Heatmap** (`/heatmap`), **A/B tests** (`/ab-tests`).
-* **Accounts and access**: companies, several workspaces (seller accounts) per company, invitations,
-  per-page grants for managers, read-only guests, subscriptions.
-* **Capture of expiring feeds** (`guide` module): several Wildberries feeds are served over a
-  window that closes for good — return claims live fourteen days — so they are stored verbatim now,
-  before anyone knows what to ask of them.
+**Monitoring**
 
-## Stack
+- **Daily sheet** — every product by day: 18 metrics split into ad placements and organic, with
+  prices and stock. Cells edit like Excel; each day carries notes and the team's actions.
+- **Summary** — the account's week: revenue, profit, orders, buyout rate, ad cost.
+- **Heatmap** — every product × every day for any of 25 metrics.
+- **Advertising** — where the ad money went, by bid type and placement.
+- **A/B photo tests** — a product's main photo rotated across variants, each measured on its own
+  window.
 
-| | |
-|---|---|
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2 (async, asyncpg), Alembic, Pydantic 2, Celery, httpx |
-| Data | PostgreSQL 16 (one schema per module, row-level security), Redis 7 (broker, rate buckets, revocation) |
-| Frontend | Vue 3 (`<script setup>`), Vite, Pinia, Tailwind CSS, PrimeVue (unstyled), ECharts |
-| Edge | HAProxy in front of two nginx, two API instances — any one can be replaced while its twin serves |
-| Observability | Prometheus, Alertmanager, Grafana, Loki + Alloy, Sentry; structlog with a redaction filter |
-| Quality | pytest, Vitest, Playwright, k6, ruff, mypy `--strict`, ESLint, Prettier, pip-audit, npm audit |
-| Delivery | Docker Compose, GitHub Actions, Release Please, conventional commits enforced by commitizen |
+**Finance**
 
-## Architecture
+- **P&L** — built line by line from Wildberries' settlement rows, for the account and per product.
+- **Stock balance** — where the money that has not moved is sitting: stock at cost, by warehouse.
+- **Cost prices** — entered one by one or round-tripped through Excel.
 
-A modular monolith. Each backend module owns its routers, services, repositories, models and its
-own PostgreSQL schema, and talks to other modules **only** through their `contract.py`; the
-frontend mirrors it with one `index.js` per module.
+Around both: several seller accounts per company, invitations, per-page access for managers and
+read-only guests.
 
-```mermaid
-flowchart LR
-    browser([Browser])
-    subgraph stack [Docker Compose]
-        edge[HAProxy edge]
-        nginx[nginx ×2<br/>SPA + /api proxy]
-        api[FastAPI ×2]
-        worker[Celery worker]
-        beat[Celery beat]
-        pg[(PostgreSQL<br/>schema per module)]
-        redis[(Redis)]
-    end
-    wb[[Wildberries<br/>seller APIs]]
+<details>
+<summary>Screenshots</summary>
 
-    browser --> edge --> nginx --> api
-    api --> pg
-    api --> redis
-    beat --> redis --> worker
-    worker --> pg
-    worker --> wb
-```
+All figures are fabricated by the demo seed.
 
-```
-backend/src/modules/   users · organizations · workspaces · monitoring · finreports
-                       advertising · summary · heatmap · ab_tests · guide
-frontend/src/modules/  auth · profile · monitoring · finreports · advertising
-                       summary · heatmap · abTests
-```
+**Daily sheet** — one product by day: each ad placement against organic, then prices and stock.
+![Daily sheet](docs/screenshots/monitoring.jpg)
 
-## Engineering decisions
+**Summary** — the account's week at a glance, with daily charts.
+![Summary](docs/screenshots/summary.jpg)
 
-What sets this apart from a tutorial project is mostly what is **enforced** rather than written
-down:
+**P&L** — sales, logistics, deductions, cost of goods and the payout, then the same per product.
+![P&L](docs/screenshots/pnl.jpg)
 
-* **Architecture rules are tests.** No horizontal imports between modules, a public contract per
-  module whose every name must resolve, and a hard 500-line ceiling per file are asserted by
-  `backend/tests/unit/core/test_module_boundaries.py`; the frontend's boundaries are fatal ESLint
-  rules plus `frontend/tests/integration/architecture.spec.js`.
-* **Tenancy is enforced twice.** Every query is scoped to the workspace in the request header, and
-  PostgreSQL row-level security enforces the same boundary underneath, for an API that connects as
-  a least-privilege role that does not own its tables. Ad-hoc looks at production data go through a
-  read-only session pinned to one workspace. See
-  [`docs/security/SECURITY_DESIGN.md`](docs/security/SECURITY_DESIGN.md).
-* **Sessions.** A 15-minute access token held in memory, an opaque rotating refresh token stored as
-  a digest, replay detection that revokes the token family (RFC 9700), an absolute 30-day ceiling,
-  and Redis watermarks so «sign out everywhere» reaches live access tokens immediately.
-* **Five test tiers** — unit, component, integration, end-to-end, performance — each with a budget
-  and a rule for what it may touch (`.claude/skills/testing/`). About 2,070 backend unit and
-  component tests, 570 integration tests against real PostgreSQL and Redis, 1,020 frontend specs,
-  Playwright journeys and k6 load profiles.
-* **Observability without leaking tenants.** No metric is labelled by tenant and no caller-chosen
-  string reaches a label — both enforced by tests; the logs carry the workspace on every line
-  instead. See [`docs/monitoring/OBSERVABILITY.md`](docs/monitoring/OBSERVABILITY.md).
-* **Fails closed.** A deployed environment refuses to start with a placeholder secret, debug mode,
-  CORS on or fabricated harvesting; harvested schemas refuse an unannounced `TRUNCATE` and audit
-  every attempt; backups are encrypted with `age` to two recipients
-  ([`docs/security/BACKUP_KEYS.md`](docs/security/BACKUP_KEYS.md)).
-* **The version is derived, never typed.** Conventional commits are checked at commit time,
-  Release Please turns them into versions and a changelog, and the project's own `feat-minor`
-  type keeps small features from bumping the minor version
-  ([`docs/RELEASES.md`](docs/RELEASES.md)).
-* **Built with Claude Code, with the rules in the repository.** `.claude/skills/` holds the
-  project's working rules — architecture, security, testing, design system, git workflow — that
-  the agent loads when the work calls for them, and most of those rules are pinned by tests rather
-  than trusted to the prompt. `docs/JOURNAL.md` records every finished task.
-* **Facts about the Wildberries API, measured.** Rate limits, report formation times and
-  endpoint behaviour are documented where the code relies on them, from measurements against the
-  live API — for example why the P&L reads the finance API and how the old settlement endpoint was
-  retired ([`docs/finreports/MIGRATION_TO_FINANCE_V1.md`](docs/finreports/MIGRATION_TO_FINANCE_V1.md)).
+**Advertising** — where the ad money went, by bid type and placement.
+![Advertising](docs/screenshots/advertising.jpg)
 
-## Running it
+**Heatmap** — every product × every day for one metric.
+![Heatmap](docs/screenshots/heatmap.jpg)
 
-**Requirements:** Docker with Compose v2, `make`, `curl`. Ports 8080 and 8443 on localhost
-(`make demo DEMO_HTTP_PORT=9080` to use another).
+**A/B photo test** — each variant of the main photo measured on its own window.
+![A/B test](docs/screenshots/ab-test.jpg)
+
+</details>
+
+## Try it
+
+The whole stack runs locally on a fabricated shop — no Wildberries account needed. It takes Docker
+with Compose v2, `make` and `curl`.
 
 ```bash
 git clone https://github.com/DevSainir/Marketplace-Analytics.git
 cd Marketplace-Analytics
-cp backend/.env.example backend/.env   # works as is for local use
+cp backend/.env.example backend/.env
 make demo
 ```
 
-The first run builds three images from source and takes about 3–5 minutes; `make demo` prints
-which of its three steps it is on. Later runs reuse the build cache and take 30 seconds to
-2 minutes.
+The first run builds three images and takes 3–5 minutes. Then open <http://localhost:8080> and sign
+in as **demo@example.com** / **demo-password**. `make demo-down` removes it with its data.
 
-Open <http://localhost:8080> and log in as **demo@example.com** / **demo-password**. The demo runs
-the real topology as its own Compose project, without the scheduler (every scheduled task needs a
-Wildberries token) and without TLS. Running `make demo` again rebuilds and re-seeds;
-`make demo-down` removes it with its data.
+## How it's built
 
-### Running the tests
+A modular monolith: FastAPI and Celery workers, a Vue 3 single-page app, PostgreSQL and Redis, all
+in Docker. One rule from the project's [security design](docs/security/SECURITY_DESIGN.md) runs
+through it: **a control that cannot be forgotten beats one that must be remembered.**
 
-Not needed to try the demo. These are the checks CI runs on every push; they need
-[uv](https://docs.astral.sh/uv/) and Node 22:
+### The P&L is checked against the money
 
-```bash
-make test-fast          # backend unit + component, frontend unit — the pre-commit gate
-make test-integration   # real PostgreSQL and Redis
-make lint typecheck     # ruff, ESLint, Prettier, mypy --strict
-make                    # every target, including the e2e and performance tiers
-```
+*In short: a profit statement can add up and still be wrong, so every week it is compared with what
+Wildberries actually pays — automatically.*
 
-`make up` runs the development stack; copy
-`backend/docker/docker-compose.override.yml.example` first to publish the API, PostgreSQL and
-Redis on loopback.
+The P&L is built line by line from Wildberries' settlement rows, and most of its figures can only
+be checked against each other. One cannot: the payout, which Wildberries reports itself. When I set
+ours against it, they disagreed on reports that carried corrections. Claude's first fix, checked on
+the eight reports we had Wildberries' totals for, passed — and was still wrong. Measured against
+every report, the real rule showed up: Wildberries keeps a row's direction in the document type,
+not in the operation, and the same operation arrives under both. Now the payout matches Wildberries
+to the kopeck on every report checked, and every booked report is compared with Wildberries' own
+payout, with an alert when they differ by more than a rouble. The price: the payout is the only figure an outside party
+confirms; the rest of the statement rests on how it is derived
+([how the P&L is derived](docs/finreports/PNL.md)).
 
-## Repository layout
+### The database defends itself
 
-```
-backend/
-  src/core/            config, database, security, Celery, observability, tenancy
-  src/modules/         one package per domain (see Architecture)
-  src/integrations/    Wildberries clients, rate buckets, other outbound HTTP
-  alembic/             migrations
-  scripts/             demo seed, diagnostics, backups, one-off maintenance
-  docker/              Dockerfile, compose files and overlays, HAProxy, observability
-  tests/               unit · component · integration
-frontend/
-  src/core/            API client, router, shared components, styles
-  src/modules/         one folder per domain, each with its index.js contract
-tests/                 end-to-end (Playwright) and performance (pytest, k6)
-docs/                  P&L derivation, security design, observability, releases, journal
-.claude/               the project's working rules for Claude Code, and its hooks
-```
+*In short: several businesses share one database, so the database itself — not only the
+application — keeps each one's data apart.*
 
-## Glossary
+One wrong query would show a seller someone else's numbers. Before the service went commercial I
+spent a hardening pass on its security — vulnerabilities, resources, the database and its roles —
+and studying it I came across row-level security and knew at once we needed it. Rather than trust
+every query to filter
+by account, the database enforces it too: the API connects as a role that owns none of the
+tables, and on the tables that carry a seller account, row-level security lets it see only the
+account the request is bound to. A request that reaches such a table with no account bound fails
+loudly instead of returning nothing — an empty result would look like "no data" and invite someone
+to remove the check. The price: the covered tables are a reviewed list rather than found
+automatically, and the background worker still runs as the owner, because collecting data
+legitimately crosses accounts. Pinned by
+[`test_row_level_security.py`](backend/tests/integration/core/test_row_level_security.py).
 
-| Term | Meaning |
-|---|---|
-| Workspace | One Wildberries seller account, with its own catalogue, tokens and P&L |
-| WB ID / vendor code | WB's id for an article (`nm_id`) / the seller's own article code |
-| Monitoring | The per-SKU daily matrix: funnel, advertising, prices, stock |
-| Unified bid / manual bid / CPC | WB's campaign types: one bid for every placement, a bid per placement, pay per click |
-| Search / shelves / catalog | Ad placements: search results / recommendation shelves / category pages |
-| Organic | Traffic that did not come from advertising |
-| ACoS | Advertising cost of sales — ad spend as a share of sales (or of orders) |
-| WB discount | Wildberries' own customer discount, applied on top of the seller's price |
-| Seller price / customer price | The price before WB's discount / what the buyer paid |
-| Buyout, buyout rate | An order the buyer kept rather than refused, and the share of such orders |
-| Cost price | The seller's cost of goods, entered per SKU |
-| Logistics / deductions / penalties | Delivery fees / deductions / fines withheld by Wildberries |
-| Payout | What Wildberries transfers to the seller |
-| Promo bonuses | Wildberries' bonus points that pay for part of the advertising |
-| Weekly report | Wildberries' weekly settlement report — the P&L's source |
+## AI usage
 
-## About
+This is my first project built with an AI agent. Claude Code wrote the code; I chose the stack, set
+the architecture and made the engineering decisions — if Claude was the developer, I was the
+engineer and the architect. What I learned is that the truth is in the context: skills and
+documentation give the agent its context, and tests check what it did with it.
 
-Designed and built by [DevSainir](https://github.com/DevSainir) from July 2026, with Claude Code as
-a pair programmer: product, backend, frontend, infrastructure and operations. This repository is a
-portfolio snapshot of the project — data, credentials and infrastructure details were removed from
-its whole history, and everything the demo shows is fabricated.
+The rules the agent works by live in [`.claude/skills/`](.claude/skills/), and most of them are also
+checks that fail the build: modules talk only through a public contract, no backend file grows past
+500 lines and no Vue component past 250, imports stay absolute
+([`test_module_boundaries.py`](backend/tests/unit/core/test_module_boundaries.py), ruff and ESLint
+rules, [`architecture.spec.js`](frontend/tests/integration/architecture.spec.js)). The skill tells the
+agent; the check holds it to it. Checks have limits too — the clearest case is the
+[P&L](#the-pl-is-checked-against-the-money).
 
+I understand most of the code — more than 90%, by my own estimate — but not every line, and I'm
+closing the gaps. The whole story, mistakes included, is in [AI_POLICY.md](AI_POLICY.md).
+
+## Why I built it
+
+I was looking for a job when a Wildberries seller offered me a staff position to build this. I had
+been programming for about four years, but never on anything this large. The hardest part was
+believing I could pull it off: I had the skills and the knowledge, not the experience, and for a
+while I was afraid it would not work. It did — through a good number of hard moments.
+
+Before the first line I studied what the project would stand on: architecture patterns, which led
+me to a modular monolith; clean architecture; JWT, which the sign-in is built on; linters and mypy,
+which now run on every commit; and how Claude works with a codebase. That groundwork set a direction
+I still follow. The rest I learned on a product people use every day: security, architecture that
+scales, monitoring and alerting, running servers.
+
+---
+
+This repository is a cleaned copy of the production code: client data, credentials and
+infrastructure details were removed, and everything the demo and screenshots show is fabricated.
 No license is granted: the code is published to be read, not reused.
