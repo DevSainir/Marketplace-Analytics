@@ -1,6 +1,6 @@
 [project]
 name = "marketplace-analytics"
-version = "0.40.0" # x-release-please-version
+version = "0.41.0" # x-release-please-version
 description = "Analytics for Wildberries sellers: a FastAPI and Celery modular monolith."
 requires-python = ">=3.12"
 dependencies = [
