@@ -12,10 +12,10 @@ SQL would pass with the policies dropped, which is the one thing it must not do.
 
 Two dependencies are load-bearing and both are asserted rather than assumed:
 
-* RLS does not apply to a table's **owner**. The application is the owner today,
-  so these tests connect as the restricted role from
-  `least_privilege_role.sql` — the same role P2.4 introduces. Until that role is
-  in use in production, the policies are inert there, and `test_the_owner_still
+* RLS does not apply to a table's **owner**. The API services connect as the
+  restricted role from `least_privilege_role.sql` (`APP_POSTGRES_USER`), so
+  these tests connect as that role too. Migrations, the Celery worker and
+  backups keep running as the owner, and `test_the_owner_still
   _crosses_workspaces` pins that as intended behaviour rather than an oversight:
   it is what keeps migrations and the cross-workspace Celery harvests working.
 * A missing tenant **raises**. `current_setting` is read without `missing_ok`, so
