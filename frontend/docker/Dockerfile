@@ -25,7 +25,7 @@
 # takes /app/dist out of it. The image itself — Node, and the npm tree bundled
 # with it — is never started anywhere. The CVE scan skips it for that reason;
 # the freshness check above still covers it.
-FROM node:22-alpine@sha256:b6f26b36c8ff49624cfdac716b8ea1138d606df02586a77d364bb5536a634f85 AS builder
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS builder
 
 WORKDIR /app
 
@@ -63,7 +63,11 @@ COPY docker/nginx.conf /conf.d/app.conf
 COPY --from=builder /app/dist /html/
 
 # ---------------------------------------------------------------------------
-FROM nginx:1.30-alpine@sha256:ef8676b33d681f272ba429b27658bdd7e640963279714c96bddf1dc76307f7b6 AS runtime
+# `-slim`: the full image adds curl, brotli and the njs/xslt/geoip modules,
+# none of which this config loads — and with them, fixable CVEs that the
+# weekly base-image scan fails on while the slim build of the same nginx is
+# clean (2026-10-26).
+FROM nginx:1.30-alpine-slim@sha256:dede8895648b461178c3bc604f7eed4423efe5220b2c4d839f5eb3d34ac3f8f7 AS runtime
 
 # The stock server, removed with nothing put in its place — the config arrives
 # with the release. /etc/nginx/conf.d and /etc/nginx/snippets become symlinks

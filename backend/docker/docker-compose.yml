@@ -290,7 +290,7 @@ services:
   edge:
     # Pinned by digest: this is what every stranger talks to. Scanned with the
     # Dockerfiles' base images by .github/workflows/base-image-freshness.yml.
-    image: haproxy:3.2.25-alpine@sha256:5d97434a423c2533cfeb42874d45cf6d69a840b60334582dfbfd5008e94c80be
+    image: haproxy:3.2.26-alpine@sha256:5893840576071e6217cd52ebdcc14f454c6f7a631056fa6f4e0f40d3cac4215b
     restart: unless-stopped
     logging: *logging
     # ~35 MB at the config's maxconn; a few MB at real traffic.
