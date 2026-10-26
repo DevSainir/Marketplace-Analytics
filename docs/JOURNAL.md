@@ -32,6 +32,7 @@ Columns:
 
 | Date | Task | Area | Type | Size | Why | Commits |
 |---|---|---|---|---|---|---|
+| 2026-10-26 | The README rewritten around the live product, and an AI policy added | Process | docs | M | The old README never said the service is in daily use or who built it, and readers misread who wrote the code | `f6b7e3dd` `041380bb` |
 | 2026-10-26 | A blocking database, HTTP or Redis client in the backend now fails the lint | Process | infrastructure | S | CLAUDE.md called "every I/O path is async" machine-enforced, but a sync `Session`, `httpx.Client` or `redis.Redis` in a sync helper passed lint and all 2072 fast tests; ruff's TID251 now fails them, with Alembic and the nightly Redis lock exempt by name | `902c2378` |
 | 2026-10-26 | The module-boundary test now catches `from src.modules import x` | Process | infrastructure | S | It read only names starting with `src.modules.`, so `from src.modules import finreports` or `import src.modules` took another module's package past its contract with the test green; it also reported the legal `from src.modules.x import contract` | `92573068` |
 | 2026-10-25 | A relative backend import now fails the lint | Process | infrastructure | S | CLAUDE.md called "imports are absolute from `src.`" machine-enforced, but nothing checked it: `from ..users import repos` passed lint and slipped past the boundary test; ruff's TID252 now fails it | `8a33aded` |
