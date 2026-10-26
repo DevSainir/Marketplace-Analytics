@@ -6,7 +6,9 @@ import uuid
 from datetime import timedelta
 
 from celery import Task
-from redis import Redis as SyncRedis
+
+# Sync on purpose: the lock outlives the event loop `run_task` builds and tears down.
+from redis import Redis as SyncRedis  # noqa: TID251
 from redis.exceptions import LockError
 
 from src.core.celery_app import celery_app

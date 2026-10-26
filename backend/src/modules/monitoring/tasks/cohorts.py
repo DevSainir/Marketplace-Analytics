@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import timedelta
 
-from redis import Redis as SyncRedis
+# Sync on purpose: the lock outlives the event loop `run_task` builds and tears down.
+from redis import Redis as SyncRedis  # noqa: TID251
 from redis.exceptions import LockError
 from sqlalchemy.ext.asyncio import AsyncSession
 

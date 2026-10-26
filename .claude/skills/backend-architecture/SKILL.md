@@ -87,10 +87,18 @@ often better — importing the *type* is not the violation, constructing a *clie
 Celery tasks that build a deliberate **sync** client are a documented exception; their reasoning
 is in the code.
 
-Every I/O path is async — DB sessions, HTTP clients, Celery task bodies. A Celery task must
-never call `asyncio.run` itself; it strands pooled asyncpg connections on a dead loop and kills
-the *next* scheduled task. Use the project's `run_task` helper (pinned by
-`tests/unit/core/test_task_loop_hygiene.py`).
+Every I/O path is async — DB sessions, HTTP clients, Celery task bodies. Ruff's TID251
+(`banned-api` in `backend/pyproject.toml`) fails `make lint` and the pre-commit hook on the
+blocking client of each service the backend talks to — SQLAlchemy's sync engine and `Session`,
+psycopg, `httpx.Client` and httpx's module-level calls, `requests`, `urllib.request`, sync
+`redis`, `boto3`, `smtplib` — and names the async one to use. Ruff's `ASYNC` rules do not cover
+this: they only look inside an `async def` and know nothing of SQLAlchemy or Redis, so a sync
+helper doing the I/O, called from a handler, passes them and stalls the event loop. The
+exceptions are named: Alembic's engine and the migration tests (per-file ignores), and the sync
+Redis lock in the two nightly tasks and the two scripts that share it (`# noqa: TID251` beside
+the reason). A Celery task must never call `asyncio.run` itself; it strands pooled asyncpg
+connections on a dead loop and kills the *next* scheduled task. Use the project's `run_task`
+helper (pinned by `tests/unit/core/test_task_loop_hygiene.py`).
 
 ## Auth and sessions
 

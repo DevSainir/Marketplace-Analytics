@@ -111,8 +111,44 @@ ignore = ["B008", "S101"]
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
+# Every I/O path is async (CLAUDE.md). TID251 is what checks it: the blocking
+# client of each service the backend talks to fails lint and names the async
+# one. The ASYNC rules above cannot carry this alone — they only look inside an
+# `async def` and know nothing of SQLAlchemy or Redis, so a sync helper doing
+# the I/O, called from a handler or a task, passed them and would have stalled
+# the event loop for its whole round trip. The exceptions are named: Alembic's
+# engine and the migration tests (per-file-ignores below), and the sync Redis
+# lock the nightly harvest and the scripts that share it take (`# noqa: TID251`
+# beside the reason, so the rest of those files stays checked).
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"sqlalchemy.create_engine".msg = "Blocking engine. Use AsyncSessionLocal from src.core.database."
+"sqlalchemy.engine_from_config".msg = "Blocking engine. Use AsyncSessionLocal from src.core.database."
+"sqlalchemy.orm.Session".msg = "Blocking session. Use AsyncSession."
+"sqlalchemy.orm.sessionmaker".msg = "Blocking session factory. Use async_sessionmaker."
+"psycopg".msg = "Blocking driver. Postgres is reached through SQLAlchemy's asyncpg engine."
+"psycopg2".msg = "Blocking driver. Postgres is reached through SQLAlchemy's asyncpg engine."
+"httpx.Client".msg = "Blocking HTTP client. Use httpx.AsyncClient."
+"httpx.request".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.stream".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.get".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.post".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.put".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.patch".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.delete".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.head".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"httpx.options".msg = "Blocking HTTP call. Use httpx.AsyncClient."
+"requests".msg = "Blocking HTTP client. Use httpx.AsyncClient."
+"urllib.request".msg = "Blocking HTTP client. Use httpx.AsyncClient."
+"redis.Redis".msg = "Blocking Redis client. Use get_redis() from src.core.redis."
+"redis.StrictRedis".msg = "Blocking Redis client. Use get_redis() from src.core.redis."
+"redis.from_url".msg = "Blocking Redis client. Use get_redis() from src.core.redis."
+"boto3".msg = "Blocking S3 client. Use aioboto3."
+"smtplib".msg = "Blocking SMTP client. Use aiosmtplib."
+
 [tool.ruff.lint.per-file-ignores]
 "alembic/*" = ["N999", "F401"]
+# TID251: Alembic runs migrations on a sync engine (psycopg); this is where it is built.
+"alembic/env.py" = ["TID251"]
 # RUF001: the only Cyrillic in the code is the labels WB itself serves in
 # Russian, which the code compares character for character, and those files
 # are exempted by name — the same list as `_WB_LABELS` in
@@ -137,7 +173,10 @@ ban-relative-imports = "all"
 #   PLR2004        — magic numbers in assertions ARE the expected values.
 #   RUF001-003     — WB's Russian labels in tests/support, and Greek letters
 #                    where a test proves that a non-Latin alphabet is handled.
-"tests/**" = ["S105", "S106", "S107", "S311", "SLF001", "PLR2004", "RUF001", "RUF002", "RUF003"]
+#   TID251         — the migration tests drive Alembic, so they build its sync engine.
+"tests/**" = [
+    "S105", "S106", "S107", "S311", "SLF001", "PLR2004", "RUF001", "RUF002", "RUF003", "TID251",
+]
 
 [tool.mypy]
 python_version = "3.12"

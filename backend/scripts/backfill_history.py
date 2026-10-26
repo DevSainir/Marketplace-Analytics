@@ -63,7 +63,8 @@ import argparse
 import asyncio
 from datetime import timedelta
 
-from redis import Redis as SyncRedis
+# Sync on purpose: the scheduler locks are held around `asyncio.run`, outside its loop.
+from redis import Redis as SyncRedis  # noqa: TID251
 
 from scripts.backfill.ad_currency import _backfill_ad_currency
 from scripts.backfill.advertising import _backfill_advertising

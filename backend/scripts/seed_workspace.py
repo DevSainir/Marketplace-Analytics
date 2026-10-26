@@ -57,7 +57,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from redis import Redis as SyncRedis
+# Sync on purpose: the scheduler locks are held around `asyncio.run`, outside its loop.
+from redis import Redis as SyncRedis  # noqa: TID251
 from sqlalchemy import select
 
 # The funnel-history walk is shared with the deep backfill rather than

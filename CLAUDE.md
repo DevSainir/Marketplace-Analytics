@@ -17,13 +17,15 @@ Four rules that cost more to discover from a failing test than to state here:
 * **Imports are absolute from `src.`** — relative imports are not used anywhere in the backend.
 * **Modules talk only through `contract.py`.** No module imports another module's internals;
   the frontend equivalent is each module's `index.js`.
-* **Every I/O path is async** — DB sessions, HTTP clients, Celery task bodies.
+* **Every I/O path is async** — DB sessions, HTTP clients, Celery task bodies. The few
+  blocking clients left (Alembic's engine, the nightly jobs' Redis lock) are named exceptions.
 * **500 lines is a hard ceiling per file**, 300 the point to start looking for a split.
   Split by responsibility, never `part1`/`part2`; a grown layer module becomes a package
   with the public API re-exported from `__init__.py`.
 
 All four are machine-enforced — `backend/tests/unit/core/test_module_boundaries.py`,
-ruff's TID252 for absolute imports (`backend/pyproject.toml`), `frontend/eslint.config.js`,
+ruff's TID252 for absolute imports and TID251 for blocking clients (`backend/pyproject.toml`),
+`backend/tests/unit/core/test_task_loop_hygiene.py` for task bodies, `frontend/eslint.config.js`,
 `frontend/tests/integration/architecture.spec.js`.
 
 **Trunk-based.** Work is committed and pushed straight to `main` in small commits — no feature
