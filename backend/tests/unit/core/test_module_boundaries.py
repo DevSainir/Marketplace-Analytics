@@ -21,10 +21,11 @@ fails its own case rather than the whole collection.
    ``finreports``) a maintained surface rather than dead code.
 4. **The 500-line hard limit** on any single source file.
 
-The first check only recognises the absolute ``src.modules.*`` spelling. That
-imports are absolute is ruff's rule TID252 (``backend/pyproject.toml``), so a
-relative import fails ``make lint`` and the pre-commit hook instead of slipping
-past this file.
+The first check reads every absolute spelling of an import, so
+``from src.modules import finreports`` counts as importing ``finreports``, but
+it does not resolve a relative one. That imports are absolute is ruff's rule
+TID252 (``backend/pyproject.toml``), so a relative import fails ``make lint``
+and the pre-commit hook instead of slipping past this file.
 """
 
 from __future__ import annotations
@@ -64,23 +65,53 @@ def _python_files(root: Path) -> list[Path]:
     return sorted(p for p in root.rglob("*.py") if "__pycache__" not in p.parts)
 
 
-def _imported_modules(path: Path) -> set[str]:
-    """Return the dotted ``src.modules.*`` targets a file imports.
+def _imported_names(source: str) -> set[str]:
+    """Return every dotted name under ``src.modules`` that a source text imports.
+
+    A ``from`` import is read as the full name of each thing it brings in:
+    ``from src.modules import finreports`` imports ``src.modules.finreports``,
+    and ``from src.modules.finreports import contract`` imports
+    ``src.modules.finreports.contract``. Whether the name is a submodule or an
+    attribute of the package does not change whose internals it reaches.
 
     Args:
-        path: The source file to parse.
+        source: The Python source to parse.
 
     Returns:
-        Every imported dotted name that starts with ``src.modules.``.
+        Every imported dotted name that is ``src.modules`` or lies under it.
     """
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    targets: set[str] = set()
-    for node in ast.walk(tree):
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.ImportFrom) and node.module:
-            targets.add(node.module)
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
         elif isinstance(node, ast.Import):
-            targets.update(alias.name for alias in node.names)
-    return {name for name in targets if name.startswith("src.modules.")}
+            names.update(alias.name for alias in node.names)
+    return {name for name in names if name == "src.modules" or name.startswith("src.modules.")}
+
+
+def _horizontal_imports(module: str, source: str) -> list[str]:
+    """Return the names under ``src.modules`` that ``module`` may not import.
+
+    A module may import its own internals and another module's ``contract``.
+    Anything else is horizontal: another module's ``services``, its bare
+    package, or ``src.modules`` itself, which hands over every module at once.
+
+    Args:
+        module: The business module the source belongs to.
+        source: The Python source to check.
+
+    Returns:
+        The offending dotted names, sorted.
+    """
+    offenders: list[str] = []
+    for name in sorted(_imported_names(source)):
+        parts = name.split(".")
+        if len(parts) > 2 and parts[2] == module:
+            continue  # a module may freely import its own internals
+        if len(parts) > 3 and parts[3] == "contract":
+            continue
+        offenders.append(name)
+    return offenders
 
 
 @pytest.mark.parametrize("module", _module_names())
@@ -94,18 +125,74 @@ def test_a_module_reaches_other_modules_only_through_their_contract(module: str)
     """
     offenders: list[str] = []
     for path in _python_files(_MODULES / module):
-        for target in _imported_modules(path):
-            other = target.split(".")[2]
-            if other == module:
-                continue  # a module may freely import its own internals
-            if target != f"src.modules.{other}.contract":
-                offenders.append(f"{path.relative_to(_BACKEND_ROOT)} -> {target}")
+        for name in _horizontal_imports(module, path.read_text(encoding="utf-8")):
+            offenders.append(f"{path.relative_to(_BACKEND_ROOT)} -> {name}")
 
     assert not offenders, (
         f"'{module}' reaches into another module's internals:\n  "
         + "\n  ".join(offenders)
         + "\nImport from 'src.modules.<name>.contract' instead."
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "reached"),
+    [
+        pytest.param(
+            "from src.modules import finreports",
+            "src.modules.finreports",
+            id="another-module-from-the-modules-package",
+        ),
+        pytest.param(
+            "from src.modules.finreports import services",
+            "src.modules.finreports.services",
+            id="internals-from-another-modules-package",
+        ),
+        pytest.param(
+            "import src.modules.finreports.services",
+            "src.modules.finreports.services",
+            id="internals-by-dotted-import",
+        ),
+        pytest.param("import src.modules", "src.modules", id="the-modules-package"),
+        pytest.param("from src import modules", "src.modules", id="the-modules-package-from-src"),
+    ],
+)
+def test_the_boundary_check_catches_every_spelling_of_a_horizontal_import(
+    source: str, reached: str
+) -> None:
+    """Guards the guard: each spelling that reaches past a contract is reported.
+
+    Until 2026-10-26 the check kept only names starting with ``src.modules.``,
+    so ``from src.modules import finreports``, ``import src.modules`` and
+    ``from src import modules`` crossed a module boundary unseen.
+    """
+    offenders = _horizontal_imports("guide", source)
+
+    assert offenders == [reached]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            "from src.modules.finreports.contract import X", id="a-name-from-the-contract"
+        ),
+        pytest.param("from src.modules.finreports import contract", id="the-contract-module"),
+        pytest.param("import src.modules.finreports.contract", id="the-contract-by-dotted-import"),
+        pytest.param("from src.modules import guide", id="its-own-package"),
+        pytest.param("from src.modules.guide.services import X", id="its-own-internals"),
+    ],
+)
+def test_the_boundary_check_lets_contracts_and_own_internals_through(source: str) -> None:
+    """Guards the guard: the legal ways in are not reported.
+
+    ``from src.modules.finreports import contract`` names the contract itself,
+    yet the old check reported it, because it compared only the module part of
+    a ``from`` import.
+    """
+    offenders = _horizontal_imports("guide", source)
+
+    assert offenders == []
 
 
 @pytest.mark.parametrize("module", _module_names())

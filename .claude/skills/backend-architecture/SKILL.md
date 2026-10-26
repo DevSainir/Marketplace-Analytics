@@ -43,7 +43,10 @@ pre-commit hook on one. It matters beyond style: the boundary test below only re
 `src.modules.*` spelling, so `from ..other.repos import X` would cross a module unseen.
 
 `backend/tests/unit/core/test_module_boundaries.py` fails the build on a horizontal import, a
-missing or rotten contract, and the line limit.
+missing or rotten contract, and the line limit. It reads a `from` import as the full name of
+what it brings in, so `from src.modules import b` counts as importing `b`'s package and
+`import src.modules` as importing every module at once; only `src.modules.b.contract` (and a
+module's own internals) gets through.
 
 ## Database
 
